@@ -12,7 +12,19 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.ITestOutputHelper output):LumOnShaderFunctionalTestBase(fixture)
 {
+    private bool recordTimings;
+
     #region Public API
+    /// <summary>Records publication timings separately while retaining the exact publication assertions.</summary>
+    [Fact]
+    [Trait("Purpose", "Diagnostic")]
+    public void RecordPublicationTimings()
+    {
+        recordTimings=true;
+        try { DrawableSnapshotIsIsolatedAndPublishesOnlyChangedBlocks(); }
+        finally { recordTimings=false; }
+    }
+
     /// <summary>Unpublished writes cannot affect the drawable snapshot, and publication copies only flagged channels/blocks.</summary>
     [Fact]
     public void DrawableSnapshotIsIsolatedAndPublishesOnlyChangedBlocks()
@@ -104,8 +116,8 @@ public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.
         long dirtyVoxels=dirty.Sum(r=>(long)Math.Min(8,domain.Size-r%domain.BlocksX*8)*
             Math.Min(4,66-(r/domain.BlocksX)%domain.BlocksY*4)*
             Math.Min(8,domain.Size-r/(domain.BlocksX*domain.BlocksY)*8));
-        using var timer=GpuTimerQuery.Create("Tests.Cloud.Publication");
-        output.WriteLine($"GPU: {fixture.GLRenderer}. Maximum {domain.Size}x66x{domain.Size}; game remains running, contention uncontrolled. Owner.Publish includes metadata and image work; allocation, uploads, domain changes and test waits outside timing. GPU brackets include submission gaps; no live FPS claim.");
+        using var timer=recordTimings?GpuTimerQuery.Create("Tests.Cloud.Publication"):null;
+        if(recordTimings)output.WriteLine($"GPU: {fixture.GLRenderer}. Maximum {domain.Size}x66x{domain.Size}; game remains running, contention uncontrolled. Owner.Publish includes metadata and image work; allocation, uploads, domain changes and test waits outside timing. GPU brackets include submission gaps; no live FPS claim.");
         foreach(string scenario in new[]{"32 dirty blocks/all channels","metadata only","required full domain change"})
         {
             var gpu=new List<double>();var cpu=new List<double>();
@@ -116,12 +128,16 @@ public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.
                 for(int r=0;r<domain.Blocks;r++)records[r*16+1]=(uint)(sample+1);
                 fields.Regions.UploadData(records);
                 fields.Domain=scenario=="required full domain change"?(sample%2==0?shifted:domain):domain;
-                Complete();timer.Begin();long started=System.Diagnostics.Stopwatch.GetTimestamp();
+                Complete();if(recordTimings)timer!.Begin();long started=recordTimings?System.Diagnostics.Stopwatch.GetTimestamp():0;
                 owner.Publish(fields,0,domain.Bytes);
-                double elapsed=System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;timer.End();
-                double milliseconds=timer.GetResultNanoseconds()/1e6;
-                if(sample>0){gpu.Add(milliseconds);cpu.Add(elapsed);}
+                if(recordTimings)
+                {
+                    double elapsed=System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;timer!.End();
+                    double milliseconds=timer.GetResultNanoseconds()/1e6;
+                    if(sample>0){gpu.Add(milliseconds);cpu.Add(elapsed);}
+                }
             }
+            if(!recordTimings)continue;
             long bytes=scenario=="metadata only"?0:28L*(scenario=="required full domain change"?domain.Voxels:dirtyVoxels);
             output.WriteLine($"Publication {scenario}: GPU samples={string.Join(", ",gpu.Select(x=>x.ToString("F4")))} ms, median={gpu.Order().ElementAt(1):F4} ms; CPU samples={string.Join(", ",cpu.Select(x=>x.ToString("F4")))} ms, median={cpu.Order().ElementAt(1):F4} ms; logical channel read+write={bytes} bytes, metadata input/output={domain.Blocks*136L} bytes; one warmup plus three samples.");
             uint[] arguments=Arguments(owner);output.WriteLine($"Publication arguments XYZ/count={string.Join(",",arguments)}, full channels={owner.FullChannels}.");

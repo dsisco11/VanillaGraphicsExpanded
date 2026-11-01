@@ -162,7 +162,7 @@ native-width representation; narrower existing accessors must reject values they
 | Texture / `GpuTextureMetadata` | Target; per-level/per-face dimensions, format, samples and allocated state; immutable storage/level count; base/max levels. Optional buffer association (ID/format/offset/range/whole-buffer mode), texture-view range (base/count levels/layers) and renderbuffer association. `GpuTexture` and all subclasses, `GpuBufferView`/`GpuBufferTexture` and `GpuTextureView` use this struct; their native descriptor fields become accessors. | FilterMode, labels, streaming and uploads remain local. The managed view source/reference/ID certificate and captured source storage revision remain dependency state: arbitrary external views do not expose a queryable source name. `StorageGeneration` reads the manager-owned storage revision; source validation asks the manager to check its original source registration dependency. | T1–T4, I1, L1 |
 | Buffer / `GpuBufferMetadata` | Byte capacity, semantic `BufferUsage`, immutable-storage status and `StorageAccess` flags; `sizeBytes/usage` are accessors in `GpuBufferObject`, inherited by VBO/EBO/UBO/SSBO/atomic/indirect/pixel pack/unpack wrappers. | Intended semantic buffer role, requested allocation usage, EBO index type/count, queued uploads, mapping scopes, growth policy and labels remain local. No content or mapping-ownership mirror. | B1, I1, L1 |
 | Renderbuffer / `GpuRenderbufferMetadata` | Width/height/format and actual samples; `storage/width/height/samples` become accessors. | Ownership and labels remain local. | R1, L1 |
-| Framebuffer / `GpuFramebufferMetadata` | Immutable attachment descriptors keyed by slot: kind/ID, mip, layer/face, layered state, multiview base/count and proven ordinary/multiview mode (unknown when native queries cannot establish it); attachmentless default dimensions/layers/samples where applicable. Image facts resolve through backing entries. | Retained image wrappers/ownership, frozen locks, dirty/publication state, viewport fallback extent and surface metadata stay local. The wrapper dictionary reconciles from descriptors rather than independently defining native facts. Selected range/replay policy remains on the image relationship. Pass extent/format are derived; routing stays in existing OpenGlStateCache routing cache. | F1, backing T/R changes, L1 |
+| Framebuffer / `GpuFramebufferMetadata` | Immutable attachment descriptors keyed by slot: kind/ID, mip, layer/face, layered state, multiview base/count and proven ordinary/multiview mode (unknown when native queries cannot establish it); attachmentless default dimensions/layers/samples where applicable. Image facts resolve through backing entries. | Retained image wrappers/ownership, owner completion, dirty/publication state, viewport fallback extent and surface metadata stay local. The wrapper dictionary reconciles from descriptors rather than independently defining native facts. Selected range/replay policy remains on the image relationship. Pass extent/format are derived; routing stays in existing OpenGlStateCache routing cache. | F1, backing T/R changes, L1 |
 | VertexArray / `GpuVertexArrayMetadata` | Empty struct: `GpuVao` has no retained native layout fields. The backend configuration epoch invalidates represented helper assumptions; equal empty snapshots retain canonical metadata revisions. No full attribute mirror. | Authored RHIGeometryInputs retain stream declarations and original receipts. Changed original identity/revision expires the receipt; backend private realization consumes supplied layout without querying arbitrary external VAO configuration. Vertex contents stay external. | V1, L1 |
 | Program / `GpuProgramMetadata` | Native executable/interface availability and immutable native interface facts used by existing preparation, including queried names, `ProgramResourceKind` categories, semantic `ShaderValueType` values, nullable typed location/extent/block fields, vertex inputs and fragment outputs, `ShaderStageMask` ownership, atomic-counter buffer descriptors and sampler/image unit assignments. Native property bags and token identities remain beneath the backend. Known managed geometry/tessellation stage execution primitives are published with the same completed snapshot; unknown external stage facts remain absent. `GpuProgramObject` carries this type; RHI shaders and shader asset policies compose that native owner. Reflected facts no longer have independent authoritative mutable copies in `bindingCache/programLayout`. | Existing `GpuProgramLayout` remains a derived prepared interface combining native facts with authored contract/policy, stamped with entry revision. Authored names are separate from native names. Settings, callbacks and context stay local. Owner installation revision remains local across replacement objects; native relink revision is entry-owned. | P1, L1 |
 | Shader / `GpuShaderMetadata` | Fixed semantic `ShaderStage`; the wrapper exposes its published stage without conversion. | Selected stage code and authored contracts belong to frozen RHI descriptions and asset policy; native stage wrappers retain identity/lifetime and fixed-stage metadata. | acquisition, L1 |
@@ -344,10 +344,11 @@ Entry MetadataRevision advances once for meaningful metadata, storage, executabl
 Backend configuration epochs remain separate for empty-schema VAO/feedback configuration. StorageRevision
 advances for storage replacement effects, including equal-sized reallocation where existing source
 storage dependencies require it. Neither is an ID generation. Existing owner notification paths consume
-manager publication once without duplicate increments. Extend existing ShaderInputValidation.InputKey
-with wrapper identity and manager-owned revisions alongside current facts; preserve complete-input validation and the existing
-cache. Program preparation rebuilds derived layouts for the current native revision. Attachment projections
-and framebuffer observers invalidate pass metadata without bypassing frozen locks. Native binding
+manager publication once without duplicate increments. Retained resource-binding structures prepare
+compatibility initially and after relevant committed changes; weak subscriptions withdraw affected
+preparation without polling metadata on every use. Program preparation rebuilds derived layouts for
+the current executable generation. Attachment projections and framebuffer callbacks withdraw affected
+pass preparation; owners preserve attachment storage through pass end. Native binding
 knowledge, producer content readiness and frame qualification remain independent.
 
 ### Retirement, ownership and retention
@@ -470,9 +471,12 @@ retains authored streams and original configuration receipts without acquiring n
 Freshness is selected-array configuration/revision, not a context-wide duplicate registry or full layout
 mirror. Resource wrappers and the canonical empty VAO schema remain unchanged.
 
-`ShaderPreparedSubmission` checks lifetime each use; `ShaderInputValidation` keys contain wrapper,
-numeric ID, target/format/dimensions/mips or view/range/capacity and manager-owned metadata/storage
-revisions. Availability is checked before validation reuse. Typed sampled-slot publication uses manager-certified resources and may suppress known-equal binds.
+`RHIResourceBindings` retains immutable selections for an exact executable generation. Its resource
+structure establishes target/format, subresource and buffer compatibility initially and after relevant
+change delivery. The backend retains derived native selectors for that structure; execution publishes
+active slots through the existing state cache without repeated registration or metadata resolution.
+Owners preserve resource lifetimes through execution. Typed sampled-slot declarations use the same
+change-driven preparation and may suppress known-equal native assignments.
 Explicit engine membership/assignment remains a separate integration boundary.
 
 The backend deletion route forwards observed retirement to `OpenGlStateCache.ResourceDeletion`, invalidating image slots and resetting matching

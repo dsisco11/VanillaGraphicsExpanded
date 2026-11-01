@@ -87,16 +87,10 @@ public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture,
 
                     TestFramework.RenderQuadTo(program, target, (1f, 0f, 0f, 0f));
                 }
-                float[] pixels = target[0].ReadPixels();
+                ImageAssertions.Inspect(target[0],.499f,.501f,channelMask:7).AssertFiniteRange();
+                ImageAssertions.Inspect(target[0],.999f,1f,channelMask:8).AssertFiniteRange();
                 double firstUse = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
 
-                for (int pixel = 0; pixel < 16; pixel++)
-                {
-                    Assert.InRange(pixels[(pixel << 2)], .499f, .501f);
-                    Assert.InRange(pixels[(pixel << 2) + 1], .499f, .501f);
-                    Assert.InRange(pixels[(pixel << 2) + 2], .499f, .501f);
-                    Assert.InRange(pixels[(pixel << 2) + 3], .999f, 1f);
-                }
                 if (reportTiming) output.WriteLine($"Generation={generation}, name={name}, selection={selection:F3} ms, first-use/readback={firstUse:F3} ms, assetreads={reads}, cachehit={DriverProgramCache.LastLoadWasHit}.");
             }
             Assert.Equal(expectedPrograms.Order(), assets.PreparedPrograms.Keys.Order());

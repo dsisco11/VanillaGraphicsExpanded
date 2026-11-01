@@ -62,17 +62,19 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         program.PreOverlaySourceEnabled = restoredOverlay;
         program.PreOverlayColor = color; program.PreOverlayDepth = restoredDepth;
         TestFramework.RenderQuadTo(program, output);
-        float[] publishedColor = output[1].ReadPixels(), publishedDepth = output[2].ReadPixels();
+        var expectedDepth=new float[count];var expectedColor=new float[count*4];
         for (int pixel = 0; pixel < count; pixel++)
         {
             // Ordinary publication generates alpha from physical coverage. The
             // restored pair must additionally reject its authored alpha/RGB defects.
             bool valid = pixel is 0 or 1 || (!restoredOverlay && pixel is 5 or 6 or 9);
-            Assert.Equal(valid ? .75f : 1f, publishedDepth[pixel]);
-            Assert.Equal(valid ? 1f : 0f, publishedColor[pixel * 4 + 3]);
-            Assert.All(publishedColor.AsSpan(pixel * 4, 4).ToArray(), value => Assert.True(float.IsFinite(value)));
-            Assert.Equal(valid ? red[pixel] : 0, publishedColor[pixel * 4]);
+            expectedDepth[pixel]=valid?.75f:1f;
+            expectedColor[pixel*4+3]=valid?1f:0f;
+            expectedColor[pixel*4]=valid?red[pixel]:0;
         }
+        ImageAssertions.Compare(output[2],expectedDepth).AssertEqual();
+        ImageAssertions.Compare(output[1],expectedColor,channelMask:9).AssertEqual();
+        ImageAssertions.Inspect(output[1]).AssertFiniteRange();
     }
 
     /// <summary>Radiance remains linear through composition, physical aerial transport, enclosure gating and decoded engine fog.</summary>

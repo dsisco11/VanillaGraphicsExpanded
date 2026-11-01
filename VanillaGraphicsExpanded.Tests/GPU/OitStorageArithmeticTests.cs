@@ -161,14 +161,15 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "inGlow"), 2);
         using var output = CreateMRTRenderTarget(width, 1, TextureFormat.Rgba16f, TextureFormat.Rgba32f);
         framework.RenderQuadTo(program.ProgramId, output, (.125f, .25f, .5f, .75f));
-        float[] actual = output[0].ReadPixels();
+        var expectedPixels=new float[width*4];
         for (int column = 0; column < width; column++)
             for (int channel = 0; channel < 4; channel++)
             {
                 float expected = column >= 4 ? new[] { .125f, .25f, .5f, .75f }[channel]
                     : channel == 3 ? 1 : column == 0 ? 0 : 65504;
-                Assert.Equal(expected, actual[column * 4 + channel]);
+                expectedPixels[column*4+channel]=expected;
             }
+        ImageAssertions.Compare(output[0],expectedPixels).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     /// <summary>The installed resolve uses a strict cutoff and preserves admitted large numerator/weight ratios.</summary>
@@ -191,18 +192,19 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         using var framework = new ShaderTestFramework();
         using var output = CreateRenderTarget(4, 1, TextureFormat.Rgba32f);
         framework.RenderQuadTo(program.ProgramId, output);
-        float[] pixels = output[0].ReadPixels();
+        var lower=new double[16];var upper=new double[16];
         for (int column = 0; column < 4; column++)
         {
             double expected = column < 2 ? 0 : column == 2 ? 6400.0 / .0001f : (double)1e30f / .0001f;
             for (int channel = 0; channel < 3; channel++)
             {
-                float actual = pixels[column * 4 + channel];
-                Assert.True(float.IsFinite(actual));
-                Assert.InRange(Math.Abs(actual - expected), 0, Math.Max(1, expected * 2e-6));
+                double tolerance=Math.Max(1,expected*2e-6);
+                lower[column*4+channel]=expected-tolerance;
+                upper[column*4+channel]=expected+tolerance;
             }
-            Assert.Equal(.375f, pixels[column * 4 + 3]);
+            lower[column*4+3]=upper[column*4+3]=.375f;
         }
+        ImageAssertions.CompareIntervals(output[0],lower,upper).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 

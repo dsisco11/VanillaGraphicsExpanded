@@ -29,7 +29,9 @@ public sealed class WaterTransportTests(HeadlessGLFixture fixture) : LumOnShader
         program.AerialRadiance = aerial; program.AerialAttenuation = attenuation;
         using var target = CreateMRTRenderTarget(4, 13, TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
-        float[] pixels = target[0].ReadPixels();
+        // Independently author the original double intervals; only bounded comparison results return to the CPU.
+        var lower=Enumerable.Range(0,2).Select(_=>Enumerable.Repeat(double.NegativeInfinity,4*13*4).ToArray()).ToArray();
+        var upper=Enumerable.Range(0,2).Select(_=>Enumerable.Repeat(double.PositiveInfinity,4*13*4).ToArray()).ToArray();
         double[] weights = [0, .25, .5, 1], fallback = [2,4,8], receiver = [16,8,4];
         double[] background = [8,4,2], extinction = [.3,.5,.7], scattering = [.2,.3,.4];
         for (int x = 0; x < 4; x++)
@@ -38,21 +40,20 @@ public sealed class WaterTransportTests(HeadlessGLFixture fixture) : LumOnShader
             for (int channel = 0; channel < 3; channel++)
             {
                 double expected = (fallback[channel] * .25 * (1 - weights[x]) + receiver[channel] * weights[x]) / alpha;
-                Close(expected, pixels[x * 4 + channel]);
+                Expect(expected,0,x * 4 + channel);
                 double transmission = Math.Exp(-extinction[channel] * weights[x] * 10);
-                Close(background[channel] * transmission + (channel + 3) * scattering[channel] / extinction[channel]
-                    * (1 - transmission), pixels[(4 + x) * 4 + channel]);
+                Expect(background[channel] * transmission + (channel + 3) * scattering[channel] / extinction[channel]
+                    * (1 - transmission),0,(4 + x) * 4 + channel);
             }
-            Close(alpha, pixels[x * 4 + 3]);
+            Expect(alpha,0,x * 4 + 3);
             // Entry follows the reverse refracted ray; exit follows the camera-side water ray.
             float refractedX = .6f / 1.333f;
             Vector3 outgoing = x % 2 == 0 ? new(-refractedX, 0, MathF.Sqrt(1 - refractedX * refractedX)) : new(-.6f, 0, .8f);
             if (x >= 2) outgoing = new(outgoing.Z, outgoing.Y, -outgoing.X);
-            for (int channel = 0; channel < 3; channel++) Close(outgoing[channel], pixels[(8 + x) * 4 + channel]);
+            for (int channel = 0; channel < 3; channel++) Expect(outgoing[channel],0,(8 + x) * 4 + channel);
             double cosine = Vector3.Dot(-Vector3.Normalize(new(.2f,.8f,-.4f)), outgoing);
-            Close((1 - .7 * .7) / (4 * Math.PI * Math.Pow(1 + .7 * .7 - 2 * .7 * cosine, 1.5)), pixels[(8 + x) * 4 + 3]);
+            Expect((1 - .7 * .7) / (4 * Math.PI * Math.Pow(1 + .7 * .7 - 2 * .7 * cosine, 1.5)),0,(8 + x) * 4 + 3);
         }
-        float[] separatelyTransported = target[1].ReadPixels();
         double[] coverages = [.001,.25,1], visibility = [0,.4,1], loss = [.2,.4,.6];
         for (int row = 3; row < 12; row++)
         for (int x = 0; x < 4; x++)
@@ -66,26 +67,31 @@ public sealed class WaterTransportTests(HeadlessGLFixture fixture) : LumOnShader
             {
                 double mixture = (fallback[channel] * coverage * (1 - weights[x]) + receiver[channel] * weights[x]) / alpha;
                 double expected = mixture * (1 - loss[channel] * sky) + (channel + 1) * sky;
-                Close(expected,pixels[offset + channel]);
-                Close(expected,separatelyTransported[offset + channel]);
+                Expect(expected,0,offset + channel);
+                Expect(expected,1,offset + channel);
             }
-            Close(alpha,pixels[offset + 3]); Close(alpha,separatelyTransported[offset + 3]);
+            Expect(alpha,0,offset + 3); Expect(alpha,1,offset + 3);
         }
         for (int x = 0; x < 4; x++)
         for (int channel = 0; channel < 3; channel++)
         {
             double air = background[channel] * (1 - loss[channel] * weights[x]) + (channel + 1) * weights[x];
-            Close(air * Math.Exp(-.1 * (channel + 1) * 2),pixels[(12 * 4 + x) * 4 + channel]);
+            Expect(air * Math.Exp(-.1 * (channel + 1) * 2),0,(12 * 4 + x) * 4 + channel);
         }
-    }
-    #endregion
+        foreach(var selected in new (int Target,int Row,int Rows,uint Mask)[]{(0,0,1,15u),(0,1,1,7u),(0,2,10,15u),(0,12,1,7u),(1,3,9,15u)})
+        {
+            int first=selected.Row*16,last=first+selected.Rows*16;
+            ImageAssertions.CompareIntervals(target[selected.Target],lower[selected.Target][first..last],upper[selected.Target][first..last],
+                new(new(0,0),0,selected.Row,0,4,selected.Rows,1),selected.Mask).AssertEqual();
+        }
 
-    #region Private
-    /// <summary>Rejects nonfinite results and bounds float error relative to radiance magnitude.</summary>
-    private static void Close(double expected, float actual)
-    {
-        Assert.True(float.IsFinite(actual));
-        Assert.InRange((double)actual, expected - 2e-5 * Math.Max(1, Math.Abs(expected)), expected + 2e-5 * Math.Max(1, Math.Abs(expected)));
+        /// <summary>Retains the original per-component double tolerance without narrowing expected values.</summary>
+        void Expect(double expected,int attachment,int component)
+        {
+            double tolerance=2e-5*Math.Max(1,Math.Abs(expected));
+            lower[attachment][component]=expected-tolerance;
+            upper[attachment][component]=expected+tolerance;
+        }
     }
     #endregion
 }

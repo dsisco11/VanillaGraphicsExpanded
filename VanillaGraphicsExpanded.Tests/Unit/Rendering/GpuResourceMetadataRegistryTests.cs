@@ -8,6 +8,7 @@ using VanillaGraphicsExpanded.Rendering;
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 
 /// <summary>Verifies canonical metadata identity, publication and retention without requiring native commands.</summary>
+[Collection("CPU state")] // Resource construction captures the process-wide lifecycle service.
 public sealed class GpuResourceMetadataRegistryTests
 {
     #region Public API

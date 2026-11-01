@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -15,10 +16,25 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class SharedGeometryCostMeasurementsTests : RenderTestBase
 {
     private readonly ITestOutputHelper output;
+    private bool recordTimings;
     /// <summary>Uses the standard GL context and emits machine-readable measurements into test receipts.</summary>
     public SharedGeometryCostMeasurementsTests(HeadlessGLFixture fixture, ITestOutputHelper output) : base(fixture) => this.output = output;
 
     #region Measurement scenarios
+    /// <summary>Records cost telemetry separately from startup, movement and edit correctness.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(128)]
+    [InlineData(192)]
+    [InlineData(256)]
+    [Trait("Purpose", "Diagnostic")]
+    public void MeasureStartupMovementAndEdit(int surfaceSize)
+    {
+        recordTimings=true;
+        try { StartupMovementAndEdit(surfaceSize); }
+        finally { recordTimings=false; }
+    }
+
     /// <summary>Settles startup, a sixteen-block move and one source-chunk edit under production publication limits.</summary>
     [Theory]
     [InlineData(0)]
@@ -77,11 +93,14 @@ public sealed class SharedGeometryCostMeasurementsTests : RenderTestBase
                     item.Completion.SetResult(new(item.Key, item.Version, cells));
                     pending.Remove(item);
                 }
-                long allocated = GC.GetAllocatedBytesForCurrentThread(), start = Stopwatch.GetTimestamp();
+                long allocated = recordTimings?GC.GetAllocatedBytesForCurrentThread():0, start = recordTimings?Stopwatch.GetTimestamp():0;
                 long frameReads = cache.SourceReads, frameUploads = scene.UploadedBytes;
                 partition.Prepare(plan); coordinator.Pump(++tick); partition.Service(plan);
-                frameMs += Stopwatch.GetElapsedTime(start).TotalMilliseconds;
-                frameAllocated += GC.GetAllocatedBytesForCurrentThread() - allocated;
+                if(recordTimings)
+                {
+                    frameMs += Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+                    frameAllocated += GC.GetAllocatedBytesForCurrentThread() - allocated;
+                }
                 peakSnapshots = Math.Max(peakSnapshots, cache.SnapshotBytes);
                 peakStaging = Math.Max(peakStaging, partition.StagedPayloadBytes);
                 Assert.InRange(cache.SourceReads - frameReads, 0, 2);
@@ -91,14 +110,24 @@ public sealed class SharedGeometryCostMeasurementsTests : RenderTestBase
                 frames++;
                 Assert.True(frames < 2000, "Finite supported demand failed to settle.");
             } while (coordinator.Cells(partition.Instance).Any(cell => !cell.Ready));
-            long finish = Stopwatch.GetTimestamp(); GL.Finish(); finishMs = Stopwatch.GetElapsedTime(finish).TotalMilliseconds;
+            finishMs=0;
+            if(recordTimings)
+            {
+                long finish = Stopwatch.GetTimestamp(); GL.Finish(); finishMs = Stopwatch.GetElapsedTime(finish).TotalMilliseconds;
+            }
+            else
+            {
+                // Retain GPU completion without draining unrelated work for a timing report.
+                using var fence=RHICommandContext.Current.InsertFence();
+                Assert.Equal(CompletionStatus.Ready,RHICommandContext.Current.WaitCpu(fence,TimeSpan.FromSeconds(5)));
+            }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             var cellsReady = coordinator.Cells(partition.Instance).ToArray();
             Assert.Equal(expectedCells.Count, cellsReady.Length);
             Assert.Equal(expectedCaptures, cache.SourceReads - reads);
             Assert.Equal(captures.Count, captures.Distinct().Count());
             Assert.All(cellsReady, cell => Assert.True(cell.Ready));
-            output.WriteLine("COST " + JsonSerializer.Serialize(new
+            if(recordTimings)output.WriteLine("COST " + JsonSerializer.Serialize(new
             {
                 backend = "shared", surfaceSize, scenario, sourceCaptures = cache.SourceReads - reads,
                 duplicateSourceRevisions = captures.Count - captures.Distinct().Count(), actualUploadBytes = scene.UploadedBytes - uploaded,

@@ -4,6 +4,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -21,24 +22,28 @@ public sealed class WaterBoundaryTests(HeadlessGLFixture fixture) : LumOnShaderF
         var program = Programs.Create<WaterBoundaryShaderProgram>();
         using var target = CreateRenderTarget(5, 3, TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
-        var values = target[0].ReadPixels();
+        var expectedLengths=new double[16];
+        var expectedScattering=new double[16];
         double[] lengths = [2, 3, 5, 0];
         double[] extinction = [.3, .5, .7];
         double[] sources = [.2, .3, .4];
         for (int column = 0; column < 4; column++)
         {
-            Assert.InRange(values[column * 4 + 3], lengths[column] - 1e-5, lengths[column] + 1e-5);
+            expectedLengths[column*4+3]=lengths[column];
             for (int channel = 0; channel < 3; channel++)
             {
                 double transmission = Math.Exp(-extinction[channel] * lengths[column]);
-                Assert.InRange(values[column * 4 + channel], transmission - 1e-5, transmission + 1e-5);
-                Assert.Equal(1, values[(5 + column) * 4 + channel]);
+                expectedLengths[column*4+channel]=transmission;
                 double scattering = sources[channel] / extinction[channel] * (1 - transmission);
-                Assert.InRange(values[(10 + column) * 4 + channel], scattering - 1e-5, scattering + 1e-5);
+                expectedScattering[column*4+channel]=scattering;
             }
         }
-        Assert.True(values[0] > values[1] && values[1] > values[2]);
-        for (int row = 0; row < 3; row++) Assert.Equal(-1, values[(row * 5 + 4) * 4 + 3]);
+        ImageAssertions.CompareDouble(target[0],expectedLengths,1e-5,new(new(0,0),0,0,0,4,1,1)).AssertEqual();
+        ImageAssertions.CompareConstant(target[0],1,new(new(0,0),0,1,0,4,1,1),7).AssertEqual();
+        ImageAssertions.CompareDouble(target[0],expectedScattering,1e-5,new(new(0,0),0,2,0,4,1,1),7).AssertEqual();
+        var first=GpuLocalRead.Tuple(target[0],0,0);
+        Assert.True(first[0]>first[1]&&first[1]>first[2]);
+        ImageAssertions.CompareConstant(target[0],-1,new(new(0,0),4,0,0,1,3,1),8).AssertEqual();
 
     }
     #endregion

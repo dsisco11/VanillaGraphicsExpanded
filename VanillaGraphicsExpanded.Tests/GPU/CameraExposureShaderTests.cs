@@ -108,10 +108,8 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         float[] histogram = rig.ReadHistogram();
         AssertClose(384, histogram.Where((_, i) => i % 2 == 0).Sum(), .001f);
         AssertClose(384 * MathF.Log2(.18f), histogram.Where((_, i) => i % 2 == 1).Sum(), .06f);
-        float[] unchanged = source.ReadPixels();
-        for (int i = 0; i < pixels.Length; i++)
-            if (float.IsNaN(pixels[i])) Assert.True(float.IsNaN(unchanged[i]));
-            else Assert.Equal(pixels[i], unchanged[i]);
+        // The exact checker retains numeric equality and the authored NaN expectations over all 128x72 texels.
+        ImageAssertions.Compare(source,pixels).AssertEqual();
         AssertClose(0, rig.Adapt(Settings(), 3, 0, true));
         using var empty=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[0f,0f,0f,1f]);
         rig.Meter(empty,Settings());

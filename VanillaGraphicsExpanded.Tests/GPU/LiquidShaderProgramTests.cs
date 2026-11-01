@@ -20,7 +20,25 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+    private bool recordTimings;
+
     #region Public API
+    /// <summary>Explicitly measures repeated capture at each authored array load.</summary>
+    [Theory]
+    [InlineData(0, 0, 0)]
+    [InlineData(3, 0, 0)]
+    [InlineData(0, 4, 1)]
+    [InlineData(3, 4, 1)]
+    [InlineData(0, 100, 3)]
+    [InlineData(3, 100, 3)]
+    [Trait("Purpose", "Diagnostic")]
+    public void MeasureFrameCaptureAcrossArrayLoads(int mode,int lights,int spheres)
+    {
+        recordTimings=true;
+        try { FrameCaptureRetainsCommonInputsAcrossArrayLoads(mode,lights,spheres); }
+        finally { recordTimings=false; }
+    }
+
     /// <summary>Checks explicit surface/volume binding captures retain unchanged uniform storage across repeated publication.</summary>
     [Fact]
     public void RepeatedLiquidPublicationReusesUnchangedCopies()
@@ -101,9 +119,10 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         program.LightsInputs = sharedLights;
         program.FrameInputs = sharedCamera;
         var tile = new Vec2f(.125f, .125f);
-        for (int frame = 0; frame < 8192; frame++) program.CaptureFrameInputs(api, tile);
+        // Two captures prove retention; warmed throughput sampling belongs to the explicit diagnostic.
+        for (int frame = 0; frame < (recordTimings?8192:2); frame++) program.CaptureFrameInputs(api, tile);
         const int iterations = 2048;
-        for (int sample = 0; sample < 5; sample++)
+        for (int sample = 0; sample < (recordTimings?5:0); sample++)
         {
             long before = GC.GetAllocatedBytesForCurrentThread(), start = System.Diagnostics.Stopwatch.GetTimestamp();
             for (int frame = 0; frame < iterations; frame++) program.CaptureFrameInputs(api, tile);

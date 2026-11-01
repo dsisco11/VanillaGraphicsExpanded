@@ -9,6 +9,7 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -106,29 +107,22 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
 
 
         using var capture = string.IsNullOrWhiteSpace(capturePath) ? null : new FramebufferBmpCapture(size, size, new VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem(DiagnosticReports.Publish));
-        float[] diagonalA = Draw([0, 1, 2, 0, 2, 3], "A");
-        float[] diagonalB = Draw([0, 1, 3, 1, 2, 3], "B");
-        float largestDifference = 0;
-        int compared = 0;
-        for (int y = size / 4; y < 3 * size / 4; y++)
-            for (int x = size / 4; x < 3 * size / 4; x++)
-            {
-                int pixel = (y * size + x) * 4;
-                if (diagonalA[pixel + 3] <= 0 || diagonalB[pixel + 3] <= 0) continue;
-                float a = diagonalA[pixel] / diagonalA[pixel + 3];
-                float b = diagonalB[pixel] / diagonalB[pixel + 3];
-                largestDifference = MathF.Max(largestDifference, MathF.Abs(a - b));
-                compared++;
-            }
+        using var diagonalA = Draw([0, 1, 2, 0, 2, 3], "A");
+        using var diagonalB = Draw([0, 1, 3, 1, 2, 3], "B");
+        const string shared="bool eligible=all(greaterThanEqual(coordinate.xy,ivec2(64)))&&all(lessThan(coordinate.xy,ivec2(192)))&&!(a.a<=0||b.a<=0);";
+        var common=ImageAssertions.Predicate(diagonalA.Texture,shared+"return bvec2(!eligible||!isnan(abs(a.r/a.a-b.r/b.a)),eligible);",diagonalB.Texture);
+        common.AssertEqual();
+        var compared=common.MatchingTexels;
         Assert.True(compared > 100, $"Expected a shared water interior, compared {compared} pixels.");
-        TestContext.Current.TestOutputHelper!.WriteLine($"Largest interior highlight difference: {largestDifference}");
+        var different=ImageAssertions.Predicate(diagonalA.Texture,shared+"return bvec2(true,eligible&&abs(a.r/a.a-b.r/b.a)>.01);",diagonalB.Texture).MatchingTexels;
+        TestContext.Current.TestOutputHelper!.WriteLine($"Interior highlight-change witnesses: {different} of {compared} shared pixels.");
         // The two diagonals form different surfaces when the quad is nonplanar.
         // Their difference is diagnostic only; it cannot establish a shading defect.
-        Assert.True(largestDifference > .01f, "The folded geometry did not produce a measurable highlight change.");
+        Assert.True(different>0, "The folded geometry did not produce a measurable highlight change.");
         Assert.Equal(ErrorCode.NoError, GL.GetError());
 
         /// <summary>Draws one index topology into the direct-sun-specular display target.</summary>
-        float[] Draw(uint[] topology, string label)
+        GpuImageSnapshot Draw(uint[] topology, string label)
         {
             program.CaptureMode = 1;
             Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
@@ -141,7 +135,9 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
 
             mesh.SetTopology(topology);
             Submit(wire: false);
-            float[] radiance = target[0].ReadPixels();
+            var radiance = new GpuImageSnapshot(target[0]);
+            try
+            {
             if (capture is not null)
             {
                 string path = Path.Combine(Path.GetDirectoryName(capturePath!) ?? string.Empty,
@@ -155,6 +151,8 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
                     Path.GetFileNameWithoutExtension(capturePath) + $"-{label}-Wire.bmp"));
             }
             return radiance;
+            }
+            catch { radiance.Dispose();throw; }
         }
 
         /// <summary>Draws the exact prepared generation with explicit packing, target and raster policy.</summary>

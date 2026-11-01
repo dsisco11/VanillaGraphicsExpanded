@@ -6,6 +6,7 @@ using VanillaGraphicsExpanded.Rendering;
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 
 /// <summary>Exercises bounded weak association retention across repeated registry lifetimes and name replacement.</summary>
+[Collection("CPU state")] // Alias construction must not overlap another collection's lifecycle service.
 public sealed class GpuResourceAssociationStressTests
 {
     #region Public API

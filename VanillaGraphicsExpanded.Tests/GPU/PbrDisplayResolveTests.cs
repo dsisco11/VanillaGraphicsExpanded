@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -34,11 +35,10 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
             GL.Disable(EnableCap.FramebufferSrgb);
             TestFramework.RenderQuad(program);
         }
-        float[] actual = output[0].ReadPixels();
         float[] expected = [Transfer(0, 4), Transfer(1, 4), Transfer(4, 4), .5f,
             Transfer(-.5f, 16), Transfer(.125f, 16), Transfer(16, 16), 1, .125f, .5f, .75f, .25f];
-        for (int i = 0; i < expected.Length; i++) Assert.InRange(actual[i], expected[i] - .0041f, expected[i] + .0041f);
-        Assert.True(actual[2] > actual[1]);
+        ImageAssertions.CompareIntervals(output[0],expected.Select(v=>(double)(v-.0041f)).ToArray(),expected.Select(v=>(double)(v+.0041f)).ToArray()).AssertEqual();
+        var actual=GpuLocalRead.Tuple(output[0],0,0);Assert.True(actual[2]>actual[1]);
     }
     /// <summary>Night, twilight and daylight retain linear RGB ratios under the common exposure and shoulder.</summary>
     [Theory]
@@ -64,8 +64,7 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
             GL.Disable(EnableCap.FramebufferSrgb);
             TestFramework.RenderQuad(program);
         }
-        float[] actual = output[0].ReadPixels();
-        actual = actual[4..8];
+        float[] actual = GpuLocalRead.Tuple(output[0],1,0);
         // Pixel (1,0) has rank 32; undo its known positive offset before checking the pure transfer.
         for (int channel = 0; channel < 3; channel++) actual[channel] -= .5f / (64f * 255f);
         float[] ratios = [1, .25f, .0625f];
@@ -111,16 +110,17 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
             GL.Disable(EnableCap.FramebufferSrgb);
             TestFramework.RenderQuad(program);
         }
-        float[] actual = output[0].ReadPixels();
+        var expectedBytes=new byte[width*8*4];
         for (int y = 0; y < 8; y++)
         for (int x = 0; x < width; x++)
         {
             int offset = (y * width + x) * 4;
             int expected = x < 8 ? 0 : x < 16 ? 255 : 100;
             for (int channel = 0; channel < 3; channel++)
-                Assert.Equal(expected, (int)MathF.Round(actual[offset + channel] * 255f));
-            Assert.Equal(73, (int)MathF.Round(actual[offset + 3] * 255f));
+                expectedBytes[offset+channel]=(byte)expected;
+            expectedBytes[offset+3]=73;
         }
+        ImageAssertions.CompareRgba8(output[0],expectedBytes).AssertEqual();
     }
 
     /// <summary>Sub-code-value ramps occupy both neighboring codes with balanced neutral noise, unchanged alpha and deterministic output.</summary>
@@ -148,44 +148,39 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
             Enumerable.Repeat(.5f, width * height).ToArray());
         using var output = TestFramework.CreateTestGBuffer(width, height, TextureFormat.Rgba8);
         using var preciseOutput = TestFramework.CreateTestGBuffer(width, height, TextureFormat.Rgba32f);
-        float[] precise = Render(preciseOutput);
-        float[] first = Render();
-        Assert.Equal(first, Render());
+        using var precise = Render(preciseOutput);
+        using var first = Render();
+        using var second = Render();
+        ImageAssertions.CompareHistory(second.Texture,first).AssertEqual();
         // An explicit reference matrix keeps the check independent of the shader's bit-interleaving loop.
         int[] ranks = [0,32,8,40,2,34,10,42, 48,16,56,24,50,18,58,26,
             12,44,4,36,14,46,6,38, 60,28,52,20,62,30,54,22,
             3,35,11,43,1,33,9,41, 51,19,59,27,49,17,57,25,
             15,47,7,39,13,45,5,37, 63,31,55,23,61,29,53,21];
-        int previousUpperCodes = -1;
-        for (int tile = 0; tile < 8; tile++)
+        using var projection=new GpuImageTransform();
+        // Preserve the original float multiply/subtract and row-major float summation order.
+        using var offsets=projection.Apply(precise.Texture,"precise float scaled=a.r*255;precise float delta=scaled-(100+(float(coordinate.x/8)+.5)/8);return vec4(delta,0,0,0);");
+        using var codes=projection.Apply(first.Texture,"return roundEven(a*255);");
+        var expectedOffsets=new float[width*height*4];
+        for(int y=0;y<height;y++)for(int x=0;x<width;x++)
+            expectedOffsets[(y*width+x)*4]=(ranks[y*8+x%8]+.5f)/64f-.5f;
+        ImageAssertions.Compare(offsets,expectedOffsets,.0001f,channelMask:1).AssertEqual();
+        ImageAssertions.Inspect(offsets,-.493f,.493f,channelMask:1).AssertFiniteRange();
+        ImageAssertions.Inspect(codes,100,101,channelMask:1).AssertFiniteRange();
+        ImageAssertions.Predicate(first.Texture,"return bvec2(a.r==a.g&&a.r==a.b&&roundEven(a.a*255)==73,false);").AssertEqual();
+        int previousUpperCodes=-1;
+        for(int tile=0;tile<8;tile++)
         {
-            int upperCodes = 0;
-            float offsetSum = 0;
-            for (int y = 0; y < height; y++)
-            for (int localX = 0; localX < 8; localX++)
-            {
-                int offset = (y * width + tile * 8 + localX) * 4;
-                int code = (int)MathF.Round(first[offset] * 255f);
-                Assert.InRange(code, 100, 101);
-                upperCodes += code - 100;
-                float offsetCodes = precise[offset] * 255f - (100f + (tile + .5f) / 8f);
-                Assert.InRange(MathF.Abs(offsetCodes), 0f, .493f);
-                float expectedOffset = (ranks[y * 8 + localX] + .5f) / 64f - .5f;
-                Assert.InRange(MathF.Abs(offsetCodes - expectedOffset), 0f, .0001f);
-                offsetSum += offsetCodes;
-                Assert.Equal(first[offset], first[offset + 1]);
-                Assert.Equal(first[offset], first[offset + 2]);
-                Assert.Equal(73, (int)MathF.Round(first[offset + 3] * 255f));
-            }
-            Assert.InRange(MathF.Abs(offsetSum / 64f), 0f, .0001f);
-            Assert.True(upperCodes > previousUpperCodes);
-            previousUpperCodes = upperCodes;
-            // Bound final brightness error to 1/16 of one code; hardware fixed-point conversion need not be ideal rounding.
-            Assert.InRange(MathF.Abs(upperCodes / 64f - (tile + .5f) / 8f), 0f, 1f / 16f);
+            var region=new RHITextureRegion(new(0,0),tile*8,0,0,8,height,1);
+            int upperCodes=checked((int)ImageAssertions.Statistics(codes,region,1).Sum(0))-100*64;
+            using var selectedOffsets=new GpuImageSnapshot(offsets,region);
+            float offsetSum=ImageAssertions.OrderedFloatSum(selectedOffsets.Texture,"value.r");
+            Assert.InRange(MathF.Abs(offsetSum/64f),0f,.0001f);
+            Assert.True(upperCodes>previousUpperCodes);previousUpperCodes=upperCodes;
+            Assert.InRange(MathF.Abs(upperCodes/64f-(tile+.5f)/8f),0f,1f/16f);
         }
-
         // A second draw must reproduce the exact pattern, without temporal noise.
-        float[] Render(VanillaGraphicsExpanded.Rendering.GpuFramebuffer? destination = null)
+        GpuImageSnapshot Render(VanillaGraphicsExpanded.Rendering.GpuFramebuffer? destination = null)
         {
             FramebufferTestSetup.BindForEngineRendering(destination ?? output);
             {
@@ -196,7 +191,7 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
                 GL.Disable(EnableCap.FramebufferSrgb);
                 TestFramework.RenderQuad(program);
             }
-            return (destination ?? output)[0].ReadPixels();
+            return new GpuImageSnapshot((destination ?? output)[0]);
         }
     }
     #endregion

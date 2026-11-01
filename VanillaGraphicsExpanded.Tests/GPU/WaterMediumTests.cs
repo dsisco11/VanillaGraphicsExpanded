@@ -21,7 +21,8 @@ public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFun
         var program = Programs.Create<WaterMediumShaderProgram>();
         using var target = CreateRenderTarget(5, 17, TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
-        var pixels = target[0].ReadPixels();
+        var lower=Enumerable.Repeat(double.NegativeInfinity,5*17*4).ToArray();
+        var upper=Enumerable.Repeat(double.PositiveInfinity,5*17*4).ToArray();
         double[] distances = [0, .000001, 1, 10, 100];
         double[] absorption = [.340, .0565, .00922];
         double[] extinction = [.3, .5, .7];
@@ -30,16 +31,16 @@ public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFun
         {
             for (int channel = 0; channel < 3; channel++)
             {
-                AssertClose(Math.Exp(-absorption[channel] * distances[x]), pixels[x * 4 + channel]);
+                AssertClose(Math.Exp(-absorption[channel] * distances[x]), x * 4 + channel);
                 AssertClose((channel + 2) * scattering[channel] / extinction[channel]
-                    * (1 - Math.Exp(-extinction[channel] * distances[x])), pixels[(5 + x) * 4 + channel]);
-                AssertClose(1, pixels[(10 + x) * 4 + channel]);
-                AssertClose(0, pixels[(15 + x) * 4 + channel]);
-                if (x > 0) Assert.True(pixels[x * 4 + channel] <= pixels[(x - 1) * 4 + channel]);
+                    * (1 - Math.Exp(-extinction[channel] * distances[x])), (5 + x) * 4 + channel);
+                AssertClose(1, (10 + x) * 4 + channel);
+                AssertClose(0, (15 + x) * 4 + channel);
+
             }
             double cosine = x == 0 ? 1 : -1;
             double phase = (1 - .7 * .7) / (4 * Math.PI * Math.Pow(1 + .7 * .7 - 2 * .7 * cosine, 1.5));
-            AssertClose(phase, pixels[x * 4 + 3]);
+            AssertClose(phase, x * 4 + 3);
         }
         // Coupled evaluation must preserve the analytic limit, coefficient/source
         // clamps and cancellation-safe transition around the thin-path threshold.
@@ -56,7 +57,7 @@ public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFun
             double transmission = Math.Exp(-sigma * distance);
             double integral = sigma == 0 ? distance : (1 - transmission) / sigma;
             AssertClose(background[channel] * transmission + source * scatter * integral,
-                pixels[(row * 5 + x) * 4 + channel]);
+                (row * 5 + x) * 4 + channel);
         }
         double[] anisotropies=[0,.7,-.7,1e-7,-1e-7,2,-2];
         for(int row=0;row<anisotropies.Length;row++)
@@ -65,36 +66,49 @@ public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFun
             double g=Math.Clamp(anisotropies[row],-.95,.95), cosine=x*.5-1;
             double denominator=Math.Max(1+g*g-2*g*cosine,.0025);
             double expected=(1-g*g)/(4*Math.PI*denominator*Math.Sqrt(denominator));
-            float actual=pixels[((row+10)*5+x)*4];
+            int actual=((row+10)*5+x)*4;
             // Near the clamped forward peak, float cancellation in 1+g*g-2*g
             // amplifies rounding; retain the tighter bound everywhere else.
             if(Math.Abs(g)==.95 && g*cosine>0 && Math.Abs(cosine)==1)
             {
-                Assert.InRange((double)actual,expected*(1-5e-5),expected*(1+5e-5));
-                Assert.InRange((double)pixels[((row+10)*5+x)*4+1],expected*(1-5e-5),expected*(1+5e-5));
+                Interval(expected*(1-5e-5),expected*(1+5e-5),actual);
+                Interval(expected*(1-5e-5),expected*(1+5e-5),actual+1);
             }
             else
             {
                 AssertClose(expected,actual);
-                AssertClose(expected,pixels[((row+10)*5+x)*4+1]);
+                AssertClose(expected,((row+10)*5+x)*4+1);
             }
             if(row==0)
             {
-                Assert.Equal(1f/12.56637061436f,actual);
-                Assert.Equal(actual,pixels[((row+10)*5+x)*4+1]);
+                Interval(1f/12.56637061436f,1f/12.56637061436f,actual);
+                Interval(1f/12.56637061436f,1f/12.56637061436f,actual+1);
             }
-            if(row is 3 or 4 && x is 0 or 4) Assert.NotEqual(1f/12.56637061436f,actual);
+
+        }
+        foreach(var region in new (int Row,int Rows,uint Mask)[]{(0,1,15u),(1,9,7u),(10,7,3u)})
+        {
+            int first=region.Row*20,last=first+region.Rows*20;
+            ImageAssertions.CompareIntervals(target[0],lower[first..last],upper[first..last],
+                new(new(0,0),0,region.Row,0,5,region.Rows,1),region.Mask).AssertEqual();
+        }
+        ImageAssertions.Predicate(target[0],"bool valid=coordinate.y!=0||coordinate.x==0||all(lessThanEqual(a.rgb,texelFetch(actualImage,coordinate-ivec3(1,0,0),0).rgb));return bvec2(valid,false);").AssertEqual();
+        ImageAssertions.Predicate(target[0],"bool selected=(coordinate.y==13||coordinate.y==14)&&(coordinate.x==0||coordinate.x==4);return bvec2(!selected||a.r!=multipliers.x,false);",
+            parameters:new(1f/12.56637061436f,0,0,0)).AssertEqual();
+
+        /// <summary>Intersects every original expected interval at its authored component.</summary>
+        void Interval(double minimum,double maximum,int component)
+        {
+            lower[component]=Math.Max(lower[component],minimum);
+            upper[component]=Math.Min(upper[component],maximum);
+        }
+        /// <summary>Retains finite comparison with the original double absolute-plus-relative bound.</summary>
+        void AssertClose(double expected,int component)
+        {
+            double tolerance=2e-6*Math.Max(1,Math.Abs(expected));
+            Interval(expected-tolerance,expected+tolerance,component);
         }
     }
     #endregion
 
-    #region Private
-    /// <summary>Uses a small absolute plus relative float tolerance without accepting non-finite values.</summary>
-    private static void AssertClose(double expected, float actual)
-    {
-        Assert.True(float.IsFinite(actual));
-        Assert.InRange((double)actual, expected - 2e-6 * Math.Max(1, Math.Abs(expected)),
-            expected + 2e-6 * Math.Max(1, Math.Abs(expected)));
-    }
-    #endregion
 }

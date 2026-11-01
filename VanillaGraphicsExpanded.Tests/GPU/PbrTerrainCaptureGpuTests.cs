@@ -93,7 +93,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             using var framework = new ShaderTestFramework();
             using var output = framework.CreateTestGBuffer(4, 4, TextureFormat.Rgba32f);
             framework.RenderQuadTo(program, output);
-            float[] actual = output[0].ReadPixels();
+            float[] actual = VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuLocalRead.Tuple(output[0],0,0);
             float[] expected = [x, y, z, 1];
             for (int channel = 0; channel < 4; channel++)
                 Assert.InRange(actual[channel], expected[channel] - .00001f, expected[channel] + .00001f);
@@ -125,7 +125,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             using var framework = new ShaderTestFramework();
             using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
             framework.RenderQuadTo(program, output);
-            float[] actual = output[0].ReadPixels();
+            float[] actual = VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuLocalRead.Tuple(output[0],0,0);
             float[] tint = [.2f, .8f, .1f];
             for (int channel = 0; channel < 3; channel++)
             {
@@ -160,7 +160,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             using var framework = new ShaderTestFramework();
             using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
             framework.RenderQuadTo(program, output);
-            float[] actual = output[0].ReadPixels();
+            float[] actual = VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuLocalRead.Tuple(output[0],0,0);
             Assert.InRange(actual[0], reflection - .00001f, reflection + .00001f);
             Assert.Equal(missingThickness, actual[1]);
             Assert.Equal(0f, actual[2]);

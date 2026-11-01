@@ -14,7 +14,19 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITestOutputHelper output):LumOnShaderFunctionalTestBase(fixture)
 {
+    private bool recordTimings;
+
     #region Public API
+    /// <summary>Measures profile costs separately while preserving the correctness update sequence.</summary>
+    [Fact]
+    [Trait("Purpose", "Diagnostic")]
+    public void MeasureQualityProfileDiffuseDirections()
+    {
+        recordTimings=true;
+        try { QualityProfilesChargeActualDiffuseDirections(); }
+        finally { recordTimings=false; }
+    }
+
     /// <summary>Every compiled profile charges its actual directions and completes the same occupied block.</summary>
     [Fact]
     public void QualityProfilesChargeActualDiffuseDirections()
@@ -40,23 +52,23 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
             using var work=new CloudVolumeWork((op,large,shared)=>CloudVolumeWorkProgram.Create(Programs.Api,op,large,shared,level),quality:level);
             using var solver=new CloudVolumeDiffuse(shadows=>CloudVolumeDiffuseProgram.Create(Programs.Api,shadows,level));
             solver.Prepare(false);
-            using var timer=GpuTimerQuery.Create("Tests.Cloud.Quality.Diffuse");var times=new List<double>();
+            using var timer=recordTimings?GpuTimerQuery.Create("Tests.Cloud.Quality.Diffuse"):null;var times=new List<double>();
             for(int sample=0;sample<4;sample++)
             {
                 Assert.True(work.Select(storage,light,(uint)(level*4+sample+1),planes,()=>true,directEnabled:false,lightingRays:profile.LightingRays),work.Failure);
                 Assert.True(work.TryBatch(storage,out var batch));
                 using(var args=batch!.Commands.MapScope<uint>(12,3,BufferMapAccess.Read))
                 {Assert.Equal(1u,args.Span[0]);Assert.Equal((uint)profile.Directions,args.Span[1]);Assert.Equal(1u,args.Span[2]);}
-                timer.Begin();Assert.True(solver.Update(storage,work,()=>true,deferStatus:true),solver.Failure);timer.End();
+                if(recordTimings)timer!.Begin();Assert.True(solver.Update(storage,work,()=>true,deferStatus:true),solver.Failure);if(recordTimings)timer!.End();
                 work.SubmitCompletion(storage,()=>true);
                 using(var fence=RHICommandContext.Current.InsertFence())Assert.NotEqual(CompletionStatus.Failed,RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)));
                 Assert.True(solver.Complete(storage,work,()=>true),solver.Failure);
                 Assert.Equal(1,solver.LastJobs);Assert.Equal((uint)(256*profile.Directions),work.Statistics.DiffuseRays);
                 Assert.True(work.Statistics.DiffuseRays<=work.Statistics.DiffuseAllowance);
                 Assert.Equal(0u,work.Statistics.UnknownDiffuseJobs);
-                double ms=timer.GetResultNanoseconds()/1e6;if(sample>0)times.Add(ms);
+                if(recordTimings){double ms=timer!.GetResultNanoseconds()/1e6;if(sample>0)times.Add(ms);}
             }
-            times.Sort();output.WriteLine($"Quality {level}: {profile.Directions} directions, {work.Statistics.DiffuseRays} rays, one occupied block; warmed diffuse update median={times[1]:F4}ms (copy/gather submission included, selector/status excluded; contention uncontrolled, no live speed claim).");
+            if(recordTimings)times.Sort();if(recordTimings)output.WriteLine($"Quality {level}: {profile.Directions} directions, {work.Statistics.DiffuseRays} rays, one occupied block; warmed diffuse update median={times[1]:F4}ms (copy/gather submission included, selector/status excluded; contention uncontrolled, no live speed claim).");
         }
     }
     /// <summary>Gathers a constant physical source, preserves untouched cells through rescaling, and rejects failed destinations.</summary>

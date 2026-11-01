@@ -183,10 +183,17 @@ dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tes
 ```
 
 `AllTests.runsettings` selects combined correctness tests (`Purpose!=Diagnostic`); `DiagnosticTests.runsettings`
-selects `Purpose=Diagnostic`. Explicit command-line filters replace the settings filter, so include the purpose
-predicate when selecting individual classes. Diagnostics requiring a capture or an additional workload opt-in
+selects `Purpose=Diagnostic`. The runner combines explicit command-line filters with the settings filter;
+select the matching settings file and include the purpose predicate when selecting individual classes.
+Diagnostics requiring a capture or an additional workload opt-in
 report a skip when it is missing; they never return a successful no-op. `Scenario=HeadlessRuntime` identifies
 production renderer/lifecycle execution, independently of the CPU/GPU and diagnostic classifications.
+
+Mixed workloads retain their numerical, scheduling and lifecycle assertions in ordinary correctness
+methods. Separate diagnostic entries enable warmed timing samples, allocation telemetry and cost-only
+native queries. Correctness execution retains required repeated updates and GPU completion, without
+running those optional measurement brackets. CPU registry tests that construct resource wrappers use
+the serialized CPU-state collection because wrapper construction observes the process-wide lifecycle service.
 
 VGE persistence and export subjects use the existing in-memory filesystem provider. Immutable shader inputs
 are frozen from the build manifest once; explicitly requested diagnostic captures/binary overrides are also

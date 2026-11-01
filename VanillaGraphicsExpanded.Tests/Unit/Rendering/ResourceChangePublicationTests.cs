@@ -5,6 +5,7 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 
 /// <summary>Exercises manager completion semantics with controlled contexts and no native graphics calls.</summary>
+[Collection("CPU state")] // Recipient construction captures the process-wide lifecycle service.
 public sealed class ResourceChangePublicationTests
 {
     #region Public API

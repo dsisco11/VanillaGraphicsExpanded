@@ -11,7 +11,20 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xunit.ITestOutputHelper output):LumOnShaderFunctionalTestBase(fixture)
 {
+    private bool recordTimings;
+
     #region Public API
+    /// <summary>Measures exact-winner scenarios separately from routine correctness execution.</summary>
+    [Theory]
+    [InlineData(2560)][InlineData(81920)][InlineData(327680)]
+    [Trait("Purpose", "Diagnostic")]
+    public void MeasureMaximumDomainSelection(int rays)
+    {
+        recordTimings=true;
+        try { MaximumDomainSelectionPreservesExactGlobalWinners(rays); }
+        finally { recordTimings=false; }
+    }
+
     /// <summary>Hierarchical winners match an independent CPU ordering, including cursor wrap, priorities and retained ages.</summary>
     [Theory]
     [InlineData(2560)][InlineData(81920)][InlineData(327680)]
@@ -43,14 +56,14 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
                 occupancy.UploadData(occupied);
                 // Geometry membership is rebuilt once. Source-demand resets leave its retained list intact.
                 header[48]=1;scratch.UploadData(header);
-                using var timer=GpuTimerQuery.Create("Tests.Cloud.Work.Maximum");var times=new List<double>();
+                using var timer=recordTimings?GpuTimerQuery.Create("Tests.Cloud.Work.Maximum"):null;var times=new List<double>();
                 double rebuilding=0;
                 for(int sample=0;sample<4;sample++)
                 {
                     regions.UploadData(data);
                     using(var cursor=scratch.MapScope<uint>(18*4,2,BufferMapAccess.Write))
                     {cursor.Span[0]=header[18];cursor.Span[1]=header[19];}
-                    timer.Begin();
+                    if(recordTimings)timer!.Begin();
                     /// <summary>Submits one real selector operation and orders its summary and indirect outputs.</summary>
                     void Submit(int op,int count,int source=0,int destination=0,int level=0,int indirect=-1)
                     {
@@ -70,8 +83,12 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
                         (source,destination)=(destination,source);
                     }
                     Submit(4,1,source,level:5);
-                    });timer.End();
-                    double milliseconds=timer.GetResultNanoseconds()/1e6;if(sample>0)times.Add(milliseconds);else rebuilding=milliseconds;
+                    });
+                    if(recordTimings)
+                    {
+                        timer!.End();
+                        double milliseconds=timer.GetResultNanoseconds()/1e6;if(sample>0)times.Add(milliseconds);else rebuilding=milliseconds;
+                    }
                     Assert.Equal(1u,Read(scratch,51,1)[0]);
                 }
                 var members=Enumerable.Range(0,d.Blocks).Where(r=>Origins(occupied[r])!=0).Select(r=>(uint)r).ToArray();
@@ -131,7 +148,7 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
                 }
                 Assert.Equal(1u,Read(scratch,51,1)[0]);
                 Assert.Equal(members,Read(scratch,970576,members.Length));
-                times.Sort();output.WriteLine($"Maximum-domain scheduler {scenario}: {d.Blocks} blocks, eligible compact members {members.Length}, selected direct/diffuse {actual[16]}/{actual[17]}, backlog {actual[22]}/{actual[23]}, rebuild plus selection {rebuilding:F4} ms, stable reused selection median {times[1]:F4} ms GPU; warm samples {string.Join(", ",times.Select(t=>t.ToString("F4")))} ms. Shared208-byte inputs and one actual owning submission boundary per sample; membership generation stayed1 across source-demand resets. Metadata-only headless measurement; no live frame-time claim.");
+                if(recordTimings)times.Sort();if(recordTimings)output.WriteLine($"Maximum-domain scheduler {scenario}: {d.Blocks} blocks, eligible compact members {members.Length}, selected direct/diffuse {actual[16]}/{actual[17]}, backlog {actual[22]}/{actual[23]}, rebuild plus selection {rebuilding:F4} ms, stable reused selection median {times[1]:F4} ms GPU; warm samples {string.Join(", ",times.Select(t=>t.ToString("F4")))} ms. Shared208-byte inputs and one actual owning submission boundary per sample; membership generation stayed1 across source-demand resets. Metadata-only headless measurement; no live frame-time claim.");
             }
         }
         finally{foreach(var p in programs)p.Dispose();}

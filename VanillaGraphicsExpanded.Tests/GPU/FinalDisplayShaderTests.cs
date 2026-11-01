@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Tests.TestSupport;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
@@ -110,6 +111,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
     [InlineData(1280,720)]
     [InlineData(1920,1080)]
     [InlineData(2560,1440)]
+    [Trait("Purpose", "Diagnostic")]
     public void SyntheticFinalPassTiming(int width,int height)
     {
         EnsureShaderTestAvailable();
@@ -152,20 +154,18 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         shader.FrameInputs = camera; shader.GradingLookup = lookup;
         shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureBuffer=neutralExposure;
         shader.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);Draw(shader,target);
-        float[] baseline=target[0].ReadPixels();
+        using var baseline=new GpuImageSnapshot(target[0]);
         var controls=treatment==0?new FinalDisplayParameters(new(2,1,1,0),Vector4.Zero,Vector4.Zero):
             treatment==1?new FinalDisplayParameters(new(1,1,1,0),Vector4.Zero,new(1,.5f,0,0)):
             new FinalDisplayParameters(new(1,1,1,0),new(0,2,.5f,0),new(0,0,1,0));
         shader.GradingLookup=grading.Prepare(Programs.Api,controls.Grading);
         shader.Capture(false,controls,Vector4.Zero);Draw(shader,target);
-        float[] changed=target[0].ReadPixels();
-        Assert.Contains(Enumerable.Range(0,changed.Length),i=>i%4!=3&&Math.Abs(changed[i]-baseline[i])>.02f);
-        for(int i=0;i<changed.Length;i++)
-        {
-            Assert.True(float.IsFinite(changed[i]));Assert.InRange(changed[i],0,1);
-            if(i%4==3)Assert.Equal(1,changed[i]);
-        }
-        if(treatment==0)Assert.True(changed[0]>baseline[0]);
+        // Preserve every RGB witness and every finite/range/alpha assertion over the full 17x9 domain.
+        Assert.True(ImageAssertions.Predicate(target[0],
+            "return bvec2(true,any(greaterThan(abs(a.rgb-b.rgb),vec3(.02))));",baseline.Texture).MatchingTexels>0);
+        ImageAssertions.Inspect(target[0],0,1).AssertFiniteRange();
+        ImageAssertions.CompareConstant(target[0],1,channelMask:8).AssertEqual();
+        if(treatment==0)Assert.True(GpuLocalRead.Scalar(target[0],0)>GpuLocalRead.Scalar(baseline.Texture,0));
         Assert.Equal(new[]{.18f,.18f,.18f,.3f},source.ReadPixels());
     }
     #endregion
