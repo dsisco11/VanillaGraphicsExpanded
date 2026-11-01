@@ -55,17 +55,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             PbrHeightBakeParamsUbo.BindSize(paramsUbo, w, h);
         });
 
-        float[] gpu = rTex.ReadPixels();
         float[] cpu = ComputeResidualCpu(hData, bData, w, h);
-
-        Assert.Equal(cpu.Length, gpu.Length);
-
-        const float eps = 1e-4f;
-        for (int i = 0; i < cpu.Length; i++)
-        {
-            float d = MathF.Abs(cpu[i] - gpu[i]);
-            Assert.True(d <= eps, $"Residual mismatch at i={i}, cpu={cpu[i]}, gpu={gpu[i]}, d={d}");
-        }
+        ImageAssertions.Compare(rTex, cpu, 1e-4f).AssertEqual();
     }
 
     [Fact]
@@ -96,17 +87,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: fineW, fineH: fineH, coarseW: coarseW, coarseH: coarseH, sizeW: 0, sizeH: 0);
         });
 
-        float[] gpu = coarseTex.ReadPixels();
         float[] cpu = ComputeRestrictCpu(fine, fineW, fineH, coarseW, coarseH);
-
-        Assert.Equal(cpu.Length, gpu.Length);
-
-        const float eps = 1e-4f;
-        for (int i = 0; i < cpu.Length; i++)
-        {
-            float d = MathF.Abs(cpu[i] - gpu[i]);
-            Assert.True(d <= eps, $"Restrict mismatch at i={i}, cpu={cpu[i]}, gpu={gpu[i]}, d={d}");
-        }
+        ImageAssertions.Compare(coarseTex, cpu, 1e-4f).AssertEqual();
     }
 
     [Fact]
@@ -140,17 +122,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: fineW, fineH: fineH, coarseW: coarseW, coarseH: coarseH, sizeW: 0, sizeH: 0);
         });
 
-        float[] gpu = outTex.ReadPixels();
         float[] cpu = ComputeProlongateAddCpu(fineHData, coarseE, fineW, fineH, coarseW, coarseH);
-
-        Assert.Equal(cpu.Length, gpu.Length);
-
-        const float eps = 1e-4f;
-        for (int i = 0; i < cpu.Length; i++)
-        {
-            float d = MathF.Abs(cpu[i] - gpu[i]);
-            Assert.True(d <= eps, $"Prolongate mismatch at i={i}, cpu={cpu[i]}, gpu={gpu[i]}, d={d}");
-        }
+        ImageAssertions.Compare(outTex, cpu, 1e-4f).AssertEqual();
     }
 
     public static IEnumerable<object[]> VCycleCases()
@@ -209,7 +182,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
         // Residual r = b - A*h
         ComputeResidual(paramsUbo, progResidual, bFine, hFine, resFine);
-        float rms1 = Rms(resFine.ReadPixels());
+        float rms1 = Rms(resFine);
 
         // Restrict residual to coarse rhs.
         RenderTo(bCoarse, progRestrict, () =>
@@ -242,7 +215,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
         // Final residual
         ComputeResidual(paramsUbo, progResidual, bFine, hPost, resFine);
-        float rms2 = Rms(resFine.ReadPixels());
+        float rms2 = Rms(resFine);
 
         Assert.True(IsFinite(rms0) && IsFinite(rms1) && IsFinite(rms2), $"Non-finite residuals for '{name}'");
         Assert.True(rms0 > 1e-6f, $"RHS too small for '{name}'");
@@ -313,7 +286,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
         // Residual on fine.
         ComputeResidual(paramsUbo, progResidual, bFine, hFine, resFine);
-        float rmsPre = Rms(resFine.ReadPixels());
+        float rmsPre = Rms(resFine);
 
         // Compute a 2-level V-cycle result for comparison.
         float rms2LevelFinal;
@@ -354,7 +327,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
             // Residual.
             ComputeResidual(paramsUbo, progResidual, bFine, hPost2, resFine);
-            rms2LevelFinal = Rms(resFine.ReadPixels());
+            rms2LevelFinal = Rms(resFine);
         }
 
         // Restrict residual -> mid rhs.
@@ -419,7 +392,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
         // Final residual.
         ComputeResidual(paramsUbo, progResidual, bFine, hPost, resFine);
-        float rmsFinal = Rms(resFine.ReadPixels());
+        float rmsFinal = Rms(resFine);
 
         Assert.True(IsFinite(rms0) && IsFinite(rmsPre) && IsFinite(rmsFinal), $"Non-finite residuals for '{name}'");
         Assert.True(rms0 > 1e-6f, $"RHS too small for '{name}'");
@@ -619,6 +592,14 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
     }
 
     private static float Lerp(float a, float b, float t) => a + (b - a) * t;
+
+    /// <summary>Computes the same double-squared RMS over every residual texel with a compact GPU reduction.</summary>
+    private float Rms(GpuTexture image)
+    {
+        var result = ImageAssertions.Statistics(image);
+        result.AssertFiniteRange();
+        return (float)Math.Sqrt(result.SumSquares(0) / (image.Width * image.Height));
+    }
 
     private static float Rms(float[] v)
     {

@@ -226,25 +226,16 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
     }
 
     /// <summary>
-    /// Reads a pixel from output.
+    /// Decodes the single originally nominated output pixel.
     /// </summary>
-    private static new (float r, float g, float b, float a) ReadPixel(float[] data, int x, int y, int width)
+    private static (float r, float g, float b, float a) ReadLocalPixel(float[] data)
     {
-        int idx = (y * width + x) * 4;
+        Assert.Equal(4,data.Length);
+        int idx=0;
         return (data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
     }
 
-    /// <summary>
-    /// Checks if a color is approximately equal to expected values.
-    /// </summary>
-    private static bool ColorApprox((float r, float g, float b) actual, float er, float eg, float eb, float tolerance = 0.15f)
-    {
-        return MathF.Abs(actual.r - er) < tolerance &&
-               MathF.Abs(actual.g - eg) < tolerance &&
-               MathF.Abs(actual.b - eb) < tolerance;
-    }
-
-    #endregion
+#endregion
 
     #region Test: Mode1_ProbeGrid_ShowsValidityColors
 
@@ -305,31 +296,17 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // Verify that some pixels have green (valid), yellow (edge), or red (invalid) colors
-        bool hasGreen = false, hasYellow = false, hasRed = false;
-
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
-
-                // Green = (0, 1, 0)
-                if (g > 0.8f && r < 0.2f && b < 0.2f)
-                    hasGreen = true;
-                // Yellow = (1, 1, 0)
-                if (r > 0.8f && g > 0.8f && b < 0.2f)
-                    hasYellow = true;
-                // Red = (1, 0, 0)
-                if (r > 0.8f && g < 0.2f && b < 0.2f)
-                    hasRed = true;
-            }
-        }
-
+        bool hasColor=ImageAssertions.Predicate(outputData, """
+            bool green=a.g>0.8 && a.r<0.2 && a.b<0.2;
+            bool yellow=a.r>0.8 && a.g>0.8 && a.b<0.2;
+            bool red=a.r>0.8 && a.g<0.2 && a.b<0.2;
+            return bvec2(true,green || yellow || red);
+            """).MatchingTexels>0;
         // With mixed validity, we should see at least valid (green) and invalid (red)
-        Assert.True(hasGreen || hasYellow || hasRed,
+        Assert.True(hasColor,
             "Mode 1 should show colored probe dots based on validity");
     }
 
@@ -394,23 +371,11 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // All pixels should have non-black color (heatmap)
-        int coloredCount = 0;
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
-                float brightness = r + g + b;
-                if (brightness > 0.1f)
-                {
-                    coloredCount++;
-                }
-            }
-        }
-
+        uint coloredCount=ImageAssertions.Predicate(outputData,
+            "precise float brightness=a.r+a.g;brightness=brightness+a.b;return bvec2(true,brightness>0.1);").MatchingTexels;
         Assert.True(coloredCount == ScreenWidth * ScreenHeight,
             $"Mode 4 should show heatmap for all non-sky pixels, got {coloredCount}/{ScreenWidth * ScreenHeight}");
     }
@@ -486,18 +451,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // Reinhard tone map: 1/(1+1) = 0.5
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
-                Assert.True(ColorApprox((r, g, b), 0.5f, 0.5f, 0.5f, tolerance: 0.2f),
-                    $"Pixel ({x},{y}) expected ~0.5 gray, got ({r:F3},{g:F3},{b:F3})");
-            }
-        }
+        ImageAssertions.Predicate(outputData,"precise vec3 difference=abs(a.rgb-vec3(0.5));return bvec2(all(lessThan(difference,vec3(0.2))),false);").AssertEqual();
     }
 
     #endregion
@@ -557,22 +514,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // All pixels should be black
-        int blackCount = 0;
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
-                if (r < 0.01f && g < 0.01f && b < 0.01f)
-                {
-                    blackCount++;
-                }
-            }
-        }
-
+        uint blackCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r<0.01 && a.g<0.01 && a.b<0.01);").MatchingTexels;
         Assert.True(blackCount == ScreenWidth * ScreenHeight,
             $"Mode 4 should show black for sky, got {blackCount}/{ScreenWidth * ScreenHeight}");
     }
@@ -637,10 +582,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // Check that output shows upward normal color: (0.5, 1.0, 0.5)
-        var (r, g, b, _) = ReadPixel(outputData, ScreenWidth / 2, ScreenHeight / 2, ScreenWidth);
+        var (r, g, b, _) = ReadLocalPixel(outputData.ReadPixelsRegion(ScreenWidth/2,ScreenHeight/2,1,1));
 
         Assert.True(g > 0.8f,
             $"Mode 5 with upward normal should have high green component, got ({r:F3}, {g:F3}, {b:F3})");
@@ -706,22 +651,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // Should have some non-zero output from SH visualization
-        int nonZeroCount = 0;
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
-                if (r > 0.01f || g > 0.01f || b > 0.01f)
-                {
-                    nonZeroCount++;
-                }
-            }
-        }
-
+        uint nonZeroCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r>0.01 || a.g>0.01 || a.b>0.01);").MatchingTexels;
         Assert.True(nonZeroCount > 0,
             "Mode 8 should show non-zero SH visualization for valid probes");
     }
@@ -782,29 +715,17 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // All pixels should be black
-        int blackCount = 0;
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
-                if (r < 0.01f && g < 0.01f && b < 0.01f)
-                {
-                    blackCount++;
-                }
-            }
-        }
-
+        uint blackCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r<0.01 && a.g<0.01 && a.b<0.01);").MatchingTexels;
         Assert.True(blackCount == ScreenWidth * ScreenHeight,
             $"Mode 2 should show black for invalid probes, got {blackCount}/{ScreenWidth * ScreenHeight}");
     }
 
     #endregion
 
-    #region Phase 5 Tests: Debug Shader Untested Modes
+    #region Additional debug shader modes
 
     /// <summary>
     /// Tests Mode 3 (Probe Normals) visualization.
@@ -862,20 +783,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // Check that we get non-black output for valid probes
-        int nonBlackCount = 0;
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
-                if (r > 0.01f || g > 0.01f || b > 0.01f)
-                    nonBlackCount++;
-            }
-        }
-
+        uint nonBlackCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r>0.01 || a.g>0.01 || a.b>0.01);").MatchingTexels;
         Assert.True(nonBlackCount > 0,
             "Mode 3 should show normal colors for valid probes");
     }
@@ -936,20 +847,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // Check for non-black output
-        int nonBlackCount = 0;
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
-                if (r > 0.01f || g > 0.01f || b > 0.01f)
-                    nonBlackCount++;
-            }
-        }
-
+        uint nonBlackCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r>0.01 || a.g>0.01 || a.b>0.01);").MatchingTexels;
         Assert.True(nonBlackCount > 0,
             "Mode 6 should visualize temporal weights");
     }
@@ -1010,20 +911,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // Check for output (rejection visualization)
-        int nonBlackCount = 0;
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
-                if (r > 0.01f || g > 0.01f || b > 0.01f)
-                    nonBlackCount++;
-            }
-        }
-
+        uint nonBlackCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r>0.01 || a.g>0.01 || a.b>0.01);").MatchingTexels;
         Assert.True(nonBlackCount > 0,
             "Mode 7 should visualize temporal rejection mask");
     }
@@ -1084,20 +975,10 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         programId.HistoryMeta = historyMetaTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // Check for output (weight visualization)
-        int nonBlackCount = 0;
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                var (r, g, b, _) = ReadPixel(outputData, x, y, ScreenWidth);
-                if (r > 0.01f || g > 0.01f || b > 0.01f)
-                    nonBlackCount++;
-            }
-        }
-
+        uint nonBlackCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r>0.01 || a.g>0.01 || a.b>0.01);").MatchingTexels;
         Assert.True(nonBlackCount > 0,
             "Mode 9 should visualize interpolation weights");
     }

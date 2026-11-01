@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 
@@ -27,12 +28,12 @@ internal sealed class SurfaceLightingWorldProbeFixture : IDisposable
         uploader = new(assets.Api);
     }
 
-    /// <summary>Publishes the actual resolved result; unresolved batches must be rejected by the caller.</summary>
-    public float[] Upload(in LumOnWorldProbeTraceResult result)
+    /// <summary>Publishes the actual resolved result and exposes the atlas only within this fixture owner interval.</summary>
+    public GpuTexture Upload(in LumOnWorldProbeTraceResult result)
     {
         Assert.True(result.Success);
         Assert.True(uploader.Upload(Resources, new[] { result }, 65536) > 0);
-        return Resources.ProbeRadianceAtlas.ReadPixels();
+        return Resources.ProbeRadianceAtlas;
     }
 
     /// <summary>Attempts an atomic publication with an explicit budget and exposes its admission count.</summary>

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Numerics;
@@ -17,7 +18,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         using var shared = new SharedTraceGeometryFixture(TraceGeometryCoverage.Plan(new(0, 32, -5), true, 32, 256),
             new(), (_, _, z) => new(z == -2 ? 2u : 1u, 0, 0));
         shared.Publish();
-        var result = RenderDirectVisibility(CreateUniformCache(), null, new(.5f, .5f, -5), new(-7.5f), 16, -2,
+        using var result = RenderDirectVisibility(CreateUniformCache(), null, new(.5f, .5f, -5), new(-7.5f), 16, -2,
             worldOffset: new(0, 32, 0), shared: shared.Scene);
         AssertLighting(result, -2, false);
     }
@@ -55,7 +56,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         /// <summary>Evaluates the real consumer while keeping its physical receiver fixed during view bob.</summary>
         void Check(bool lit, float bob)
         {
-            var result = RenderDirectVisibility(CreateUniformCache(), null,
+            using var result = RenderDirectVisibility(CreateUniformCache(), null,
                 new Vector3(.5f, .5f, -5), new Vector3(-7.5f), 16, consumer,
                 worldOffset: new VectorInt3(anchor, 32, 0), cameraBob: bob, shared: shared.Scene);
             AssertLighting(result, consumer, lit);

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene;
@@ -25,7 +26,7 @@ public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
         Assert.True(initialized);
         Assert.True(fixture.Page.Capture(scene));
         for (int update = 0; update < 4; update++) Assert.True(fixture.Page.Relight(scene));
-        AssertLighting(fixture.Page.ReadLighting(), 32*GgxHemisphereReference.CapturedDiffuse(1), 4);
+        AssertLighting(fixture.Page.IrradianceAtlas, 32*GgxHemisphereReference.CapturedDiffuse(1), 4);
 
         // Source publication and history synchronization are deliberately separate: invalid
         // geometry cannot manufacture successful dark samples while replacement data is pending.
@@ -40,13 +41,13 @@ public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
             Assert.True(fixture.History.TrySynchronize(scene, fixture.Page.IrradianceAtlas, out bool invalidated));
             Assert.False(invalidated);
             Assert.Equal(history, fixture.History.Revision);
-            AssertLighting(fixture.Page.ReadLighting(), 32*GgxHemisphereReference.CapturedDiffuse(1), 4);
+            AssertLighting(fixture.Page.IrradianceAtlas, 32*GgxHemisphereReference.CapturedDiffuse(1), 4);
             Assert.False(fixture.Page.Relight(scene));
-            AssertLighting(fixture.Page.ReadLighting(), 32*GgxHemisphereReference.CapturedDiffuse(1), 4);
+            AssertLighting(fixture.Page.IrradianceAtlas, 32*GgxHemisphereReference.CapturedDiffuse(1), 4);
 
             fixture.Geometry.Publish();
             Assert.True(fixture.History.TrySynchronize(scene, fixture.Page.IrradianceAtlas, out _));
-            AssertLighting(fixture.Page.ReadLighting(), 32*GgxHemisphereReference.CapturedDiffuse(1), 4);
+            AssertLighting(fixture.Page.IrradianceAtlas, 32*GgxHemisphereReference.CapturedDiffuse(1), 4);
             Assert.Equal(history, fixture.History.Revision);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -68,10 +69,9 @@ public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
         Assert.True(initial);
         Assert.True(fixture.Page.Capture(scene));
         for (int update = 0; update < 4; update++) Assert.True(fixture.Page.Relight(scene, steps: 256));
-        float[] open = fixture.Page.ReadLighting();
-        // Resolved bright directions retain their source radiance regardless of travel distance.
-        Assert.Contains(open.Where((_, index) => index % 4 == 0), value => value > .5f);
-        for (int i = 3; i < open.Length; i += 4) Assert.Equal(4f, open[i]);
+        using var open = new GpuImageSnapshot(fixture.Page.IrradianceAtlas);
+        var observation = ImageAssertions.Predicate(open.Texture,"return bvec2(a.a==4,a.r>.5);");
+        observation.AssertEqual(); Assert.True(observation.MatchingTexels>0);
 
         foreach (bool isOpen in new[] { false, true })
         {
@@ -84,26 +84,23 @@ public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
             Assert.True(scene.InvalidationRevision > before);
             Assert.True(fixture.History.TrySynchronize(scene, fixture.Page.IrradianceAtlas, out bool invalidated));
             Assert.False(invalidated);
-            Assert.Equal(open, fixture.Page.ReadLighting());
+            ImageAssertions.CompareHistory(fixture.Page.IrradianceAtlas,open).AssertEqual();
             Assert.False(fixture.Page.Relight(scene));
-            Assert.Equal(open, fixture.Page.ReadLighting());
+            ImageAssertions.CompareHistory(fixture.Page.IrradianceAtlas,open).AssertEqual();
             fixture.Geometry.Publish();
             Assert.Equal(isOpen ? 1u : 2u, fixture.Geometry.ReadGeometry(4, 33, 1) & 3u);
             Assert.Equal(capturedWall, fixture.Geometry.ReadGeometry(0, 33, 1));
             Assert.True(fixture.History.TrySynchronize(scene, fixture.Page.IrradianceAtlas, out _));
-            Assert.Equal(open, fixture.Page.ReadLighting());
+            ImageAssertions.CompareHistory(fixture.Page.IrradianceAtlas,open).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     /// <summary>Checks every color channel and exact sample weight, distinguishing valid darkness from unresolved rays.</summary>
-    private static void AssertLighting(float[] pixels, float radiance, float weight)
+    private void AssertLighting(VanillaGraphicsExpanded.Rendering.GpuTexture image, float radiance, float weight)
     {
-        Assert.Equal(8 * 8 * 4, pixels.Length);
-        for (int i = 0; i < pixels.Length; i += 4)
-        {
-            for (int channel = 0; channel < 3; channel++) Assert.InRange(pixels[i + channel], radiance - .01f, radiance + .01f);
-            Assert.Equal(weight, pixels[i + 3]);
-        }
+        Assert.Equal(8,image.Width);Assert.Equal(8,image.Height);
+        ImageAssertions.Predicate(image,"return bvec2(all(greaterThanEqual(a.rgb,vec3(multipliers.x))) && all(lessThanEqual(a.rgb,vec3(multipliers.y))) && a.a==multipliers.z,false);",
+            parameters:new(radiance-.01f,radiance+.01f,weight,0)).AssertEqual();
     }
     #endregion
 }

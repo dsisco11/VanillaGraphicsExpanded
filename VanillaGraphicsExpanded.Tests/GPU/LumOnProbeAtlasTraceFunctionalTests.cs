@@ -9,6 +9,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -263,16 +264,18 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>
     /// Reads a single texel from atlas data.
     /// </summary>
-    private static (float r, float g, float b, float a) ReadAtlasTexel(float[] atlasData, int x, int y)
+    private static (float r, float g, float b, float a) ReadAtlasTexel(GpuTexture atlasData, int x, int y)
     {
-        int idx = (y * AtlasWidth + x) * 4;
-        return (atlasData[idx], atlasData[idx + 1], atlasData[idx + 2], atlasData[idx + 3]);
+        var local=atlasData.ReadPixelsRegion(x,y,1,1);
+        int idx=0;
+        return (local[idx],local[idx+1],local[idx+2],local[idx+3]);
     }
 
-    private static (float confidence, float flagsBitsAsFloat) ReadAtlasMetaTexel(float[] metaData, int x, int y)
+    private static (float confidence, float flagsBitsAsFloat) ReadAtlasMetaTexel(GpuTexture metaData, int x, int y)
     {
-        int idx = (y * AtlasWidth + x) * 2;
-        return (metaData[idx], metaData[idx + 1]);
+        var local=metaData.ReadPixelsRegion(x,y,1,1);
+        int idx=0;
+        return (local[idx],local[idx+1]);
     }
 
     #endregion
@@ -344,31 +347,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         // Render to atlas
         TestFramework.RenderQuadTo(programId, outputAtlas);
 
-        // Read back atlas
-        var atlasData = outputAtlas[0].ReadPixels();
-
-        // DESIRED: ALL texels should have sky color when all probes are valid
-        // Atlas is 16×16 = 256 texels total (4 probes × 64 texels each)
-
-        for (int probeY = 0; probeY < ProbeGridHeight; probeY++)
-        {
-            for (int probeX = 0; probeX < ProbeGridWidth; probeX++)
-            {
-                for (int octY = 0; octY < OctahedralSize; octY++)
-                {
-                    for (int octX = 0; octX < OctahedralSize; octX++)
-                    {
-                        var (x, y) = GetAtlasCoord(probeX, probeY, octX, octY);
-                        var (r, g, b, a) = ReadAtlasTexel(atlasData, x, y);
-
-                        // DESIRED: Every texel should have non-zero sky color
-                        bool hasColor = r > 0.01f || g > 0.01f || b > 0.01f;
-                        Assert.True(hasColor,
-                            $"Probe ({probeX},{probeY}) texel ({octX},{octY}) should have sky color, got ({r:F3}, {g:F3}, {b:F3})");
-                    }
-                }
-            }
-        }
+        ImageAssertions.Predicate(outputAtlas[0],"return bvec2(any(greaterThan(a.rgb,vec3(.01))),false);").AssertEqual();
     }
 
     #endregion
@@ -438,7 +417,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var atlasData = outputAtlas[0].ReadPixels();
+        var atlasData = outputAtlas[0];
 
         // Check a sample of texels for sky color contribution
         // DESIRED: Sky color should follow the formula:
@@ -535,33 +514,12 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var atlasData = outputAtlas[0].ReadPixels();
-
-        // Expected encoded distance for sky miss
-        float expectedEncoded = EncodeHitDistance(RayMaxDistance);
-
-        // DESIRED: ALL texels should have the correct encoded max distance when rays miss
-        for (int probeY = 0; probeY < ProbeGridHeight; probeY++)
-        {
-            for (int probeX = 0; probeX < ProbeGridWidth; probeX++)
-            {
-                // Check a few texels per probe
-                for (int i = 0; i < 4; i++)
-                {
-                    int octX = (i % 2) * 4 + 2;  // Sample at different positions
-                    int octY = (i / 2) * 4 + 2;
-                    var (x, y) = GetAtlasCoord(probeX, probeY, octX, octY);
-                    var (_, _, _, alpha) = ReadAtlasTexel(atlasData, x, y);
-
-                    // Decode and compare
-                    float decodedDist = DecodeHitDistance(alpha);
-
-                    // DESIRED: Distance should match rayMaxDistance within 10% tolerance
-                    Assert.True(MathF.Abs(decodedDist - RayMaxDistance) < RayMaxDistance * 0.1f,
-                        $"Probe ({probeX},{probeY}) texel ({octX},{octY}): expected distance ≈{RayMaxDistance}, got {decodedDist:F2}");
-                }
-            }
-        }
+        var distance=ImageAssertions.Predicate(outputAtlas[0],"""
+            bool selected=(coordinate.x%8==2 || coordinate.x%8==6) && (coordinate.y%8==2 || coordinate.y%8==6);
+            precise float decoded=exp(a.a)-1;
+            return bvec2(!selected || abs(decoded-multipliers.x)<multipliers.y,selected);
+            """,parameters:new(RayMaxDistance,RayMaxDistance*.1f,0,0));
+        distance.AssertEqual();Assert.Equal(16u,distance.MatchingTexels);
     }
 
     #endregion
@@ -621,30 +579,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var atlasData = outputAtlas[0].ReadPixels();
-
-        // Verify ALL texels are zero (invalid probes should output zero)
-        int zeroTexels = 0;
-        int totalTexels = AtlasWidth * AtlasHeight;
-
-        for (int y = 0; y < AtlasHeight; y++)
-        {
-            for (int x = 0; x < AtlasWidth; x++)
-            {
-                var (r, g, b, a) = ReadAtlasTexel(atlasData, x, y);
-
-                if (MathF.Abs(r) < TestEpsilon &&
-                    MathF.Abs(g) < TestEpsilon &&
-                    MathF.Abs(b) < TestEpsilon &&
-                    MathF.Abs(a) < TestEpsilon)
-                {
-                    zeroTexels++;
-                }
-            }
-        }
-
-        Assert.True(zeroTexels == totalTexels,
-            $"Expected all {totalTexels} texels to be zero for invalid probes, got {zeroTexels} zero texels");
+        ImageAssertions.Predicate(outputAtlas[0],"return bvec2(all(lessThan(abs(a),vec4(multipliers.x))),false);",
+            parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
@@ -717,28 +653,10 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var atlasData = outputAtlas[0].ReadPixels();
-
-        // Count texels that retained history (cyan) vs newly traced
-        int historyTexels = 0;
-        int tracedTexels = 0;
-
-        for (int y = 0; y < AtlasHeight; y++)
-        {
-            for (int x = 0; x < AtlasWidth; x++)
-            {
-                var (r, g, b, _) = ReadAtlasTexel(atlasData, x, y);
-
-                // Cyan = history preserved (R≈0, G≈1, B≈1)
-                bool isCyan = r < 0.1f && g > 0.9f && b > 0.9f;
-
-                if (isCyan)
-                    historyTexels++;
-                else
-                    tracedTexels++;
-            }
-        }
-
+        var classified=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,a.r<.1 && a.g>.9 && a.b>.9);");
+        classified.AssertEqual();
+        int historyTexels=checked((int)classified.MatchingTexels);
+        int tracedTexels=AtlasWidth*AtlasHeight-historyTexels;
         // DESIRED BEHAVIOR:
         // With texelsPerFrame=8 and 4 probes, exactly 32 texels should be traced per frame
         // Remaining 224 texels should retain history
@@ -757,7 +675,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     #endregion
 
-    #region Phase 4 Tests: High Priority Missing Coverage
+    #region Additional trace controls
 
     /// <summary>
     /// Tests that rays hitting geometry return the scene color from the hit point.
@@ -822,25 +740,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var atlasData = outputAtlas[0].ReadPixels();
-
-        // Check that cyan ambient color appears in atlas (from sky miss)
-        int cyanTexels = 0;
-        for (int y = 0; y < AtlasHeight; y++)
-        {
-            for (int x = 0; x < AtlasWidth; x++)
-            {
-                var (r, g, b, _) = ReadAtlasTexel(atlasData, x, y);
-                // Cyan means G and B are higher than R (ambient contribution)
-                if (g > 0.01f && b > 0.01f)
-                {
-                    cyanTexels++;
-                }
-            }
-        }
-
-        Assert.True(cyanTexels > 0,
-            "With cyan ambient color, some texels should have cyan color contribution from sky miss");
+        var cyan=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,a.g>.01 && a.b>.01);");
+        cyan.AssertEqual();Assert.True(cyan.MatchingTexels>0);
     }
 
     /// <summary>
@@ -867,8 +768,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         var colorData = CreateUniformSceneColor(1f, 1f, 1f);
         var historyData = CreateZeroedHistory();
 
-        float[] lowStepsOutput;
-        float[] highStepsOutput;
+        int lowNonZero;
+        int highNonZero;
 
         // Low ray steps
         {
@@ -904,7 +805,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            lowStepsOutput = outputAtlas[0].ReadPixels();
+            var count=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,any(greaterThan(a.rgb,vec3(.001))));");
+            count.AssertEqual();lowNonZero=checked((int)count.MatchingTexels);
         }
 
         // High ray steps
@@ -941,18 +843,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            highStepsOutput = outputAtlas[0].ReadPixels();
-        }
-
-        // Both should produce non-zero output in valid probe regions
-        int lowNonZero = 0;
-        int highNonZero = 0;
-        for (int i = 0; i < lowStepsOutput.Length; i += 4)
-        {
-            if (lowStepsOutput[i] > 0.001f || lowStepsOutput[i + 1] > 0.001f || lowStepsOutput[i + 2] > 0.001f)
-                lowNonZero++;
-            if (highStepsOutput[i] > 0.001f || highStepsOutput[i + 1] > 0.001f || highStepsOutput[i + 2] > 0.001f)
-                highNonZero++;
+            var count=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,any(greaterThan(a.rgb,vec3(.001))));");
+            count.AssertEqual();highNonZero=checked((int)count.MatchingTexels);
         }
 
         Assert.True(lowNonZero > 0, "Low ray steps should produce some non-zero output");
@@ -961,7 +853,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
     #endregion
 
-    #region Phase 9 Tests: Probe-Atlas Meta Output
+    #region Probe-atlas metadata output
 
     [Fact]
     public void Meta_HitHigherThanSky()
@@ -1017,46 +909,17 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
 
-        var radianceData = outputAtlas[0].ReadPixels();
-        var metaData = outputAtlas[1].ReadPixels();
-
-        // Find one "hit" texel (distance < RayMaxDistance) and one "sky" texel (distance ~= RayMaxDistance)
-        bool foundHit = false;
-        bool foundSky = false;
-        int hitX = 0, hitY = 0, skyX = 0, skyY = 0;
-
-        for (int y = 0; y < AtlasHeight; y++)
-        {
-            for (int x = 0; x < AtlasWidth; x++)
-            {
-                var (_, _, _, a) = ReadAtlasTexel(radianceData, x, y);
-                float dist = DecodeHitDistance(a);
-                if (!foundHit && dist < RayMaxDistance - 0.5f)
-                {
-                    foundHit = true;
-                    hitX = x;
-                    hitY = y;
-                }
-                if (!foundSky && dist > RayMaxDistance - 0.05f)
-                {
-                    foundSky = true;
-                    skyX = x;
-                    skyY = y;
-                }
-
-                if (foundHit && foundSky)
-                    break;
-            }
-            if (foundHit && foundSky)
-                break;
-        }
-
-        Assert.True(foundHit, "Expected at least one hit texel in the atlas");
-        Assert.True(foundSky, "Expected at least one sky-miss texel in the atlas");
-
-        var (hitConf, _) = ReadAtlasMetaTexel(metaData, hitX, hitY);
-        var (skyConf, _) = ReadAtlasMetaTexel(metaData, skyX, skyY);
-
+        var hit=ImageAssertions.Predicate(outputAtlas[0],"precise float distance=exp(a.a)-1;return bvec2(true,distance<multipliers.x);",
+            parameters:new(RayMaxDistance-.5f,0,0,0));
+        var sky=ImageAssertions.Predicate(outputAtlas[0],"precise float distance=exp(a.a)-1;return bvec2(true,distance>multipliers.x);",
+            parameters:new(RayMaxDistance-.05f,0,0,0));
+        hit.AssertEqual();sky.AssertEqual();
+        Assert.True(hit.MatchingTexels>0,"Expected at least one hit texel in the atlas");
+        Assert.True(sky.MatchingTexels>0,"Expected at least one sky-miss texel in the atlas");
+        int hitX=(int)hit.FirstWitnessIndex%AtlasWidth,hitY=(int)hit.FirstWitnessIndex/AtlasWidth;
+        int skyX=(int)sky.FirstWitnessIndex%AtlasWidth,skyY=(int)sky.FirstWitnessIndex/AtlasWidth;
+        var (hitConf,_)=ReadAtlasMetaTexel(outputAtlas[1],hitX,hitY);
+        var (skyConf,_)=ReadAtlasMetaTexel(outputAtlas[1],skyX,skyY);
         Assert.True(hitConf > skyConf,
             $"Expected hit confidence > sky confidence, got hit={hitConf:F3} sky={skyConf:F3} (hitCoord={hitX},{hitY} skyCoord={skyX},{skyY})");
     }
@@ -1109,21 +972,9 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var metaData = outputAtlas[1].ReadPixels();
-
-        float minConf = float.MaxValue;
-        float maxConf = float.MinValue;
-
-        for (int y = 0; y < AtlasHeight; y++)
-        {
-            for (int x = 0; x < AtlasWidth; x++)
-            {
-                var (conf, _) = ReadAtlasMetaTexel(metaData, x, y);
-                minConf = MathF.Min(minConf, conf);
-                maxConf = MathF.Max(maxConf, conf);
-            }
-        }
-
+        var confidence=ImageAssertions.Inspect(outputAtlas[1],channelMask:1);
+        confidence.AssertFiniteRange();
+        float minConf=(float)confidence.Minimum,maxConf=(float)confidence.Maximum;
         Assert.True(minConf < maxConf, $"Expected some rays to exit screen (minConf={minConf:F3}, maxConf={maxConf:F3})");
         Assert.True(minConf <= 0.06f, $"Expected exit confidence to be low (<= 0.06), got {minConf:F3}");
         Assert.True(maxConf >= 0.20f, $"Expected non-exit sky-miss confidence to be higher (>= 0.20), got {maxConf:F3}");
@@ -1185,7 +1036,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var metaData = outputAtlas[1].ReadPixels();
+        var metaData = outputAtlas[1];
 
         var (conf, flagsBitsAsFloat) = ReadAtlasMetaTexel(metaData, x, y);
         Assert.True(MathF.Abs(conf - 0.77f) < 1e-4f, $"Expected preserved meta confidence at ({x},{y}) to be 0.77, got {conf:F6}");
@@ -1245,12 +1096,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var atlasData = outputAtlas[0].ReadPixels();
-
-            // Sum red channel
-            withSunRed = 0;
-            for (int i = 0; i < atlasData.Length; i += 4)
-                withSunRed += atlasData[i];
+            withSunRed = ImageAssertions.OrderedFloatSum(outputAtlas[0],"value.r");
         }
 
         // Without sun
@@ -1290,12 +1136,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var atlasData = outputAtlas[0].ReadPixels();
-
-            // Sum red channel
-            withoutSunRed = 0;
-            for (int i = 0; i < atlasData.Length; i += 4)
-                withoutSunRed += atlasData[i];
+            withoutSunRed = ImageAssertions.OrderedFloatSum(outputAtlas[0],"value.r");
         }
 
         // docs/PBR.Atmosphere.md: hemispherical sky replaces the former fabricated solar halo.
@@ -1368,11 +1209,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var atlasData = outputAtlas[0].ReadPixels();
-
-            fullTintBrightness = 0;
-            for (int i = 0; i < atlasData.Length; i += 4)
-                fullTintBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
+            fullTintBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0],"(value.r+value.g)+value.b");
         }
 
         // Half tint
@@ -1412,11 +1249,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var atlasData = outputAtlas[0].ReadPixels();
-
-            halfTintBrightness = 0;
-            for (int i = 0; i < atlasData.Length; i += 4)
-                halfTintBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
+            halfTintBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0],"(value.r+value.g)+value.b");
         }
 
         Assert.True(halfTintBrightness < fullTintBrightness * 0.8f,
@@ -1487,11 +1320,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var atlasData = outputAtlas[0].ReadPixels();
-
-            nearHitBrightness = 0;
-            for (int i = 0; i < atlasData.Length; i += 4)
-                nearHitBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
+            nearHitBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0],"(value.r+value.g)+value.b");
         }
 
         // Far geometry (depth 0.99 - farther)
@@ -1532,11 +1361,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var atlasData = outputAtlas[0].ReadPixels();
-
-            farHitBrightness = 0;
-            for (int i = 0; i < atlasData.Length; i += 4)
-                farHitBrightness += atlasData[i] + atlasData[i + 1] + atlasData[i + 2];
+            farHitBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0],"(value.r+value.g)+value.b");
         }
 
         // Near hits should produce different radiance than far hits due to distance encoding
@@ -1573,8 +1398,9 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         var colorData = CreateUniformSceneColor(1f, 0f, 0f);
         var historyData = CreateZeroedHistory();
 
-        float[] frame0Output;
-        float[] frame1Output;
+        GpuImageSnapshot? frame0Output=null,frame1Output=null;
+        try
+        {
 
         // Frame 0
         {
@@ -1610,7 +1436,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            frame0Output = outputAtlas[0].ReadPixels();
+            frame0Output = new(outputAtlas[0]);
         }
 
         // Frame 1
@@ -1647,22 +1473,14 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            frame1Output = outputAtlas[0].ReadPixels();
+            frame1Output = new(outputAtlas[0]);
         }
 
-        // Count how many texels differ between frames
-        int differentTexels = 0;
-        for (int i = 0; i < frame0Output.Length; i += 4)
-        {
-            bool frame0HasValue = frame0Output[i] > 0.01f || frame0Output[i + 1] > 0.01f || frame0Output[i + 2] > 0.01f;
-            bool frame1HasValue = frame1Output[i] > 0.01f || frame1Output[i + 1] > 0.01f || frame1Output[i + 2] > 0.01f;
-            if (frame0HasValue != frame1HasValue)
-                differentTexels++;
+        var differences=ImageAssertions.Predicate(frame0Output!.Texture,"return bvec2(true,any(greaterThan(a.rgb,vec3(.01)))!=any(greaterThan(b.rgb,vec3(.01))));",
+            frame1Output!.Texture);
+        differences.AssertEqual();Assert.True(differences.MatchingTexels>0);
         }
-
-        // Different frame indices should update different texels
-        Assert.True(differentTexels > 0,
-            "Different frame indices should trace different texels for temporal distribution");
+        finally { frame1Output?.Dispose();frame0Output?.Dispose(); }
     }
 
     /// <summary>
@@ -1726,14 +1544,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outputData = outputAtlas[0].ReadPixels();
-
-            lowTexelsNonZero = 0;
-            for (int i = 0; i < outputData.Length; i += 4)
-            {
-                if (outputData[i] > 0.01f || outputData[i + 1] > 0.01f || outputData[i + 2] > 0.01f)
-                    lowTexelsNonZero++;
-            }
+            var count=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,any(greaterThan(a.rgb,vec3(.01))));");
+            count.AssertEqual();lowTexelsNonZero=checked((int)count.MatchingTexels);
         }
 
         // High texels per frame (32)
@@ -1769,14 +1581,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outputData = outputAtlas[0].ReadPixels();
-
-            highTexelsNonZero = 0;
-            for (int i = 0; i < outputData.Length; i += 4)
-            {
-                if (outputData[i] > 0.01f || outputData[i + 1] > 0.01f || outputData[i + 2] > 0.01f)
-                    highTexelsNonZero++;
-            }
+            var count=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,any(greaterThan(a.rgb,vec3(.01))));");
+            count.AssertEqual();highTexelsNonZero=checked((int)count.MatchingTexels);
         }
 
         // Higher texelsPerFrame should trace more texels
@@ -1843,27 +1649,9 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
-
-        // Check that output is valid (no NaN or extreme values)
-        bool hasValidOutput = false;
-        bool hasInvalidOutput = false;
-        for (int i = 0; i < outputData.Length; i += 4)
-        {
-            float r = outputData[i], g = outputData[i + 1], b = outputData[i + 2];
-            if (float.IsNaN(r) || float.IsNaN(g) || float.IsNaN(b) ||
-                float.IsInfinity(r) || float.IsInfinity(g) || float.IsInfinity(b))
-            {
-                hasInvalidOutput = true;
-            }
-            else if (r > 0.001f || g > 0.001f || b > 0.001f)
-            {
-                hasValidOutput = true;
-            }
-        }
-
-        Assert.False(hasInvalidOutput, "Ray exits should not produce NaN/Infinity");
-        Assert.True(hasValidOutput, "At least some texels should have valid output");
+        ImageAssertions.Inspect(outputAtlas[0],channelMask:7).AssertFiniteRange();
+        var lit=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,any(greaterThan(a.rgb,vec3(.001))));");
+        lit.AssertEqual();Assert.True(lit.MatchingTexels>0);
     }
 
     /// <summary>
@@ -1929,11 +1717,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outputData = outputAtlas[0].ReadPixels();
-
-            identityBrightness = 0;
-            for (int i = 0; i < outputData.Length; i += 4)
-                identityBrightness += outputData[i] + outputData[i + 1] + outputData[i + 2];
+            identityBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0],"(value.r+value.g)+value.b");
         }
 
         // Rotated view (90 degrees around Y)
@@ -1983,11 +1767,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outputData = outputAtlas[0].ReadPixels();
-
-            rotatedBrightness = 0;
-            for (int i = 0; i < outputData.Length; i += 4)
-                rotatedBrightness += outputData[i] + outputData[i + 1] + outputData[i + 2];
+            rotatedBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0],"(value.r+value.g)+value.b");
         }
 
         // Both should produce valid output

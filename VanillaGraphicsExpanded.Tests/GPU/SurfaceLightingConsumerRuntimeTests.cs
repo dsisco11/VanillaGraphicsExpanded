@@ -26,10 +26,8 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         {
             runtime.Frame();
             ready |= runtime.Cache.TryGetLighting(out _);
-            // Reuse only across these adjacent assertions; the next frame reads fresh pixels.
-            var worldPixels = runtime.WorldPixels();
-            Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(worldPixels), 0, .0001f);
-            Assert.All(worldPixels, value => Assert.Equal(0, value));
+            Assert.InRange(runtime.Energy(runtime.WorldImage), 0, .0001f);
+            ImageAssertions.CompareConstant(runtime.WorldImage, 0).AssertEqual();
             Assert.Equal(0, runtime.WorldConfidence);
             Thread.Yield();
         }
@@ -44,7 +42,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         EnsureContextValid();
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(false);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
-        runtime.RunUntil(() => SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()) > .001f);
+        runtime.RunUntil(() => runtime.Energy(runtime.WorldImage) > .001f);
         Assert.True(runtime.World.WorkerReads > 0);
         Assert.Equal(0, runtime.World.VanillaLightReads);
     }
@@ -65,7 +63,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
             runtime.Frame();
             exposedQueuedRays |= runtime.WorldBuffers.TryGetDebugTraceRays(out _, out int count, out _) && count > 0;
             if (frame == 47) firstReads = runtime.World.WorkerReads;
-            Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()), 0, .0001f);
+            Assert.InRange(runtime.Energy(runtime.WorldImage), 0, .0001f);
             Assert.False(runtime.HasPendingSurfaceLightingQueries);
             Thread.Yield();
         }
@@ -73,7 +71,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         Assert.True(exposedQueuedRays, "The queued-ray debug path never received trace requests.");
         Assert.True(runtime.World.WorkerReads > firstReads, "Unresolved surface results stopped being retried.");
         runtime.WorldRenderer.SetSurfaceLightingProvider(runtime.Cache.LightingProvider, runtime.Cache.Geometry);
-        runtime.RunUntil(() => SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()) > .001f);
+        runtime.RunUntil(() => runtime.Energy(runtime.WorldImage) > .001f);
     }
 
     /// <summary>Default-resolution cache sweeps feed real probe workers while the camera crosses block boundaries.</summary>
@@ -91,7 +89,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
             scene.Position = new(frame % 2, 36, 5);
             runtime.Frame();
             published = runtime.World.WorkerReads > 0 &&
-                SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()) > .001f;
+                runtime.Energy(runtime.WorldImage) > .001f;
             Thread.Yield();
         }
         Assert.True(published, $"Moving camera failed to produce world-probe radiance; worker reads={runtime.World.WorkerReads}, cache={runtime.Cache.TryGetLighting(out _)}.");
@@ -106,11 +104,11 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(sh9);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=gpu;
         runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.HasPublishedIndirect
-            && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())>.001f
-            && runtime.WorldBuffers.Resources!=null && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
+            && runtime.Energy(runtime.FinalImage)>.001f
+            && runtime.WorldBuffers.Resources!=null && runtime.Energy(runtime.WorldImage)>.001f);
         if(gpu)Assert.Equal(0,runtime.World.WorkerReads);else Assert.True(runtime.World.WorkerReads>0);
-        Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.Screen.ScreenProbeAtlasHistoryTex!.ReadPixels())>.001f);
-        Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.Screen.ScreenProbeAtlasFilteredTex!.ReadPixels())>.001f);
+        Assert.True(runtime.Energy(runtime.Screen.ScreenProbeAtlasHistoryTex!)>.001f);
+        Assert.True(runtime.Energy(runtime.Screen.ScreenProbeAtlasFilteredTex!)>.001f);
         Assert.True(runtime.DrawnPrograms.Count>0);
         Assert.Contains("lumon_probe_anchor",runtime.LoadedPrograms);
         Assert.Contains("lumon_probe_atlas_temporal",runtime.LoadedPrograms);
@@ -119,7 +117,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         Assert.Contains("lumon_upsample",runtime.LoadedPrograms);
         // Resident GPU commits do not load the CPU-only raster upload program.
         if(!gpu)Assert.Contains("lumon_worldprobe_radiance_tile_resolve",runtime.LoadedPrograms);
-        Assert.Contains(LayeredTestTexture.Read(runtime.Screen.ProbeAnchors!, 0).Where((_,i)=>i%4==3),v=>v>.5f);
+        Assert.True(ImageAssertions.Inspect(runtime.Screen.ProbeAnchors!, selection: new(new(0, 0), 0, 0, 0, runtime.Screen.ProbeAnchors!.Width, runtime.Screen.ProbeAnchors.Height), channelMask: 8).Maximum > .5f);
         foreach(int light in new[]{0,32})
         {
             runtime.Cache.ChangeBlockLight(light);
@@ -127,8 +125,8 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
             runtime.Cache.RequestAtlasRecreation();
             runtime.Frame();
             runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.HasPublishedIndirect && runtime.WorldConfidence>=.25f &&
-                (light!=0 ? SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())>.001f : SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())<=.0001f) &&
-                (light!=0 ? SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f : SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())<=.0001f));
+                (light!=0 ? runtime.Energy(runtime.FinalImage)>.001f : runtime.Energy(runtime.FinalImage)<=.0001f) &&
+                (light!=0 ? runtime.Energy(runtime.WorldImage)>.001f : runtime.Energy(runtime.WorldImage)<=.0001f));
         }
         var oldAtlas=runtime.Cache.IrradianceAtlas();
         var oldWorld=runtime.WorldBuffers.Resources;
@@ -140,16 +138,16 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         // Reallocation deliberately skips rendering; allocated storage is not produced lighting.
         Assert.False(runtime.Screen.HasPublishedIndirect);
         runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.HasPublishedIndirect && !ReferenceEquals(oldAtlas,runtime.Cache.IrradianceAtlas())
-            && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())>.001f
-            && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
+            && runtime.Energy(runtime.FinalImage)>.001f
+            && runtime.Energy(runtime.WorldImage)>.001f);
         Assert.NotSame(oldWorld,runtime.WorldBuffers.Resources);
         Assert.True(runtime.Screen.HistoryRevision>oldHistory);
         runtime.Cache.LeaveWorld();
-        Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.Screen.ScreenProbeAtlasHistoryTex!.ReadPixels()),0,.0001f);
-        Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()),0,.0001f);
-        Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels()),0,.0001f);
-        runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.HasPublishedIndirect && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())>.001f
-            && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
+        Assert.InRange(runtime.Energy(runtime.Screen.ScreenProbeAtlasHistoryTex!),0,.0001f);
+        Assert.InRange(runtime.Energy(runtime.WorldImage),0,.0001f);
+        Assert.InRange(runtime.Energy(runtime.FinalImage),0,.0001f);
+        runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.HasPublishedIndirect && runtime.Energy(runtime.FinalImage)>.001f
+            && runtime.Energy(runtime.WorldImage)>.001f);
         var done=runtime.Cache.Events.Registrations.Where(r=>r.Stage==EnumRenderStage.Done).OrderBy(r=>r.Renderer.RenderOrder).Select(r=>r.Name).ToArray();
         Assert.True(Array.IndexOf(done,"vge_lumonscene_feedback")<Array.IndexOf(done,"vge_lumonscene_relight"));
         Assert.True(Array.IndexOf(done,"vge_lumonscene_relight")<Array.IndexOf(done,"vge_worldprobe_update"));
@@ -166,22 +164,22 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=gpu;
-        runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
+        runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && runtime.Energy(runtime.WorldImage)>.001f);
         runtime.WorldBuffers.RequestRecreate("verify atomic upload admission with a ready cache");
         runtime.Frame();
         if(!gpu)runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
         runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=63;
-        Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
+        runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 0).AssertEqual();
         Assert.Equal(0,runtime.WorldConfidence);
         for(int frame=0;frame<8;frame++)
         {
             runtime.Frame();
-            Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
+            runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 0).AssertEqual();
             Assert.Equal(0,runtime.WorldConfidence);
         }
         Assert.False(runtime.HasPendingSurfaceLightingQueries);
         runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=gpu?2096:1576;
-        runtime.RunUntil(()=>SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
+        runtime.RunUntil(()=>runtime.Energy(runtime.WorldImage)>.001f);
     }
 
     /// <summary>Dependency replacement discards an already submitted hit-query batch before its lighting can enter the atlas.</summary>
@@ -191,18 +189,18 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
-        runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
+        runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && runtime.Energy(runtime.WorldImage)>.001f);
         runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
         Assert.True(runtime.Cache.TryGetLighting(out var before));
         runtime.Cache.ChangeBlockLight(0); runtime.Cache.RequestAtlasRecreation(); runtime.Frame();
-        Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()),0,.0001f);
+        Assert.InRange(runtime.Energy(runtime.WorldImage),0,.0001f);
         runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out var after)&&after.DependencyRevision!=before.DependencyRevision
             && runtime.WorldConfidence>=.25f);
         for(int frame=0;frame<8;frame++)
         {
             runtime.Frame();
-            Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()),0,.0001f);
-            Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels()),0,.0001f);
+            Assert.InRange(runtime.Energy(runtime.WorldImage),0,.0001f);
+            Assert.InRange(runtime.Energy(runtime.FinalImage),0,.0001f);
         }
     }
 
@@ -213,20 +211,20 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(true);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
-        runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
+        runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && runtime.Energy(runtime.WorldImage)>.001f);
         runtime.World.HoldWorker();
         runtime.RunUntil(()=>runtime.World.WorkerWaiting);
         Assert.True(runtime.Cache.TryGetLighting(out var before));
         runtime.Cache.ChangeBlockLight(0); runtime.Cache.RequestAtlasRecreation(); runtime.Frame();
-        Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()),0,.0001f);
+        Assert.InRange(runtime.Energy(runtime.WorldImage),0,.0001f);
         runtime.World.ReleaseWorker();
         runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out var after)&&after.DependencyRevision!=before.DependencyRevision
             && runtime.WorldConfidence>=.25f);
         for(int frame=0;frame<8;frame++)
         {
             runtime.Frame();
-            Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()),0,.0001f);
-            Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels()),0,.0001f);
+            Assert.InRange(runtime.Energy(runtime.WorldImage),0,.0001f);
+            Assert.InRange(runtime.Energy(runtime.FinalImage),0,.0001f);
         }
     }
 

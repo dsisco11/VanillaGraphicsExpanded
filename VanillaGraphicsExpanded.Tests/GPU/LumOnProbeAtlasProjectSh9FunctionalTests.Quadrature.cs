@@ -159,7 +159,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
         program.ProbeAnchors = projectAnchors;
         TestFramework.RenderQuadTo(program, output);
         var result = new float[28];
-        for (int target = 0; target < 7; target++) output[target].ReadPixels().AsSpan(0, 4).CopyTo(result.AsSpan(target << 2, 4));
+        for (int target = 0; target < 7; target++) output[target].ReadPixelsRegion(0,0,1,1).AsSpan(0, 4).CopyTo(result.AsSpan(target << 2, 4));
         Assert.All(result, value => Assert.True(float.IsFinite(value)));
         if (!storedCoefficients)
             for (int coefficient = 0; coefficient < 27; coefficient++) result[coefficient] /= LightingStorage.PersistentScale;
@@ -194,7 +194,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
         program.ProbeAnchors = anchorInputs1; program.PrimaryDepth = depth; using var surfaceInput1 = LayeredTestTexture.Create(guides, null, null);
         program.GBufferSurface = surfaceInput1;
         TestFramework.RenderQuadTo(program, output);
-        var result = output[0].ReadPixels();
+        var result = output[0].ReadPixelsRegion(0,0,1,1);
         return new(result[0], result[1], result[2], result[3]);
     }
     #endregion

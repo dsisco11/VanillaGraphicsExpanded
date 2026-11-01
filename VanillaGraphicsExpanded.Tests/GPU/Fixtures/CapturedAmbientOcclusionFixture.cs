@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Buffers.Binary;
@@ -14,6 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 internal sealed class CapturedAmbientOcclusionFixture : IDisposable
 {
     private readonly GpuResourceCollection resources = new();
+    private readonly GpuImageAssertions imageAssertions=new();
     private readonly JsonDocument manifest;
     private readonly TestAssetSnapshot inputs;
     private readonly DynamicTexture2D depth, hierarchy;
@@ -104,7 +106,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
     }
 
     /// <summary>Retires all restored GPU inputs and parsed metadata together.</summary>
-    public void Dispose() { comparisonMasks.Dispose();camera?.Dispose(); resources.Dispose(); manifest.Dispose(); }
+    public void Dispose() { imageAssertions.Dispose();comparisonMasks.Dispose();camera?.Dispose(); resources.Dispose(); manifest.Dispose(); }
     #endregion
 
     #region Private
@@ -133,7 +135,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
                 using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId))
                 using (OpenGLPixelLayouts.UnpackScope(OpenGlStateCache.Current, new OpenGlStateCache.PixelUnpackState(4)))
                     GL.TexSubImage2D(TextureTarget.Texture2D, mip, 0, 0, width, height, PixelFormat.Red, PixelType.Float, pixels);
-                Assert.Equal(pixels, texture.ReadPixels(mip));
+                imageAssertions.Compare(texture,pixels,selection:GpuImageSnapshot.Mip(texture,mip)).AssertEqual();
             }
             return texture;
         }
@@ -161,8 +163,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
                 float[] pixels = DecodeHalf(CapturedPayload.Read(inputs, subresource, checked(Width * Height * 8)));
                 // Half values are exactly representable as float; the upload returns to the original RGBA16F storage.
                 texture.UploadDataImmediate(pixels, 0, 0, layer, Width, Height, 1);
-                using var restored = texture.ReadPixelsRegion(0, 0, Width, Height, layer);
-                Assert.True(restored.Span.SequenceEqual(pixels));
+                imageAssertions.Compare(texture,pixels,selection:new(new(0,layer),0,0,0,Width,Height)).AssertEqual();
             }
             return texture;
         }

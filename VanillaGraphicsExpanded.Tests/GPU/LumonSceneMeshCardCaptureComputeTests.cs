@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
@@ -92,22 +93,14 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
 
         GpuTestFence.WaitForGpuOrSkip("MeshCardCapture dispatch (case 1)");
 
-        float[] depth = ReadTexImageR32f(depthAtlas.TextureId, TextureTarget.Texture2DArray, tileSize, tileSize);
-        Assert.Equal(tileSize * tileSize, depth.Length);
+        AssertDepthBounds(depthAtlas,-.02f,.02f);
 
-        // All depths should be ~0 (planar on the card plane).
-        (float min, float max) = MinMax(depth);
-        Assert.InRange(min, -0.02f, 0.02f);
-        Assert.InRange(max, -0.02f, 0.02f);
-
-        byte[] material = ReadTexImageRgba8(materialAtlas.TextureId, TextureTarget.Texture2DArray, tileSize, tileSize);
-        Assert.Equal(tileSize * tileSize * 4, material.Length);
+        byte[] material=GpuLocalRead.Rgba8(materialAtlas,tileSize/2,tileSize/2);
+        Assert.Equal(4,material.Length);
 
         // Spot check center pixel:
         // MaterialAtlas packing: RG = oct-encoded normal, BA = 16-bit surfaceId (here 0).
-        int cx = tileSize / 2;
-        int cy = tileSize / 2;
-        int idx = (cy * tileSize + cx) * 4;
+        int idx=0;
         Assert.InRange(material[idx + 0], (byte)120, (byte)136); // ~0.5
         Assert.InRange(material[idx + 1], (byte)120, (byte)136); // ~0.5
         Assert.Equal((byte)0, material[idx + 2]); // surfaceId lo
@@ -180,11 +173,7 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
 
         GpuTestFence.WaitForGpuOrSkip("MeshCardCapture dispatch (case 2)");
 
-        float[] depth = ReadTexImageR32f(depthAtlas.TextureId, TextureTarget.Texture2DArray, tileSize, tileSize);
-        (float min, float max) = MinMax(depth);
-
-        Assert.InRange(min, dz - 0.03f, dz + 0.03f);
-        Assert.InRange(max, dz - 0.03f, dz + 0.03f);
+        AssertDepthBounds(depthAtlas,dz-.03f,dz+.03f);
 
     }
 
@@ -252,15 +241,10 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
 
         GpuTestFence.WaitForGpuOrSkip("MeshCardCapture dispatch (case 3)");
 
-        float[] depth = ReadTexImageR32f(depthAtlas.TextureId, TextureTarget.Texture2DArray, tileSize, tileSize);
-        (float min, float max) = MinMax(depth);
-        Assert.InRange(min, -0.03f, 0.03f);
-        Assert.InRange(max, -0.03f, 0.03f);
+        AssertDepthBounds(depthAtlas,-.03f,.03f);
 
-        byte[] material = ReadTexImageRgba8(materialAtlas.TextureId, TextureTarget.Texture2DArray, tileSize, tileSize);
-        int cx = tileSize / 2;
-        int cy = tileSize / 2;
-        int idx = (cy * tileSize + cx) * 4;
+        byte[] material=GpuLocalRead.Rgba8(materialAtlas,tileSize/2,tileSize/2);
+        int idx=0;
         Assert.Equal((byte)0, material[idx + 2]);
         Assert.Equal((byte)0, material[idx + 3]);
         // RG encodes oct-normal; BA encodes surfaceId.
@@ -292,36 +276,11 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
         return ssbo;
     }
 
-    private static float[] ReadTexImageR32f(int textureId, TextureTarget target, int width, int height)
+    /// <summary>Retains the original non-NaN extrema bounds and requires at least one represented depth over the full capture tile.</summary>
+    private void AssertDepthBounds(GpuTexture depth,float minimum,float maximum)
     {
-        float[] data = new float[checked(width * height)];
-        GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-        GL.BindTexture(target, textureId);
-        GL.GetTexImage(target, level: 0, PixelFormat.Red, PixelType.Float, data);
-        GL.BindTexture(target, 0);
-        return data;
-    }
-
-    private static byte[] ReadTexImageRgba8(int textureId, TextureTarget target, int width, int height)
-    {
-        byte[] data = new byte[checked(width * height * 4)];
-        GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-        GL.BindTexture(target, textureId);
-        GL.GetTexImage(target, level: 0, PixelFormat.Rgba, PixelType.UnsignedByte, data);
-        GL.BindTexture(target, 0);
-        return data;
-    }
-
-    private static (float Min, float Max) MinMax(ReadOnlySpan<float> v)
-    {
-        float min = float.PositiveInfinity;
-        float max = float.NegativeInfinity;
-        for (int i = 0; i < v.Length; i++)
-        {
-            float x = v[i];
-            if (x < min) min = x;
-            if (x > max) max = x;
-        }
-        return (min, max);
+        var proof=ImageAssertions.Predicate(depth,"bool represented=!isnan(a.r);return bvec2(!represented || (a.r>=multipliers.x && a.r<=multipliers.y),represented);",
+            parameters:new(minimum,maximum,0,0));
+        proof.AssertEqual();Assert.True(proof.MatchingTexels>0);
     }
 }

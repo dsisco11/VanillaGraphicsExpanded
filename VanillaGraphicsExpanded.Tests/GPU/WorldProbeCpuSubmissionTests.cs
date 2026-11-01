@@ -27,10 +27,10 @@ public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : Re
         EnsureContextValid();
         using var atlas = new SurfaceLightingWorldProbeFixture();
         Assert.Equal(1, atlas.TryUpload(Result(.25f, .5f), 1024));
-        float[] radiance = atlas.Resources.ProbeRadianceAtlas.ReadPixels();
-        float[] metadata = atlas.Resources.ProbeMeta0.ReadPixels();
-        float[] visibility = atlas.Resources.ProbeVis0.ReadPixels();
-        float[] distance = atlas.Resources.ProbeDist0.ReadPixels();
+        using var radiance = new Assertions.GpuImageSnapshot(atlas.Resources.ProbeRadianceAtlas);
+        using var metadata = new Assertions.GpuImageSnapshot(atlas.Resources.ProbeMeta0);
+        using var visibility = new Assertions.GpuImageSnapshot(atlas.Resources.ProbeVis0);
+        using var distance = new Assertions.GpuImageSnapshot(atlas.Resources.ProbeDist0);
         var invalid = Result(.75f, .9f);
         invalid = invalidKind switch
         {
@@ -44,10 +44,10 @@ public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : Re
             _ => invalid with { ShortRangeAoDirWorld = new Vector3(float.MaxValue) }
         };
         Assert.Equal(0, atlas.TryUpload(invalid, 1024));
-        Assert.Equal(radiance, atlas.Resources.ProbeRadianceAtlas.ReadPixels());
-        Assert.Equal(metadata, atlas.Resources.ProbeMeta0.ReadPixels());
-        Assert.Equal(visibility, atlas.Resources.ProbeVis0.ReadPixels());
-        Assert.Equal(distance, atlas.Resources.ProbeDist0.ReadPixels());
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeRadianceAtlas, radiance).AssertEqual();
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeMeta0, metadata).AssertEqual();
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeVis0, visibility).AssertEqual();
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeDist0, distance).AssertEqual();
     }
 
     /// <summary>Two-pass publication ignores hostile ambient state, restores it and republishes changed values without clearing neighbors.</summary>
@@ -72,14 +72,21 @@ public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : Re
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest)); Assert.Equal((int)DepthFunction.Never, GL.GetInteger(GetPName.DepthFunc));
             int[] viewport = new int[4]; GL.GetInteger(GetPName.Viewport, viewport); Assert.Equal(new[] { 3, 4, 5, 6 }, viewport);
             bool[] mask = new bool[4]; GL.GetBoolean(GetPName.ColorWritemask, mask); Assert.All(mask, Assert.False);
-            float[] pixels = atlas.Resources.ProbeRadianceAtlas.ReadPixels(); Assert.InRange(pixels[0], .2499f * LightingStorage.PersistentScale, .2501f * LightingStorage.PersistentScale);
-            float[] meta = atlas.Resources.ProbeMeta0.ReadPixels(); Assert.InRange(meta[0], .4999f, .5001f);
+            using var pixels = new Assertions.GpuImageSnapshot(atlas.Resources.ProbeRadianceAtlas);
+            Assert.InRange(Assertions.GpuLocalRead.Scalar(pixels.Texture, 0), .2499f * LightingStorage.PersistentScale, .2501f * LightingStorage.PersistentScale);
+            Assert.InRange(Assertions.GpuLocalRead.Scalar(atlas.Resources.ProbeMeta0, 0), .4999f, .5001f);
             Assert.Equal(0, atlas.TryUpload(Result(.75f, .9f), 1));
-            Assert.Equal(pixels, atlas.Resources.ProbeRadianceAtlas.ReadPixels());
+            ImageAssertions.CompareHistory(atlas.Resources.ProbeRadianceAtlas, pixels).AssertEqual();
             atlas.InvalidatePrograms();
             Assert.Equal(1, atlas.TryUpload(Result(.75f, .9f), 1024));
-            var changed = atlas.Resources.ProbeRadianceAtlas.ReadPixels(); Assert.InRange(changed[0], .7499f * LightingStorage.PersistentScale, .7501f * LightingStorage.PersistentScale);
-            Assert.Equal(pixels.AsSpan(4).ToArray(), changed.AsSpan(4).ToArray());
+            var changed = atlas.Resources.ProbeRadianceAtlas;
+            Assert.InRange(Assertions.GpuLocalRead.Scalar(changed, 0), .7499f * LightingStorage.PersistentScale, .7501f * LightingStorage.PersistentScale);
+            foreach (var region in new VanillaGraphicsExpanded.Rendering.RHI.RHITextureRegion[] {
+                new(new(0),1,0,0,changed.Width-1,1), new(new(0),0,1,0,changed.Width,changed.Height-1) })
+            {
+                using var previous = new Assertions.GpuImageSnapshot(pixels.Texture, region);
+                ImageAssertions.CompareHistory(changed, previous, region).AssertEqual();
+            }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally

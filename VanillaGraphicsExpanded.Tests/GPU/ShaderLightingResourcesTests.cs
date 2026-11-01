@@ -47,7 +47,7 @@ public sealed class ShaderLightingResourcesTests : RenderTestBase
             Assert.All(BorrowScreen(screen), texture => Assert.DoesNotContain(texture, other));
             Assert.All(BorrowPasses(screen), pass => Assert.Contains(pass, framebuffers));
             Assert.Same(independentHistory, independent.ScreenProbeAtlasHistoryTex);
-            Assert.All(independentHistory.ReadPixels(), value => Assert.Equal(.75f, value));
+            ImageAssertions.CompareConstant(independentHistory, .75f).AssertEqual();
             Assert.All(worldTextures, texture => Assert.True(texture.IsValid));
             Assert.NotEqual(world.ProbeRadianceAtlas.TextureId, otherWorld.ProbeRadianceAtlas.TextureId);
         }

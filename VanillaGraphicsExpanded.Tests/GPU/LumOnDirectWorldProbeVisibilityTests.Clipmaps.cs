@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -46,21 +47,21 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         // Cross the fine interior, overlap band, and outer boundary.
         foreach (float x in new[] { 0f, 2f, 4f, 6f, 11.75f, 12.25f })
         {
-            var pixels = RenderDirectVisibility(atlas, local.Scene, new Vector3(x, 0, -0.25f),
+            using var pixels = RenderDirectVisibility(atlas, local.Scene, new Vector3(x, 0, -0.25f),
                 origins[0], 2, consumer, size: 1, span: 0, levelOrigins: origins, levelRings: rings);
             if (scenario == 1 || (scenario == 2 && x > 12))
             {
                 AssertLighting(pixels, consumer, false);
                 continue;
             }
-            float red = pixels[0], green = pixels[1];
+            float red = GpuLocalRead.Scalar(pixels.Texture, 0), green = GpuLocalRead.Scalar(pixels.Texture, 1);
             if (consumer >= 0)
             {
                 red /= 1 - red;
                 green /= 1 - green;
             }
             Assert.InRange(red + green, expectedTotal - 0.025f, expectedTotal + 0.025f);
-            Assert.Equal(0, pixels[2]);
+            Assert.Equal(0, GpuLocalRead.Scalar(pixels.Texture, 2));
             if (scenario == 2)
             {
                 Assert.InRange(red, expectedTotal - 0.025f, expectedTotal + 0.025f);
@@ -131,7 +132,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
             {
                 var center = new Vector3(pair.Item1, 0.5f, 0.5f);
                 var receiver = new Vector3(pair.Item2, 0.5f, 0.5f);
-                var pixels = RenderDirectVisibility(atlas, local.Scene, receiver,
+                using var pixels = RenderDirectVisibility(atlas, local.Scene, receiver,
                     center - new Vector3(64), 128, consumer, size: 1, span: 0);
                 AssertLighting(pixels, consumer, pair.Item3);
             }
@@ -165,7 +166,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         void AssertAt(float x, bool lit)
         {
             var center = new Vector3(x, 0.5f, 0.5f);
-            var pixels = RenderDirectVisibility(atlas, local.Scene, center,
+            using var pixels = RenderDirectVisibility(atlas, local.Scene, center,
                 center - new Vector3(8), 16, consumer, size: 1, span: 0);
             AssertLighting(pixels, consumer, lit);
         }

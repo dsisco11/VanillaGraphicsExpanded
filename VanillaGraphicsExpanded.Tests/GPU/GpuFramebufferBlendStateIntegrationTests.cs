@@ -77,7 +77,7 @@ public sealed class GpuFramebufferBlendStateIntegrationTests(HeadlessGLFixture f
             Assert.Equal(incomingBlend, GL.IsEnabled(IndexedEnableCap.Blend, 0));
             Assert.Equal(incomingBlend, GL.IsEnabled(IndexedEnableCap.Blend, 1));
             using var bindings = cache.BindFramebufferScope();
-            float[] firstPixel = t0.ReadPixels(), secondPixel = t1.ReadPixels();
+            float[] firstPixel = t0.ReadPixelsRegion(0,0,1,1), secondPixel = t1.ReadPixelsRegion(0,0,1,1);
             Assert.InRange(firstPixel[0], maskOnly ? .99f : .48f, maskOnly ? 1f : .52f);
             Assert.InRange(firstPixel[2], maskOnly ? .99f : .48f, maskOnly ? 1f : .52f);
             if (maskOnly) Assert.Equal(1f, firstPixel[3]);

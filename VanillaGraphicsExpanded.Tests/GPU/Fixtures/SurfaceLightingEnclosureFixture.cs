@@ -28,6 +28,8 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     private readonly Texture3D[] outgoing;
     private readonly LumonSceneCaptureWorkGpu[] captureItems;
     private readonly LumonSceneRelightWorkGpu[] lightingItems;
+    private readonly Assertions.GpuImageAssertions publicationAssertions=new();
+    private DynamicTexture2D? publicationSelection;
     private float[]? incidentPixels;
     private int generation;
     public long DependencyRevision { get; set; }
@@ -248,19 +250,31 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     private void Publish()
     {
         Run(2); generation++; GpuTestFence.WaitForGpuOrSkip("Surface outgoing generation");
-        var pixels = new float[AtlasEdge * AtlasEdge * 4];
-        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,Snapshot.OutgoingRadiance.TextureId);
-        GL.GetTexImage(TextureTarget.Texture2DArray,0,PixelFormat.Rgba,PixelType.Float,pixels);
-        foreach (var item in lightingItems)
+        if(publicationSelection is null)
         {
-            int local = (int)item.PhysicalPageId - 1;
-            for (int y=0; y<Edge; y++) for (int x=0; x<Edge; x++)
+            // The fixture's immutable work items define the requested pages independently of the producer.
+            var mask=new float[AtlasEdge*AtlasEdge];
+            foreach(var item in lightingItems)
             {
-                int offset = ((local / TilesPerAxis * Edge + y) * AtlasEdge + local % TilesPerAxis * Edge + x) * 4;
-                Assert.Equal(1f,pixels[offset+3]);
-                for (int c=0;c<3;c++) Assert.InRange(pixels[offset+c],0f,65504f);
+                int local=(int)item.PhysicalPageId-1;
+                for(int y=0;y<Edge;y++)for(int x=0;x<Edge;x++)
+                    mask[(local/TilesPerAxis*Edge+y)*AtlasEdge+local%TilesPerAxis*Edge+x]=1;
             }
+            var selected=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription
+            {
+                Dimension=TextureDimension.Two,Format=TextureFormat.R32f,Width=AtlasEdge,Height=AtlasEdge,
+                MipLevels=1,Storage=ResourceStorageMode.Immutable,Filter=TextureFilterMode.Nearest,Label="Tests.SurfaceEnclosure.Selection"
+            }).RequireResource();
+            try { selected.UploadDataImmediate(mask);publicationSelection=selected; }
+            catch { selected.Dispose();throw; }
         }
+        var proof=publicationAssertions.Predicate(Snapshot.OutgoingRadiance,"""
+            bool selected=b.r==1;
+            bool color=all(greaterThanEqual(a.rgb,vec3(0))) && all(lessThanEqual(a.rgb,vec3(65504)));
+            return bvec2(!selected || (a.a==1 && color),selected);
+            """,publicationSelection);
+        proof.AssertEqual();
+        Assert.Equal((uint)(lightingItems.Select(item=>item.PhysicalPageId).Distinct().Count()*Edge*Edge),proof.MatchingTexels);
     }
 
     /// <summary>Aliases a page-table entry to another captured patch without changing its physical readiness.</summary>
@@ -333,17 +347,15 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     /// <summary>Reads raw destination-format values to qualify persistent encoding independently of consumers.</summary>
     public float[] ReadStored(GpuTexture texture, int page = 0, int linear = 27)
     {
-        var pixels=new float[AtlasEdge*AtlasEdge*4];
-        using var binding=OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,texture.TextureId);
-        GL.GetTexImage(TextureTarget.Texture2DArray,0,PixelFormat.Rgba,PixelType.Float,pixels);
         int local=(int)lightingItems[page].PhysicalPageId-1;
         int x=((local%TilesPerAxis)<<3)+linear%Edge, y=((local/TilesPerAxis)<<3)+linear/Edge;
-        return pixels.AsSpan(((y<<6)+x)<<2,4).ToArray();
+        return texture.ReadPixelsRegion(x,y,1,1);
     }
 
     /// <summary>Releases fixture resources in producer-before-input order.</summary>
     public void Dispose()
     {
+        publicationAssertions.Dispose();publicationSelection?.Dispose();
         producer.Dispose(); lightingFrame.Dispose(); work.Dispose();metadata.Dispose();slots.Dispose();readiness.Dispose();
         textures.Dispose(); pageStorage.Dispose();
         Geometry.Dispose(); assets.Dispose(); material.Dispose();

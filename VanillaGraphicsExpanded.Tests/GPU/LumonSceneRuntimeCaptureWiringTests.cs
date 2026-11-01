@@ -158,8 +158,6 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R16f, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
         using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
         const int occRes = 32;
-        using var occL0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
 
         ClearR16f2DArray(depthAtlas.TextureId, atlasW, atlasH, atlasCount, value: 1f);
         ClearRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount, r: 0, g: 0, b: 0, a: 0);
@@ -167,7 +165,6 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         uint occPacked = LumonSceneOccupancyPacking.Pack(blockLevel: 0, sunLevel: 0, lightId: 0, materialPaletteIndex: 1);
         uint[] occ = new uint[occRes * occRes * occRes];
         Array.Fill(occ, occPacked);
-        occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
 
         uint[] pal = new uint[64 * 4];
         uint sid = 9u;
@@ -176,7 +173,6 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         pal[1 * 4 + 1] = packed2;
         pal[1 * 4 + 2] = packed2;
         pal[1 * 4 + 3] = 0u;
-        materialPalette.UploadDataImmediate(pal);
 
         using var captureWorkSsbo = CreateSsbo<LumonSceneCaptureWorkGpu>("Test_CaptureWorkSSBO", captureOut.AsSpan(0, captureCount));
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[desiredPages + 1]);
@@ -188,7 +184,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         captureComputeProgram.BindDepthAtlasImage(depthAtlas);
         captureComputeProgram.BindMaterialAtlasImage(materialAtlas);
 
-        using var sharedSurface = new SharedSurfaceInputFixture(occL0, materialPalette);
+        using var sharedSurface = new SharedSurfaceInputFixture(occRes, occ, pal);
         captureComputeProgram.BindSharedGeometry(sharedSurface.Scene);
 
         captureComputeProgram.SetAtlasLayout((uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
@@ -200,23 +196,14 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
 
         GpuTestFence.WaitForGpuOrSkip("RuntimeCaptureWiring capture pass dispatch");
 
-        // Validate: each captured tile center writes the expected surfaceId.
-        byte[] mat = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount);
-
-        for (int i = 0; i < captureCount; i++)
+        var positions=new List<(int X,int Y,int Layer)>();
+        for(int i=0;i<captureCount;i++)
         {
-            uint physicalPageId = captureOut[i].PhysicalPageId;
-            pool.PagePool.DecodePhysicalId(physicalPageId, out ushort atlasIdx, out ushort tileX, out ushort tileY);
-            int cx = tileX * tileSize + tileSize / 2;
-            int cy = tileY * tileSize + tileSize / 2;
-
-            (byte r, byte g, byte b, byte a) = ReadRgbaAt(mat, atlasW, atlasH, layer: atlasIdx, x: cx, y: cy);
-            // Oct-normal encoding can legitimately hit 0/255 on one axis (e.g. -X encodes to R=0).
-            Assert.True(r != 0 || g != 0, $"Expected non-zero oct normal (RG not both zero), got r={r} g={g}");
-            Assert.Equal((byte)9, b);
-            Assert.Equal((byte)0, a);
+            pool.PagePool.DecodePhysicalId(captureOut[i].PhysicalPageId,out ushort atlasIdx,out ushort tileX,out ushort tileY);
+            positions.Add((tileX*tileSize+tileSize/2,tileY*tileSize+tileSize/2,atlasIdx));
         }
-
+        var proof=ImageAssertions.PredicateAt(materialAtlas,positions,"return bvec2((value.r!=0 || value.g!=0) && roundEven(value.b*255)==9 && value.a==0,true);");
+        proof.AssertEqual();Assert.Equal((uint)captureCount,proof.MatchingTexels);
     }
 
     private sealed class NullPageTableWriter : ILumonScenePageTableWriter
@@ -293,22 +280,6 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         GL.BindTexture(TextureTarget.Texture2DArray, textureId);
         GL.TexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, 0, width, height, depth, PixelFormat.Rgba, PixelType.UnsignedByte, data);
         GL.BindTexture(TextureTarget.Texture2DArray, 0);
-    }
-
-    private static byte[] ReadTexImageRgba8_2DArray(int textureId, int width, int height, int depth)
-    {
-        byte[] data = new byte[checked(width * height * depth * 4)];
-        GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-        GL.BindTexture(TextureTarget.Texture2DArray, textureId);
-        GL.GetTexImage(TextureTarget.Texture2DArray, level: 0, PixelFormat.Rgba, PixelType.UnsignedByte, data);
-        GL.BindTexture(TextureTarget.Texture2DArray, 0);
-        return data;
-    }
-
-    private static (byte R, byte G, byte B, byte A) ReadRgbaAt(byte[] rgba, int width, int height, int layer, int x, int y)
-    {
-        int idx = (((layer * height) + y) * width + x) * 4;
-        return (rgba[idx + 0], rgba[idx + 1], rgba[idx + 2], rgba[idx + 3]);
     }
 
 }

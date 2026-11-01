@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.PBR.Materials;
@@ -67,7 +68,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             FramebufferTestSetup.BindForEngineRendering(target); GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, owner.ProgramId);
             GL.DrawElements(PrimitiveType.Triangles, 3, DrawElementsType.UnsignedInt, 3 * sizeof(uint));
-            float[] expected = target[0].ReadPixels();
+            using var expected=new GpuImageSnapshot(target[0]);
             ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = 2;
             TerrainTessellationTestAssets.Prepare(owner);
             TerrainTessellationPatches.Configure(owner);
@@ -94,12 +95,12 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             if (ordinaryDraw) platform.RenderMesh(mesh);
             else platform.RenderMesh(mesh, offsets, counts, 1, false);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
-            float[] actual = target[0].ReadPixels();
-            for (int i = 0; i < actual.Length; i++) Assert.InRange(actual[i], expected[i] - .0001f, expected[i] + .0001f);
+            using var assertions=new GpuImageAssertions();
+            assertions.Predicate(target[0],"return bvec2(all(greaterThanEqual(a,b-vec4(.0001))) && all(lessThanEqual(a,b+vec4(.0001))),false);",expected.Texture).AssertEqual();
             Assert.Equal(new[] { 12, 0 }, offsets); Assert.Equal(new[] { 3 }, counts);
             Assert.Equal(PrimitiveType.Triangles, mesh.drawMode);
             Assert.Equal(5, GL.GetInteger(GetPName.PatchVertices));
-            Assert.True(actual[3] > .9f);
+            Assert.True(GpuLocalRead.Scalar(target[0],3)>.9f);
             // A managed argument failure must also execute the installed finalizer.
             Assert.ThrowsAny<Exception>(() => platform.RenderMesh(null!, offsets, counts, 1, false));
             Assert.Equal(5, GL.GetInteger(GetPName.PatchVertices));

@@ -39,7 +39,7 @@ internal sealed class ProductionSkyDrawScene : IDisposable
         "activeBoundary", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
     internal readonly HashSet<RHIBoundaryScope> Boundaries = [];
     internal readonly List<string> Draws = [];
-    internal readonly List<float[][]> PrefixImages = [];
+    internal readonly List<Assertions.GpuImageSet> PrefixImages = [];
     internal bool ReadPrefixes;
 
     #region Public API
@@ -145,6 +145,7 @@ internal sealed class ProductionSkyDrawScene : IDisposable
         foreach (var image in outputs) image.UploadDataImmediate(new float[Size * Size * 4]);
         Draws.Clear();
         Boundaries.Clear();
+        foreach (var image in PrefixImages) image.Dispose();
         PrefixImages.Clear();
         native.Initialize();
     }
@@ -166,18 +167,8 @@ internal sealed class ProductionSkyDrawScene : IDisposable
 }
     }
 
-    /// <summary>Reads actual simultaneous color/glow shader outputs after the owned group hands back authority.</summary>
-    internal float[][] Read()
-    {
-        // Prefix observations must not unbind the active MRT between galaxy and stars.
-        return outputs.Select(image =>
-        {
-            float[] pixels = new float[Size * Size * 4];
-            using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)image).Target), 0, image.TextureId);
-            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
-            return pixels;
-        }).ToArray();
-    }
+    /// <summary>Retains actual color/glow images without changing the current production MRT selectors.</summary>
+    internal Assertions.GpuImageSet CaptureOutput(bool activeAttachment = false) => new(outputs, activeAttachment);
 
     /// <summary>Checks inherited state using the common hostile graphics fixture.</summary>
     internal void AssertRestored() => native.AssertRestored();
@@ -185,6 +176,8 @@ internal sealed class ProductionSkyDrawScene : IDisposable
     /// <summary>Retires every borrower before its source allocations and native shader boundary.</summary>
     public void Dispose()
     {
+        foreach (var image in PrefixImages) image.Dispose();
+        PrefixImages.Clear();
         for (int index = owned.Count - 1; index >= 0; index--) owned[index].Dispose();
     }
     #endregion
@@ -216,7 +209,7 @@ internal sealed class ProductionSkyDrawScene : IDisposable
             commands.BindResources(programs[index].CaptureBindings());
             commands.Draw(index == 1 ? stars.Inputs : fullscreen.Inputs, index == 1 ? new(0, 6, InstanceCount: 1) : new(0, 3));
             Draws.Add(programs[index].GetType().Name);
-            if (ReadPrefixes) PrefixImages.Add(Read());
+            if (ReadPrefixes) PrefixImages.Add(CaptureOutput(activeAttachment: true));
         }
         commands.EndRenderPass();
     }

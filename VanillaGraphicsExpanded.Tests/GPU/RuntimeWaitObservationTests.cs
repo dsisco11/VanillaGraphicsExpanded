@@ -1,5 +1,7 @@
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -32,15 +34,19 @@ public sealed class RuntimeWaitObservationTests : RenderTestBase
         GpuTexture[] intermediates = [runtime.Screen.ScreenProbeAtlasHistoryTex!, runtime.Screen.ScreenProbeAtlasFilteredTex!, runtime.Screen.IndirectHalfTex!];
         foreach (var texture in intermediates)
         {
-            float[] original = texture.ReadPixels();
-            float[] invalid = (float[])original.Clone();
+            using var original=new GpuImageSnapshot(texture);
+            float[] invalid=texture.ReadPixelsRegion(0,0,1,1);
             invalid[0] = float.NaN;
             try
             {
-                texture.UploadDataImmediate(invalid);
+                texture.UploadDataImmediate(invalid,0,0,1,1);
                 Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => runtime.RunUntil(() => true, maximumFrames: 0));
             }
-            finally { texture.UploadDataImmediate(original); }
+            finally
+            {
+                var region=new RHITextureRegion(new(0),0,0,0,texture.Width,texture.Height,1);
+                RHICommandContext.Current.CopyTexture(original.Texture,region,texture,region);
+            }
         }
     }
 

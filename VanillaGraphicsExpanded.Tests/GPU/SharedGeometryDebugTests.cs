@@ -70,14 +70,14 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
         scene.Publish();
         AssertColor(Render(scene.Scene, 70, 0, .5f), 0, 0, 0);
         // The same ray must hit that wall when using the larger surface domain.
-        float[] surface = Render(scene.Scene, 67, 0, .5f);
-        for (int i = 0; i < surface.Length; i += 4) Assert.True(surface[i] > .1f);
+        var surface = Render(scene.Scene, 67, 0, .5f);
+        ImageAssertions.Predicate(surface,"return bvec2(a.r>.1,false);").AssertEqual();
     }
     #endregion
 
     #region Rendering harness
     /// <summary>Binds real shared textures and a deterministic reconstructed surface; camera translation cancels view displacement.</summary>
-    private float[] Render(TraceGeometryGpuScene scene, int mode, int anchor, float x, float cameraY = 0)
+    private GpuTexture Render(TraceGeometryGpuScene scene, int mode, int anchor, float x, float cameraY = 0)
     {
         var program = Programs.Create<LumOnDebugShaderProgram>(shader =>
         {
@@ -102,15 +102,15 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
             program.TraceSceneLegacy = scene.Legacy;
             var output = SceneInputs.Engine.Output;
             TestFramework.RenderQuadTo(program, output);
-            return output[0].ReadPixels();
+            return output[0];
         }
     }
 
     /// <summary>Checks every rendered pixel, including opaque alpha, against the diagnostic legend.</summary>
-    private static void AssertColor(float[] pixels, float r, float g, float b)
+    private void AssertColor(GpuTexture image,float r,float g,float b)
     {
-        float[] expected = [r, g, b, 1];
-        for (int i = 0; i < pixels.Length; i++) Assert.InRange(pixels[i], expected[i % 4] - .001f, expected[i % 4] + .001f);
+        ImageAssertions.Predicate(image,"return bvec2(all(greaterThanEqual(a,multipliers-vec4(.001))) && all(lessThanEqual(a,multipliers+vec4(.001))),false);",
+            parameters:new(r,g,b,1)).AssertEqual();
     }
     #endregion
 }

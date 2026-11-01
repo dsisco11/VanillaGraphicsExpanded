@@ -80,8 +80,8 @@ public sealed class LumOnWorldProbeRadianceTileResolveFunctionalTests : LumOnSha
         });
 
         // Validate output texel.
-        var pixels = output[0].ReadPixels();
-        int idx = (atlasY * width + atlasX) * 4;
+        var pixels = output[0].ReadPixelsRegion(atlasX,atlasY,1,1);
+        int idx=0;
 
         // Persistent storage encodes RGB only; distance alpha stays in its authored domain.
         Assert.Equal(r, pixels[idx + 0] / LightingStorage.PersistentScale, 2);

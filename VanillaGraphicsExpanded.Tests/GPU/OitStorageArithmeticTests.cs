@@ -70,13 +70,8 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         using var framework = new ShaderTestFramework();
         using var output = CreateMRTRenderTarget(5, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
         framework.RenderQuadTo(program.ProgramId, output, (.125f,.125f,.125f,.125f));
-        float[] reveal = output[1].ReadPixels(), logarithm = output[2].ReadPixels();
-        for (int x=0; x<5; x++)
-        {
-            Assert.Equal(x<2?.125f:.25f, reveal[x*4]);
-            if (x>=2) Assert.True(logarithm[x*4]>0);
-            for (int bin=0; bin<3; bin++) Assert.All(output[3+bin].ReadPixels(), value=>Assert.True(float.IsFinite(value)));
-        }
+        ImageAssertions.Predicate(output[1],"return bvec2(a.r==(coordinate.x<2?.125:.25) && (coordinate.x<2 || b.r>0),false);",output[2]).AssertEqual();
+        for(int bin=0;bin<3;bin++)ImageAssertions.Inspect(output[3+bin]).AssertFiniteRange();
     }
     /// <summary>Actual additive blending keeps large native accumulators finite while invalid submissions preserve all attachments.</summary>
     [Fact]

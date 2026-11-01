@@ -48,8 +48,7 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
                 commands.EndRenderPass();
             });
 }
-            for (int layer = 0; layer < 2; layer++)
-                Assert.All(LayeredTestTexture.Read(transport, layer), value => Assert.Equal(0, value));
+            ImageAssertions.CompareConstant(transport,0).AssertEqual();
         }
         declarations.AssertReusable();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -117,9 +116,8 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
             foreach (var output in pass.Colors)
             {
                 var image=output.Image!.Value;
-                float[] pixels=image.Texture.Resource is Texture3D array
-                    ? LayeredTestTexture.Read(array,image.Subresource.Layer) : image.Texture.ReadPixels();
-                Assert.All(pixels,value=>Assert.Equal(0,value));
+                var source=Assert.IsAssignableFrom<GpuTexture>(image.Texture.Resource);
+                ImageAssertions.CompareConstant(source,0,new(image.Subresource,0,0,0,source.Width,source.Height,1)).AssertEqual();
             }
     }
 

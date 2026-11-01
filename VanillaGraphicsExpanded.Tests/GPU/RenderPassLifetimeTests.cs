@@ -36,7 +36,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
             Assert.Equal(original, GL.GetInteger(GetPName.DrawFramebufferBinding));
             commands.EndRenderPass();
         });
-        Assert.Equal(new float[] { .25f, .5f, .75f, 1 }, image.ReadPixels().Take(4));
+        Assert.Equal(new float[] { .25f, .5f, .75f, 1 }, image.ReadPixelsRegion(0,0,1,1));
         Assert.True(image.Resize(7, 3));
         using var next = commands.EnterBoundary(new("Tests.TargetReplacement", true, operations: BoundaryOperations.RenderPasses));
         next.Run(() =>
@@ -99,7 +99,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
             Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             commands.BeginRenderPass(valid); commands.EndRenderPass();
         });
-        Assert.All(image.ReadPixels(), value => Assert.Equal(.375f, value));
+        ImageAssertions.CompareConstant(image, .375f).AssertEqual();
         image.Dispose();
         using var rejected = commands.EnterBoundary(new("Tests.RetiredTarget", true, operations: BoundaryOperations.RenderPasses));
         rejected.Run(() => Assert.Throws<InvalidOperationException>(() => commands.BeginRenderPass(valid)));

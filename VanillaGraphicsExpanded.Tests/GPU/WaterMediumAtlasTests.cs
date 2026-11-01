@@ -26,10 +26,11 @@ public sealed class WaterMediumAtlasTests(HeadlessGLFixture fixture) : RenderTes
         store.SyncToAtlasPages([(7, 4, 4)], false);
         store.UpdateWaterMedium(plan);
         Assert.True(store.TryGetWaterMediumTextures(7, out var page));
-        var indices = page!.Indices.ReadPixels();
+        var indices = new float[16];
         for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++)
-            Assert.Equal(x is 1 or 2 && y is 1 or 2 ? 1 : 0, indices[y * 4 + x]);
-        var records = page.Records.ReadPixels();
+            indices[y*4+x]=x is 1 or 2 && y is 1 or 2?1:0;
+        ImageAssertions.Compare(page!.Indices,indices).AssertEqual();
+        var records = page.Records.ReadPixelsRegion(0,0,2,1);
         Assert.Equal(medium.AbsorptionPerMetre.X, records[0]);
         Assert.Equal(medium.AbsorptionPerMetre.Y, records[1]);
         Assert.Equal(medium.AbsorptionPerMetre.Z, records[2]);
@@ -40,7 +41,7 @@ public sealed class WaterMediumAtlasTests(HeadlessGLFixture fixture) : RenderTes
         store.UpdateWaterMedium(plan with { MaterialParamsTiles = [tile with {
             Definition = definition with { WaterMedium = medium with { Density = 0 } } }] });
         Assert.True(store.TryGetWaterMediumTextures(7, out page));
-        records = page!.Records.ReadPixels();
+        records = page!.Records.ReadPixelsRegion(0,0,2,1);
         Assert.Equal(Vector3.Zero, new(records[0], records[1], records[2]));
         Assert.Equal(Vector3.Zero, new(records[4], records[5], records[6]));
         store.SyncToAtlasPages([(7, 8, 8)], false);
@@ -73,8 +74,8 @@ public sealed class WaterMediumAtlasTests(HeadlessGLFixture fixture) : RenderTes
         Assert.True(store.TryGetWaterMediumTextures(7, out var page));
         Assert.Equal(256, page!.Records.Width);
         Assert.Equal(2, page.Records.Height);
-        Assert.Equal(129, page.Indices.ReadPixels()[128]);
-        Assert.Equal(128, page.Records.ReadPixels()[128 * 8 + 4]);
+        Assert.Equal(129, Assertions.GpuLocalRead.Scalar(page.Indices, 128));
+        Assert.Equal(128, Assertions.GpuLocalRead.Scalar(page.Records, 128 * 8 + 4));
     }
     #endregion
 }

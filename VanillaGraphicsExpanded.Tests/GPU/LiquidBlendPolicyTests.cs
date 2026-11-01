@@ -47,7 +47,7 @@ public sealed class LiquidBlendPolicyTests(HeadlessGLFixture fixture) : RenderTe
             commands.BindResources(shader.CaptureBindings()); commands.Draw(geometry.Inputs, new(0, 3));
         });
 }
-        var actual = target[0].ReadPixels(); var expected = new[] { red, green, blue, alpha };
+        var actual = target[0].ReadPixelsRegion(0,0,1,1); var expected = new[] { red, green, blue, alpha };
         for (int channel = 0; channel < 4; channel++) Assert.InRange(actual[channel], expected[channel] - .0001f, expected[channel] + .0001f);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

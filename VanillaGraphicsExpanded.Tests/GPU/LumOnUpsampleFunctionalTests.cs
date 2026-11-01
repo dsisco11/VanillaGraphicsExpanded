@@ -7,6 +7,7 @@ using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -167,12 +168,24 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
     /// </summary>
     private float[] CreateNormalBuffer(float nx, float ny, float nz) => CreateUniformNormalData(ScreenWidth, ScreenHeight, nx, ny, nz);
 
+    /// <summary>Retains float brightness, product rounding and ordered accumulation, returning only the original scalar variance.</summary>
+    private float BrightnessVariance(GpuTexture image)
+    {
+        using var transform=new GpuImageTransform();
+        using var brightness=transform.Apply(image,"precise float value=((a.r+a.g)+a.b)/3;return vec4(value,0,0,0);");
+        float sum=ImageAssertions.OrderedFloatSum(brightness,"value.r");
+        float sumSq=ImageAssertions.OrderedFloatSum(brightness,"value.r*value.r");
+        int count=image.Width*image.Height;
+        float mean=sum/count;
+        return sumSq/count-mean*mean;
+    }
     /// <summary>
     /// Reads a pixel from full-res output.
     /// </summary>
-    private static (float r, float g, float b, float a) ReadPixelFullRes(float[] data, int x, int y)
+    private static (float r, float g, float b, float a) ReadPixelFullRes(GpuTexture image, int x, int y)
     {
-        int idx = (y * ScreenWidth + x) * 4;
+        var data=image.ReadPixelsRegion(x,y,1,1);
+        int idx=0;
         return (data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
     }
 
@@ -229,29 +242,14 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
-
-        // DESIRED: All output pixels should equal input color
-        for (int py = 0; py < ScreenHeight; py++)
-        {
-            for (int px = 0; px < ScreenWidth; px++)
-            {
-                var (r, g, b, _) = ReadPixelFullRes(outputData, px, py);
-
-                Assert.True(MathF.Abs(r - inputColor.r) < TestEpsilon,
-                    $"Pixel ({px},{py}) R should be {inputColor.r:F2}, got {r:F3}");
-                Assert.True(MathF.Abs(g - inputColor.g) < TestEpsilon,
-                    $"Pixel ({px},{py}) G should be {inputColor.g:F2}, got {g:F3}");
-                Assert.True(MathF.Abs(b - inputColor.b) < TestEpsilon,
-                    $"Pixel ({px},{py}) B should be {inputColor.b:F2}, got {b:F3}");
-            }
-        }
+        ImageAssertions.Predicate(outputGBuffer[0],"precise vec3 difference=abs(a.rgb-multipliers.rgb);return bvec2(all(lessThan(difference,vec3(multipliers.w))),false);",
+            parameters:new(inputColor.r,inputColor.g,inputColor.b,TestEpsilon)).AssertEqual();
     }
 
     #region Test: HoleFill_OnlyAffectsLowConfidenceAreas
 
     /// <summary>
-    /// Phase 14: Screen-trace hole filling strategy.
+    /// Screen-trace hole filling strategy.
     ///
     /// DESIRED BEHAVIOR:
     /// - Hole filling only activates for low-confidence half-res samples (alpha < threshold)
@@ -295,7 +293,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         var programIdFill = Programs.Create<LumOnUpsampleShaderProgram>(settings: new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_HOLEFILL"] = "1" });
 
         /// <summary>Executes one selected production variant against identical controlled inputs.</summary>
-        float[] Render(LumOnUpsampleShaderProgram programId)
+        GpuImageSnapshot Render(LumOnUpsampleShaderProgram programId)
         {
             SetupUpsampleUniforms(programId,
                 holeFillRadius: 2,
@@ -308,19 +306,19 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             programId.GBufferSurface = surfaceInput2;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            return outputGBuffer[0].ReadPixels();
+            return new(outputGBuffer[0]);
         }
 
-        var outNoFill = Render(programIdNoFill);
-        var outFill = Render(programIdFill);
+        using var outNoFill = Render(programIdNoFill);
+        using var outFill = Render(programIdFill);
 
         // Pick a high-confidence region pixel (top-left quadrant)
-        var topLeftNoFill = ReadPixelFullRes(outNoFill, x: 0, y: 0);
-        var topLeftFill = ReadPixelFullRes(outFill, x: 0, y: 0);
+        var topLeftNoFill = ReadPixelFullRes(outNoFill.Texture, x: 0, y: 0);
+        var topLeftFill = ReadPixelFullRes(outFill.Texture, x: 0, y: 0);
 
         // Pick a low-confidence region pixel (bottom-right quadrant)
-        var bottomRightNoFill = ReadPixelFullRes(outNoFill, x: 3, y: 3);
-        var bottomRightFill = ReadPixelFullRes(outFill, x: 3, y: 3);
+        var bottomRightNoFill = ReadPixelFullRes(outNoFill.Texture, x: 3, y: 3);
+        var bottomRightFill = ReadPixelFullRes(outFill.Texture, x: 3, y: 3);
 
         // High-confidence region should be unchanged.
         Assert.InRange(MathF.Abs(topLeftNoFill.r - topLeftFill.r), 0f, 1e-4f);
@@ -386,26 +384,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
-
-        // DESIRED: Output should be a smooth gradient
-        // Check that each row is monotonically increasing (or at least non-decreasing)
-        for (int py = 0; py < ScreenHeight; py++)
-        {
-            float prevBrightness = -1f;
-            for (int px = 0; px < ScreenWidth; px++)
-            {
-                var (r, g, b, _) = ReadPixelFullRes(outputData, px, py);
-                float brightness = (r + g + b) / 3.0f;
-
-                // DESIRED: Gradient should increase left to right (allowing small tolerance)
-                Assert.True(brightness >= prevBrightness - 0.05f,
-                    $"Row {py}: pixel {px} brightness {brightness:F3} should be >= previous {prevBrightness:F3}");
-
-                prevBrightness = brightness;
-            }
-        }
-
+        var outputData=outputGBuffer[0];
+        ImageAssertions.Predicate(outputData,"""
+            precise float brightness=((a.r+a.g)+a.b)/3;
+            vec3 prior=texelFetch(actualImage,ivec3(max(coordinate.x-1,0),coordinate.y,coordinate.z),0).rgb;
+            precise float previous=coordinate.x==0?-1:((prior.r+prior.g)+prior.b)/3;
+            return bvec2(brightness>=previous-.05,false);
+            """).AssertEqual();
         // DESIRED: Left edge should be darker than right edge
         var (leftR, _, _, _) = ReadPixelFullRes(outputData, 0, ScreenHeight / 2);
         var (rightR, _, _, _) = ReadPixelFullRes(outputData, ScreenWidth - 1, ScreenHeight / 2);
@@ -486,23 +471,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
-
-        // DESIRED: Left pixels (x=0,1) should be predominantly red
-        for (int py = 0; py < ScreenHeight; py++)
-        {
-            var (r0, g0, b0, _) = ReadPixelFullRes(outputData, 0, py);
-            Assert.True(r0 > b0,
-                $"Left edge pixel (0,{py}) should be predominantly red, got R={r0:F3}, B={b0:F3}");
-        }
-
-        // DESIRED: Right pixels (x=2,3) should be predominantly blue
-        for (int py = 0; py < ScreenHeight; py++)
-        {
-            var (r3, g3, b3, _) = ReadPixelFullRes(outputData, ScreenWidth - 1, py);
-            Assert.True(b3 > r3,
-                $"Right edge pixel ({ScreenWidth - 1},{py}) should be predominantly blue, got R={r3:F3}, B={b3:F3}");
-        }
+        ImageAssertions.Predicate(outputGBuffer[0],"bool left=coordinate.x==0;bool right=coordinate.x==extent.x-1;return bvec2((!left || a.r>a.b) && (!right || a.b>a.r),left || right);").AssertEqual();
     }
 
     #endregion
@@ -556,25 +525,8 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
-
-        // DESIRED: Even with raw bilinear, uniform input should produce uniform output
-        for (int py = 0; py < ScreenHeight; py++)
-        {
-            for (int px = 0; px < ScreenWidth; px++)
-            {
-                var (r, g, b, _) = ReadPixelFullRes(outputData, px, py);
-
-                // Allow slightly larger tolerance for raw bilinear sampling
-                const float tolerance = 0.05f;
-                Assert.True(MathF.Abs(r - inputColor.r) < tolerance,
-                    $"Pixel ({px},{py}) R should be ≈{inputColor.r:F2}, got {r:F3}");
-                Assert.True(MathF.Abs(g - inputColor.g) < tolerance,
-                    $"Pixel ({px},{py}) G should be ≈{inputColor.g:F2}, got {g:F3}");
-                Assert.True(MathF.Abs(b - inputColor.b) < tolerance,
-                    $"Pixel ({px},{py}) B should be ≈{inputColor.b:F2}, got {b:F3}");
-            }
-        }
+        ImageAssertions.Predicate(outputGBuffer[0],"precise vec3 difference=abs(a.rgb-multipliers.rgb);return bvec2(all(lessThan(difference,vec3(multipliers.w))),false);",
+            parameters:new(inputColor.r,inputColor.g,inputColor.b,.05f)).AssertEqual();
     }
 
     #endregion
@@ -623,24 +575,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
-
-        // DESIRED: All sky pixels should output zero
-        for (int py = 0; py < ScreenHeight; py++)
-        {
-            for (int px = 0; px < ScreenWidth; px++)
-            {
-                var (r, g, b, a) = ReadPixelFullRes(outputData, px, py);
-
-                Assert.True(r < TestEpsilon && g < TestEpsilon && b < TestEpsilon,
-                    $"Sky pixel ({px},{py}) should be black, got ({r:F3}, {g:F3}, {b:F3})");
-            }
-        }
+        ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(all(lessThan(a.rgb,vec3(multipliers.x))),false);",
+            parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
 
-    #region Phase 5 Tests: Medium Priority
+    #region Additional spatial controls
 
     /// <summary>
     /// Tests that denoiseEnabled=0 uses simple bilinear upsampling.
@@ -688,7 +629,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             programId.GBufferSurface = surfaceInput7;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
+            var outputData = outputGBuffer[0];
             var (r, g, b, _) = ReadPixelFullRes(outputData, 2, 2);
             denoisedBrightness = (r + g + b) / 3f;
         }
@@ -712,7 +653,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             programId.GBufferSurface = surfaceInput8;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
+            var outputData = outputGBuffer[0];
             var (r, g, b, _) = ReadPixelFullRes(outputData, 2, 2);
             simpleBrightness = (r + g + b) / 3f;
         }
@@ -769,19 +710,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             programId.GBufferSurface = surfaceInput9;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
-
-            // Calculate variance across output
-            float sum = 0, sumSq = 0;
-            for (int i = 0; i < outputData.Length; i += 4)
-            {
-                float v = (outputData[i] + outputData[i + 1] + outputData[i + 2]) / 3f;
-                sum += v;
-                sumSq += v * v;
-            }
-            int count = outputData.Length / 4;
-            float mean = sum / count;
-            smallSigmaVariance = sumSq / count - mean * mean;
+            smallSigmaVariance = BrightnessVariance(outputGBuffer[0]);
         }
 
         // Large spatial sigma (blurrier)
@@ -803,19 +732,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             programId.GBufferSurface = surfaceInput10;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
-
-            // Calculate variance across output
-            float sum = 0, sumSq = 0;
-            for (int i = 0; i < outputData.Length; i += 4)
-            {
-                float v = (outputData[i] + outputData[i + 1] + outputData[i + 2]) / 3f;
-                sum += v;
-                sumSq += v * v;
-            }
-            int count = outputData.Length / 4;
-            float mean = sum / count;
-            largeSigmaVariance = sumSq / count - mean * mean;
+            largeSigmaVariance = BrightnessVariance(outputGBuffer[0]);
         }
 
         // Both should produce valid output
@@ -877,7 +794,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         programId.GBufferSurface = surfaceInput11;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // Sample from each side of the edge
         var (lR, _, _, _) = ReadPixelFullRes(outputData, 0, 2);  // Left side

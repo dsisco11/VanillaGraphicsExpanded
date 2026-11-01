@@ -17,6 +17,100 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
 {
     #region Public API
     #region Numeric predicates
+    /// <summary>Stencil comparison covers odd rows and the final tail texel without changing original depth sampling or payload.</summary>
+    [Fact]
+    public void PackedStencilDomainDetectsFinalTexelAndPreservesDepthAspect()
+    {
+        EnsureContextValid();
+        using var texture=new DepthStencilTexture(65,3);
+        using var target=DynamicGpuFramebuffer.CreateDepthOnly(texture)!;
+        using var bindings=VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGlStateCache.Current.BindFramebufferScope();
+        target.Bind();GL.Disable(EnableCap.ScissorTest);GL.StencilMask(0xff);GL.DepthMask(true);
+        GL.ClearDepth(.5);GL.ClearStencil(0x36);GL.Clear(ClearBufferMask.DepthBufferBit|ClearBufferMask.StencilBufferBit);
+        using var assertions=new GpuImageAssertions();
+        assertions.CompareStencil(texture,0x36).AssertEqual();
+        // Modify exactly the final texel, independently of the compute checker.
+        GL.Enable(EnableCap.ScissorTest);GL.Scissor(64,2,1,1);GL.ClearStencil(0x59);GL.Clear(ClearBufferMask.StencilBufferBit);
+        GL.Disable(EnableCap.ScissorTest);
+        Assert.Equal(1u,assertions.CompareStencil(texture,0x36).Mismatches);
+        assertions.Inspect(texture,.499,.501).AssertFiniteRange();
+        GL.GetTextureParameter(texture.TextureId,(GetTextureParameter)TextureParameterName.DepthStencilTextureMode,out int mode);
+        Assert.Equal((int)PixelFormat.DepthComponent,mode);
+    }
+
+    /// <summary>A local float tuple preserves explicit layer selection and IEEE payloads without a copied enclosing image.</summary>
+    [Fact]
+    public void LocalFloatTuplePreservesLayerAndPayload()
+    {
+        EnsureContextValid();
+        using var image=Create(TextureDimension.TwoArray,TextureFormat.Rgba32f,2,1,2);
+        float[] values=[1,2,3,4, 5,6,7,8, 9,10,11,12, float.NaN,float.Epsilon,-0f,float.PositiveInfinity];
+        RHICommandContext.Current.UploadTexture(image,new(new(0),0,0,0,2,1,2),
+            RHICommandContext.Current.GetTextureEncoding(image,PixelComponentType.Float),MemoryMarshal.AsBytes(values.AsSpan()));
+        Assert.Equal(Array.ConvertAll(values[12..],BitConverter.SingleToUInt32Bits),
+            Array.ConvertAll(GpuLocalRead.Tuple(image,1,0,1),BitConverter.SingleToUInt32Bits));
+    }
+
+    /// <summary>All UNORM8 byte values and the final component survive GPU reconstruction over odd rows and a partial workgroup.</summary>
+    [Fact]
+    public void NormalizedByteDomainPreservesAllValuesAndFinalComponent()
+    {
+        EnsureContextValid();
+        using var image=Create(TextureDimension.Two,TextureFormat.Rgba8,65,3);
+        byte[] values=Enumerable.Range(0,65*3*4).Select(index=>(byte)(index%256)).ToArray();
+        RHICommandContext.Current.UploadTexture(image,new(new(0),0,0,0,65,3),
+            RHICommandContext.Current.GetTextureEncoding(image,PixelComponentType.UnsignedByte),values);
+        using var assertions=new GpuImageAssertions();
+        assertions.CompareRgba8(image,values).AssertEqual();
+        values[^1]^=1;
+        Assert.Equal(1u,assertions.CompareRgba8(image,values).Mismatches);
+    }
+
+    /// <summary>Sparse authored positions retain the final texel and layer identity, and cannot silently skip an empty domain.</summary>
+    [Fact]
+    public void SparsePredicatesRetainEveryNominatedPoint()
+    {
+        EnsureContextValid();
+        var values=Enumerable.Repeat(1f,65*3*2).ToArray();values[^1]=3;
+        using var image=Create(TextureDimension.TwoArray,TextureFormat.R32f,65,3,2);
+        RHICommandContext.Current.UploadTexture(image,new(new(0),0,0,0,65,3,2),
+            RHICommandContext.Current.GetTextureEncoding(image,PixelComponentType.Float),MemoryMarshal.AsBytes(values.AsSpan()));
+        using var assertions=new GpuImageAssertions();
+        (int X,int Y,int Layer)[] positions=[(0,0,0),(64,2,1)];
+        var proof=assertions.PredicateAt(image,positions,"return bvec2(value.r==1,true);");
+        Assert.Equal(2u,proof.MatchingTexels);Assert.Equal(1u,proof.Mismatches);
+        Assert.Throws<ArgumentException>(()=>assertions.PredicateAt(image,[],"return bvec2(true,false);"));
+    }
+
+    /// <summary>Local byte tuples preserve normalized metadata bytes and the explicitly selected array layer.</summary>
+    [Fact]
+    public void LocalRgba8TuplePreservesOriginalBytes()
+    {
+        EnsureContextValid();
+        using var image=Create(TextureDimension.TwoArray,TextureFormat.Rgba8,2,1,2);
+        byte[] values=[0,1,127,255, 17,33,65,129, 255,128,127,0, 1,127,128,254];
+        RHICommandContext.Current.UploadTexture(image,new(new(0),0,0,0,2,1,2),
+            RHICommandContext.Current.GetTextureEncoding(image,PixelComponentType.UnsignedByte),values);
+        Assert.Equal(values[..4],GpuLocalRead.Rgba8(image,0,0));
+        Assert.Equal(values[12..],GpuLocalRead.Rgba8(image,1,0,1));
+    }
+
+    /// <summary>Ordered float accumulation preserves cancellation, per-texel expression rounding and the final odd-domain texel.</summary>
+    [Fact]
+    public void OrderedFloatReductionRetainsOriginalArithmetic()
+    {
+        EnsureContextValid();
+        var values=new float[65*3*4];
+        values[0]=16777216;values[4]=1;values[8]=-16777216;values[^4]=3;
+        values[^3]=.25f;values[^2]=.125f;
+        using var image=Create(TextureDimension.Two,TextureFormat.Rgba32f,65,3);
+        Upload(image,values,PixelComponentType.Float);
+        using var assertions=new GpuImageAssertions();
+        float red=0,rgb=0;
+        for(int i=0;i<values.Length;i+=4){red+=values[i];rgb+=(values[i]+values[i+1])+values[i+2];}
+        Assert.Equal(red,assertions.OrderedFloatSum(image,"value.r"));
+        Assert.Equal(rgb,assertions.OrderedFloatSum(image,"(value.r+value.g)+value.b"));
+    }
     /// <summary>Exact comparison preserves numeric zero, NaN/infinity and float subnormals without an arithmetic flush.</summary>
     [Fact]
     public void ExactAndTolerantFloatContractsRemainIndependent()
@@ -39,6 +133,25 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
         Assert.Equal(2u, range.OutsideRange); Assert.Equal(2u, range.Positive);
         Assert.Equal(-2d, range.Minimum); Assert.Equal(3d, range.Maximum);
         Assert.ThrowsAny<Xunit.Sdk.XunitException>(range.AssertFiniteRange);
+        // Constant observations keep the same exact-value rules, including selected-channel and tail failures.
+        Assert.Equal(3u, assertions.CompareConstant(finite, 0).Mismatches);
+        using var constant = Create(TextureDimension.Two, TextureFormat.R32f, 65, 3);
+        Upload(constant, Enumerable.Repeat(-2f, 195).ToArray(), PixelComponentType.Float);
+        assertions.CompareConstant(constant, -2).AssertEqual();
+        Assert.Equal(195u, assertions.CompareConstant(constant, 2).Mismatches);
+        Assert.Equal(195u, assertions.CompareConstant(constant, -2).ConstantMatches);
+        Assert.Equal(195u, assertions.Inspect(constant).Nonzero);
+        Assert.Equal(195u, assertions.Inspect(constant, -2, -2).InsideRange);
+        var strided = assertions.Inspect(finite, pixelStride: 2);
+        Assert.Equal(2u, strided.Components); Assert.Equal(-2d, strided.Minimum); Assert.Equal(1d, strided.Maximum);
+        assertions.CompareDouble(finite, [-2d,0d,1d,3d], 0).AssertEqual();
+        Assert.Equal(1u, assertions.CompareDouble(finite, [-2d,1e-10,1d,3d], 1e-11).Mismatches);
+        assertions.CompareIntervals(finite, [-2d,0d,1d,3d], [-2d,0d,1d,3d]).AssertEqual();
+        Assert.Equal(1u, assertions.CompareIntervals(finite,
+            [double.NegativeInfinity,1e-10,double.NegativeInfinity,double.NegativeInfinity],
+            [double.PositiveInfinity,1,double.PositiveInfinity,double.PositiveInfinity]).Mismatches);
+        Assert.Equal(6d, assertions.Statistics(finite, absolute: true).Sum(0));
+        Assert.Equal(1u, assertions.CompareConstant(finite, 0, tolerance: 2).Mismatches);
     }
 
     /// <summary>Integer predicates retain the full 32-bit domain, rather than round-tripping through float.</summary>
@@ -73,6 +186,163 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
         var result = assertions.CheckRanks(image, 2, 2);
         if (mutation == 0) result.AssertRanks(2);
         else Assert.ThrowsAny<Xunit.Sdk.XunitException>(() => result.AssertRanks(2));
+    }
+    #endregion
+
+    #region Aggregate predicates
+    /// <summary>Generic sums, moments, ratios and coverage retain independently calculated values over an odd complete domain.</summary>
+    [Fact]
+    public void StatisticsAndCoveredChannelsPreserveTheirAuthoredPredicates()
+    {
+        EnsureContextValid();
+        const int count = 129 * 67;
+        using var image = Create(TextureDimension.Two, TextureFormat.Rgba32f, 129, 67);
+        var values = Enumerable.Range(0, count).SelectMany(i => new[] { i * .25f, i * .125f, i * .0625f, 1f }).ToArray();
+        Upload(image, values, PixelComponentType.Float);
+        using var assertions = new GpuImageAssertions();
+        var result = assertions.Statistics(image);
+        result.AssertFiniteRange();
+        for (int c = 0; c < 4; c++)
+        {
+            var channel = values.Where((_, index) => index % 4 == c).Select(v => (double)v).ToArray();
+            Assert.Equal(channel.Sum(), result.Sum(c));
+            Assert.Equal(channel.Sum(v => v * v), result.SumSquares(c));
+        }
+        assertions.CompareChannelRatios(image, new(0, .5f, .25f, 0), 0).AssertEqual();
+        Assert.Equal((uint)(count - 1), assertions.CompareChannelRatios(image, new(0, .25f, .25f, 0), 0).Mismatches);
+        using var coverage = Create(TextureDimension.Two, TextureFormat.Rgba32f, 3, 1);
+        Upload(coverage, new float[] {0,0,0,0, .9f,0,0,1, .95f,0,0,.5f}, PixelComponentType.Float);
+        assertions.InspectCoverage(coverage, .88f, 1).AssertFiniteRange();
+        assertions.CompareSelected(coverage, new Dictionary<int,System.Numerics.Vector3> { [1] = new(.9f,0,0) }, 0).AssertEqual();
+        Upload(coverage, new float[] {.1f,0,0,0, .87f,0,0,1, .95f,0,0,.5f}, PixelComponentType.Float);
+        Assert.Equal(2u, assertions.InspectCoverage(coverage, .88f, 1).OutsideRange);
+        Assert.Equal(1u, assertions.CompareSelected(coverage,
+            new Dictionary<int,System.Numerics.Vector3> { [1] = new(.9f,0,0) }, 0).Mismatches);
+        Assert.Equal(2u, assertions.CountMatching(coverage,
+            new(MathF.BitIncrement(.01f),float.NegativeInfinity,float.NegativeInfinity,float.Epsilon),
+            new(float.PositiveInfinity), channelMask: 9).MatchingTexels);
+        Assert.Equal(1u, assertions.CountMatching(coverage, new(.9f),
+            new(float.PositiveInfinity), channelMask: 7, requireAll: false).MatchingTexels);
+        // In one periodic row the independent second differences are 10,2,2,-14.
+        using var field = Create(TextureDimension.Two, TextureFormat.R32f, 4, 1);
+        Upload(field, new float[] {0,1,4,9}, PixelComponentType.Float);
+        var equation = assertions.PeriodicLaplacianResidual(field, [1,0,0,2]);
+        equation.AssertFiniteRange(); Assert.Equal(-3d, equation.Sum(0)); Assert.Equal(345d, equation.SumSquares(0));
+        assertions.Compare(field, [0,1,4,9]).AssertEqual();
+        assertions.CompareRelation(field, field, 1, 0, 0, channelMask: 1).AssertEqual();
+        Assert.Equal(3u, assertions.CompareRelation(field, field, 2, 0, 0, channelMask: 1).Mismatches);
+        Assert.Equal(2u, assertions.CountExcess(field, field, field, .5f, 0, 1).MatchingTexels);
+        double[] weights=[.125,.25+Math.ScaleB(1d,-40),.5,1.5];
+        Assert.Equal(15.75+Math.ScaleB(1d,-40),assertions.WeightedStatistics(field,weights,channelMask:1).Sum(0));
+        Assert.Equal(31.5+Math.ScaleB(1d,-39),assertions.WeightedStatistics(field,weights,
+            channelMask:1,secondaryWeights:[2,2,2,2]).Sum(0));
+        Assert.Throws<ArgumentException>(()=>assertions.WeightedStatistics(field,[1]));
+        var floatProducts=assertions.Statistics(coverage,channelMask:1,squareInFloat:true);
+        Assert.Equal(new[]{.1f,.87f,.95f}.Sum(value=>(double)(value*value)),floatProducts.SumSquares(0));
+    }
+
+    /// <summary>Authored predicates cover every texel, correlate four inputs and independently count conditional witnesses.</summary>
+    [Fact]
+    public void AuthoredPredicatesRetainCorrespondingImagesAndWitnesses()
+    {
+        EnsureContextValid();
+        using var image = Create(TextureDimension.Two, TextureFormat.R32f, 65, 3);
+        using var reference = Create(TextureDimension.Two, TextureFormat.Rg32f, 65, 3);
+        float[] values = Enumerable.Range(0,195).Select(index => (float)index).ToArray();
+        Upload(image, values, PixelComponentType.Float);
+        Upload(reference, values.SelectMany(value => new[] { value * 2, 1f }).ToArray(), PixelComponentType.Float);
+        using var assertions = new GpuImageAssertions();
+        const string body = "return bvec2(b.r==a.r*2.0 && c.r==a.r && d.r==a.r && b.g==1.0, index%2u==0u);";
+        var result = assertions.Predicate(image, body, reference, image, image);
+        result.AssertEqual(); Assert.Equal(98u,result.MatchingTexels);
+        // A fault in the final tail texel must be reported, even though earlier workgroups satisfy the contract.
+        values[^1] = -1; Upload(image, values, PixelComponentType.Float);
+        result = assertions.Predicate(image, body, reference, image, image);
+        Assert.Equal(1u,result.Mismatches); Assert.Equal(98u,result.MatchingTexels);
+        using var mismatched = Create(TextureDimension.Two, TextureFormat.R32f, 1, 1);
+        Assert.Throws<ArgumentException>(() => assertions.Predicate(image, body, mismatched));
+        Upload(mismatched,new float[]{7},PixelComponentType.Float);
+        result=assertions.Predicate(image,
+            "return bvec2(texelFetch(historyImage,ivec3(0),0).r==7.0,b.r==7.0);",mismatched,mappedSources:true);
+        result.AssertEqual();Assert.Equal(195u,result.MatchingTexels);
+        Assert.Equal(0,result.FirstWitnessIndex);
+        var tail=assertions.Predicate(image,"return bvec2(true,index==194u);");
+        Assert.Equal(194,tail.FirstWitnessIndex);
+        Assert.Throws<InvalidOperationException>(()=>{_=assertions.Predicate(image,"return bvec2(true,false);").FirstWitnessIndex;});
+        using var flags=Create(TextureDimension.Two,TextureFormat.Rg32f,2,1);
+        using var previousFlags=Create(TextureDimension.Two,TextureFormat.Rg32f,2,1);
+        Upload(flags,new[]{0f,BitConverter.UInt32BitsToSingle(1),float.NaN,-0f},PixelComponentType.Float);
+        Upload(previousFlags,new[]{0f,BitConverter.UInt32BitsToSingle(2),float.NaN,0f},PixelComponentType.Float);
+        result=assertions.Predicate(flags,"return bvec2(same(a,b,3u),false);",previousFlags);
+        Assert.Equal(1u,result.Mismatches);
+        assertions.CompareFloating(image,values,Enumerable.Repeat(0f,values.Length).ToArray()).AssertEqual();
+        float[] wanted=(float[])values.Clone();wanted[^1]=0;
+        Assert.Equal(1u,assertions.CompareFloating(image,wanted,new float[wanted.Length]).Mismatches);
+    }
+
+    /// <summary>GPU-authored history copies retain complete odd domains and their own snapshots across later source mutation.</summary>
+    [Fact]
+    public void HistoryProjectionsRetainCompleteIndependentImages()
+    {
+        EnsureContextValid();
+        using var image=Create(TextureDimension.Two,TextureFormat.R32f,65,3);
+        float[] values=Enumerable.Range(0,195).Select(index=>(float)index+.25f).ToArray();
+        Upload(image,values,PixelComponentType.Float);
+        using var projection=new GpuImageTransform();using var assertions=new GpuImageAssertions();
+        using var transformed=projection.Apply(image,"return vec4(a.r+parameters.x,float(coordinate.x),float(coordinate.y),1.0);",new(2,0,0,0));
+        float[] expected=values.SelectMany((value,index)=>new[]{value+2,(float)(index%65),(float)(index/65),1f}).ToArray();
+        assertions.Compare(transformed,expected).AssertEqual();
+        Upload(image,new float[195],PixelComponentType.Float);
+        assertions.Compare(transformed,expected).AssertEqual();
+        using var integer=Create(TextureDimension.Two,TextureFormat.R16ui,65,3);
+        uint[] words=Enumerable.Range(0,195).Select(index=>(uint)index).ToArray();words[^1]=65535;
+        RHICommandContext.Current.UploadTexture(integer,new(new(),0,0,0,65,3),
+            RHICommandContext.Current.GetTextureEncoding(integer,PixelComponentType.UnsignedInt),MemoryMarshal.AsBytes(words.AsSpan()));
+        using var converted=projection.Apply(integer,"return a;");
+        assertions.Compare(converted,words.SelectMany(value=>new[]{(float)value,0f,0f,1f}).ToArray()).AssertEqual();
+    }
+
+    /// <summary>Maximum selection and two-dimensional export retain original array, volume and cube layer identities.</summary>
+    [Theory]
+    [InlineData(TextureDimension.TwoArray)] [InlineData(TextureDimension.Three)] [InlineData(TextureDimension.Cube)]
+    public void LocalMaximumSelectionRetainsEveryLayer(TextureDimension dimension)
+    {
+        EnsureContextValid();int layers=dimension==TextureDimension.Cube?6:3;
+        using var image=Create(dimension,TextureFormat.Rgba32f,2,2,layers);
+        for(int layer=0;layer<layers;layer++)
+            Upload(image,Enumerable.Range(0,4).SelectMany(_=>new[]{0f,(float)layer+1,0f,1f}).ToArray(),PixelComponentType.Float,layer);
+        using var assertions=new GpuImageAssertions();
+        var maximum=assertions.Brightest(image);
+        Assert.Equal(new System.Numerics.Vector3(0,layers,0),maximum.Color);
+        Assert.Equal(layers*.7152f,maximum.Luminance);
+        Assert.Equal((0,0,0,1f),assertions.Extremum(image,1,false));
+        var region=new RHITextureRegion(new(0,dimension==TextureDimension.Three?0:layers-1),0,0,
+            dimension==TextureDimension.Three?layers-1:0,2,2);
+        using var snapshot=new GpuImageSnapshot(image,region);using var plane=snapshot.ToPlane();
+        assertions.Compare(plane,Enumerable.Range(0,4).SelectMany(_=>new[]{0f,(float)layers,0f,1f}).ToArray()).AssertEqual();
+    }
+
+    /// <summary>Neither incomplete partial sums nor a missing final reduction may report a successful aggregate.</summary>
+    [Theory]
+    [InlineData(2, false)] [InlineData(2, true)] [InlineData(3, false)]
+    public void StatisticsRequireBothCompleteReductionStages(int suppressed, bool partial)
+    {
+        EnsureContextValid();
+        using var image = Create(TextureDimension.Two, TextureFormat.R32f, 65, 3);
+        Upload(image, Enumerable.Repeat(2f, 195).ToArray(), PixelComponentType.Float);
+        using var assertions = new GpuImageAssertions(); using var native = new NativeDriverCapture();
+        var original = Marshal.GetDelegateForFunctionPointer<Dispatch>(native.Original("glDispatchCompute"));
+        int calls = 0;
+        native.Add("glDispatchCompute", new Dispatch((x,y,z) =>
+        {
+            calls++;
+            if (calls != suppressed) original(x,y,z);
+            else if (partial) original(x-1,y,z);
+        }));
+        native.Install();
+        var failure = Assert.Throws<InvalidOperationException>(() => assertions.Statistics(image));
+        Assert.Contains("GPU statistics did not complete", failure.Message);
+        Assert.Equal(3, calls); native.RequireSuccessfulObservation();
     }
     #endregion
 
@@ -116,6 +386,22 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
         Upload(rgba, new float[] {1,2,3,4}, PixelComponentType.Float);
         assertions.Compare(rgba, new float[] {1,99,3,99}, channelMask:5).AssertEqual();
         Assert.Equal(2u, assertions.Compare(rgba, new float[] {1,99,3,99}).Mismatches);
+        Assert.Equal(2u, assertions.CountFlags(rgba, 0x00800000, 15).FlagMatches);
+        Assert.Equal(1u, assertions.Compare(rgba, new float[] {1.1f,2.1f,3.1f,4},
+            tolerance: .15f, channelMask: 7, vectorDistance: true).Mismatches);
+        assertions.Compare(rgba, new float[] {1.1f,2.1f,3.1f,4},
+            tolerance: .18f, channelMask: 7, vectorDistance: true).AssertEqual();
+        Upload(rgba, new float[] {0,2,0,4}, PixelComponentType.Float);
+        using var partial = new GpuImageSnapshot(rgba);
+        Upload(rgba, new float[] {99,2,99,4}, PixelComponentType.Float);
+        assertions.CompareHistory(rgba, partial, retainNonzero: true).AssertEqual();
+        Assert.Equal(2u, assertions.CompareHistory(rgba, partial).Mismatches);
+        Upload(rgba, new float[] {0,3,0,4}, PixelComponentType.Float);
+        Assert.Equal(1u, assertions.CompareHistory(rgba, partial, retainNonzero: true).Mismatches);
+        Upload(rgba, new float[] {BitConverter.UInt32BitsToSingle(0x80000000),2,0,4}, PixelComponentType.Float);
+        assertions.CompareHistory(rgba, partial).AssertEqual();
+        Assert.Equal(1u, assertions.CompareHistory(rgba, partial, bitwise: true).Mismatches);
+        Assert.Equal(1u,assertions.Compare(rgba,[0,2,0,4],bitwise:true).Mismatches);
         using var encoded=Create(TextureDimension.Two,TextureFormat.Srgb8Alpha8,1,1);
         Upload(encoded,new float[] {.25f,.5f,.75f,1},PixelComponentType.Float);
         assertions.Compare(encoded,new float[] {64f/255,128f/255,191f/255,1},tolerance:1e-7).AssertEqual();
@@ -141,6 +427,14 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
         for (int y=0;y<2;y++)for(int x=0;x<3;x++) expected[(6+y*3+x)*4] = x*2/3==0 ? .25f : .75f;
         using var assertions = new GpuImageAssertions();
         assertions.Compare(layered, expected).AssertEqual();
+        using var terms = Create(TextureDimension.TwoArray, TextureFormat.Rgba32f, 2, 1, 3);
+        Upload(terms, new float[] {1e20f,1e20f,1e20f,1e20f,1,1,1,1}, PixelComponentType.Float, 0);
+        Upload(terms, new float[] {-1e20f,-1e20f,-1e20f,-1e20f,2,2,2,2}, PixelComponentType.Float, 1);
+        Upload(terms, new float[] {3,3,3,3,3,3,3,3}, PixelComponentType.Float, 2);
+        using var sum = Create(TextureDimension.Two, TextureFormat.Rgba32f, 2, 1);
+        Upload(sum, new float[] {0,0,0,0,6,6,6,6}, PixelComponentType.Float);
+        assertions.Compare(sum, new float[8], additiveLayers: terms).AssertEqual();
+        Assert.Equal(8u, assertions.Compare(sum, Enumerable.Repeat(1f,8).ToArray(), additiveLayers: terms).Mismatches);
     }
     #endregion
 
@@ -229,8 +523,9 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
             GL.BindBuffer(BufferTarget.PixelPackBuffer,buffer); GL.PixelStore(PixelStoreParameter.PackRowLength,7); GL.PixelStore(PixelStoreParameter.PackSkipPixels,1);
             GL.UseProgram(sentinel.Id); GL.ActiveTexture(TextureUnit.Texture5);
             GL.ActiveTexture(TextureUnit.Texture0);GL.BindTexture(TextureTarget.Texture2DArray,arraySentinel.TextureId);GL.ActiveTexture(TextureUnit.Texture5);
+            GL.ActiveTexture(TextureUnit.Texture3);GL.BindTexture(TextureTarget.Texture2DArray,arraySentinel.TextureId);GL.ActiveTexture(TextureUnit.Texture4);GL.BindTexture(TextureTarget.Texture2DArray,arraySentinel.TextureId);GL.ActiveTexture(TextureUnit.Texture5);
             GL.BindImageTexture(0,image.TextureId,0,false,0,TextureAccess.ReadOnly,SizedInternalFormat.R32f);
-            int sampler=GL.GenSampler();GL.BindSampler(0,sampler);
+            int sampler=GL.GenSampler();GL.BindSampler(0,sampler);GL.BindSampler(3,sampler);GL.BindSampler(4,sampler);
             try
             {
             using var native=failedDispatch?new NativeDriverCapture():null;
@@ -249,13 +544,17 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
             GL.GetInteger((GetIndexedPName)All.ImageBindingAccess,0,out int access);Assert.Equal((int)TextureAccess.ReadOnly,access);
             GL.GetInteger((GetIndexedPName)All.SamplerBinding,0,out int samplerBinding);Assert.Equal(sampler,samplerBinding);
             GL.ActiveTexture(TextureUnit.Texture0);Assert.Equal(arraySentinel.TextureId,GL.GetInteger(GetPName.TextureBinding2DArray));GL.ActiveTexture(TextureUnit.Texture5);
+            GL.ActiveTexture(TextureUnit.Texture3);Assert.Equal(arraySentinel.TextureId,GL.GetInteger(GetPName.TextureBinding2DArray));GL.ActiveTexture(TextureUnit.Texture5);
+            GL.GetInteger((GetIndexedPName)All.SamplerBinding,3,out int fourthSampler);Assert.Equal(sampler,fourthSampler);
+            GL.ActiveTexture(TextureUnit.Texture4);Assert.Equal(arraySentinel.TextureId,GL.GetInteger(GetPName.TextureBinding2DArray));GL.ActiveTexture(TextureUnit.Texture5);
+            GL.GetInteger((GetIndexedPName)All.SamplerBinding,4,out int fifthSampler);Assert.Equal(sampler,fifthSampler);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
             }
-            finally {GL.BindSampler(0,0);GL.DeleteSampler(sampler);GL.BindImageTexture(0,0,0,false,0,TextureAccess.ReadOnly,SizedInternalFormat.R32f);}
+            finally {GL.BindSampler(0,0);GL.BindSampler(3,0);GL.BindSampler(4,0);GL.DeleteSampler(sampler);GL.BindImageTexture(0,0,0,false,0,TextureAccess.ReadOnly,SizedInternalFormat.R32f);}
         }
         finally
         {
-            GL.UseProgram(0);GL.ActiveTexture(TextureUnit.Texture0);GL.BindTexture(TextureTarget.Texture2DArray,0);GL.BindBuffer(BufferTarget.PixelPackBuffer,0);
+            GL.UseProgram(0);GL.ActiveTexture(TextureUnit.Texture4);GL.BindTexture(TextureTarget.Texture2DArray,0);GL.ActiveTexture(TextureUnit.Texture3);GL.BindTexture(TextureTarget.Texture2DArray,0);GL.ActiveTexture(TextureUnit.Texture0);GL.BindTexture(TextureTarget.Texture2DArray,0);GL.BindBuffer(BufferTarget.PixelPackBuffer,0);
             GL.PixelStore(PixelStoreParameter.PackRowLength,0); GL.PixelStore(PixelStoreParameter.PackSkipPixels,0);
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer,0,0);GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer,1,0);GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer,2,0);
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer,0);GL.DeleteBuffer(buffer);

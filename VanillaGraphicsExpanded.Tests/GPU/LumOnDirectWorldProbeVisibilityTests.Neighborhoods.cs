@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -39,17 +40,13 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
             atlas.Radiance[i + 3] = MathF.Log(65);
         }
         for (int i = 0; i < atlas.Metadata.Length; i += 2) atlas.Metadata[i] = 1;
-        var result = RenderDirectVisibility(atlas, local.Scene, new Vector3(1.75f, 0.5f, 0.5f),
+        using var result = RenderDirectVisibility(atlas, local.Scene, new Vector3(1.75f, 0.5f, 0.5f),
             new Vector3(-1.5f), 4, consumer, ring: new Vector3(ringX, 0, 0));
         // Debug views tone-map physical E; a gather returns Lambertian E/pi for unit radiance.
         float expectedGreen = consumer >= 0 ? MathF.PI / (1 + MathF.PI) : 1f;
-        for (int i = 0; i < result.Length; i += 4)
-        {
-            Assert.Equal(0, result[i]);
-            Assert.InRange(result[i + 1], expectedGreen - 0.004f, expectedGreen + 0.004f);
-            Assert.Equal(0, result[i + 2]);
-            if (consumer < 0) Assert.InRange(result[i + 3], 0.65f, 0.73f);
-        }
+        ImageAssertions.CompareConstant(result.Texture, 0, channelMask: 5).AssertEqual();
+        ImageAssertions.Inspect(result.Texture, expectedGreen - 0.004f, expectedGreen + 0.004f, channelMask: 2).AssertFiniteRange();
+        if (consumer < 0) ImageAssertions.Inspect(result.Texture, 0.65f, 0.73f, channelMask: 8).AssertFiniteRange();
     }
 
     /// <summary>Diagonal paths through enclosing corner geometry must not admit an exterior probe.</summary>
@@ -65,7 +62,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         using var local = new NearFieldVoxelFixture();
         local.Publish(world);
         var center = new Vector3(4.5f, 4.5f, 0.5f);
-        var result = RenderDirectVisibility(CreateUniformCache(), local.Scene, new Vector3(0.5f, 0.5f, -5),
+        using var result = RenderDirectVisibility(CreateUniformCache(), local.Scene, new Vector3(0.5f, 0.5f, -5),
             center - new Vector3(16), 32, consumer);
         AssertLighting(result, consumer, false);
     }
@@ -85,7 +82,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         var origin = new VectorInt3(offset, 0, 0);
         using var local = new NearFieldVoxelFixture(origin);
         local.Publish(world);
-        var result = RenderDirectVisibility(CreateUniformCache(), local.Scene, new Vector3(0.5f, 0.5f, -5),
+        using var result = RenderDirectVisibility(CreateUniformCache(), local.Scene, new Vector3(0.5f, 0.5f, -5),
             new Vector3(-7.5f), 16, 31, worldOffset: origin);
         AssertLighting(result, 31, doorway);
     }

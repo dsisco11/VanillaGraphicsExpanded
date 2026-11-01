@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -35,18 +36,15 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldPr
         if (doorway) world.SetBlock(0, 0, -2, null);
         using var local = new NearFieldVoxelFixture();
         local.Publish(world);
-        var result = RenderDirectVisibility(CreateUniformCache(), local.Scene,
+        using var result = RenderDirectVisibility(CreateUniformCache(), local.Scene,
             new Vector3(0.5f, 0.5f, -5), new Vector3(-7.5f), 16, consumer);
         AssertLighting(result, consumer, doorway);
         if (doorway && consumer < 0)
         {
-            var suppressed = RenderDirectVisibility(CreateUniformCache(), local.Scene,
+            using var suppressed = RenderDirectVisibility(CreateUniformCache(), local.Scene,
                 new Vector3(0.5f, 0.5f, -5), new Vector3(-7.5f), 16, consumer, suppress: true);
-            for (int i = 0; i < result.Length; i += 4)
-            {
-                Assert.Equal(result[i + 3], suppressed[i + 3]);
-                for (int c = 0; c < 3; c++) Assert.Equal(0, suppressed[i + c]);
-            }
+            ImageAssertions.CompareHistory(suppressed.Texture, result, channelMask: 8).AssertEqual();
+            ImageAssertions.CompareConstant(suppressed.Texture, 0, channelMask: 7).AssertEqual();
         }
     }
 
@@ -66,7 +64,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldPr
         EnsureShaderTestAvailable();
         using var local = new NearFieldVoxelFixture();
         if (scenario != 0) local.Publish(new ControlledVoxelWorld());
-        var result = RenderDirectVisibility(CreateUniformCache(), scenario == 2 ? null : local.Scene,
+        using var result = RenderDirectVisibility(CreateUniformCache(), scenario == 2 ? null : local.Scene,
             new Vector3(0.5f, 0.5f, -5), new Vector3(-7.5f), 16, consumer, budget: scenario == 1 ? 1 : 256);
         AssertLighting(result, consumer, false);
     }
@@ -81,7 +79,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldPr
         EnsureShaderTestAvailable();
         using var local = new NearFieldVoxelFixture();
         local.Publish(new ControlledVoxelWorld());
-        var result = RenderDirectVisibility(CreateUniformCache(distance: 0.1f), local.Scene,
+        using var result = RenderDirectVisibility(CreateUniformCache(distance: 0.1f), local.Scene,
             new Vector3(0.5f, 0.5f, -5), new Vector3(-7.5f), 16, consumer);
         AssertLighting(result, consumer, true);
     }
@@ -103,16 +101,13 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldPr
     }
 
     /// <summary>Checks irradiance debug views, Lambertian gather E/pi and selected confidence.</summary>
-    private static void AssertLighting(float[] result, int consumer, bool lit)
+    private void AssertLighting(GpuImageSnapshot result, int consumer, bool lit)
     {
         // Unit incident radiance integrates to E=pi. Debug views display E; gather
         // publishes E/pi for the receiver's diffuse response, independently of storage scale.
         float expected = !lit ? 0 : consumer == 33 ? 1 : consumer >= 0 ? MathF.PI / (1 + MathF.PI) : 1f;
-        for (int i = 0; i < result.Length; i += 4)
-        {
-            for (int c = 0; c < 3; c++) Assert.InRange(result[i + c], expected - 0.004f, expected + 0.004f);
-            if (consumer < 0) Assert.InRange(result[i + 3], lit ? 0.999f : 0, lit ? 1.001f : 0);
-        }
+        ImageAssertions.Inspect(result.Texture, expected - 0.004f, expected + 0.004f, channelMask: 7).AssertFiniteRange();
+        if (consumer < 0) ImageAssertions.Inspect(result.Texture, lit ? 0.999f : 0, lit ? 1.001f : 0, channelMask: 8).AssertFiniteRange();
     }
     #endregion
 }

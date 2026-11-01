@@ -26,12 +26,12 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         scene.Initialize();scene.DrawIndependent(differentPrograms);scene.AssertRestored();
         scene.Initialize();List<string> baseline;
         using(var capture=new GraphicsTransitionCapture()){scene.DrawIndependent(differentPrograms);baseline=[..capture.Calls];}
-        scene.AssertRestored();var expected=scene.ReadOutput();
+        scene.AssertRestored();using var expected=scene.CaptureOutput();
         scene.Initialize();List<string> sequence;
         using(var capture=new GraphicsTransitionCapture()){scene.DrawSequence(differentPrograms);sequence=[..capture.Calls];}
-        scene.AssertRestored();var actual=scene.ReadOutput();
-        for(int layer=0;layer<expected.Length;layer++)Assert.Equal(expected[layer],actual[layer]);
-        Assert.Contains(actual.SelectMany(layer=>layer),value=>value==.25f);
+        scene.AssertRestored();using var actual=scene.CaptureOutput();
+        for(int layer=0;layer<expected.Count;layer++)ImageAssertions.CompareHistory(actual[layer].Texture, expected[layer]).AssertEqual();
+        Assert.True(Enumerable.Range(0, actual.Count).Any(layer => ImageAssertions.CompareConstant(actual[layer].Texture, .25f).ConstantMatches > 0));
         foreach(string prefix in new[]{"Framebuffer:","Program:","Routing"})
             Assert.True(sequence.Count(call=>call.StartsWith(prefix))<=baseline.Count(call=>call.StartsWith(prefix)),
                 $"{prefix} sequence={string.Join(';',sequence)} baseline={string.Join(';',baseline)}");
@@ -260,7 +260,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
             AssertRoutes(a,OriginalA);AssertRoutes(b,OriginalB);
         }
         /// <summary>Reads only after transition counts and inherited-state assertions have completed.</summary>
-        internal float[][] ReadOutput()=>outputs.Select(image=>image.ReadPixels()).ToArray();
+        internal Assertions.GpuImageSet CaptureOutput() => new(outputs);
         /// <summary>Detects leaked active image or retained framebuffer borrows after abnormal completion.</summary>
         internal void AssertMutable(){Assert.True(outputs[0].Resize(3,3));a.SetAttachment(FramebufferSlot.Color0,Own(GpuFramebufferAttachment.FromTexture(outputs[1])));}
         /// <summary>Releases test resources in dependency order.</summary>

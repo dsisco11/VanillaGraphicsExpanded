@@ -23,18 +23,13 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(world);
         var open = Trace(fixture);
-        Assert.Contains(open.Radiance.Where((_, i) => i % 4 == 0), value => value > 9);
-        Assert.Contains(open.Radiance.Where((_, i) => i % 4 == 0), value => value == 0);
+        Assert.True(ObserveTrace(open, "return bvec2(true,a.r>9.0);").MatchingTexels>0);
+        Assert.True(ObserveTrace(open, "return bvec2(true,a.r==0.0);").MatchingTexels>0);
         world.AddRoom((-3, -3, -8), (3, 3, -2));
         fixture.InvalidateAll();
         fixture.Publish(world);
         var closed = Trace(fixture);
-        for (int i = 0; i < closed.Radiance.Length; i += 4)
-        {
-            Assert.Equal(0, closed.Radiance[i]);
-            Assert.Equal(0, closed.Meta[i / 2]);
-            Assert.Equal(1u,Flags(closed.Meta[i / 2+1])&1u);
-        }
+        ObserveTrace(closed, "return bvec2(a.r==0.0 && b.r==0.0 && (flags&1u)==1u,false);").AssertEqual();
     }
 
     /// <summary>Integer world-cell mapping retains local occlusion beyond exact single-precision world coordinates.</summary>
@@ -51,12 +46,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture(origin);
         fixture.Publish(world);
         var result = Trace(fixture, worldOffset: origin);
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            Assert.Equal(0, result.Radiance[i]);
-            Assert.Equal(0, result.Meta[i / 2]);
-            Assert.Equal(1u,Flags(result.Meta[i / 2+1])&1u);
-        }
+        ObserveTrace(result, "return bvec2(a.r==0.0 && b.r==0.0 && (flags&1u)==1u,false);").AssertEqual();
     }
 
     /// <summary>An initial solid is an immediate near-field hit rather than a clear ray into the cache.</summary>
@@ -72,13 +62,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(world);
         var result = Trace(fixture);
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            Assert.Equal(0, result.Radiance[i]);
-            Assert.Equal(0, result.Radiance[i + 3]);
-            Assert.Equal(0, result.Meta[i / 2]);
-            Assert.Equal(1u,Flags(result.Meta[i / 2+1])&1u);
-        }
+        ObserveTrace(result, "return bvec2(a.r==0.0 && a.a==0.0 && b.r==0.0 && (flags&1u)==1u,false);").AssertEqual();
     }
 
     /// <summary>Premature near-field-window exit cannot shorten the required segment and authorize cached light.</summary>
@@ -99,7 +83,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture(resolution: 48);
         fixture.Publish(new ControlledVoxelWorld());
         var shortSegment = Trace(fixture, cacheSpacing: 2);
-        Assert.True(shortSegment.Radiance[0] > 9);
+        Assert.True(TraceRed(shortSegment) > 9);
         AssertUnresolved(Trace(fixture, cacheSpacing: 32));
         Assert.Equal(27, fixture.Coordinator.Cells(fixture.Instance).Length);
     }

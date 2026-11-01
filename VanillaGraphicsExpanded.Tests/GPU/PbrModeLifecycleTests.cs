@@ -205,7 +205,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         Assert.NotEqual(0, gbuffer.SurfaceTextureId);
         gbuffer.SurfaceTexture!.UploadDataImmediate(Enumerable.Repeat(1f, 16).ToArray(), 0, 0, 2, 2, 2, 1);
         gbuffer.ClearGBuffer(EnumFrameBuffer.Primary);
-        Assert.All(LayeredTestTexture.Read(gbuffer.SurfaceTexture!, 2), value => Assert.Equal(0f, value));
+        ImageAssertions.CompareConstant(gbuffer.SurfaceTexture!,0,new(new(0,2),0,0,0,2,2,1)).AssertEqual();
         declarations.AssertReusable();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

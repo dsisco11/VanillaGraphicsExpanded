@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Diagnostics;
@@ -29,7 +30,8 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
             using var result = Generate(source);
             Assert.Same(source, result.Source);
             Assert.False(RHIUniformRingSystem.TryGetCurrent(out _));
-            Assert.All(Read(result.Galaxy, 0, 0), value => Assert.True(float.IsFinite(value) && value > 0));
+            using var face=new GpuImageSnapshot(result.Galaxy,new(new(),0,0,0,result.Galaxy.Width,result.Galaxy.Height));
+            ImageAssertions.Inspect(face.Texture,float.Epsilon,double.PositiveInfinity,channelMask:7).AssertFiniteRange();
         }
         finally { RHIUniformRingSystem.SetCurrent(previous); }
     }
@@ -81,45 +83,48 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
         using var first = Generate(source);
         using var second = Generate(source);
         Assert.Equal(TextureFormat.R11fG11fB10f, first.Galaxy.InternalFormat);
-        Vector3 reference = Vector3.Zero, stored = Vector3.Zero;
-        float maximum = 0;
-        for (int face = 0; face < 6; face++)
+        Vector3 reference=Vector3.Zero,stored=Vector3.Zero;float maximum=0;
+        using var projection=new GpuImageTransform();
+        using(var weights=CreateSolidAngleWeights(64))
+        for(int face=0;face<6;face++)
         {
-            float[] actual = Read(first.Galaxy, face, 0);
-            Assert.Equal(actual, Read(second.Galaxy, face, 0));
-            for (int y = 0; y < 64; y++) for (int x = 0; x < 64; x++)
+            using var actual=new GpuImageSnapshot(first.Galaxy,new(new(0,face),0,0,0,64,64));
+            using var repeated=new GpuImageSnapshot(second.Galaxy,new(new(0,face),0,0,0,64,64));
+            ImageAssertions.CompareHistory(repeated.Texture,actual,channelMask:7).AssertEqual();
+            var expectedPixels=new float[64*64*4];
+            for(int y=0;y<64;y++)for(int x=0;x<64;x++)
             {
-                Vector3 d = CelestialCubeGeometry.Direction(face, 2f * (x + .5f) / 64 - 1, 2f * (y + .5f) / 64 - 1);
-                Vector3 expected = CelestialProceduralField.Evaluate(d, 7, 2f / 64) * source.GalaxyAmplitude;
-                int index = (y * 64 + x) * 3;
-                Vector3 value = new(actual[index], actual[index + 1], actual[index + 2]); value /= source.StorageScale;
-                AssertFinite(value, source.MaximumNits);
-                Assert.InRange(MathF.Abs(value.X / expected.X - 1), 0, .0101f);
-                Assert.InRange(MathF.Abs(value.Y / expected.Y - 1), 0, .0101f);
-                Assert.InRange(MathF.Abs(value.Z / expected.Z - 1), 0, .0201f);
-                float area = CelestialCubeGeometry.SolidAngle(x, y, 64);
-                reference += expected * area; stored += value * area; maximum = Math.Max(maximum, Math.Max(value.X, Math.Max(value.Y, value.Z)));
+                Vector3 direction=CelestialCubeGeometry.Direction(face,2f*(x+.5f)/64-1,2f*(y+.5f)/64-1);
+                Vector3 expected=CelestialProceduralField.Evaluate(direction,7,2f/64)*source.GalaxyAmplitude;
+                int index=(y*64+x)*4;
+                expectedPixels[index]=expected.X;expectedPixels[index+1]=expected.Y;expectedPixels[index+2]=expected.Z;
+                reference+=expected*CelestialCubeGeometry.SolidAngle(x,y,64);
             }
+            using var oracle=TestFramework.CreateTexture(64,64,TextureFormat.Rgba32f,expectedPixels);
+            ImageAssertions.Predicate(actual.Texture, """
+                precise vec3 value=a.rgb/multipliers.x;
+                precise vec3 error=abs(value/b.rgb-vec3(1));
+                bool valid=!any(isnan(value)) && !any(isinf(value)) && all(greaterThanEqual(value,vec3(0)))
+                    && all(lessThanEqual(value,vec3(multipliers.y))) && error.r<=0.0101 && error.g<=0.0101 && error.b<=0.0201;
+                return bvec2(valid,false);
+                """,oracle,parameters:new(source.StorageScale,source.MaximumNits,0,0)).AssertEqual();
+            stored+=IntegrateFace(actual.Texture,weights,projection,source.StorageScale);
+            maximum=Math.Max(maximum,(float)ImageAssertions.Inspect(actual.Texture,channelMask:7).Maximum/source.StorageScale);
         }
-        AssertEnergy(reference, stored, .01f);
-        for (int mip = 1; mip < first.Galaxy.StorageMipLevels; mip++)
+        AssertEnergy(reference,stored,.01f);
+        for(int mip=1;mip<first.Galaxy.StorageMipLevels;mip++)
         {
-            int size = Math.Max(1, 64 >> mip); Vector3 integrated = Vector3.Zero;
-            for (int face = 0; face < 6; face++)
+            int size=Math.Max(1,64>>mip);Vector3 integrated=Vector3.Zero;
+            using var weights=CreateSolidAngleWeights(size);
+            for(int face=0;face<6;face++)
             {
-                float[] data = Read(first.Galaxy, face, mip);
-                for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
-                {
-                    int index = (y * size + x) * 3;
-                    Vector3 value = new(data[index], data[index + 1], data[index + 2]); value /= source.StorageScale;
-                    AssertFinite(value, maximum * 1.02f);
-                    integrated += value * CelestialCubeGeometry.SolidAngle(x, y, size);
-                }
+                using var image=new GpuImageSnapshot(first.Galaxy,new(new(mip,face),0,0,0,size,size));
+                ImageAssertions.Inspect(image.Texture,0,maximum*1.02f*source.StorageScale,channelMask:7).AssertFiniteRange();
+                integrated+=IntegrateFace(image.Texture,weights,projection,source.StorageScale);
             }
-            AssertEnergy(stored, integrated, .01f);
+            AssertEnergy(stored,integrated,.01f);
         }
     }
-
     /// <summary>Qualifies selected dimensions, omitted-star flux and loading cost only when explicitly requested.</summary>
     [Fact]
     [Trait("Purpose", "Diagnostic")]
@@ -140,7 +145,7 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
             double[] integratedChannels = new double[3];
             for (int face = 0; face < 6; face++)
             {
-                float[] data = Read(result.Galaxy, face, 0); int size = result.Galaxy.Width;
+                float[] data = ReadDiagnosticFace(result.Galaxy, face, 0); int size = result.Galaxy.Width;
                 for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
                 {
                     int i = (y * size + x) * 3; Vector3 value = new(data[i], data[i + 1], data[i + 2]); value /= source.StorageScale;
@@ -158,7 +163,7 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
                 int size = Math.Max(1, result.Galaxy.Width >> mip); double[] mipChannels = new double[3];
                 for (int face = 0; face < 6; face++)
                 {
-                    float[] data = Read(result.Galaxy, face, mip);
+                    float[] data = ReadDiagnosticFace(result.Galaxy, face, mip);
                     for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
                     {
                         int i = (y * size + x) * 3; Vector3 value = new(data[i], data[i + 1], data[i + 2]);
@@ -201,13 +206,41 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
         throw new TimeoutException("Celestial generation did not complete.");
     }
 
-    /// <summary>Reads one actual packed face/mip through a preserved binding for numeric qualification.</summary>
-    private static float[] Read(DynamicTextureCube cube, int face, int mip)
+    /// <summary>Reads one packed face/mip only for explicitly requested full-quality diagnostic qualification.</summary>
+    private static float[] ReadDiagnosticFace(DynamicTextureCube cube, int face, int mip)
     {
         int size = Math.Max(1, cube.Width >> mip); float[] data = new float[size * size * 3];
         using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap, 0, cube.TextureId);
         GL.GetTexImage(TextureTarget.TextureCubeMapPositiveX + face, mip, PixelFormat.Rgb, PixelType.Float, data);
         return data;
+    }
+    /// <summary>Authors independent cube solid-angle quadrature weights without reading the generated texture.</summary>
+    private static DynamicTexture2D CreateSolidAngleWeights(int size)
+    {
+        var texture=RHICommandContext.Current.CreateDynamicTexture2D(new()
+        {
+            Dimension=TextureDimension.Two,Format=TextureFormat.R32f,Width=size,Height=size,MipLevels=1,
+            Storage=ResourceStorageMode.Immutable,Filter=TextureFilterMode.Nearest,Label="Tests.Celestial.SolidAngles"
+        }).RequireResource();
+        try
+        {
+            texture.UploadDataImmediate(Enumerable.Range(0,size*size)
+                .Select(index=>CelestialCubeGeometry.SolidAngle(index%size,index/size,size)).ToArray());
+            return texture;
+        }
+        catch { texture.Dispose();throw; }
+    }
+
+    /// <summary>Rounds each physical RGB quadrature product to float, then uses double GPU sums for stable full-face integration.</summary>
+    private Vector3 IntegrateFace(GpuTexture image,GpuTexture weights,GpuImageTransform projection,float scale)
+    {
+        using var products=projection.Apply(image, """
+            precise vec3 physical=a.rgb/parameters.x;
+            precise vec3 weighted=physical*b.r;
+            return vec4(weighted,0);
+            """,new(scale,0,0,0),weights);
+        var integrated=ImageAssertions.Statistics(products,channelMask:7);
+        return new((float)integrated.Sum(0),(float)integrated.Sum(1),(float)integrated.Sum(2));
     }
     /// <summary>Checks each physical channel rather than accepting a finite value produced by a hidden safety clamp.</summary>
     private static void AssertFinite(Vector3 value, float maximum)

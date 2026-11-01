@@ -75,7 +75,7 @@ public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : Render
             GL.Disable(EnableCap.ScissorTest); GL.ColorMask(true, true, true, true);
             FramebufferTestSetup.BindForEngineRendering(target); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
-            float[] pixels = target[7].ReadPixels();
+            var lower=new double[7*4];var upper=new double[lower.Length];
             for (int column = 0; column < 7; column++)
             {
                 double t = (column + .5) / 8;
@@ -84,13 +84,16 @@ public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : Render
                 double gain = LightingCalibration.Default.BlockReferenceLux * Math.Pow(amplitude, 4)
                     / (Math.Pow(amplitude, 3) + .064) / peak / Math.PI;
                 for (int channel = 0; channel < 3; channel++)
-                    Assert.InRange(pixels[column * 4 + channel], raw[channel] * gain - .00001, raw[channel] * gain + .00001);
-                Assert.Equal(0, pixels[column * 4 + 3]);
+                {
+                    lower[column*4+channel]=raw[channel]*gain-.00001;upper[column*4+channel]=raw[channel]*gain+.00001;
+                }
+
             }
+            ImageAssertions.CompareIntervals(target[7],lower,upper,new(new(0),0,0,0,7,1,1)).AssertEqual();
             // The first two interior samples would be much brighter if only calibrated endpoints were interpolated.
             double torchRed = LightingCalibration.Default.BlockReferenceLux * Math.Pow(135.0 / 255, 4)
                 / (Math.Pow(135.0 / 255, 3) + .064) / Math.PI;
-            Assert.True(pixels[4] < torchRed * (1.5 / 8) * .1);
+            Assert.True(Assertions.GpuLocalRead.Scalar(target[7],4) < torchRed * (1.5 / 8) * .1);
         }
         finally
         {

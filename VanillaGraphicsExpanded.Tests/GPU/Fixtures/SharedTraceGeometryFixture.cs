@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
@@ -52,10 +53,7 @@ internal sealed class SharedTraceGeometryFixture : IDisposable
     public uint ReadGeometry(int x, int y, int z)
     {
         int n = Scene.Resolution;
-        var words = new uint[n * n * n];
-        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, Scene.Geometry.TextureId);
-        GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, words);
-        return words[(((z % n + n) % n) * n + (y % n + n) % n) * n + (x % n + n) % n];
+        return GpuLocalRead.UInt32(Scene.Geometry, (x % n + n) % n, (y % n + n) % n, (z % n + n) % n);
     }
 
     /// <summary>Retires the registration and its GPU storage.</summary>

@@ -176,10 +176,10 @@ internal sealed class SkyDrawScene : IDisposable
     }
 
     /// <summary>Reads both independently routed output images only after handoff/capture checks.</summary>
-    internal float[][] ReadOutput() => outputs.Select(image => image.ReadPixels()).ToArray();
+    internal Assertions.GpuImageSet CaptureOutput() => new(outputs);
 
     /// <summary>Reads the clear-only destination independently of its subsequent shader target.</summary>
-    internal float[] ReadClear() => clearImage.ReadPixels();
+    internal float[] ReadClearPixel() => clearImage.ReadPixelsRegion(0, 0, 1, 1);
 
     /// <summary>Checks that a failed active pass retained no mutable target or image authority.</summary>
     internal void AssertMutable() => Assert.True(outputs[0].Resize(5, 4));

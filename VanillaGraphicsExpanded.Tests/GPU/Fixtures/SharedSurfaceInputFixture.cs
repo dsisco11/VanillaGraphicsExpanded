@@ -1,5 +1,5 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
-using OpenTK.Graphics.OpenGL;
+
+
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.WorldPartition;
@@ -14,19 +14,14 @@ internal sealed class SharedSurfaceInputFixture : IDisposable
 
     #region Controlled scene publication
     /// <summary>Publishes authored cells at an optional origin aligned to 16-block cell boundaries.</summary>
-    public SharedSurfaceInputFixture(Texture3D legacy, Texture2D palette, VectorInt3 origin = default)
+    public SharedSurfaceInputFixture(int size, ReadOnlySpan<uint> words, ReadOnlySpan<uint> entries, VectorInt3 origin = default)
     {
-        int size = legacy.Width, resolution = (size + 15) / 16 * 16;
-        var words = new uint[size * size * size];
-        // Integer texture readback is an observation seam; the ordinary shader inputs below
-        // are published and subsequently bound by their actual production owners.
-        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, legacy.TextureId))
-            GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, words);
-        var entries = new uint[palette.Width * palette.Height * 4];
-        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, palette.TextureId))
-            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.RgbaInteger, PixelType.UnsignedInt, entries);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(size);
+        if (words.Length != checked(size * size * size) || entries.Length > 16384 * 4 || entries.Length % 4 != 0)
+            throw new ArgumentException("Authored cells and palette must match the complete source domain.");
+        int resolution = (size + 15) / 16 * 16;
         var faces = new uint[16384 * 4];
-        entries.CopyTo(faces, 0);
+        entries.CopyTo(faces);
         for (int i = 0; i < faces.Length; i += 4)
             faces[i + 3] = (faces[i] | faces[i + 1] | faces[i + 2]) != 0 ? 1u : 0u;
         var tables = new TraceGeometryTables(1, faces, new byte[16384 * 48], new uint[65536 * 4], new float[256]);

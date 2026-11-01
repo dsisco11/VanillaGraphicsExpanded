@@ -36,8 +36,10 @@ public sealed class SurfaceHitRetryRuntimeTests(HeadlessGLFixture fixture):Rende
         bool nonzero=false;
         foreach(uint page in pages.Keys)
         {
-            using var pixels=SurfaceLightingPageReadback.Read(lighting.IndirectIrradiance,lighting,page);
-            for(int index=0;index<pixels.Length;index+=4)nonzero|=pixels.Span[index]>.01f&&pixels.Span[index+3]>0;
+            using var pixels=SurfaceLightingPageSelection.Capture(lighting.IndirectIrradiance,lighting,page);
+            nonzero |= ImageAssertions.CountMatching(pixels.Texture,
+                new(MathF.BitIncrement(.01f),float.NegativeInfinity,float.NegativeInfinity,float.Epsilon),
+                new(float.PositiveInfinity), channelMask: 9).MatchingTexels > 0;
         }
         Assert.True(nonzero);if(world!=null){Assert.Empty(world.LightQueries);Assert.True(Counter(renderer,"fallbackAdmitted")>0);}
     }

@@ -98,33 +98,21 @@ public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBa
     }
 
     /// <summary>Checks actual trace lighting, hit classification, confidence, and the green versus magenta diagnostic code.</summary>
-    private static void AssertLighting((float[] Radiance, float[] Meta) result, bool lit, bool opaque)
+    private void AssertLighting(TraceImages result, bool lit, bool opaque)
     {
-        for (int pixel = 0; pixel < result.Meta.Length / 2; pixel++)
-        {
-            uint flags = Flags(result.Meta[pixel * 2 + 1]);
-            Assert.Equal(opaque, (flags & 1u) != 0);
-            Assert.Equal(0u, flags & (1u << 5));
-            Assert.Equal(lit ? 2u : 4u, (flags >> 16) & 7u);
-            Assert.Equal(lit ? 1f : 0f, result.Meta[pixel * 2]);
-            for (int channel = 0; channel < 3; channel++)
-                Assert.InRange(result.Radiance[pixel * 4 + channel], lit ? 0.249f : 0f, lit ? 0.253f : 0f);
-        }
+        ObserveTrace(result, """
+            bool lit=multipliers.x!=0.0,opaque=multipliers.y!=0.0;
+            return bvec2(((flags&1u)!=0u)==opaque && (flags&32u)==0u
+                && ((flags>>16)&7u)==(lit?2u:4u) && b.r==(lit?1.0:0.0)
+                && all(greaterThanEqual(a.rgb,vec3(lit?0.249:0.0)))
+                && all(lessThanEqual(a.rgb,vec3(lit?0.253:0.0))),false);
+            """, parameters:new(lit?1:0,opaque?1:0,0,0)).AssertEqual();
     }
 
     /// <summary>Proves all captured regions remain GPU-ready even when their material identities are unresolved.</summary>
-    private static void AssertPublished(ControlledTraceGpuScene scene)
+    private void AssertPublished(ControlledTraceGpuScene scene)
     {
-        var readiness = new byte[scene.RegionResolution * scene.RegionResolution * scene.RegionResolution];
-        GL.GetInteger(GetPName.PackAlignment, out int previous);
-        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, scene.Regions.TextureId);
-        try
-        {
-            GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-            GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedByte, readiness);
-            Assert.All(readiness, value => Assert.Equal(1, value));
-        }
-        finally { GL.PixelStore(PixelStoreParameter.PackAlignment, previous); }
+        ImageAssertions.Inspect(scene.Regions, 1, 1).AssertFiniteRange();
     }
     #endregion
 }

@@ -110,25 +110,15 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
         using var room=new SurfaceLightingEnclosureFixture(albedo,surfaceResolution:surfaceResolution); room.Seed();
         using var placeholder=new NearFieldVoxelFixture();
         var lit=Trace(placeholder,shared:room.Geometry.Scene,surfaceLighting:room.Snapshot,anchorPosition:new(4,36,4));
-        int hits=0;
-        for(int i=0;i<lit.Meta.Length;i+=2)
-        {
-            if((Flags(lit.Meta[i+1])&1u)==0)continue;
-            hits++;
-            Assert.Equal(1,lit.Meta[i]);
-            Assert.InRange(lit.Radiance[i*2],32*GgxHemisphereReference.CapturedDiffuse(albedo)/MathF.PI-.02f,32*GgxHemisphereReference.CapturedDiffuse(albedo)/MathF.PI+.02f);
-        }
+
+        float expected=32*GgxHemisphereReference.CapturedDiffuse(albedo)/MathF.PI;
+        var hitObservation=ObserveTrace(lit,"bool hit=(flags&1u)!=0u; return bvec2(!hit || (b.r==1.0 && a.r>=multipliers.x && a.r<=multipliers.y),hit);",
+            parameters:new(expected-.02f,expected+.02f,0,0));
+        hitObservation.AssertEqual(); uint hits=hitObservation.MatchingTexels;
         Assert.True(hits>32);
         room.WithholdPages();
         var missing=Trace(placeholder,shared:room.Geometry.Scene,surfaceLighting:room.Snapshot,anchorPosition:new(4,36,4));
-        for(int i=0;i<lit.Meta.Length;i+=2)
-        {
-            Assert.Equal(lit.Radiance[i*2+3],missing.Radiance[i*2+3]);
-            Assert.Equal(Flags(lit.Meta[i+1]) & 63u,Flags(missing.Meta[i+1]) & 63u);
-            Assert.Equal(4u,(Flags(missing.Meta[i+1]) >> 16) & 7u);
-            Assert.Equal(0,missing.Meta[i]);
-            Assert.Equal(0,missing.Radiance[i*2]);
-        }
+        ObserveTrace(missing,"return bvec2(c.a==a.a && (floatBitsToUint(d.g)&63u)==(flags&63u) && ((flags>>16)&7u)==4u && b.r==0.0 && a.r==0.0,false);",lit).AssertEqual();
     }
     #endregion
 
@@ -145,15 +135,9 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
         var control=Trace(placeholder,screenDepth:depth,nearFieldTracing:false);
         var actual=Trace(placeholder,screenDepth:depth,screenEmission:8,emissionBoost:3,
             shared:room.Geometry.Scene,surfaceLighting:room.Snapshot,worldOffset:new(0,32,0),matrixRemainder:new(4,4,9));
-        int hits=0;
-        for(int i=0;i<control.Meta.Length;i+=2)
-        {
-            if((Flags(control.Meta[i+1])&1u)==0)continue;
-            hits++;
-            Assert.Equal(1,actual.Meta[i]);
-            Assert.Equal(1u,Flags(actual.Meta[i+1])&1u);
-            Assert.InRange(actual.Radiance[i*2],11.99f,12.01f);
-        }
+
+        var hitObservation=ObserveTrace(actual,"bool hit=(floatBitsToUint(d.g)&1u)!=0u; return bvec2(!hit || (b.r==1.0 && (flags&1u)==1u && a.r>=11.99 && a.r<=12.01),hit);",control);
+        hitObservation.AssertEqual(); uint hits=hitObservation.MatchingTexels;
         Assert.True(hits>0);
     }
     #endregion

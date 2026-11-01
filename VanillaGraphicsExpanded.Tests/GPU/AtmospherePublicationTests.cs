@@ -127,7 +127,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         var previous = AtmosphereModSystem.Lighting;
         int sky = AtmosphereModSystem.SkyTextureId;
         var transmission = AtmosphereModSystem.ExternalTransmissionTexture!;
-        float[] contents = transmission.ReadPixels();
+        using var contents = new Assertions.GpuImageSnapshot(transmission);
         Assert.Throws<ArgumentException>(() => owner.Publish(previous with
             { ExternalTransmission = previous.ExternalTransmission.SetItem(0, invalid) }));
         Assert.Throws<ArgumentException>(() => owner.Publish(previous with
@@ -135,7 +135,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         Assert.Same(previous, AtmosphereModSystem.Lighting);
         Assert.Equal(sky, AtmosphereModSystem.SkyTextureId);
         Assert.Same(transmission, AtmosphereModSystem.ExternalTransmissionTexture);
-        Assert.Equal(contents, transmission.ReadPixels());
+        ImageAssertions.CompareHistory(transmission, contents).AssertEqual();
     }
 
     /// <summary>Physical LUT encoding preserves dimensionless attenuation and commits metadata only after valid upload.</summary>
@@ -150,18 +150,9 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         textures.Upload(snapshot);
         Assert.Equal(LightingStorage.PersistentScale, textures.StorageScale);
         Assert.Equal(7u, textures.CalibrationGeneration);
-        using (var scope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, textures.Sky.TextureId))
-        {
-            float[] pixels = new float[8];
-            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
-            Assert.Equal(new float[] { 2, 4, 8, 1, 0, 0, 0, 1 }, pixels);
-        }
-        using (var scope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, textures.Attenuation.TextureId))
-        {
-            float[] pixels = new float[4];
-            GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
-            Assert.Equal(new float[] { 0, 0, 0, 1 }, pixels);
-        }
+        ImageAssertions.Compare(textures.Sky,[2,4,8,1,0,0,0,1]).AssertEqual();
+        // The attenuation fallback remains a local one-texel tuple.
+        Assert.Equal(new float[]{0,0,0,1},textures.Attenuation.ReadPixels());
         Assert.Throws<ArgumentOutOfRangeException>(() => textures.Upload(snapshot with
             { Sky = ImmutableArray.Create(1048065f, 0f, 0f, 1f), CalibrationGeneration = 8 }));
         Assert.Equal(7u, textures.CalibrationGeneration);
@@ -172,7 +163,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
     }
 
     /// <summary>Reads driver allocation and contents to verify upload completed before shared publication.</summary>
-    private static void AssertTexture(AtmosphereLighting snapshot)
+    private void AssertTexture(AtmosphereLighting snapshot)
     {
         snapshot = AtmosphereModSystem.Lighting;
         Assert.Equal(LightingStorage.PersistentScale, snapshot.LookupStorageScale);
@@ -183,25 +174,23 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureHeight, out int height);
         Assert.Equal(snapshot.Width, width);
         Assert.Equal(snapshot.Height * 2, height);
-        float[] pixels = new float[width * height * 4];
-        GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
-        float[] packedSky = new float[pixels.Length];
-        AtmosphereMieTransport.Pack(snapshot.Sky.AsSpan(), snapshot.SkyMie.AsSpan(), packedSky,
-            snapshot.Width, snapshot.Height, 1, snapshot.Sun, snapshot.HorizonElevation, snapshot.LookupStorageScale);
-        for (int i = 0; i < pixels.Length; i++)
-            Assert.InRange(Math.Abs(pixels[i] - packedSky[i]), 0, Math.Max(.00001f, packedSky[i] * .001f));
+        float[] packedSky=new float[width*height*4];
+        AtmosphereMieTransport.Pack(snapshot.Sky.AsSpan(),snapshot.SkyMie.AsSpan(),packedSky,
+            snapshot.Width,snapshot.Height,1,snapshot.Sun,snapshot.HorizonElevation,snapshot.LookupStorageScale);
+        var sky=(GpuTexture)AtmosphereModSystem.SkyTexture.Resource!;
+        ImageAssertions.CompareFloating(sky,packedSky,packedSky.Select(value=>Math.Max(.00001f,value*.001f)).ToArray()).AssertEqual();
         AssertVolume(AtmosphereModSystem.AerialRadianceTextureId, snapshot.AerialRadiance, snapshot, true);
         AssertVolume(AtmosphereModSystem.AerialAttenuationTextureId, snapshot.AerialAttenuation, snapshot);
         var external = AtmosphereModSystem.ExternalTransmissionTexture!;
         Assert.Equal(snapshot.ExternalTransmission.IsEmpty ? 1 : 512, external.Width);
         Assert.Equal(1, external.Height);
         Assert.Equal(TextureFormat.Rgba32f, external.InternalFormat);
-        Assert.Equal(snapshot.ExternalTransmission.IsEmpty ? new[] { 0f, 0f, 0f, 1f }
-            : snapshot.ExternalTransmission.ToArray(), external.ReadPixels());
+        ImageAssertions.Compare(external,snapshot.ExternalTransmission.IsEmpty ? [0f,0f,0f,1f]
+            : snapshot.ExternalTransmission.ToArray()).AssertEqual();
     }
 
     /// <summary>Verifies both cumulative transport volumes were fully uploaded with the published angular extent.</summary>
-    private static void AssertVolume(int id, ImmutableArray<float> expected, AtmosphereLighting snapshot, bool packedRadiance = false)
+    private void AssertVolume(int id, ImmutableArray<float> expected, AtmosphereLighting snapshot, bool packedRadiance = false)
     {
         using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, id);
         GL.GetTexLevelParameter(TextureTarget.Texture3D, 0, GetTextureParameter.TextureWidth, out int width);
@@ -210,18 +199,18 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         Assert.Equal(expected.IsEmpty ? 1 : snapshot.Width, width);
         Assert.Equal((expected.IsEmpty ? 1 : snapshot.Height) * (packedRadiance ? 2 : 1), height);
         Assert.Equal(expected.IsEmpty ? 1 : AtmosphereAerialPerspective.Depth, depth);
-        float[] pixels = new float[width * height * depth * 4];
-        GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
+
         if (packedRadiance)
         {
-            float[] packed = new float[pixels.Length];
+            float[] packed = new float[width*height*depth*4];
             AtmosphereMieTransport.Pack(expected.IsEmpty ? new float[] { 0, 0, 0, 1 } : expected.AsSpan(), snapshot.AerialMie.AsSpan(), packed,
                 width, height / 2, depth, snapshot.Sun, snapshot.HorizonElevation, snapshot.LookupStorageScale);
             expected = ImmutableArray.CreateRange(packed);
         }
-        if (expected.IsEmpty) Assert.Equal(new[] { 0f, 0f, 0f, 1f }, pixels);
-        else for (int i = 0; i < pixels.Length; i++)
-            Assert.InRange(Math.Abs(pixels[i] - expected[i]), 0, Math.Max(.00001f, expected[i] * .001f));
+        using var image=new BorrowedTexture(id);
+        float[] wanted=expected.IsEmpty?[0,0,0,1]:expected.ToArray();
+        if(expected.IsEmpty)ImageAssertions.Compare(image,wanted).AssertEqual();
+        else ImageAssertions.CompareFloating(image,wanted,wanted.Select(value=>Math.Max(.00001f,value*.001f)).ToArray()).AssertEqual();
     }
     #endregion
 }

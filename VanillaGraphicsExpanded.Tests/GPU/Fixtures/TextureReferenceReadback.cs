@@ -27,10 +27,11 @@ internal static class TextureReferenceReadback
         return MemoryMarshal.Cast<byte, float>(mapping.Bytes).ToArray();
     }
 
-    /// <summary>Reads one published base image as floats through the same semantic readback path used by rendering resources.</summary>
+    /// <summary>Reads a single-pixel published image; complete image domains require GPU assertions.</summary>
     internal static float[] ReadPixels(this GpuTextureRef texture)
     {
         var image = texture.RequireImage(0);
+        if(image.Width!=1 || image.Height!=1)throw new ArgumentException("Whole-image CPU assertions require a single-pixel subject.",nameof(texture));
         using var request = RHICommandContext.Current.EnqueueReadback(new(texture,
             new(new(0), 0, 0, 0, image.Width, image.Height, 1),
             new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(image.Format), PixelComponentType.Float)));

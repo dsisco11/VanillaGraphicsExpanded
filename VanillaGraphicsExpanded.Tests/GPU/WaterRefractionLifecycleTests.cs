@@ -80,7 +80,7 @@ public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : R
             source.Publish();
             Assert.True(source.Published);
             composite.UploadDataImmediate(Enumerable.Repeat(2f, 16).ToArray());
-            Assert.All(source.Color.ReadPixels(), value => Assert.Equal(.5f, value));
+            ImageAssertions.CompareConstant(source.Color, .5f).AssertEqual();
             // A new frame must withdraw last frame's publication before any consumer can use it.
             Assert.Same(target, source.BeginFrame(true, composite));
             Assert.False(source.Published);

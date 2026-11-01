@@ -10,6 +10,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -196,9 +197,10 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
     /// <summary>
     /// Reads a pixel from half-res output.
     /// </summary>
-    private static (float r, float g, float b, float a) ReadPixelHalfRes(float[] data, int x, int y)
+    private static (float r, float g, float b, float a) ReadPixelHalfRes(GpuTexture image, int x, int y)
     {
-        int idx = (y * HalfResWidth + x) * 4;
+        var data=image.ReadPixelsRegion(x,y,1,1);
+        int idx=0;
         return (data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
     }
 
@@ -329,10 +331,10 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         }
             TestFramework.RenderQuadTo(programId, output);
 
-            var (r, g, b, confidence) = ReadPixelHalfRes(output[0].ReadPixels(), 0, 0);
+            var (r, g, b, confidence) = ReadPixelHalfRes(output[0], 0, 0);
             if (blocked)
             {
-                foreach (float value in output[0].ReadPixels()) Assert.Equal(0f, value);
+                ImageAssertions.CompareConstant(output[0],0).AssertEqual();
                 return;
             }
             if (resolvedBlack)
@@ -343,7 +345,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             Assert.True(confidence > (validScreenProbes ? 0.5f : 0.9f), $"Expected confident selected lighting, got {confidence:F3}");
             if (worldFallback)
                 Assert.True(r > 0.5f && g < 0.1f && b < 0.1f, "Expected red world fallback");
-            var reference = output[0].ReadPixels();
+            using var reference=new GpuImageSnapshot(output[0]);
 
             if (constantAgreement)
             {
@@ -351,15 +353,9 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 // Both boundaries must produce E/pi=1, without a second hit-material response.
                 anchorPos.UploadDataImmediate(CreateProbeAnchors(probeWorldZ, validity: 0f));
                 TestFramework.RenderQuadTo(programId, output);
-                float[] replacement = output[0].ReadPixels();
-                for (int index = 0; index < reference.Length; index += 4)
-                    for (int channel = 0; channel < 3; channel++)
-                    {
-                        Assert.InRange(reference[index + channel], .995f, 1.005f);
-                        Assert.InRange(replacement[index + channel], .995f, 1.005f);
-                        Assert.InRange(replacement[index + channel], reference[index + channel] - .005f,
-                            reference[index + channel] + .005f);
-                    }
+                ImageAssertions.Inspect(reference.Texture,.995f,1.005f,channelMask:7).AssertFiniteRange();
+                ImageAssertions.Inspect(output[0],.995f,1.005f,channelMask:7).AssertFiniteRange();
+                ImageAssertions.Predicate(output[0],"return bvec2(all(greaterThanEqual(a.rgb,b.rgb-vec3(.005))) && all(lessThanEqual(a.rgb,b.rgb+vec3(.005))),false);",reference.Texture).AssertEqual();
                 return;
             }
 
@@ -367,13 +363,9 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             if (sh != null) sh.SuppressWorldProbeRadiance = true;
             else atlas!.SuppressWorldProbeRadiance = true;
             TestFramework.RenderQuadTo(programId, output);
-            var suppressed = output[0].ReadPixels();
-            for (int i = 0; i < reference.Length; i += 4)
-            {
-                Assert.Equal(reference[i + 3], suppressed[i + 3]);
-                for (int channel = 0; channel < 3; channel++)
-                    Assert.Equal(worldFallback ? 0f : reference[i + channel], suppressed[i + channel]);
-            }
+            ImageAssertions.CompareHistory(output[0],reference,channelMask:8).AssertEqual();
+            if(worldFallback)ImageAssertions.CompareConstant(output[0],0,channelMask:7).AssertEqual();
+            else ImageAssertions.CompareHistory(output[0],reference,channelMask:7).AssertEqual();
     }
 
     /// <summary>Repeats authored metadata components across a controlled attachment without applying light scaling.</summary>
@@ -450,7 +442,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         var topLeft = ReadPixelHalfRes(outputData, 0, 0);
         var topRight = ReadPixelHalfRes(outputData, 1, 0);
@@ -542,7 +534,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // DESIRED: Pixel (0,0) should be predominantly red since it's nearest to probe (0,0)
         var (r00, g00, b00, _) = ReadPixelHalfRes(outputData, 0, 0);
@@ -654,7 +646,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // DESIRED: Pixel (0,0) should favor red (near probe) over blue (far probe)
         var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
@@ -766,7 +758,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // DESIRED: Pixel (1,1) should have very little blue contribution
         // because probe (1,1) has opposite normal (dot product ≈ -1, weight ≈ 0)
@@ -840,7 +832,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         programId.GBufferSurface = surfaceInput7;
 
         TestFramework.RenderQuadTo(programId, baselineOutput);
-        var baselineData = baselineOutput[0].ReadPixels();
+        var baselineData = baselineOutput[0];
 
         // Now render with tint
         using var tintedOutput = TestFramework.CreateTestGBuffer(
@@ -858,44 +850,12 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         programId.GBufferSurface = surfaceInput8;
 
         TestFramework.RenderQuadTo(programId, tintedOutput);
-        var tintedData = tintedOutput[0].ReadPixels();
-
-        // DESIRED: Tinted output should be baseline * tint per channel
-        for (int py = 0; py < HalfResHeight; py++)
-        {
-            for (int px = 0; px < HalfResWidth; px++)
-            {
-                var (baseR, baseG, baseB, _) = ReadPixelHalfRes(baselineData, px, py);
-                var (tintR, tintG, tintB, _) = ReadPixelHalfRes(tintedData, px, py);
-
-                // Skip pixels with zero baseline (would cause division issues)
-                if (baseR < 0.01f && baseG < 0.01f && baseB < 0.01f) continue;
-
-                // Check R channel scaled by 2.0
-                if (baseR > 0.01f)
-                {
-                    float ratioR = tintR / baseR;
-                    Assert.True(MathF.Abs(ratioR - tint.r) < 0.2f,
-                        $"Pixel ({px},{py}) R should be scaled by {tint.r}, got ratio {ratioR:F2}");
-                }
-
-                // Check G channel scaled by 1.0
-                if (baseG > 0.01f)
-                {
-                    float ratioG = tintG / baseG;
-                    Assert.True(MathF.Abs(ratioG - tint.g) < 0.2f,
-                        $"Pixel ({px},{py}) G should be scaled by {tint.g}, got ratio {ratioG:F2}");
-                }
-
-                // Check B channel scaled by 0.5
-                if (baseB > 0.01f)
-                {
-                    float ratioB = tintB / baseB;
-                    Assert.True(MathF.Abs(ratioB - tint.b) < 0.2f,
-                        $"Pixel ({px},{py}) B should be scaled by {tint.b}, got ratio {ratioB:F2}");
-                }
-            }
-        }
+        ImageAssertions.Predicate(tintedOutput[0],"""
+            bool valid=true;
+            // Match the original strict channel gates; absent baseline channels are not asserted.
+            for(int c=0;c<3;c++)if(b[c]>.01){precise float ratio=a[c]/b[c];precise float delta=ratio-multipliers[c];valid=valid && abs(delta)<.2;}
+            return bvec2(valid,false);
+            """,baselineData,parameters:new(tint.r,tint.g,tint.b,0)).AssertEqual();
     }
 
     #endregion
@@ -956,24 +916,13 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
-
-        // DESIRED: All sky pixels should output zero irradiance
-        for (int py = 0; py < HalfResHeight; py++)
-        {
-            for (int px = 0; px < HalfResWidth; px++)
-            {
-                var (r, g, b, _) = ReadPixelHalfRes(outputData, px, py);
-
-                Assert.True(r < TestEpsilon && g < TestEpsilon && b < TestEpsilon,
-                    $"Sky pixel ({px},{py}) should have zero irradiance, got ({r:F3}, {g:F3}, {b:F3})");
-            }
-        }
+        ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(all(lessThan(a.rgb,vec3(multipliers.x))),false);",
+            parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
 
-    #region Phase 4 Tests: High Priority Missing Coverage
+    #region Additional gather controls
 
     /// <summary>
     /// Tests that all invalid probes result in zero output.
@@ -1023,18 +972,8 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         programId.GBufferSurface = surfaceInput10;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
-
-        // All pixels should be zero
-        for (int py = 0; py < HalfResHeight; py++)
-        {
-            for (int px = 0; px < HalfResWidth; px++)
-            {
-                var (r, g, b, _) = ReadPixelHalfRes(outputData, px, py);
-                Assert.True(r < TestEpsilon && g < TestEpsilon && b < TestEpsilon,
-                    $"Pixel ({px},{py}) should be zero when all probes invalid, got ({r:F4}, {g:F4}, {b:F4})");
-            }
-        }
+        ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(all(lessThan(a.rgb,vec3(multipliers.x))),false);",
+            parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     /// <summary>
@@ -1093,7 +1032,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             programId.GBufferSurface = surfaceInput11;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
+            var outputData = outputGBuffer[0];
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             fullValidityBrightness = (r + g + b) / 3f;
         }
@@ -1122,7 +1061,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             programId.GBufferSurface = surfaceInput12;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
+            var outputData = outputGBuffer[0];
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             partialValidityBrightness = (r + g + b) / 3f;
         }
@@ -1190,7 +1129,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             programId.GBufferSurface = surfaceInput13;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
+            var outputData = outputGBuffer[0];
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             stride1Brightness = (r + g + b) / 3f;
         }
@@ -1217,7 +1156,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             programId.GBufferSurface = surfaceInput14;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
+            var outputData = outputGBuffer[0];
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             stride2Brightness = (r + g + b) / 3f;
         }
@@ -1281,7 +1220,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         programId.GBufferSurface = surfaceInput15;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0];
 
         // With upward normal, gather should mostly see upper hemisphere (brighter)
         var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
@@ -1402,7 +1341,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             programId.GBufferSurface = surfaceInput16;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
+            var outputData = outputGBuffer[0];
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             strictBrightness = (r + g + b) / 3f;
         }
@@ -1429,7 +1368,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             programId.GBufferSurface = surfaceInput17;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
+            var outputData = outputGBuffer[0];
             var (r, g, b, _) = ReadPixelHalfRes(outputData, 0, 0);
             permissiveBrightness = (r + g + b) / 3f;
         }
@@ -1480,7 +1419,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
             TestFramework.RenderQuadTo(programId, output);
 
-            var (r, g, b, confidence) = ReadPixelHalfRes(output[0].ReadPixels(), 0, 0);
+            var (r, g, b, confidence) = ReadPixelHalfRes(output[0], 0, 0);
             Assert.True(r < 1e-3f && g < 1e-3f && b < 1e-3f,
                 $"Occluded probes must not leak radiance, got ({r:F3}, {g:F3}, {b:F3})");
             Assert.True(confidence < 1e-3f, $"Expected zero screen-probe confidence, got {confidence:F3}");

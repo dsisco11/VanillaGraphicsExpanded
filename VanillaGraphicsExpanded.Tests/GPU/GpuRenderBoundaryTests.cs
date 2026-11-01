@@ -72,9 +72,9 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         Assert.Equal((int)DrawBuffersEnum.ColorAttachment0, GL.GetInteger(GetPName.DrawBuffer0));
         Assert.Equal((int)DrawBuffersEnum.ColorAttachment1, GL.GetInteger(GetPName.DrawBuffer1));
         Assert.Equal((int)DrawBuffersEnum.ColorAttachment2, GL.GetInteger(GetPName.DrawBuffer2));
-        Assert.All(target[0].ReadPixels(), value => Assert.Equal(0f, value));
-        Assert.All(target[1].ReadPixels(), value => Assert.Equal(0f, value));
-        Assert.All(target[2].ReadPixels(), value => Assert.Equal(0f, value));
+        ImageAssertions.CompareConstant(target[0], 0f).AssertEqual();
+        ImageAssertions.CompareConstant(target[1], 0f).AssertEqual();
+        ImageAssertions.CompareConstant(target[2], 0f).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -138,8 +138,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         int[] viewport = new int[4];
         GL.GetInteger(GetPName.Viewport, viewport);
         Assert.Equal(new[] { 1, 2, 3, 4 }, viewport);
-        Assert.All(destination[0].ReadPixels(), value => Assert.Equal(7f, value));
-        Assert.All(destination[1].ReadPixels(), value => Assert.Equal(13f, value));
+        ImageAssertions.CompareConstant(destination[0], 7f).AssertEqual();
+        ImageAssertions.CompareConstant(destination[1], 13f).AssertEqual();
         foreach (var target in new[] { source, destination, callerDraw })
         {
             target.Bind();
@@ -166,11 +166,11 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         {
             var copy = FramebufferTestSetup.DescribeCopy(source, destination);
             RHICommandContext.Current.BlitImages(copy);
-            Assert.All(output.ReadPixels(), value => Assert.Equal(3f, value));
+            ImageAssertions.CompareConstant(output, 3f).AssertEqual();
             source.Attach(replacement);
             copy=FramebufferTestSetup.DescribeCopy(source, destination);
             RHICommandContext.Current.BlitImages(copy);
-            Assert.All(output.ReadPixels(), value => Assert.Equal(9f, value));
+            ImageAssertions.CompareConstant(output, 9f).AssertEqual();
         }
         Assert.True(GL.IsTexture(first.TextureId));
         Assert.True(GL.IsTexture(replacement.TextureId));
@@ -193,7 +193,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
             {
                 source[0].UploadDataImmediate(Enumerable.Repeat(value, 16).ToArray());
                 RHICommandContext.Current.BlitImages(copy);
-                Assert.All(destination[0].ReadPixels(), pixel => Assert.Equal(value, pixel));
+                ImageAssertions.CompareConstant(destination[0], value).AssertEqual();
 
             }
         }
@@ -224,7 +224,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         GL.Clear(ClearBufferMask.DepthBufferBit);
         var copy = FramebufferTestSetup.DescribeCopy(source, destination, ImageAspects.Depth);
         RHICommandContext.Current.BlitImages(copy);
-        Assert.All(destinationDepth.ReadPixels(), value => Assert.InRange(value, 0.374f, 0.376f));
+        ImageAssertions.Inspect(destinationDepth, 0.374f, 0.376f).AssertFiniteRange();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     /// <summary>A combined blit copies color through scratch attachments and depth through the original targets.</summary>
@@ -259,8 +259,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         RHICommandContext.Current.BlitImages(depthCopy);
         Assert.Equal((int)DrawBufferMode.None, GL.GetInteger(GetPName.DrawBuffer0));
         Assert.Equal((int)ReadBufferMode.None, GL.GetInteger(GetPName.ReadBuffer));
-        Assert.All(destinationDepth.ReadPixels(), value => Assert.InRange(value, 0.624f, 0.626f));
-        Assert.All(destinationColor.ReadPixels(), value => Assert.Equal(5f, value));
+        ImageAssertions.Inspect(destinationDepth, 0.624f, 0.626f).AssertFiniteRange();
+        ImageAssertions.CompareConstant(destinationColor, 5f).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -288,7 +288,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
             FramebufferTestSetup.Select(destination.GetAttachment(FramebufferSlot.Color0)!),new(0,0,2,2));
         RHICommandContext.Current.BlitImages(copy);
         Assert.Equal((int)ReadBufferMode.None, GL.GetInteger(GetPName.ReadBuffer));
-        Assert.All(destination[0].ReadPixels(), value => Assert.Equal(0.25f, value));
+        ImageAssertions.CompareConstant(destination[0], 0.25f).AssertEqual();
         destination.Dispose();
         Assert.True(GL.IsRenderbuffer(color.RenderbufferId));
         Assert.Equal(ErrorCode.NoError, GL.GetError());

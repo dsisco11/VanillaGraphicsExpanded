@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
@@ -112,13 +113,13 @@ public sealed class MaterialAtlasPublicationLifetimeTests(HeadlessGLFixture fixt
                 Enumerable.Range(0, 4).SelectMany(_ => new float[] { .5f, .25f, 0 }).ToArray());
             Assert.True(store.TryGetPageTextures(7, out var replacement));
             int identity = replacement.MaterialParamsTexture.TextureId;
-            float[] retained = replacement.MaterialParamsTexture.ReadPixels();
+            using var retained=new GpuImageSnapshot(replacement.MaterialParamsTexture);
             DrainUploads();
 #if DEBUG
             Assert.True(manager.GetDiagnosticsSnapshot().DroppedInvalid > 0);
 #endif
             Assert.Equal(identity, replacement.MaterialParamsTexture.TextureId);
-            Assert.Equal(retained, replacement.MaterialParamsTexture.ReadPixels());
+            ImageAssertions.CompareHistory(replacement.MaterialParamsTexture,retained).AssertEqual();
             Assert.Equal(256, store.MaximumEmissionNits);
         }
         finally { TextureStreamingSystem.Dispose(); }

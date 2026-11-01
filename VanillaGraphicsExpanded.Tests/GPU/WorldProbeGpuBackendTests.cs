@@ -60,7 +60,7 @@ public sealed class WorldProbeGpuBackendTests(HeadlessGLFixture fixture) : Rende
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
         Assert.True(runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing);
-        runtime.RunUntil(()=>SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f,maximumFrames:256);
+        runtime.RunUntil(()=>runtime.Energy(runtime.WorldImage)>.001f,maximumFrames:256);
         Assert.Equal(0,runtime.World.WorkerReads); Assert.Equal(0,runtime.World.VanillaLightReads);
         Assert.True(runtime.WorldConfidence>0);
     }

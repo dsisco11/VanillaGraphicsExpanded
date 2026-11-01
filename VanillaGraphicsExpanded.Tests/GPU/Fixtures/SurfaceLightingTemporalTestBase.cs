@@ -17,7 +17,7 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBa
     protected SurfaceLightingTemporalTestBase(HeadlessGLFixture fixture) : base(fixture) { }
 
     /// <summary>Exposes raw traces and temporal output for independent component assertions.</summary>
-    protected sealed record HistoryFrame(float[] Raw, float[] RawMeta, HitPixels Pixels, bool Reset);
+    private protected sealed record HistoryFrame(GpuTexture Raw, GpuTexture RawMeta, TraceImages Pixels, bool Reset);
 
     #region Frame execution
     /// <summary>Traces eight directions per probe and retains the other fifty-six through the real temporal shader.</summary>
@@ -25,19 +25,17 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBa
     {
         var lighting = available ? room.Snapshot : (VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingSnapshot?)null;
         history.BeginFrame(room, lighting);
-        HistoryFrame? result = null;
-        Trace(null, resources: history.Resources, worldCache: false, shared: room.Geometry.Scene, surfaceLighting: lighting,
+
+        var raw=Trace(null, resources: history.Resources, worldCache: false, shared: room.Geometry.Scene, surfaceLighting: lighting,
             anchorPosition: new(0,0,-3), worldOffset: new(0,32,0), matrixRemainder: new(4,4,7),
             history: history.Buffers.ScreenProbeAtlasHistoryTex, historyMeta: history.Buffers.ScreenProbeAtlasMetaHistoryTex,
             texelsPerFrame: SurfaceLightingHistoryFixture.DirectionsPerFrame, frameIndex: history.FrameIndex, rayMaxDistance: 16,
-            consume: traced =>
-            {
-                Accumulate(traced, history);
-                result = new(traced.Colors[0].Image!.Value.Texture.ReadPixels(), traced.Colors[1].Image!.Value.Texture.ReadPixels(),
-                    new HitPixels(history.Buffers.ScreenProbeAtlasCurrentTex!.ReadPixels(), history.Buffers.ScreenProbeAtlasMetaCurrentTex!.ReadPixels()), history.ResetThisFrame);
-            });
+            consume: traced => Accumulate(traced, history));
+        var pixels=CaptureTrace(history.Buffers.ScreenProbeAtlasCurrentTex!,
+            history.Buffers.ScreenProbeAtlasMetaCurrentTex!,rgbDecode:1);
+        var result=new HistoryFrame(raw.Radiance,raw.Meta,pixels,history.ResetThisFrame);
         history.EndFrame();
-        return Assert.IsType<HistoryFrame>(result);
+        return result;
     }
 
     /// <summary>Runs production temporal blending against the previous ping-pong generation without CPU radiance injection.</summary>

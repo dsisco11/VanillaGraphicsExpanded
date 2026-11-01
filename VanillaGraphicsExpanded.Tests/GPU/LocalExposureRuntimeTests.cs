@@ -10,6 +10,7 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -38,14 +39,12 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         Assert.Equal(TextureFormat.Rg32f, result.InternalFormat);
         Assert.Equal(2, result.Width); Assert.Equal(2, result.Height);
         double[] expected = Reduce(colors, 13, 7, 2, 2);
-        float[] logarithms = owner.Logarithms.ReadPixels(), filtered = result.ReadPixels();
-        for (int i = 0; i < 4; i++)
-        {
-            Assert.InRange(Math.Abs(logarithms[i * 2] - expected[i]), 0, .000008);
-            Assert.Equal(1, logarithms[i * 2 + 1]);
-            Assert.InRange(Math.Abs(filtered[i * 2] - Filter(expected, 2, 2, i)), 0, .000008);
-            Assert.Equal(1, filtered[i * 2 + 1]);
-        }
+        var logarithms = expected.SelectMany(value => new[] { value, 1d }).ToArray();
+        var filtered = Enumerable.Range(0,4).SelectMany(i => new[] { Filter(expected,2,2,i), 1d }).ToArray();
+        ImageAssertions.CompareDouble(owner.Logarithms, logarithms, .000008, channelMask: 1).AssertEqual();
+        ImageAssertions.CompareConstant(owner.Logarithms, 1, channelMask: 2).AssertEqual();
+        ImageAssertions.CompareDouble(result, filtered, .000008, channelMask: 1).AssertEqual();
+        ImageAssertions.CompareConstant(result, 1, channelMask: 2).AssertEqual();
         Assert.Equal(1, owner.Generation);
     }
 
@@ -61,10 +60,12 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         using var publication = new TestFrameLightingPublication();
         using var owner = new LocalExposureRenderer(); owner.FrameLightingInputs = publication.Buffer;
         owner.Render(Programs.Api, scene, Candidate());
-        foreach (var actual in new[] { owner.Logarithms.ReadPixels(), owner.BaseTexture.ReadPixels() })
+        foreach (var actual in new[] { owner.Logarithms, owner.BaseTexture })
         {
-            Assert.All(actual.Take(6), value => Assert.Equal(0, value));
-            Assert.InRange(actual[6], -6.000001f, -5.999999f); Assert.Equal(1, actual[7]);
+            ImageAssertions.CompareConstant(actual, 0, new(new(0),0,0,0,2,1)).AssertEqual();
+            ImageAssertions.CompareConstant(actual, 0, new(new(0),0,1,0,1,1)).AssertEqual();
+            ImageAssertions.Inspect(actual, -6.000001f, -5.999999f, new(new(0),1,1,0,1,1), channelMask: 1).AssertFiniteRange();
+            ImageAssertions.CompareConstant(actual, 1, new(new(0),1,1,0,1,1), channelMask: 2).AssertEqual();
         }
     }
     #endregion
@@ -85,7 +86,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         for (int i = 0; i < 3; i++) Assert.Same(first, owner.Render(Programs.Api, scene, Candidate()));
         Assert.Equal(1, owner.Generation);
         Assert.Same(first, owner.Render(Programs.Api, black, Candidate()));
-        Assert.All(first.ReadPixels(), value => Assert.Equal(0, value));
+        ImageAssertions.CompareConstant(first, 0).AssertEqual();
         var resized = owner.Render(Programs.Api, scene, Candidate() with { Width = 3, Height = 2 });
         Assert.NotSame(first, resized); Assert.False(first.IsValid); Assert.False(logs.IsValid);
         Assert.Equal(2, owner.Generation);
@@ -164,26 +165,25 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         using var grading = new ColorGradingLut();
         Vector4 controls = new(1, 1, 1, 0);
         var lookup = grading.Prepare(Programs.Api, controls);
-        float[] global = Final(source, glare, empty, baseImage, history, lookup, Candidate() with { Enabled = false }, automatic);
-        float[] local = Final(source, glare, empty, baseImage, history, lookup, Candidate(), automatic);
+        using var global = Final(source, glare, empty, baseImage, history, lookup, Candidate() with { Enabled = false }, automatic);
+        using var local = Final(source, glare, empty, baseImage, history, lookup, Candidate(), automatic);
         for (int i = 0; i < 2; i++)
         {
             double stops = Math.Clamp((Math.Log2(.18)-6-bases[i * 2]) * .5, -4, 4);
             Vector3 exposed = (colors[i] * (float)Math.Pow(2, stops) + new Vector3(.00001f)) * 64f;
             Vector3 expected = FilmicGradingReference.Lookup(exposed, controls);
-            for (int c = 0; c < 3; c++) Assert.InRange(Math.Abs(local[i * 4 + c] - FilmicGradingReference.Quantize(expected[c], i)), 0, 1.001f / 255);
+            for (int c = 0; c < 3; c++) Assert.InRange(Math.Abs(GpuLocalRead.Scalar(local.Texture,i*4+c) - FilmicGradingReference.Quantize(expected[c], i)), 0, 1.001f / 255);
         }
-        output.WriteLine($"Composition diagnostic baseline={string.Join(',', global)} local={string.Join(',', local)}.");
-        Assert.True(local[0] > global[0]); Assert.True(local[4] < global[4]);
+        Assert.True(GpuLocalRead.Scalar(local.Texture,0)>GpuLocalRead.Scalar(global.Texture,0)); Assert.True(GpuLocalRead.Scalar(local.Texture,4)<GpuLocalRead.Scalar(global.Texture,4));
         foreach (float validity in new[] { 0f, float.NaN, float.PositiveInfinity })
         {
             history.UploadData(new[] { 6f, 0f, metered, validity, 20f, 1f, 0f, 0f });
-            float[] missing = Final(source, glare, empty, baseImage, history, lookup, Candidate(), automatic);
-            Assert.Equal(local, missing);
+            using var missing = Final(source, glare, empty, baseImage, history, lookup, Candidate(), automatic);
+            ImageAssertions.CompareHistory(missing.Texture,local).AssertEqual();
         }
         history.UploadData(new[] { 6f, 0f, metered, 1f, 20f, 1f, 0f, 0f });
-        float[] disabledVariant = Final(source, glare, empty, baseImage, history, lookup, Candidate() with { Enabled = false }, automatic, optionalVariant: false);
-        Assert.Equal(global, disabledVariant);
+        using var disabledVariant = Final(source, glare, empty, baseImage, history, lookup, Candidate() with { Enabled = false }, automatic, optionalVariant: false);
+        ImageAssertions.CompareHistory(disabledVariant.Texture,global).AssertEqual();
         Assert.Equal(1, grading.Generation);
     }
 
@@ -202,7 +202,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         using var grading = new ColorGradingLut();
         Vector4 controls = new(1, 1, 1, 0);
         var lookup = grading.Prepare(Programs.Api, controls);
-        float[] actual = Final(scene, bloom, shafts, spatial, history, lookup, Candidate(), automatic);
+        using var actual = Final(scene, bloom, shafts, spatial, history, lookup, Candidate(), automatic);
         for (int pixel = 0; pixel < 2; pixel++)
         {
             // The independently computed local gain affects scene and shafts only. Bloom is already source-corrected.
@@ -210,7 +210,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
             float exposed = (.0015f * (float)Math.Pow(2, stops) + .002f) * 64;
             Vector3 expected = FilmicGradingReference.Lookup(new(exposed), controls);
             for (int channel = 0; channel < 3; channel++)
-                Assert.InRange(Math.Abs(actual[pixel * 4 + channel] - FilmicGradingReference.Quantize(expected[channel], pixel)), 0, 1.001f / 255);
+                Assert.InRange(Math.Abs(GpuLocalRead.Scalar(actual.Texture,pixel*4+channel) - FilmicGradingReference.Quantize(expected[channel], pixel)), 0, 1.001f / 255);
         }
     }
 
@@ -230,14 +230,13 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         using var grading = new ColorGradingLut();
         Vector4 controls = new(1, 1, 1.111798286f, .143282309f);
         var lookup = grading.Prepare(Programs.Api, controls);
-        float[] global = Final(source, zero, zero, baseImage, history, lookup, Candidate() with { Enabled = false }, true, controls);
-        float[] local = Final(source, zero, zero, baseImage, history, lookup, Candidate(), true, controls);
+        using var global = Final(source, zero, zero, baseImage, history, lookup, Candidate() with { Enabled = false }, true, controls);
+        using var local = Final(source, zero, zero, baseImage, history, lookup, Candidate(), true, controls);
         for (int i = 0; i < 2; i++)
         {
             double stops = Math.Clamp((Math.Log2(.18)-6-bases[i * 2]) * .5, -4, 4);
             Vector3 expected = FilmicGradingReference.Lookup(colors[i] * (float)Math.Pow(2, 6 + stops), controls);
-            for (int c = 0; c < 3; c++) Assert.InRange(Math.Abs(local[i * 4 + c] - FilmicGradingReference.Quantize(expected[c], i)), 0, 1.001f / 255);
-            output.WriteLine($"Captured-input {(i == 0 ? "terrain" : "lamp")} diagnostic: global RGB8 {string.Join(',', global.Skip(i * 4).Take(3).Select(v => Math.Round(v * 255)))}; local RGB8 {string.Join(',', local.Skip(i * 4).Take(3).Select(v => Math.Round(v * 255)))}; candidate stops {stops:R}.");
+            for (int c = 0; c < 3; c++) Assert.InRange(Math.Abs(GpuLocalRead.Scalar(local.Texture,i*4+c) - FilmicGradingReference.Quantize(expected[c], i)), 0, 1.001f / 255);
             if (i == 0) Assert.InRange(stops, 2, 4);
         }
     }
@@ -256,10 +255,10 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.LocalFinal.NeutralGuidance" }).RequireResource();
         history.UploadData(new[] { 6f, 0f, -8f, 1f, 6f, 0f, 0f, 0f });
         using var grading = new ColorGradingLut(); var lookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
-        float[] baseline = Final(scene, glare, empty, spatial, history, lookup, Candidate() with { Enabled = false }, true);
-        float[] local = Final(scene, glare, empty, spatial, history, lookup, Candidate(), true);
-        Assert.Equal(baseline, local);
-        Assert.Contains(local.Where((_, index) => index % 4 != 3), value => value > 0);
+        using var baseline = Final(scene, glare, empty, spatial, history, lookup, Candidate() with { Enabled = false }, true);
+        using var local = Final(scene, glare, empty, spatial, history, lookup, Candidate(), true);
+        ImageAssertions.CompareHistory(local.Texture,baseline).AssertEqual();
+        Assert.True(ImageAssertions.Inspect(local.Texture,channelMask:7).Maximum>0);
     }
     #endregion
     #endregion
@@ -271,7 +270,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         TextureFormat.Rgba32f, pixels.SelectMany(c => new[] { c.X * scale, c.Y * scale, c.Z * scale, 1f }).ToArray());
 
     /// <summary>Runs the actual final program with local guidance and published global exposure storage.</summary>
-    private float[] Final(DynamicTexture2D source, DynamicTexture2D glare, DynamicTexture2D empty, DynamicTexture2D localBase,
+    private GpuImageSnapshot Final(DynamicTexture2D source, DynamicTexture2D glare, DynamicTexture2D empty, DynamicTexture2D localBase,
         GpuShaderStorageBuffer history, DynamicTexture3D lookup, LocalExposureParameters settings, bool automatic, Vector4? controls = null,
         bool optionalVariant = true)
     {
@@ -296,7 +295,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
     scope62.Run(()=>draw.Submit(c, pipeline,target.PostprocessPass(), program.CaptureBindings()));
 }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        return target[0].ReadPixels();
+        return new(target[0]);
     }
     #endregion
 

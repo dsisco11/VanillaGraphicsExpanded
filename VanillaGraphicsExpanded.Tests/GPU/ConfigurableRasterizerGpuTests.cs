@@ -11,6 +11,7 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -127,9 +128,9 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         {
             Assert.Equal(0, draw.Count(Pipeline(new() { ClipOrigin = ClipCoordinateOrigin.UpperLeft, ClipDepth = ClipDepthRange.ZeroToOne }), zeroToOne: false));
             Assert.Equal(1024, draw.Count(Pipeline(new() { ClipOrigin = ClipCoordinateOrigin.UpperLeft, ClipDepth = ClipDepthRange.ZeroToOne }), zeroToOne: true));
-            Assert.Equal(255, draw.LastPixels[(4 * 32 + 16) * 4 + 1]);
+            Assert.Equal(1f, draw.LastGreen);
             Assert.Equal(1024, draw.Count(Pipeline(new()), zeroToOne: false));
-            Assert.Equal(0, draw.LastPixels[(4 * 32 + 16) * 4 + 1]);
+            Assert.Equal(0f, draw.LastGreen);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -199,7 +200,10 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         private readonly PackedUniformBuffer inputs = new(16);
         private readonly RHIUniformRingFrameController frame;
         private readonly GpuUniformRingBuffer? previousRing;
-        public byte[] LastPixels { get; private set; } = [];
+        private readonly GpuImageAssertions assertions=new();
+        private GpuImageSnapshot? lastImage;
+        /// <summary>Reads only the originally nominated RGBA8 green component in normalized form.</summary>
+        public float LastGreen => GpuLocalRead.Scalar(lastImage!.Texture,(4*32+16)*4+1);
         /// <summary>Creates a 32-square target and vertex-ID geometry for compatibility raster checks.</summary>
         public RasterDraw()
         {
@@ -233,13 +237,15 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             inputs.SetBytes(bytes);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
             GL.DrawArrays(lines ? PrimitiveType.Lines : PrimitiveType.Triangles, 0, lines ? 2 : 3);
-            byte[] pixels = new byte[32 * 32 * 4]; GL.ReadPixels(0, 0, 32, 32, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-            LastPixels = pixels;
-            return Enumerable.Range(0, 1024).Count(i => pixels[i * 4] != 0);
+            lastImage?.Dispose();lastImage=null;
+            lastImage=NativeFramebufferImage.Capture(framebuffer,0,32,32,TextureFormat.Rgba8);
+            var result=assertions.Predicate(lastImage.Texture,"return bvec2(true,a.r!=0);");
+            result.AssertEqual();return checked((int)result.MatchingTexels);
         }
         /// <summary>Deletes native fixture resources before their context is destroyed.</summary>
         public void Dispose()
         {
+            lastImage?.Dispose();assertions.Dispose();
             inputs.Dispose();
             try { frame.EndFrame(); }
             finally

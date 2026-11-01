@@ -268,7 +268,7 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         TestFramework.RenderQuadTo(program,target);
         // Four queried corners are geometrically coplanar even though the two
         // plateaus are disconnected. Outside neighbors disprove the invented slope.
-        Assert.InRange(MathF.Abs(target[0].ReadPixels()[2]+2.2f),0,.0001f);
+        Assert.InRange(MathF.Abs(Assertions.GpuLocalRead.Scalar(target[0], 2)+2.2f),0,.0001f);
         Assert.InRange(MathF.Abs(target[1].ReadTexel()[0]-8),0,.0001f);
     }
     #endregion

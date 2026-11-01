@@ -44,6 +44,10 @@ public abstract class RenderTestBase : IDisposable
     private bool _disposed;
     private readonly GpuResourceCollection _targetResources = new();
     private readonly TestFrameLightingPublication frameLighting = new();
+    private Assertions.GpuImageAssertions? imageAssertions;
+
+    /// <summary>Retains independently owned checker programs for this test's current physical context.</summary>
+    private protected Assertions.GpuImageAssertions ImageAssertions => imageAssertions ??= new();
 
     /// <summary>
     /// Creates a new RenderTestBase instance.
@@ -408,7 +412,7 @@ public abstract class RenderTestBase : IDisposable
             _quadInitialized = false;
         }
 
-        if (disposing) { frameLighting.Dispose(); _targetResources.Dispose(); }
+        if (disposing) { imageAssertions?.Dispose(); frameLighting.Dispose(); _targetResources.Dispose(); }
         _disposed = true;
     }
 

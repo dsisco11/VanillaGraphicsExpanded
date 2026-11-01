@@ -88,48 +88,51 @@ internal static class SurfaceLightingRefreshSynchronization
         if (expectedWorldRadiance is { } expected)
         {
             var resources = runtime.WorldBuffers.Resources!;
-            var radiance = runtime.WorldPixels();
             int worldTile = resources.WorldProbeTileSize;
             foreach (int slot in slots)
             {
                 int sx = slot % resolution, sy = slot / resolution % resolution, sz = slot / (resolution * resolution);
-                for (int y = 0; y < worldTile; y++) for (int x = 0; x < worldTile; x++)
-                {
-                    int index = (((sy * worldTile + y) * resources.RadianceAtlasWidth +
-                        (sx + sz * resolution) * worldTile + x) << 2);
-                    Assert.True(radiance[index + 3] > 0, $"Missing world direction: slot={slot}, texel=({x},{y}).");
-                    for (int channel = 0; channel < 3; channel++)
-                    {
-                        // Directional cache RGB uses fixed persistent encoding; alpha is metadata.
-                        float physical=VanillaGraphicsExpanded.PBR.LightingStorage.DecodePersistent(radiance[index+channel]);
-                        Assert.True(Math.Abs(physical - expected[channel])<=.01f,
-                            $"World direction slot={slot}, texel=({x},{y}), channel={channel}: expected physical {expected[channel]}, actual decoded {physical}.");
-                    }
-                }
+                var selection = new VanillaGraphicsExpanded.Rendering.RHI.RHITextureRegion(new(0),
+                    (sx + sz * resolution) * worldTile, sy * worldTile, 0, worldTile, worldTile);
+                var confidence = runtime.Cache.ImageAssertions.Inspect(runtime.WorldImage, selection: selection, channelMask: 8);
+                Assert.True(confidence.NonFinite == 0 && confidence.Minimum > 0, $"Missing world direction: slot={slot}; {confidence}");
+                float[] encoded = Enumerable.Range(0, worldTile * worldTile)
+                    .SelectMany(_ => new[] { expected.X / 16, expected.Y / 16, expected.Z / 16, 0f }).ToArray();
+                // The independently authored physical bound is scaled exactly by the power-of-two persistent encoding.
+                runtime.Cache.ImageAssertions.Compare(runtime.WorldImage, encoded, .01f / 16,
+                    selection, channelMask: 7).AssertEqual();
+                runtime.Cache.ImageAssertions.Inspect(runtime.WorldImage, 0, 65504, selection, channelMask: 7).AssertFiniteRange();
             }
         }
         int tile = VanillaGraphicsExpanded.Rendering.DynamicTexture3D.OctahedralSize;
         int sweep = (tile * tile + runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame - 1) /
             runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame;
-        float[]? previousHistory = null;
-        float[]? previousMeta = null;
+        Assertions.GpuImageSnapshot? previousHistory = null;
+        Assertions.GpuImageSnapshot? previousMeta = null;
         int sampledFrame = runtime.Cache.Frames;
         bool stable = false;
         // Reserve the remainder of the existing transition budget for complete screen sweeps;
         // neither producer brightness nor the desired final image is a completion predicate.
-        runtime.RunUntil(() =>
+        try
         {
-            if (stable) return true;
-            if (runtime.Cache.Frames - sampledFrame < sweep) return false;
-            sampledFrame = runtime.Cache.Frames;
-            var current = runtime.Screen.ScreenProbeAtlasHistoryTex!.ReadPixels();
-            var meta = runtime.Screen.ScreenProbeAtlasMetaHistoryTex!.ReadPixels();
-            stable = previousHistory != null && current.AsSpan().SequenceEqual(previousHistory) &&
-                meta.AsSpan().SequenceEqual(previousMeta);
-            previousHistory = current;
-            previousMeta = meta;
-            return stable;
-        }, maximumFrames - (runtime.Cache.Frames - firstFrame));
+            runtime.RunUntil(() =>
+            {
+                if (stable) return true;
+                if (runtime.Cache.Frames - sampledFrame < sweep) return false;
+                sampledFrame = runtime.Cache.Frames;
+                var history = runtime.Screen.ScreenProbeAtlasHistoryTex!;
+                var meta = runtime.Screen.ScreenProbeAtlasMetaHistoryTex!;
+                stable = previousHistory != null &&
+                    runtime.Cache.ImageAssertions.CompareHistory(history, previousHistory).Mismatches == 0 &&
+                    runtime.Cache.ImageAssertions.CompareHistory(meta, previousMeta!).Mismatches == 0;
+                // Both retained histories belong to this observation interval and are always retired on failure.
+                previousHistory?.Dispose(); previousHistory = null;
+                previousMeta?.Dispose(); previousMeta = null;
+                previousHistory = new(history); previousMeta = new(meta);
+                return stable;
+            }, maximumFrames - (runtime.Cache.Frames - firstFrame));
+        }
+        finally { previousHistory?.Dispose(); previousMeta?.Dispose(); }
     }
 
     /// <summary>Observes existing private lifecycle data without mutating renderer state or exposing a production test API.</summary>

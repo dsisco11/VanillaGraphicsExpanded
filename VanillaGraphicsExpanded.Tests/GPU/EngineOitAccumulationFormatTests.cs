@@ -8,6 +8,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using Vintagestory.API.Client;
 using Vintagestory.Client.NoObf;
 
@@ -66,14 +67,14 @@ public sealed class EngineOitAccumulationFormatTests(HeadlessGLFixture fixture) 
             int first = (int)AccessTools.Field(typeof(SystemRenderOITLayers), "accumTextureId").GetValue(null)!;
             AssertStorage(first, 3, 2);
             ClearLayers(frames[1].FboId);
-            Assert.All(ReadArray(first, 3, 2), value => Assert.Equal(0, value));
+            using(var image=CaptureArray(first))ImageAssertions.CompareConstant(image.Texture,0).AssertEqual();
             frames[1].Width = 7;
             frames[1].Height = 3;
             rebuild.Invoke(owner, null);
             int current = (int)AccessTools.Field(typeof(SystemRenderOITLayers), "accumTextureId").GetValue(null)!;
             AssertStorage(current, 7, 3);
             ClearLayers(frames[1].FboId);
-            Assert.All(ReadArray(current, 7, 3), value => Assert.Equal(0, value));
+            using(var image=CaptureArray(current))ImageAssertions.CompareConstant(image.Texture,0).AssertEqual();
             // Use the real bucket attachments and indexed additive factors. Each output uses
             // the installed depth-zero bell weight;
             // Alpha remains unscaled beside HDR RGB.
@@ -98,10 +99,12 @@ public sealed class EngineOitAccumulationFormatTests(HeadlessGLFixture fixture) 
                 GL.BlendFunc(i, BlendingFactorSrc.One, BlendingFactorDest.One);
             }
             for (int i = 0; i < 8; i++) GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-            var sums = ReadArray(current, 7, 3);
-            Assert.Equal(128000, sums[0]);
-            Assert.Equal(8, sums[3]);
-            Assert.All(sums, value => Assert.True(float.IsFinite(value)));
+            using(var sums=CaptureArray(current))
+            {
+                Assert.Equal(128000,GpuLocalRead.Scalar(sums.Texture,0));
+                Assert.Equal(8,GpuLocalRead.Scalar(sums.Texture,3));
+                ImageAssertions.Inspect(sums.Texture).AssertFiniteRange();
+            }
             sample = CompileProgram("""
                 #version 330 core
                 uniform sampler2DArray buckets;
@@ -180,13 +183,11 @@ public sealed class EngineOitAccumulationFormatTests(HeadlessGLFixture fixture) 
         for (int index = 3; index <= 5; index++) GL.ClearBuffer(ClearBuffer.Color, index, new float[4]);
         Assert.Equal(FramebufferErrorCode.FramebufferComplete, GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer));
     }
-    /// <summary>Reads every published bucket texel to check clear and additive payloads independently.</summary>
-    private static float[] ReadArray(int texture, int width, int height)
+    /// <summary>Retains every published bucket layer for independent clear and additive-payload predicates.</summary>
+    private static GpuImageSnapshot CaptureArray(int texture)
     {
-        GL.BindTexture(TextureTarget.Texture2DArray, texture);
-        float[] values = new float[width * height * 3 * 4];
-        GL.GetTexImage(TextureTarget.Texture2DArray, 0, PixelFormat.Rgba, PixelType.Float, values);
-        return values;
+        using var borrowed=new BorrowedTexture(texture);
+        return new(borrowed);
     }
     /// <summary>Compiles minimal diagnostic shaders without modifying the production shader catalog.</summary>
     private static int CompileProgram(string fragment)

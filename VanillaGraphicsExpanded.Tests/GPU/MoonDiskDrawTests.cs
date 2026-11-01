@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using System.Reflection;
@@ -102,24 +103,21 @@ public sealed class MoonDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFu
         Assert.Equal(framebuffer, GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(depth, GL.IsEnabled(EnableCap.DepthTest)); Assert.Equal(blending, GL.IsEnabled(EnableCap.Blend));
         GL.GetBoolean(GetPName.DepthWritemask, out bool currentWrites); Assert.Equal(writes, currentWrites);
-        Assert.All(glow.ReadPixels(), value => Assert.Equal(0, value));
-        float[] pixels = color.ReadPixels();
-        double[] power = new double[3];
-        for (int y = 0; y < size; y++) for (int x = 0; x < size; x++)
+        ImageAssertions.CompareConstant(glow, 0).AssertEqual();
+        ImageAssertions.Inspect(color,0,disk.MaximumNits*scale,channelMask:7).AssertFiniteRange();
+        var areas=new double[size*size];var cosines=new double[areas.Length];
+        for(int y=0;y<size;y++)for(int x=0;x<size;x++)
         {
-            double a = (2.0*x/size-1)/p, b = (2.0*(x+1)/size-1)/p;
-            double c = (2.0*y/size-1)/p, d = (2.0*(y+1)/size-1)/p;
-            double area = CornerArea(b,d)-CornerArea(a,d)-CornerArea(b,c)+CornerArea(a,c);
-            double cosine = 1 / Math.Sqrt(1+Math.Pow((a+b)/2,2)+Math.Pow((c+d)/2,2));
-            for (int channel = 0; channel < 3; channel++)
-            {
-                float value = pixels[(y*size+x)*4+channel];
-                Assert.True(float.IsFinite(value) && value >= 0 && value <= disk.MaximumNits*scale);
-                power[channel] += value / scale * area * cosine;
-            }
+            double a=(2.0*x/size-1)/p,b=(2.0*(x+1)/size-1)/p;
+            double c=(2.0*y/size-1)/p,d=(2.0*(y+1)/size-1)/p;
+            areas[y*size+x]=CornerArea(b,d)-CornerArea(a,d)-CornerArea(b,c)+CornerArea(a,c);
+            cosines[y*size+x]=1/Math.Sqrt(1+Math.Pow((a+b)/2,2)+Math.Pow((c+d)/2,2));
         }
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
-        return new((float)power[0], (float)power[1], (float)power[2]);
+        using var imageProjection=new GpuImageTransform();
+        using var physical=imageProjection.Apply(color,"precise vec3 radiance=a.rgb/parameters.x;return vec4(radiance,0);",new(scale,0,0,0));
+        var power=ImageAssertions.WeightedStatistics(physical,areas,channelMask:7,secondaryWeights:cosines);
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+        return new((float)power.Sum(0),(float)power.Sum(1),(float)power.Sum(2));
     }
     /// <summary>Integrates a perspective rectangle in double precision without production geometry helpers.</summary>
     private static double CornerArea(double x, double y) => Math.Atan2(x*y, Math.Sqrt(1+x*x+y*y));

@@ -64,8 +64,8 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
                 Assert.Same(original.IndirectIrradiance,current.IndirectIrradiance);
                 Assert.Equal(original.DependencyRevision,current.DependencyRevision);
                 Assert.Equal(capture,runtime.Feedback.GetCaptureRevision(page));
-                using var outgoing=SurfaceLightingPageReadback.Read(current.OutgoingRadiance,current,page);
-                for(int index=3;index<outgoing.Length;index+=4) Assert.Equal(1,outgoing.Span[index]);
+                using var outgoing=SurfaceLightingPageSelection.Capture(current.OutgoingRadiance,current,page);
+                ImageAssertions.CompareConstant(outgoing.Texture, 1, channelMask: 8).AssertEqual();
                 reached=IndirectWeight(runtime,page)==cap;
             }
             Assert.True(reached,"Runtime history configuration did not reach the retained producer history.");
@@ -184,8 +184,8 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
                 foreach(var pair in revisions)
                 {
                     Assert.Equal(pair.Value,runtime.Feedback.GetCaptureRevision(pair.Key));
-                    using var outgoing=SurfaceLightingPageReadback.Read(current.OutgoingRadiance,current,pair.Key);
-                    for(int index=3;index<outgoing.Length;index+=4) Assert.Equal(1,outgoing.Span[index]);
+                    using var outgoing=SurfaceLightingPageSelection.Capture(current.OutgoingRadiance,current,pair.Key);
+                    ImageAssertions.CompareConstant(outgoing.Texture, 1, channelMask: 8).AssertEqual();
                     completed &= HasDirect(runtime,pair.Key,light);
                 }
             }
@@ -205,21 +205,18 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));
         uint page=mapping.Keys.Single();
         long revision=runtime.Feedback.GetCaptureRevision(page);
-        using var before=SurfaceLightingPageReadback.Read(initial.DirectIrradiance,initial,page);
+        using var before=SurfaceLightingPageSelection.Capture(initial.DirectIrradiance,initial,page);
         runtime.TransformVoxel=(x,y,z,voxel)=>x==1 ? voxel with {Geometry=3} : voxel;
         runtime.ChangeBlockLight(0);
         for(int frame=0;frame<32;frame++)
         {
             runtime.Frame();
             Assert.True(runtime.TryGetLighting(out var current));
-            using var direct=SurfaceLightingPageReadback.Read(current.DirectIrradiance,current,page);
-            Assert.True(before.Span.SequenceEqual(direct.Span));
-            using var outgoing=SurfaceLightingPageReadback.Read(current.OutgoingRadiance,current,page);
-            for(int index=0;index<outgoing.Length;index+=4)
-            {
-                Assert.Equal(1,outgoing.Span[index+3]);
-                Assert.True(outgoing.Span[index]>.001f);
-            }
+            using var direct=SurfaceLightingPageSelection.Capture(current.DirectIrradiance,current,page);
+            ImageAssertions.CompareHistory(direct.Texture, before).AssertEqual();
+            using var outgoing=SurfaceLightingPageSelection.Capture(current.OutgoingRadiance,current,page);
+            ImageAssertions.CompareConstant(outgoing.Texture, 1, channelMask: 8).AssertEqual();
+            Assert.True(ImageAssertions.Inspect(outgoing.Texture, channelMask: 1).Minimum > .001f);
         }
         runtime.TransformVoxel=null;runtime.InvalidateGeometry();
         runtime.RunUntil(()=>HasDirect(runtime,page,0),maximumFrames:96);
@@ -232,34 +229,30 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     private static float IndirectBrightness(SurfaceCacheRuntimeFixture runtime,uint page)
     {
         if(!runtime.TryGetLighting(out var current)) return 0;
-        using var indirect=SurfaceLightingPageReadback.Read(current.IndirectIrradiance,current,page);
-        float sum=0;
-        for(int index=0;index<indirect.Length;index+=4) sum+=indirect.Span[index];
-        return sum/(indirect.Length>>2);
+        using var indirect=SurfaceLightingPageSelection.Capture(current.IndirectIrradiance,current,page);
+        var result = runtime.ImageAssertions.Statistics(indirect.Texture, channelMask: 1);
+        result.AssertFiniteRange();
+        return (float)(result.Sum(0) / (indirect.Texture.Width * indirect.Texture.Height));
     }
 
     /// <summary>Observes completed indirect samples on the selected physical page.</summary>
     private static float IndirectWeight(SurfaceCacheRuntimeFixture runtime,uint page)
     {
         if(!runtime.TryGetLighting(out var current)) return 0;
-        using var indirect=SurfaceLightingPageReadback.Read(current.IndirectIrradiance,current,page);
-        float maximum=0;
-        for(int index=3;index<indirect.Length;index+=4) maximum=Math.Max(maximum,indirect.Span[index]);
-        return maximum;
+        using var indirect=SurfaceLightingPageSelection.Capture(current.IndirectIrradiance,current,page);
+        var result = runtime.ImageAssertions.Inspect(indirect.Texture, channelMask: 8);
+        result.AssertFiniteRange(); return (float)Math.Max(0, result.Maximum);
     }
 
     /// <summary>Checks physical direct irradiance after decoding persistent RGB, retaining unscaled validity.</summary>
     private static bool HasDirect(SurfaceCacheRuntimeFixture runtime,uint page,float expected,float validity=1)
     {
         if(!runtime.TryGetLighting(out var current)) return false;
-        using var direct=SurfaceLightingPageReadback.Read(current.DirectIrradiance,current,page);
-        for(int index=0;index<direct.Length;index+=4)
-        {
-            if(direct.Span[index+3]!=validity) return false;
-            for(int channel=0;channel<3;channel++)
-                if(Math.Abs(direct.Span[index+channel]/LightingStorage.PersistentScale-expected)>.01f) return false;
-        }
-        return true;
+        using var direct=SurfaceLightingPageSelection.Capture(current.DirectIrradiance,current,page);
+        return runtime.ImageAssertions.CompareConstant(direct.Texture, validity, channelMask: 8).Mismatches == 0 &&
+            runtime.ImageAssertions.CompareConstant(direct.Texture, expected * LightingStorage.PersistentScale,
+                channelMask: 7, tolerance: .01f * LightingStorage.PersistentScale).Mismatches == 0;
+
     }
     #endregion
 }

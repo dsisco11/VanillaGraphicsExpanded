@@ -46,7 +46,8 @@ internal sealed class TerrainDetailWorkload : IDisposable
     private readonly GpuVao vao=NativeResourceSetup.CreateVertexArray();
     private readonly VgeFrameUniformBuffer camera;
     private readonly Action bindTarget;
-    private readonly Func<float[]> readTarget;
+    /// <summary>Exposes the complete receiver for GPU comparisons and explicitly nominated local probes.</summary>
+    internal GpuTexture Output { get; }
     private readonly List<IDisposable> resources=new();
     private readonly Action<string> bindHeight;
     private PrimitiveType topology;
@@ -108,7 +109,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
         var missing=framework.CreateTexture(64,64,TextureFormat.R32f,new float[4096]);resources.Add(missing);
         var zeroAmplitude=framework.CreateTexture(2,1,TextureFormat.Rgba32f,[0,0,1,1,0,0,0,0]);resources.Add(zeroAmplitude);
         bindHeight=mode=>{if(mode=="adaptiveMissing")VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, missing, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)missing).Target)))]);else VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, indices, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)indices).Target)))]);if(mode=="adaptiveZeroAmplitude")VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, zeroAmplitude, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)zeroAmplitude).Target)))]);else VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)records).Target)))]);if(mode=="adaptiveNeutral")VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, neutral, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)neutral).Target)))]);else VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, raised, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)raised).Target)))]);};
-        var target=framework.CreateTestGBuffer(256,256,TextureFormat.Rgba32f);resources.Add(target);bindTarget=()=>FramebufferTestSetup.BindForEngineRendering(target);readTarget=()=>target[0].ReadPixels();
+        var target=framework.CreateTestGBuffer(256,256,TextureFormat.Rgba32f);resources.Add(target);bindTarget=()=>FramebufferTestSetup.BindForEngineRendering(target);Output=target[0];
     }
 
     /// <summary>Selects one immutable shader variant and publishes identical inputs outside timing.</summary>
@@ -137,8 +138,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
     /// <summary>Submits sixteen identical faces without readback or per-draw resource mutation.</summary>
     internal void Draw()=>GL.DrawArraysInstanced(topology,0,6,16);
 
-    /// <summary>Observes the complete receiver outside every measured interval.</summary>
-    internal float[] Read()=>readTarget();
+
 
     /// <summary>Restores topology state and releases all owned rendering resources.</summary>
     public void Dispose()

@@ -56,24 +56,20 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
                 commands.BindResources(sun.CaptureBindings()); commands.Draw(geometry.Inputs,new(0,6));commands.EndRenderPass();
             });
 }
-            float[] solar=color.ReadPixels();
-            float[] markers=glow.ReadPixels();
-            for(int i=0;i<markers.Length;i+=4)Assert.Equal(0,markers[i]);
+            using var solar = new Assertions.GpuImageSnapshot(color);
+            ImageAssertions.CompareConstant(glow, 0, channelMask: 1).AssertEqual();
             bloom.SourceImage=color;bloom.SecondaryImage=color;bloom.Capture(Vector4.Zero,new(1,0,1,ev));
             SubmitBloom(draw,bloom,extracted);
             bloom.SourceImage=extracted[0];bloom.CaptureGaussian(4,false);SubmitBloom(draw,bloom,horizontal);
             bloom.SourceImage=horizontal[0];bloom.CaptureGaussian(4,true);SubmitBloom(draw,bloom,halo);
-            float[] result=halo[0].ReadPixels();
-            double energy=result.Where((_,i)=>i%4==0).Sum(v=>(double)v);
+            var result = ImageAssertions.Statistics(halo[0], channelMask: 1);
+            result.AssertFiniteRange(); double energy = result.Sum(0);
             if(baseline==0) { baseline=energy;Assert.True(energy>1); }
             Assert.InRange(energy,baseline*ratio-baseline*.04,baseline*ratio+baseline*.04);
             if(ratio==0)Assert.Equal(0,energy);
-            else for(int i=0;i<result.Length;i+=4)
-            {
-                Assert.InRange(result[i+1],result[i]*.5f-.0001f,result[i]*.5f+.0001f);
-                Assert.InRange(result[i+2],result[i]*.25f-.0001f,result[i]*.25f+.0001f);
-            }
-            Assert.Equal(solar,color.ReadPixels());
+            else ImageAssertions.CompareChannelRatios(halo[0], new(0, .5f, .25f, 0), .0001f).AssertEqual();
+            ImageAssertions.CompareHistory(color, solar).AssertEqual();
+
         }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
@@ -116,8 +112,8 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
             commands.EndRenderPass();
         });
 }
-        Assert.Equal(visible, color.ReadPixels().Any(value => value > 0));
-        Assert.Equal(visible, glow.ReadPixels().Any(value => value > 0));
+        Assert.Equal(visible, ImageAssertions.Inspect(color).Positive > 0);
+        Assert.Equal(visible, ImageAssertions.Inspect(glow).Positive > 0);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 

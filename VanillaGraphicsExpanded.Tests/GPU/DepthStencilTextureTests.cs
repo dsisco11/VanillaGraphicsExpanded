@@ -22,7 +22,7 @@ public sealed class DepthStencilTextureTests : RenderTestBase
     public void DepthTexture_ReadPixels_UsesDepthAttachment()
     {
         EnsureContextValid();
-        using var texture = new DepthTexture(4, 4, TextureFormat.DepthComponent24);
+        using var texture = new DepthTexture(1, 1, TextureFormat.DepthComponent24);
         using var framebuffer = DynamicGpuFramebuffer.CreateDepthOnly(texture)
             ?? throw new InvalidOperationException("Depth framebuffer creation failed.");
 
@@ -33,7 +33,7 @@ public sealed class DepthStencilTextureTests : RenderTestBase
         GpuFramebuffer.Unbind();
 
         float[] pixels = texture.ReadPixels();
-        Assert.Equal(16, pixels.Length);
+        Assert.Equal(1, pixels.Length);
         Assert.All(pixels, value => Assert.InRange(value, 0.374f, 0.376f));
     }
 
@@ -42,7 +42,7 @@ public sealed class DepthStencilTextureTests : RenderTestBase
     public void StencilTexture_ReadStencilPixels_UsesStencilAttachment()
     {
         EnsureContextValid();
-        using var texture = new StencilTexture(3, 5);
+        using var texture = new StencilTexture(3, 2);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("StencilReadbackTest");
         framebuffer.Attach(texture);
         GL.DrawBuffer(DrawBufferMode.None); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
@@ -55,7 +55,7 @@ public sealed class DepthStencilTextureTests : RenderTestBase
         GL.Clear(ClearBufferMask.StencilBufferBit);
         GpuFramebuffer.Unbind();
 
-        AssertStencilReadbackPreservesPackLayout(texture.ReadStencilPixels, 15, 0x5a);
+        AssertStencilReadbackPreservesPackLayout(texture.ReadStencilPixels, 6, 0x5a);
     }
 
     /// <summary>Packed storage exposes both aspects without treating either as color.</summary>
@@ -63,7 +63,7 @@ public sealed class DepthStencilTextureTests : RenderTestBase
     public void DepthStencilTexture_ReadsBothAspects()
     {
         EnsureContextValid();
-        using var texture = new DepthStencilTexture(4, 4);
+        using var texture = new DepthStencilTexture(3, 2);
         using var framebuffer = DynamicGpuFramebuffer.CreateDepthOnly(texture)
             ?? throw new InvalidOperationException("Depth-stencil framebuffer creation failed.");
 
@@ -75,8 +75,11 @@ public sealed class DepthStencilTextureTests : RenderTestBase
         GL.Clear(ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
         GpuFramebuffer.Unbind();
 
-        Assert.All(texture.ReadPixels(), value => Assert.InRange(value, 0.624f, 0.626f));
-        AssertStencilReadbackPreservesPackLayout(texture.ReadStencilPixels, 16, 0x36);
+        // Readback itself is the subject: retain an independent payload assertion instead of using the GPU checker.
+        float[] depth = texture.ReadPixels();
+        Assert.Equal(6, depth.Length);
+        Assert.All(depth, value => Assert.InRange(value, 0.624f, 0.626f));
+        AssertStencilReadbackPreservesPackLayout(texture.ReadStencilPixels, 6, 0x36);
     }
     #endregion
 

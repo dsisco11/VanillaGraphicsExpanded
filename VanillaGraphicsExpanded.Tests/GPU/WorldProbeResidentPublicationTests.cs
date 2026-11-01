@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System;
 using System.Numerics;
 using VanillaGraphicsExpanded.PBR;
@@ -35,9 +36,9 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         Assert.True(batch.TryRead(out var answers));
         var reference=WorldProbeGpuIntegration.Integrate(item,answers,0,answers.Length);
         atlas.Upload(reference);
-        var expectedVisibility=atlas.Resources.ProbeVis0.ReadPixels();
-        var expectedDistance=atlas.Resources.ProbeDist0.ReadPixels();
-        var expectedMetadata=atlas.Resources.ProbeMeta0.ReadPixels();
+        using var expectedVisibility = new Assertions.GpuImageSnapshot(atlas.Resources.ProbeVis0);
+        using var expectedDistance = new Assertions.GpuImageSnapshot(atlas.Resources.ProbeDist0);
+        using var expectedMetadata = new Assertions.GpuImageSnapshot(atlas.Resources.ProbeMeta0);
         using var backend=new LumOnWorldProbeGpuTraceBackend(assets.Api,256,()=>room.Geometry.Scene,
             ()=>room.Snapshot,(_,_)=>true,new UnexpectedWorldProbeTraceScene(),_=>true);
         Assert.True(backend.TryEnqueue(item));Assert.False(backend.TryDequeueResult(out _));
@@ -46,18 +47,26 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         Assert.NotNull(result.GpuLease);
         Assert.All(result.AtlasSamples,sample=>Assert.True(sample.GpuRayIndex>=0));
         var pixels=atlas.Upload(result);
-        Assert.Equal(expectedVisibility,atlas.Resources.ProbeVis0.ReadPixels());
-        Assert.Equal(expectedDistance,atlas.Resources.ProbeDist0.ReadPixels());
-        Assert.Equal(expectedMetadata,atlas.Resources.ProbeMeta0.ReadPixels());
-        foreach(var sample in reference.AtlasSamples)
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeVis0, expectedVisibility).AssertEqual();
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeDist0, expectedDistance).AssertEqual();
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeMeta0, expectedMetadata).AssertEqual();
+        var lower = Enumerable.Repeat(double.NegativeInfinity, pixels.Width * pixels.Height * 4).ToArray();
+        var upper = Enumerable.Repeat(double.PositiveInfinity, lower.Length).ToArray();
+        foreach (var sample in reference.AtlasSamples)
         {
-            int index=((sample.OctY<<3)+sample.OctX)<<2;
-            Assert.InRange(Math.Abs(pixels[index]-sample.RadianceRgb.X * LightingStorage.PersistentScale),0,.003f);
-            Assert.InRange(Math.Abs(pixels[index+1]-sample.RadianceRgb.Y * LightingStorage.PersistentScale),0,.003f);
-            Assert.InRange(Math.Abs(pixels[index+2]-sample.RadianceRgb.Z * LightingStorage.PersistentScale),0,.003f);
-            Assert.InRange(Math.Abs(pixels[index+3]-sample.AlphaEncodedDistSigned),0,.003f);
+            int index = ((sample.OctY << 3) + sample.OctX) << 2;
+            float[] expected = [sample.RadianceRgb.X * LightingStorage.PersistentScale,
+                sample.RadianceRgb.Y * LightingStorage.PersistentScale, sample.RadianceRgb.Z * LightingStorage.PersistentScale,
+                sample.AlphaEncodedDistSigned];
+            for (int c = 0; c < 4; c++)
+            {
+                lower[index+c] = Math.Max(lower[index+c], expected[c] - (double).003f);
+                upper[index+c] = Math.Min(upper[index+c], expected[c] + (double).003f);
+            }
         }
-        Assert.All(pixels.Where((_,index)=>(index&3)==3),value=>Assert.True(value>0));
+        ImageAssertions.CompareIntervals(pixels, lower, upper).AssertEqual();
+        var alpha = ImageAssertions.Inspect(pixels, channelMask: 8);
+        Assert.True(alpha.NonFinite == 0 && alpha.Minimum > 0);
     }
 
     /// <summary>Compact completion rejects unsupported directional light before resident publication can report success.</summary>
@@ -117,16 +126,16 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         Assert.True(backend.TryEnqueue(Item()));Assert.False(backend.TryDequeueResult(out _));
         GpuTestFence.WaitForGpuOrSkip("Resident stale completion");
         Assert.True(backend.TryDequeueResult(out var result));Assert.True(result.Success);
-        var radiance=atlas.Resources.ProbeRadianceAtlas.ReadPixels();
-        var metadata=atlas.Resources.ProbeMeta0.ReadPixels();
+        using var radiance=new GpuImageSnapshot(atlas.Resources.ProbeRadianceAtlas);
+        using var metadata=new GpuImageSnapshot(atlas.Resources.ProbeMeta0);
         if(change==0)room.Geometry.Dirty();
         else if(change==1)room.DependencyRevision++;
         else if(change==2)current=false;
         else if(change==3)backend.Dispose();
         else providerThrows=true;
         Assert.Equal(0,atlas.TryUpload(result,65536));
-        Assert.Equal(radiance,atlas.Resources.ProbeRadianceAtlas.ReadPixels());
-        Assert.Equal(metadata,atlas.Resources.ProbeMeta0.ReadPixels());
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeRadianceAtlas,radiance).AssertEqual();
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeMeta0,metadata).AssertEqual();
     }
 
     /// <summary>A refused budget cannot publish metadata or consume the retained resident lighting.</summary>
@@ -143,16 +152,16 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         Assert.True(backend.TryEnqueue(Item()));Assert.False(backend.TryDequeueResult(out _));
         GpuTestFence.WaitForGpuOrSkip("Resident budget completion");
         Assert.True(backend.TryDequeueResult(out var result));Assert.True(result.Success);
-        var before=atlas.Resources.ProbeRadianceAtlas.ReadPixels();
-        var metadata=atlas.Resources.ProbeMeta0.ReadPixels();
+        using var before=new GpuImageSnapshot(atlas.Resources.ProbeRadianceAtlas);
+        using var metadata=new GpuImageSnapshot(atlas.Resources.ProbeMeta0);
         Assert.Equal(0,atlas.TryUpload(result with {GpuLease=null},65536));
-        Assert.Equal(before,atlas.Resources.ProbeRadianceAtlas.ReadPixels());
-        Assert.Equal(metadata,atlas.Resources.ProbeMeta0.ReadPixels());
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeRadianceAtlas,before).AssertEqual();
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeMeta0,metadata).AssertEqual();
         Assert.Equal(0,atlas.TryUpload(result,1));
-        Assert.Equal(before,atlas.Resources.ProbeRadianceAtlas.ReadPixels());
-        Assert.Equal(metadata,atlas.Resources.ProbeMeta0.ReadPixels());
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeRadianceAtlas,before).AssertEqual();
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeMeta0,metadata).AssertEqual();
         Assert.True(atlas.TryUpload(result,65536)>0);
-        Assert.Contains(atlas.Resources.ProbeRadianceAtlas.ReadPixels(),value=>value>.001f);
+        Assert.True(ImageAssertions.Inspect(atlas.Resources.ProbeRadianceAtlas).Maximum>.001f);
     }
 
     /// <summary>CPU-confirmed unsupported hits and untouched resident directions publish together in one complete tile.</summary>
@@ -189,8 +198,8 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
             samples[index]=samples[index] with {SurfaceHit=null,RadianceRgb=new Vector3(light.X,light.Y,light.Z)};
         }
         var pixels=atlas.Upload(result with {AtlasSamples=samples.ToImmutable()});
-        Assert.All(pixels.Where((_,index)=>(index&3)==3),value=>Assert.True(value>0));
-        Assert.All(pixels.Where((_,index)=>(index&3)!=3),value=>Assert.True(value>.001f));
+        Assert.True(ImageAssertions.Inspect(pixels, channelMask: 8).Minimum > 0);
+        Assert.True(ImageAssertions.Inspect(pixels, channelMask: 7).Minimum > .001f);
         Assert.Empty(world.LightQueries);
     }
 
@@ -225,13 +234,13 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         Assert.False(source.GpuLease.Answers.IsValid);Assert.True(source.GpuIdentity.IsCurrent);
         var retry=source with {GpuLease=null,AtlasSamples=samples.ToImmutable(),SurfaceRetryCount=1};
         Assert.True(atlas.TryUpload(retry,65536)>0);
-        var pixels=atlas.Resources.ProbeRadianceAtlas.ReadPixels();
-        var metadata=atlas.Resources.ProbeMeta0.ReadPixels();
+        using var pixels=new GpuImageSnapshot(atlas.Resources.ProbeRadianceAtlas);
+        using var metadata=new GpuImageSnapshot(atlas.Resources.ProbeMeta0);
         if(change==0)room.Geometry.Dirty();else if(change==1)room.DependencyRevision++;else current=false;
         Assert.False(retry.GpuIdentity!.IsCurrent);
         Assert.Equal(0,atlas.TryUpload(retry,65536));
-        Assert.Equal(pixels,atlas.Resources.ProbeRadianceAtlas.ReadPixels());
-        Assert.Equal(metadata,atlas.Resources.ProbeMeta0.ReadPixels());
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeRadianceAtlas,pixels).AssertEqual();
+        ImageAssertions.CompareHistory(atlas.Resources.ProbeMeta0,metadata).AssertEqual();
     }
     #endregion
 
@@ -300,10 +309,10 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         using var darkLease=new WorldProbeGpuLease(darkStorage,0,selectors.Length,()=>true);
         var darkResult=WorldProbeGpuIntegration.Integrate(item,dark,0,dark.Length,darkLease);
         var brightPixels=atlas.Upload(brightResult);
-        Assert.Contains(brightPixels.Where((_,index)=>(index&3)!=3),value=>value>.001f);
+        Assert.True(ImageAssertions.Inspect(brightPixels, channelMask: 7).Maximum > .001f);
         var darkPixels=atlas.Upload(darkResult);
-        Assert.All(darkPixels.Where((_,index)=>(index&3)!=3),value=>Assert.Equal(0,value));
-        Assert.All(darkPixels.Where((_,index)=>(index&3)==3),value=>Assert.True(value>0));
+        ImageAssertions.CompareConstant(darkPixels, 0, channelMask: 7).AssertEqual();
+        Assert.True(ImageAssertions.Inspect(darkPixels, channelMask: 8).Minimum > 0);
     }
 
     /// <summary>Missing lighting reads only required hit descriptors and leaves those directions explicitly unresolved.</summary>

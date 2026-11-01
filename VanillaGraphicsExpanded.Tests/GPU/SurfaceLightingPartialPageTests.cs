@@ -46,16 +46,13 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
         Assert.DoesNotContain(runtime.Events.Registrations,r=>r.Name=="vge_worldprobe_update");
         for(int frame=0;frame<16;frame++) runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var snapshot));
-        using var pixelsOwner=ReadFirstPage(runtime,snapshot.OutgoingRadiance,snapshot);
-        var pixels=pixelsOwner.Span;
+        using var pixelsOwner=CaptureFirstPage(runtime,snapshot.OutgoingRadiance,snapshot);
+        var pixels=pixelsOwner.Texture;
         Assert.Equal((density*density)<<3,CountValidity(pixels,1));
         Assert.Equal((density*density)<<3,CountValidity(pixels,0));
-        for(int index=0;index<pixels.Length;index+=4)
-        {
-            foreach(float value in pixels.Slice(index,4)) Assert.True(float.IsFinite(value));
-            if(pixels[index+3]==0) { foreach(float value in pixels.Slice(index,4)) Assert.Equal(0,value); }
-            else Assert.True(pixels[index]>.001f);
-        }
+        ImageAssertions.Inspect(pixels).AssertFiniteRange();
+        ImageAssertions.InspectCoverage(pixels, MathF.BitIncrement(.001f), double.PositiveInfinity, channelMask: 1).AssertFiniteRange();
+        ImageAssertions.InspectCoverage(pixels, double.NegativeInfinity, double.PositiveInfinity, channelMask: 6).AssertFiniteRange();
         using var queries=new SurfaceLightingQueryBatch(runtime.Api);
         queries.Submit(runtime.Geometry.Resources!,snapshot,
             [new(new(0,33,1),new(1,0,0),new(1,.5f,.5f),runtime.BlockId),
@@ -84,11 +81,11 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
         Assert.True(runtime.TryGetLighting(out var snapshot));
         Assert.True(runtime.Feedback.GetCaptureRevision(page)>capture);
         Assert.Equal(before.DependencyRevision,snapshot.DependencyRevision);
-        using var pixelsOwner=ReadFirstPage(runtime,snapshot.OutgoingRadiance,snapshot);
-        var pixels=pixelsOwner.Span;
+        using var pixelsOwner=CaptureFirstPage(runtime,snapshot.OutgoingRadiance,snapshot);
+        var pixels=pixelsOwner.Texture;
         Assert.Equal(8,CountValidity(pixels,1));
         Assert.Equal(8,CountValidity(pixels,0));
-        for(int index=0;index<pixels.Length;index++) if((index&3)!=3) Assert.Equal(0,pixels[index]);
+        ImageAssertions.CompareConstant(pixels, 0, channelMask: 7).AssertEqual();
     }
     #endregion
 
@@ -109,18 +106,17 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
         bool publishedBounce=false;
         foreach(uint physical in mapping.Keys)
         {
-            using var outgoingOwner=SurfaceLightingPageReadback.Read(snapshot.OutgoingRadiance,snapshot,physical);
-            var outgoing=outgoingOwner.Span;
-            using var directOwner=SurfaceLightingPageReadback.Read(snapshot.DirectIrradiance,snapshot,physical);
-            var direct=directOwner.Span;
-            using var indirectOwner=SurfaceLightingPageReadback.Read(snapshot.IndirectIrradiance,snapshot,physical);
-            var indirect=indirectOwner.Span;
-            for(int index=0;index<outgoing.Length;index+=4)
-            {
-                Assert.Equal(1,outgoing[index+3]);
-                Assert.True(outgoing[index]>=direct[index]*GgxHemisphereReference.CapturedDiffuse(1)/MathF.PI-.01f,"An unresolved bounce erased initialized direct lighting.");
-                if(indirect[index]>.001f && outgoing[index]>direct[index]*GgxHemisphereReference.CapturedDiffuse(1)/MathF.PI+.001f) publishedBounce=true;
-            }
+            using var outgoingOwner=SurfaceLightingPageSelection.Capture(snapshot.OutgoingRadiance,snapshot,physical);
+            var outgoing=outgoingOwner.Texture;
+            using var directOwner=SurfaceLightingPageSelection.Capture(snapshot.DirectIrradiance,snapshot,physical);
+            var direct=directOwner.Texture;
+            using var indirectOwner=SurfaceLightingPageSelection.Capture(snapshot.IndirectIrradiance,snapshot,physical);
+            var indirect=indirectOwner.Texture;
+            ImageAssertions.CompareConstant(outgoing, 1, channelMask: 8).AssertEqual();
+            ImageAssertions.CompareRelation(outgoing, direct, GgxHemisphereReference.CapturedDiffuse(1),
+                -.01f, float.PositiveInfinity, channelMask: 1, divisor: MathF.PI).AssertEqual();
+            publishedBounce |= ImageAssertions.CountExcess(outgoing, direct, indirect,
+                GgxHemisphereReference.CapturedDiffuse(1), .001f, .001f, divisor: MathF.PI).MatchingTexels > 0;
         }
         ((LumonSceneRelightUpdateRenderer)runtime.LightingProvider).TryGetSelfCheckLine(out string diagnostics);
         Assert.Matches(@"indirectFail:[1-9]\d*/",diagnostics);
@@ -129,18 +125,14 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
     #endregion
 
     #region Atlas observations
-    /// <summary>Counts initialized texels directly from the borrowed readback span.</summary>
-    private static int CountValidity(ReadOnlySpan<float> pixels,float value)
-    {
-        int count=0;
-        for(int i=3;i<pixels.Length;i+=4) if(pixels[i]==value) count++;
-        return count;
-    }
-    /// <summary>Reads one real resident tile without copying the full physical atlas.</summary>
-    private static VanillaGraphicsExpanded.Collections.PooledArray<float> ReadFirstPage(SurfaceCacheRuntimeFixture runtime,Texture3D texture,in SurfaceLightingSnapshot snapshot)
+    /// <summary>Counts the exact authored validity value over the complete captured page.</summary>
+    private int CountValidity(GpuTexture image, float value) =>
+        checked((int)ImageAssertions.CompareConstant(image, value, channelMask: 8).ConstantMatches);
+    /// <summary>Captures one real resident tile independently of later producer writes.</summary>
+    private static Assertions.GpuImageSnapshot CaptureFirstPage(SurfaceCacheRuntimeFixture runtime,Texture3D texture,in SurfaceLightingSnapshot snapshot)
     {
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));
-        return SurfaceLightingPageReadback.Read(texture,snapshot,mapping.Keys.Min());
+        return SurfaceLightingPageSelection.Capture(texture,snapshot,mapping.Keys.Min());
     }
 
     #endregion

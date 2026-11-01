@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
@@ -94,7 +95,7 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
         using var currentTarget = TestFramework.CreateTestGBuffer((inputs.Width + 1) / 2, (inputs.Height + 1) / 2, TextureFormat.Rgba16f);
         var actions = inputs.PrepareComparison(Programs.Create<AoHorizonReferenceProgram>(), draw, referenceTarget, currentTarget);
         actions.Reference();
-        AssertSameImage(inputs.CapturedOutput, referenceTarget[0].ReadPixels());
+        ImageAssertions.Compare(referenceTarget[0],inputs.CapturedOutput,bitwise:true).AssertEqual();
         VerifyAndMeasure(actions, referenceTarget, currentTarget, inputs.Width, inputs.Height, inputs.Quality, -1,
             Environment.GetEnvironmentVariable("VGE_RUN_AO_MEASUREMENTS") == "1", "Restored captured scene at event 7091");
     }
@@ -121,9 +122,9 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
         GpuFramebuffer currentTarget, int width, int height, int quality, int scene, bool measure, string workload)
     {
         actions.Reference(); actions.Current();
-        float[] expected = referenceTarget[0].ReadPixels(), actual = currentTarget[0].ReadPixels();
-        AssertSameImage(expected, actual);
-        Assert.All(actual, value => Assert.True(float.IsFinite(value)));
+        using var expected=new GpuImageSnapshot(referenceTarget[0]);
+        ImageAssertions.CompareHistory(currentTarget[0],expected,bitwise:true).AssertEqual();
+        ImageAssertions.Inspect(currentTarget[0]).AssertFiniteRange();
         if (!measure) return;
 
         var referenceGpu = new List<double>(); var currentGpu = new List<double>();
@@ -165,16 +166,5 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
     /// <summary>Uses the midpoint of sorted samples rather than selecting the fastest run.</summary>
     private static double Median(List<double> samples) => samples.Order().Skip(samples.Count / 2 - 1).Take(2).Average();
 
-    /// <summary>Compares channel bits, including signed zero, without dumping a multi-million-channel image on failure.</summary>
-    private static void AssertSameImage(float[] expected, float[] actual)
-    {
-        Assert.Equal(expected.Length, actual.Length);
-        var expectedBits = MemoryMarshal.Cast<float, int>(expected.AsSpan());
-        var actualBits = MemoryMarshal.Cast<float, int>(actual.AsSpan());
-        if (expectedBits.SequenceEqual(actualBits)) return;
-        int first = 0;
-        while (expectedBits[first] == actualBits[first]) first++;
-        Assert.Fail($"Horizon channel {first} differs: reference={expected[first]:R} (0x{expectedBits[first]:X8}), current={actual[first]:R} (0x{actualBits[first]:X8}).");
-    }
     #endregion
 }

@@ -32,18 +32,13 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
             runtime.Receiver = (_, _) => receiver;
             SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
             for (int frame = 0; frame < 24; frame++) runtime.Frame();
-            var reference = runtime.SceneLinearPixels();
+            using var reference = new Assertions.GpuImageSnapshot(runtime.SceneLinearImage);
             var incident = GgxHemisphereReference.CapturedDiffuse(scene.SourceAlbedo.Value) * (32 / MathF.PI);
-            SurfaceLightingNumericalRuntimeTests.AssertPixels(reference,
+            SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.SceneLinearImage,
                 (x, y) => SurfaceLightingPbrRuntimeTests.DiffuseResponse(scene, x, y, receiver, incident), .08f, "scene-linear HDR");
-            Assert.True(reference.Where((_, i) => i % 4 != 3).Max() > 2);
-            var displayed = runtime.ComposedPixels();
-            for (int i = 0; i < reference.Length; i++)
-            {
-                if ((i & 3) == 3) continue;
-                // Primary remains scene-linear; owned final composition performs the display transfer.
-                Assert.InRange(displayed[i], reference[i] - .002f, reference[i] + .002f);
-            }
+            Assert.True(ImageAssertions.Inspect(reference.Texture, channelMask: 7).Maximum > 2);
+            // Primary remains scene-linear; owned final composition performs the display transfer.
+            ImageAssertions.CompareHistory(runtime.ComposedImage, reference, tolerance: .002f, channelMask: 7).AssertEqual();
             Assert.Contains("pbr_display_resolve", runtime.LoadedPrograms);
             Assert.True(runtime.Cache.TryGetLighting(out var before));
             long history = runtime.Screen.HistoryRevision;
@@ -62,7 +57,7 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
                 Assert.Equal(before.Generation, after.Generation);
                 Assert.Same(before.OutgoingRadiance, after.OutgoingRadiance);
                 Assert.Equal(history, runtime.Screen.HistoryRevision);
-                Assert.Equal(reference, runtime.SceneLinearPixels());
+                ImageAssertions.CompareHistory(runtime.SceneLinearImage, reference).AssertEqual();
             }
         }
         finally

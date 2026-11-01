@@ -37,7 +37,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         Assert.Equal(TextureFormat.Rgba8, fixture.Scene.Light.InternalFormat);
         Assert.Equal(TextureFormat.Rgba8, fixture.Scene.Materials.InternalFormat);
         Assert.Equal(TextureFormat.R8ui, fixture.Scene.Regions.InternalFormat);
-        Assert.All(ReadReadiness(fixture.Scene), ready => Assert.Equal(0, ready));
+        ImageAssertions.Inspect(fixture.Scene.Regions,0,0).AssertFiniteRange();
         fixture.Publish(new ControlledVoxelWorld());
         var previousOrigin = fixture.Scene.Origin;
         var center = new VectorInt3(axis == 0 || axis == 3 ? distance : 0,
@@ -58,7 +58,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
             int sz = ((z / 16) % size + size) % size;
             expected[(sz * size + sy) * size + sx] = 1;
         }
-        Assert.Equal(expected, ReadReadiness(fixture.Scene));
+        ImageAssertions.CompareBits(fixture.Scene.Regions,expected.Select(value=>(uint)value).ToArray()).AssertEqual();
 
         // A current-version completion for an evicted region still cannot claim its reused slot.
         int oldX = distance > 0 ? previousOrigin.X : previousOrigin.X + resolution - 16;
@@ -71,20 +71,16 @@ public sealed partial class LumOnNearFieldFunctionalTests
         Assert.False(fixture.Scene.ClaimCell(request));
         Assert.False(fixture.Scene.PublishCell(request, new ControlledTraceVoxel[4096], new TraceGeometryMaterials()));
         Assert.Equal(revision, fixture.Scene.Revision);
-        Assert.Equal(expected, ReadReadiness(fixture.Scene));
+        ImageAssertions.CompareBits(fixture.Scene.Regions,expected.Select(value=>(uint)value).ToArray()).AssertEqual();
 
         fixture.Publish(new ControlledVoxelWorld());
-        Assert.All(ReadReadiness(fixture.Scene), ready => Assert.Equal(1, ready));
+        ImageAssertions.Inspect(fixture.Scene.Regions,1,1).AssertFiniteRange();
         var traceOffset = new VectorInt3((int)Math.Ceiling(center.X / 32d) * 32,
             (int)Math.Ceiling(center.Y / 32d) * 32,
             (int)Math.Ceiling(center.Z / 32d) * 32);
         // Keep the clear segment inside this deliberately small ring; coverage policy is tested separately.
         var result = Trace(fixture, worldOffset: traceOffset, cacheSpacing: 2);
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            Assert.InRange(result.Radiance[i], 9.99f, 10.01f);
-            Assert.Equal(1, result.Meta[i / 2]);
-        }
+        ObserveTrace(result, "return bvec2(a.r>=9.99 && a.r<=10.01 && b.r==1.0,false);").AssertEqual();
     }
 
     /// <summary>Compact 3D uploads preserve non-four-byte row data and the caller's unpack alignment.</summary>
@@ -101,21 +97,10 @@ public sealed partial class LumOnNearFieldFunctionalTests
             scene.Regions.UploadDataImmediate(data, 0, 0, 0, 3, 3, 3);
             GL.GetInteger(GetPName.UnpackAlignment, out int alignment);
             Assert.Equal(8, alignment);
-            Assert.Equal(data, ReadReadiness(scene));
+            ImageAssertions.CompareBits(scene.Regions,data.Select(value=>(uint)value).ToArray()).AssertEqual();
         }
         finally { GL.PixelStore(PixelStoreParameter.UnpackAlignment, originalAlignment); }
     }
 
-    /// <summary>Reads tightly packed integer readiness and restores external pixel-pack state.</summary>
-    private static byte[] ReadReadiness(ControlledTraceGpuScene scene)
-    {
-        var data = new byte[scene.RegionResolution * scene.RegionResolution * scene.RegionResolution];
-        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, scene.Regions.TextureId);
-        GL.GetInteger(GetPName.PackAlignment, out int previousAlignment);
-        GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-        try { GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedByte, data); }
-        finally { GL.PixelStore(PixelStoreParameter.PackAlignment, previousAlignment); }
-        return data;
-    }
     #endregion
 }

@@ -41,11 +41,11 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         shader.SourceImage=scene;shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureBuffer=history;
         shader.Capture(new(0,0,0,automatic?1:0),new(1,2,.5f,automatic?-ev:ev),new(.5f,.5f,1,65f/33),new(1,1,1,10));
         Draw(shader,target);
-        float[] actual=target[0].ReadPixels().Skip((16*65+32)*4).Take(4).ToArray();float expected=MathF.Pow(2,-ev)*scale;
+        float[] actual=target[0].ReadPixelsRegion(32, 16, 1, 1);float expected=MathF.Pow(2,-ev)*scale;
         Assert.InRange(actual[0],expected-.0001f,expected+.0001f);
         Assert.InRange(actual[1]/actual[0],.49999f,.50001f);
         Assert.InRange(actual[2]/actual[0],.24999f,.25001f);
-        Assert.Equal(1,actual[3]);Assert.Equal(radiance,scene.ReadPixels());
+        Assert.Equal(1,actual[3]);ImageAssertions.Compare(scene,radiance).AssertEqual();
     }
 
     /// <summary>Near geometry occludes distance visibility and solar extraction while publication keeps RGB and visibility independent.</summary>
@@ -66,7 +66,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         shader.SourceImage=scene;shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureBuffer=neutralExposure;
         var sun=new Vector4(.5f,.5f,daylight,65f/33);
         shader.Capture(new(0,0,0,0),new(1,2,.5f,0),sun,new(1,1,1,10));Draw(shader,extracted);
-        float[] source=extracted[0].ReadPixels().Skip((16*65+32)*4).Take(4).ToArray();
+        float[] source=extracted[0].ReadPixelsRegion(32, 16, 1, 1);
         if(depthValue==1&&daylight==1)Assert.True(source[0]>.9f);
         if(daylight==0)Assert.Equal(0,source[0]);
         if(depthValue<1) {Assert.Equal(0,source[0]);Assert.InRange(source[3],0,.01f);} else if(daylight>0) Assert.Equal(1,source[3]);
@@ -106,8 +106,14 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         using var target=TestFramework.CreateTestGBuffer(width,height,TextureFormat.Rgba32f);
         shader.SourceImage=source;shader.VisibilityImage=source;shader.DepthImage=source;shader.ExposureBuffer=neutralExposure;
         shader.Capture(new(0,0,1,32),new(.75f,0,0,0),new(.5f,.5f,1,(float)width/height));Draw(shader,target);
-        float[] result=target[0].ReadPixels();Assert.True(result[(16*width+38)*4]>0);Assert.True(result[(22*width+32)*4]>0);
-        for(int y=0;y<height;y++)for(int x=0;x<width;x++){float value=result[(y*width+x)*4];Assert.InRange(value,0,8);Assert.InRange(result[(y*width+64-x)*4],value-.0001f,value+.0001f);Assert.InRange(result[((32-y)*width+x)*4],value-.0001f,value+.0001f);}
+        Assert.True(target[0].ReadPixelsRegion(38,16,1,1)[0]>0);
+        Assert.True(target[0].ReadPixelsRegion(32,22,1,1)[0]>0);
+        ImageAssertions.Predicate(target[0],"""
+            float horizontal=texelFetch(actualImage,ivec3(64-coordinate.x,coordinate.y,0),0).r;
+            float vertical=texelFetch(actualImage,ivec3(coordinate.x,32-coordinate.y,0),0).r;
+            return bvec2(a.r>=0 && a.r<=8 && horizontal>=a.r-.0001 && horizontal<=a.r+.0001
+                && vertical>=a.r-.0001 && vertical<=a.r+.0001,false);
+            """).AssertEqual();
     }
     /// <summary>Reports the active fragment sampler requirement and verifies the executing device supports it.</summary>
     [Fact]
@@ -138,6 +144,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
     }
     /// <summary>Measures a bounded four-pass shaft extraction/filter/publication workload without bloom or live-frame claims.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void SyntheticLightShaftPassTiming()
     {
         EnsureShaderTestAvailable();var shader=Programs.Create<LightShaftShaderProgram>();

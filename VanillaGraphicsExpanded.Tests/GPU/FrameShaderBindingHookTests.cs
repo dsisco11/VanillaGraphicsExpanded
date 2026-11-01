@@ -77,7 +77,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             framework.RenderQuadTo(program.ProgramId,target);
             engine.Use();
             Assert.Equal(ErrorCode.NoError,GL.GetError());
-            Assert.All(target[0].ReadPixels(),value => Assert.Equal(1f,value));
+            ImageAssertions.CompareConstant(target[0], 1f).AssertEqual();
             Assert.Equal(0,Binding().Buffer);
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             using var foreign = new PackedUniformBuffer(VgeFrameUniformBuffer.PackedSize);
@@ -202,7 +202,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
                 // Draw directly: a general test framework must not repair a missing hook binding.
                 RenderFullscreenQuad(program.ProgramId);
                 var expected=MicrofacetTextureReference.Sample(selected.Width,.37f,.003f);
-                var actual=ReadPixelsFloat(target);
+                var actual=target[0].ReadPixelsRegion(0,0,1,1);
                 Assert.InRange(Math.Abs(actual[0]-expected.Value.X),0,expected.Error.X);
                 Assert.InRange(Math.Abs(actual[1]-expected.Value.Y),0,expected.Error.Y);
                 Assert.Equal(1,actual[3]);

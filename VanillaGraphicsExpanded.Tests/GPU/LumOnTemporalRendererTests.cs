@@ -66,7 +66,7 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
             hostile.AssertRestored();
             Assert.Same(hzb,DepthHierarchyRenderer.Texture);
             for (int mip = 0; mip < hzb.MipLevels; mip++)
-                Assert.All(hzb.ReadPixels(mip), value => Assert.InRange(value, depth - .0001f, depth + .0001f));
+                ImageAssertions.Inspect(hzb, depth - .0001f, depth + .0001f, Assertions.GpuImageSnapshot.Mip(hzb, mip)).AssertFiniteRange();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

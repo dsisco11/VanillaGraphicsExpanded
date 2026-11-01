@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -27,10 +28,11 @@ public sealed class MaterialDisplacementAtlasTests : RenderTestBase
         Assert.False(store.TryGetDisplacementTextures(7,out _));
         store.SyncToAtlasPages([(7,4,4)],true);
         Assert.True(store.TryGetDisplacementTextures(7,out var texture));
-        var pixels=texture!.Indices.ReadPixels();
-        Assert.Equal(new float[] {.25f,.25f,.5f,.5f,.03f,0,0,0}, texture.Records.ReadPixels());
+        var expected=new float[16];
+        ImageAssertions.Compare(texture!.Records,[.25f,.25f,.5f,.5f,.03f,0,0,0]).AssertEqual();
         for(int y=0;y<4;y++) for(int x=0;x<4;x++)
-            Assert.Equal(x is 1 or 2 && y is 1 or 2 ? 1f : 0f,pixels[y*4+x]);
+            expected[y*4+x]=x is 1 or 2 && y is 1 or 2 ? 1f : 0f;
+        ImageAssertions.Compare(texture.Indices,expected).AssertEqual();
         store.UpdateDisplacement(plan with {MaterialParamsTiles=[tile with {Definition=definition with {DisplacementAmplitudeMetres=0}}]});
         Assert.False(store.TryGetDisplacementTextures(7,out _));
         store.UpdateDisplacement(plan);
@@ -61,13 +63,12 @@ public sealed class MaterialDisplacementAtlasTests : RenderTestBase
         Assert.True(store.TryGetDisplacementTextures(7,out var page));
         Assert.Equal(256,page!.Records.Width);
         Assert.Equal(2,page.Records.Height);
-        var indices = page.Indices.ReadPixels();
-        for (int index=0;index<256;index++) Assert.Equal(index<129 ? index+1 : 0,indices[index]);
-        var records = page.Records.ReadPixels();
+        ImageAssertions.Compare(page.Indices,Enumerable.Range(0,256).Select(index=>index<129 ? (float)(index+1) : 0).ToArray()).AssertEqual();
+
         int offset = 128 << 3;
-        Assert.Equal(.5f,records[offset]);
-        Assert.Equal(1f/256,records[offset+2]);
-        Assert.Equal(.02f,records[offset+4]);
+        Assert.Equal(.5f,GpuLocalRead.Scalar(page.Records,offset));
+        Assert.Equal(1f/256,GpuLocalRead.Scalar(page.Records,offset+2));
+        Assert.Equal(.02f,GpuLocalRead.Scalar(page.Records,offset+4));
     }
     #endregion
 }

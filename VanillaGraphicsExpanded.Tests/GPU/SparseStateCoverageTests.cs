@@ -146,10 +146,10 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest));
             int[] box = new int[4]; GL.GetInteger(GetPName.ScissorBox, box); Assert.Equal(new[] { 0, 0, 1, 1 }, box);
             bool[] mask = new bool[4]; GL.GetBoolean(GetIndexedPName.ColorWritemask, 0, mask); Assert.All(mask, Assert.False);
-            var pixels = target[0].ReadPixels();
-            for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) for (int component = 0; component < 4; component++)
-                Assert.Equal(x is 1 or 2 && y is 1 or 2 ? new[] { 1f, .5f, .75f, 1f }[component] : .25f,
-                    pixels[(y * 4 + x) * 4 + component]);
+            var expected=new float[4*4*4];
+            for(int y=0;y<4;y++)for(int x=0;x<4;x++)for(int component=0;component<4;component++)
+                expected[(y*4+x)*4+component]=x is 1 or 2 && y is 1 or 2?new[]{1f,.5f,.75f,1f}[component]:.25f;
+            ImageAssertions.Compare(target[0],expected).AssertEqual();
         }
         finally
         {
@@ -187,7 +187,7 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
             Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
             bool[] mask = new bool[4]; GL.GetBoolean(GetIndexedPName.ColorWritemask, 0, mask);
             Assert.Equal(new[] { false, true, false, true }, mask);
-            if (load == AttachmentLoad.Preserve) Assert.All(target[0].ReadPixels(), value => Assert.Equal(.375f, value));
+            if (load == AttachmentLoad.Preserve) ImageAssertions.CompareConstant(target[0], .375f).AssertEqual();
         }
         finally
         {

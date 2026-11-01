@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
@@ -44,35 +45,21 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         hierarchy.Prepare(w,h,Programs.CreateDepthHierarchy());
         hierarchy.Render(primaryDepth);
         var hzb=hierarchy.Texture!;
-        // Read mip0 and mip1 and validate mip1 texels are <= all covered mip0 texels.
-        var mip0 = hzb.ReadPixels(mipLevel: 0);
-        var mip1 = hzb.ReadPixels(mipLevel: 1);
-
-        // mip1 is 2x2
-        for (int y = 0; y < 2; y++)
-        {
-            for (int x = 0; x < 2; x++)
-            {
-                float m1 = mip1[(y * 2 + x) * 1];
-
-                // Covered 2x2 block in mip0
-                float d00 = mip0[((y * 2 + 0) * 4 + (x * 2 + 0)) * 1];
-                float d10 = mip0[((y * 2 + 0) * 4 + (x * 2 + 1)) * 1];
-                float d01 = mip0[((y * 2 + 1) * 4 + (x * 2 + 0)) * 1];
-                float d11 = mip0[((y * 2 + 1) * 4 + (x * 2 + 1)) * 1];
-
-                float expected = MathF.Min(MathF.Min(d00, d10), MathF.Min(d01, d11));
-
-                Assert.True(MathF.Abs(m1 - expected) < Epsilon,
-                    $"Mip1({x},{y}) expected {expected} got {m1}");
-            }
-        }
-
-        // Read mip2 (1x1) and validate it equals min of mip1.
-        var mip2 = hzb.ReadPixels(mipLevel: 2);
-        float expectedMip2 = mip1.Min();
-        Assert.True(MathF.Abs(mip2[0] - expectedMip2) < Epsilon,
-            $"Mip2 expected {expectedMip2} got {mip2[0]}");
+        using var mip0=new GpuImageSnapshot(hzb,GpuImageSnapshot.Mip(hzb,0));
+        using var mip1=new GpuImageSnapshot(hzb,GpuImageSnapshot.Mip(hzb,1));
+        using var mip2=new GpuImageSnapshot(hzb,GpuImageSnapshot.Mip(hzb,2));
+        const string reduction="""
+            ivec2 origin=coordinate.xy*2;
+            vec4 block=vec4(texelFetch(historyImage,ivec3(origin,0),0).r,
+                texelFetch(historyImage,ivec3(origin+ivec2(1,0),0),0).r,
+                texelFetch(historyImage,ivec3(origin+ivec2(0,1),0),0).r,
+                texelFetch(historyImage,ivec3(origin+ivec2(1,1),0),0).r);
+            float expected=min(min(block.x,block.y),min(block.z,block.w));
+            precise float difference=abs(a.r-expected);
+            return bvec2(!any(isnan(block)) && difference<multipliers.x,false);
+            """;
+        ImageAssertions.Predicate(mip1.Texture,reduction,mip0.Texture,parameters:new(Epsilon,0,0,0),mappedSources:true).AssertEqual();
+        ImageAssertions.Predicate(mip2.Texture,reduction,mip1.Texture,parameters:new(Epsilon,0,0,0),mappedSources:true).AssertEqual();
     }
 
     [Fact]
@@ -157,14 +144,14 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
                 viewMatrix: view, invViewMatrix: invView, sunPosition: new(0,1,0), sunColor: new(1,1,1));
 
         TestFramework.RenderQuadTo(progMip0, outputAtlas);
-        var mip0 = outputAtlas[0].ReadPixels();
+        var mip0 = outputAtlas[0].ReadPixelsRegion(8,8,1,1);
 
         TestFramework.RenderQuadTo(progMip0, outputAtlas);
-        var outMip0 = outputAtlas[0].ReadPixels();
+        var outMip0 = outputAtlas[0].ReadPixelsRegion(8,8,1,1);
 
         // Render with a coarser mip (still uniform depth, should match)
         TestFramework.RenderQuadTo(progMip0, outputAtlas);
-        var outMip0Second = outputAtlas[0].ReadPixels();
+        var outMip0Second = outputAtlas[0].ReadPixelsRegion(8,8,1,1);
 
         // If the environment supports only 1 mip, this is equivalent; otherwise compare with mip 0 again.
         // In a uniform depth scene, using a coarser mip should not change results.
@@ -185,7 +172,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
                 viewMatrix: view, invViewMatrix: invView, sunPosition: new(0,1,0), sunColor: new(1,1,1));
 
             TestFramework.RenderQuadTo(progMip1, outputAtlas);
-            outCoarse = outputAtlas[0].ReadPixels();
+            outCoarse = outputAtlas[0].ReadPixelsRegion(8,8,1,1);
         }
         else
         {
@@ -195,7 +182,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         int coarseMip = hzb.MipLevels > 1 ? 1 : 0;
 
         // Compare a single texel (center-ish of atlas)
-        int idx = (8 * AtlasWidth + 8) * 4;
+        int idx=0; // Each observation retains only the original nominated centre tuple.
         for (int c = 0; c < 4; c++)
         {
             Assert.True(MathF.Abs(mip0[idx + c] - outMip0[idx + c]) < 1e-3f,

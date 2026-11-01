@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.PBR.Clouds.Volume;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -29,32 +31,49 @@ public sealed class CloudTemporalFreshnessTests(HeadlessGLFixture fixture):LumOn
         // No current ray is valid: only actual retained observations may supply a carry.
         var rays=new float[16*4];var rayBins=Enumerable.Repeat(1f,16*3).ToArray();
         const float yaw=.02f;float cosine=MathF.Cos(yaw),sine=MathF.Sin(yaw);
-        var result=scene.FilterAuthored(rays,rayBins,rays,previousYaw:yaw);int checkedFootprints=0;
+        var expected=new float[64*4];
         for(int y=1;y<7;y++)for(int x=1;x<7;x++)
         {
-            int p=y*8+x,i=p*4;if(result[3][i+1]!=2||result[3][i+2]!=0)continue;
-            // Analytic projection of the unit current ray into the previous yawed camera.
+            int pixel=y*8+x;
+            // Analytic projection of the current unit ray into the independent previous yawed camera.
             float directionX=(x+.5f)/4-1;
             float coordinate=(cosine*directionX-sine)/(sine*directionX+cosine)*4+3.5f;
             int left=(int)MathF.Floor(coordinate);float fraction=coordinate-left;
             float oldWeight=left%2==0?1-fraction:fraction;
-            Assert.Equal(2,result[0][i]);Assert.Equal(.5f,result[0][i+3]);
-            Assert.Equal(.5f,result[1][p*3]);
-            // Required R16F age storage rounds the float32 weighted sum to half precision.
-            Assert.InRange(Math.Abs(result[4][p]-(1+6*oldWeight)),0,.004f);
-            Assert.Equal(1/(oldWeight+(1-oldWeight)/4),result[2][i+3],4);
-            Assert.InRange(result[2][i+3],1,4);checkedFootprints++;
+            expected[pixel*4]=1+6*oldWeight;
+            expected[pixel*4+1]=1/(oldWeight+(1-oldWeight)/4);
         }
-        Assert.True(checkedFootprints>0);
-        // Feed only completed output back as history. Resampling must not reset age or create
-        // confidence: once even the youngest source is seven frames old, nothing can be carried.
-        for(int frame=1;frame<8;frame++)
+        using var oracle=VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.CreateDynamicTexture2D(new()
         {
-            var ages=new float[64*4];for(int p=0;p<64;p++)ages[p*4+3]=result[4][p];
-            scene.SeedHistory(result[0],result[2],ages,result[1]);
-            result=scene.FilterAuthored(rays,rayBins,rays,previousYaw:yaw);
+            Dimension=TextureDimension.Two,Format=TextureFormat.Rgba32f,Width=8,Height=8,MipLevels=1,
+            Storage=ResourceStorageMode.Immutable,Filter=TextureFilterMode.Nearest
+        }).RequireResource();
+        oracle.UploadDataImmediate(expected);
+        var result=scene.FilterAuthored(rays,rayBins,rays,previousYaw:yaw);
+        try
+        {
+            const string selection="bool selected=coordinate.x>=1 && coordinate.x<7 && coordinate.y>=1 && coordinate.y<7 && a.g==2.0 && a.b==0.0; ";
+            // Age and numerical oracle occupy distinct images; keep each original condition explicit.
+            ImageAssertions.Predicate(result.Diagnostics!,selection+
+                "return bvec2(!selected || (b.r==2.0 && b.a==0.5 && c.r==0.5),false);",
+                result.Cloud,result.Bins).AssertEqual();
+            var age=ImageAssertions.Predicate(result.Diagnostics!,selection+
+                "return bvec2(!selected || abs(b.r-c.r)<=0.004,selected);",result.Age,oracle);
+            age.AssertEqual();Assert.True(age.MatchingTexels>0);
+            ImageAssertions.Predicate(result.Diagnostics!,selection+"""
+                return bvec2(!selected || (roundEven(double(b.a)*1e4)==roundEven(double(c.g)*1e4)
+                    && b.a>=1.0 && b.a<=4.0),false);
+                """,result.Metadata,oracle).AssertEqual();
+            // Reuse completed physical history; the required age image is copied without resetting its clocks.
+            for(int frame=1;frame<8;frame++)
+            {
+                scene.SeedHistory(result);
+                var next=scene.FilterAuthored(rays,rayBins,rays,previousYaw:yaw);
+                result.Dispose();result=next;
+            }
+            Assert.Equal(0u,ImageAssertions.Predicate(result.Diagnostics!,"return bvec2(true,a.g==2.0);").MatchingTexels);
         }
-        Assert.DoesNotContain(2,result[3].Where((_,i)=>i%4==1));
+        finally { result.Dispose(); }
     }
     #endregion
 }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -140,35 +141,28 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
             Assert.Equal(1u,ready.Span[(int)ids[0]]+ready.Span[(int)ids[1]]);
             firstId=ready.Span[(int)ids[0]]==1 ? ids[0] : ids[1];
         }
-        float[] before=ReadTile(first,firstId);
-        Assert.True(before[0]>0);
-        Assert.Equal(4,Enumerable.Range(0,before.Length/4).Count(index=>before[index*4+3]==1));
-        Assert.All(Enumerable.Range(0,before.Length/4),index=>Assert.True(before[index*4+3] is 0 or 1));
-        foreach(int index in Enumerable.Range(0,before.Length/4).Where(index=>before[index*4+3]==0))
-            for(int channel=0;channel<4;channel++) Assert.Equal(0,before[index*4+channel]);
+        using var before=CaptureTile(first,firstId);
+        Assert.True(GpuLocalRead.Scalar(before.Texture,0)>0);
+        var initialized=ImageAssertions.Predicate(before.Texture,"return bvec2((a.a==0 || a.a==1) && (a.a!=0 || all(equal(a,vec4(0)))),a.a==1);");
+        initialized.AssertEqual();Assert.Equal(4u,initialized.MatchingTexels);
         runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var second));
         Assert.True(second.Generation>first.Generation);
         Assert.Equal(first.DependencyRevision,second.DependencyRevision);
         using (var ready=second.Readiness.MapRange<uint>(0,readCount,BufferMapAccess.Read))
         { Assert.True(ready.IsMapped);Assert.Equal(1u,ready.Span[(int)ids[0]]);Assert.Equal(1u,ready.Span[(int)ids[1]]); }
-        Assert.Equal(before,ReadTile(second,firstId));
+        using var after=CaptureTile(second,firstId);
+        ImageAssertions.CompareHistory(after.Texture,before).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
-    /// <summary>Reads one published tile using its production physical-address layout.</summary>
-    private static float[] ReadTile(in SurfaceLightingSnapshot snapshot,uint id)
+    /// <summary>Retains exactly one complete published tile using the production physical-address layout.</summary>
+    private static GpuImageSnapshot CaptureTile(in SurfaceLightingSnapshot snapshot,uint id)
     {
         var atlas=snapshot.OutgoingRadiance;
-        var all=new float[atlas.Width*atlas.Height*atlas.Depth*4];
-        using var binding=OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,atlas.TextureId);
-        GL.GetTexImage(TextureTarget.Texture2DArray,0,PixelFormat.Rgba,PixelType.Float,all);
-        int local=(int)((id-1)%(uint)snapshot.TilesPerAtlas), layer=(int)((id-1)/(uint)snapshot.TilesPerAtlas);
+        int local=(int)((id-1)%(uint)snapshot.TilesPerAtlas),layer=(int)((id-1)/(uint)snapshot.TilesPerAtlas);
         int x=local%snapshot.TilesPerAxis*snapshot.TileSize,y=local/snapshot.TilesPerAxis*snapshot.TileSize;
-        var tile=new float[snapshot.TileSize*snapshot.TileSize*4];
-        for(int row=0;row<snapshot.TileSize;row++)
-            all.AsSpan(((layer*atlas.Height+y+row)*atlas.Width+x)*4,snapshot.TileSize*4).CopyTo(tile.AsSpan(row*snapshot.TileSize*4));
-        return tile;
+        return new(atlas,new(new(0,layer),x,y,0,snapshot.TileSize,snapshot.TileSize,1));
     }
     #endregion
 }

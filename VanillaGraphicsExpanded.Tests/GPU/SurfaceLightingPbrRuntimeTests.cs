@@ -46,7 +46,7 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
 
         // Compare to independently evaluated BRDF and attenuation using absolute scene points
         // only on the CPU. Production receives the engine's view-space light position.
-        SurfaceLightingNumericalRuntimeTests.AssertPixels(LayeredTestTexture.Read(runtime.Direct.Radiance!, 0), (x, y) =>
+        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.Direct.Radiance!, (x, y) =>
         {
             int index = y * 4 + x;
             var point = scene.VisiblePoints[index];
@@ -64,8 +64,9 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
             double lux=8*VgeFrameRenderer.CurrentLightingCalibration.PointCandelaPerUnit
                 *Math.Min(1/distanceSquared,1)*window;
             return material.Albedo * (float)((1-reflected)*cosine*lux/Math.PI);
-        }, .002f, "view-space point light");
-        Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(LayeredTestTexture.Read(runtime.Direct.Radiance!, 0)) > .01f);
+        }, .002f, "view-space point light", selection: new(new(0, 0), 0, 0, 0, 4, 4));
+        using (var directOnly = new Assertions.GpuImageSnapshot(runtime.Direct.Radiance!, new(new(0, 0), 0, 0, 0, 4, 4)))
+            Assert.True(runtime.Energy(directOnly.Texture) > .01f);
     }
 
     /// <summary>Four authored receiver regions constrain channel order, linear albedo scaling, black diffuse response and metallic rejection.</summary>
@@ -81,8 +82,8 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
         var incident = SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime,scene,expectedWorldRadiance:incident);
         SurfaceLightingNumericalRuntimeTests.AssertConstantScreenInput(runtime,incident);
-        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.FinalPixels(), (_, _) => incident, .08f, "incident radiance");
-        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.SceneLinearPixels(),
+        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.FinalImage, (_, _) => incident, .08f, "incident radiance");
+        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.SceneLinearImage,
             (x, y) => DiffuseResponse(scene, x, y, Receiver(x, y), incident), .055f, "PBR material region");
         Assert.Contains("pbr_direct_lighting", runtime.LoadedPrograms);
         Assert.Contains("pbr_composite", runtime.LoadedPrograms);
@@ -90,8 +91,8 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
         // Gather owns the artistic scale; final composition must not apply it again.
         runtime.Cache.Config.LumOn.Intensity = .5f;
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime,scene,expectedWorldRadiance:incident);
-        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.FinalPixels(), (_, _) => incident * .5f, .08f, "scaled incident radiance");
-        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.SceneLinearPixels(),
+        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.FinalImage, (_, _) => incident * .5f, .08f, "scaled incident radiance");
+        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.SceneLinearImage,
             (x, y) => DiffuseResponse(scene, x, y, Receiver(x, y), incident * .5f), .055f, "single intensity application");
     }
 
@@ -118,22 +119,16 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
         surface.UploadDataImmediate(Enumerable.Range(0, surface.Width * surface.Height).SelectMany(_ => new[] { 0f, 0f, 0f, 1f }).ToArray(), 0, 0, 2, surface.Width, surface.Height, 1);
         var incident = SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime,scene,expectedWorldRadiance:incident);
-        var direct = LayeredTestTexture.Read(runtime.Direct.Radiance!, 0);
-        var specular = LayeredTestTexture.Read(runtime.Direct.Radiance!, 1);
-        var emission = LayeredTestTexture.Read(runtime.Direct.Radiance!, 2);
-        Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(direct) > .01f);
-        // A fully rough dielectric has a small but nonzero direct specular lobe.
-        Assert.True(SurfaceLightingConsumerRuntimeFixture.Energy(specular) > .00001f);
-        SurfaceLightingNumericalRuntimeTests.AssertPixels(emission, (_, _) => receiver.Albedo * receiver.Emission
-            *LightingCalibration.EmissionReferenceNits, .002f, "emission radiance");
-        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.SceneLinearPixels(), (x, y) =>
-        {
-            int index = (y * 4 + x) * 4;
-            var primary = new Vector3(direct[index] + specular[index] + emission[index],
-                direct[index + 1] + specular[index + 1] + emission[index + 1],
-                direct[index + 2] + specular[index + 2] + emission[index + 2]);
-            return primary + DiffuseResponse(scene, x, y, receiver, incident);
-        }, .055f, "direct plus emission plus indirect");
+        using var direct = new Assertions.GpuImageSnapshot(runtime.Direct.Radiance!, new(new(0, 0), 0, 0, 0, 4, 4));
+        using var specular = new Assertions.GpuImageSnapshot(runtime.Direct.Radiance!, new(new(0, 1), 0, 0, 0, 4, 4));
+        Assert.True(runtime.Energy(direct.Texture) > .01f);
+        Assert.True(runtime.Energy(specular.Texture) > .00001f);
+        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.Direct.Radiance!,
+            (_, _) => receiver.Albedo * receiver.Emission * LightingCalibration.EmissionReferenceNits,
+            .002f, "emission radiance", selection: new(new(0, 2), 0, 0, 0, 4, 4));
+        SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.SceneLinearImage,
+            (x, y) => DiffuseResponse(scene, x, y, receiver, incident),
+            .055f, "direct plus emission plus indirect", additiveLayers: runtime.Direct.Radiance);
     }
     #endregion
 

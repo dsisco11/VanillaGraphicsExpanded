@@ -39,24 +39,14 @@ public sealed class SharedTraceSceneScreenTests : NearFieldShaderTestBase
         var unavailable = Trace(compatibility, worldOffset: new(anchor, 32, 0), shared: shared.Scene);
         Assert.True(cache.CaptureAndSeed());
         var result = Trace(compatibility, worldOffset: new(anchor, 32, 0), shared: shared.Scene, surfaceLighting: cache.Snapshot);
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            for (int channel = 0; channel < 3; channel++)
-            {
-                Assert.Equal(0f, unavailable.Radiance[i + channel]);
-                Assert.InRange(result.Radiance[i + channel], light - .002f, light + .002f);
-            }
-            uint unavailableFlags = Flags(unavailable.Meta[i / 2 + 1]);
-            uint readyFlags = Flags(result.Meta[i / 2 + 1]);
-            Assert.Equal(0f, unavailable.Meta[i / 2]);
-            Assert.Equal(1u, unavailableFlags & 1u);
-            Assert.Equal(4u, (unavailableFlags >> 16) & 7u);
-            Assert.Equal(1u, readyFlags & 1u);
-            Assert.Equal(light == 0 ? 3u : 2u, (readyFlags >> 16) & 7u);
-            Assert.Equal(unavailable.Radiance[i + 3], result.Radiance[i + 3]);
-            Assert.Equal(1f, result.Meta[i / 2]);
-            Assert.Equal(0u, Flags(result.Meta[i / 2 + 1]) & (1u << 5));
-        }
+        ObserveTrace(result, """
+            uint unavailableFlags=floatBitsToUint(d.g);
+            bool valid=all(equal(c.rgb,vec3(0))) && all(greaterThanEqual(a.rgb,vec3(multipliers.x)))
+                && all(lessThanEqual(a.rgb,vec3(multipliers.y))) && d.r==0.0 && (unavailableFlags&1u)==1u
+                && ((unavailableFlags>>16)&7u)==4u && (flags&1u)==1u
+                && ((flags>>16)&7u)==uint(multipliers.z) && c.a==a.a && b.r==1.0 && (flags&32u)==0u;
+            return bvec2(valid,false);
+            """, unavailable,new(light-.002f,light+.002f,light==0?3:2,0)).AssertEqual();
     }
 
     /// <summary>Unsupported, unpublished, exhausted and out-of-domain traces cannot become cache handoff.</summary>
@@ -71,11 +61,7 @@ public sealed class SharedTraceSceneScreenTests : NearFieldShaderTestBase
         using var compatibility = new NearFieldVoxelFixture();
         var result = Trace(compatibility, budget: scenario == "budget" ? 1 : 256,
             worldOffset: new(0, scenario == "outside" ? 96 : 32, 0), shared: shared.Scene);
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            Assert.Equal(0f, result.Radiance[i]); Assert.Equal(0f, result.Meta[i / 2]);
-            Assert.Equal(0u, Flags(result.Meta[i / 2 + 1]) & ((1u << 5) | (1u << 1)));
-        }
+        ObserveTrace(result, "return bvec2(a.r==0.0 && b.r==0.0 && (flags&34u)==0u,false);").AssertEqual();
     }
     #endregion
 }

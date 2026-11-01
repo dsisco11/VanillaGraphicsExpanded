@@ -50,17 +50,13 @@ public sealed class SharedTraceSceneSurfaceTests : RenderTestBase
         scene.Publish();
         using var page = new SharedSurfacePageFixture(anchor);
         Assert.True(page.Capture(scene.Scene));
-        byte[] captured = page.ReadMaterial();
-        for (int i = 2; i < captured.Length; i += 4) Assert.NotEqual(0, captured[i]);
+        ImageAssertions.Predicate(page.MaterialAtlas,"return bvec2(a.b!=0,false);").AssertEqual();
         Assert.True(page.Relight(scene.Scene)); Assert.True(page.Relight(scene.Scene));
-        float[] result = page.ReadLighting();
-        for (int i = 0; i < result.Length; i += 4)
-        {
-            float expected=32*GgxHemisphereReference.CapturedDiffuse(1); Assert.InRange(result[i], expected-.1f, expected+.1f);
-            Assert.Equal(2f, result[i + 3]);
-        }
+        float expected=32*GgxHemisphereReference.CapturedDiffuse(1);
+        ImageAssertions.Predicate(page.IrradianceAtlas,"return bvec2(a.r>=multipliers.x && a.r<=multipliers.y && a.a==2,false);",
+            parameters:new(expected-.1f,expected+.1f,0,0)).AssertEqual();
         page.ResetLighting();
-        Assert.All(page.ReadLighting(), value => Assert.Equal(0f, value));
+        ImageAssertions.CompareConstant(page.IrradianceAtlas,0).AssertEqual();
     }
 
     /// <summary>Dirty, missing, unsupported, empty and exhausted traces cannot create sky or sample weight.</summary>
@@ -81,7 +77,7 @@ public sealed class SharedTraceSceneSurfaceTests : RenderTestBase
         bool captured = page.Capture(scene.Scene);
         Assert.Equal(scenario is "exit" or "budget" or "unsupported", captured);
         Assert.False(page.Relight(scene.Scene, scenario == "budget" ? 1u : 256u));
-        Assert.All(page.ReadLighting(), value => Assert.Equal(0f, value));
+        ImageAssertions.CompareConstant(page.IrradianceAtlas,0).AssertEqual();
     }
     #endregion
 }

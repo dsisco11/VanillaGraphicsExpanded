@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -77,7 +78,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         Assert.InRange(visibilityAfterDraw, (scenario == 3 ? .75f : .5f) - .0000001f,
             (scenario == 3 ? .75f : .5f) + .0000001f);
         Assert.Equal(visibilityAfterDraw, ReadDepth(capture.AfterDepth.TextureId));
-        float[] captured = capture.DrawTarget[0].ReadPixels();
+        float[] captured = capture.DrawTarget[0].ReadPixelsRegion(0,0,1,1);
         float[] expected = scenario >= 2 ? [0, 0, 0, 0] : [2, 2, 0, .75f];
         Assert.Equal(expected, captured[..4]);
         Assert.Equal(new[] { .125f, .25f, .5f, 1f }, primary[0].ReadTexel()[..4]);
@@ -106,7 +107,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         capture.BeginCapture();
         capture.EndCapture();
         Assert.Equal(retainedColor, capture.ParticleColor);
-        Assert.All(capture.DrawTarget[0].ReadPixels(), value => Assert.Equal(0, value));
+        ImageAssertions.CompareConstant(capture.DrawTarget[0], 0).AssertEqual();
         Assert.Equal(ReadDepth(capture.BeforeDepth.TextureId), ReadDepth(capture.AfterDepth.TextureId));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -285,13 +286,12 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
     }
 
     /// <summary>Reads the actual depth texture representation without tolerance or reconstruction.</summary>
-    private static float ReadDepth(int texture)
+    private float ReadDepth(int texture)
     {
-        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture);
-        float[] data = new float[4];
-        GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.DepthComponent, PixelType.Float, data);
-        Assert.All(data, value => Assert.Equal(data[0], value));
-        return data[0];
+        using var image=new BorrowedTexture(texture);
+        float selected=GpuLocalRead.Tuple(image,0,0)[0];
+        ImageAssertions.CompareConstant(image,selected).AssertEqual();
+        return selected;
     }
     #endregion
 }

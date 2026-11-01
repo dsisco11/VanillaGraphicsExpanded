@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class PmjJitterTextureUploadTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Public API
-    /// <summary>Typed readback matches generic sequence packing and ordinary frames retain owned storage.</summary>
+    /// <summary>Every normalized texel matches independent sequence packing and ordinary frames retain owned storage.</summary>
     [Fact]
     public void UploadMatchesPackedSequenceAndRetainsIndependentStorage()
     {
@@ -23,13 +23,19 @@ public sealed class PmjJitterTextureUploadTests(HeadlessGLFixture fixture):Rende
         Assert.Equal(TextureFormat.Rg16,texture.InternalFormat);
         Assert.Equal(count,texture.Width);Assert.Equal(1,texture.Height);
         Assert.Equal(TextureFilterMode.Nearest,texture.FilterMode);
-        float[] actual=texture.ReadPixels();Assert.Equal(expected.Length,actual.Length);
-        for(int i=0;i<expected.Length;i++)Assert.Equal(expected[i],(ushort)MathF.Round(actual[i]*65535));
+        using var oracle=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription
+        {
+            Dimension=TextureDimension.Two,Format=TextureFormat.Rg32f,Width=count,Height=1,MipLevels=1,
+            Storage=ResourceStorageMode.Immutable,Filter=TextureFilterMode.Nearest,Label="Tests.Pmj.Expected"
+        }).RequireResource();
+        oracle.UploadDataImmediate(expected.Select(value=>(float)value).ToArray());
+        ImageAssertions.Predicate(texture,"precise vec2 recovered=a.rg*65535;return bvec2(all(equal(roundEven(recovered),b.rg)),false);",oracle).AssertEqual();
+        using var original=new Assertions.GpuImageSnapshot(texture);
         int id=texture.TextureId;texture.EnsureCreated();Assert.Equal(id,texture.TextureId);
         using var independent=PmjJitterTexture.Create(count,seed);
         Assert.NotEqual(id,independent.TextureId);texture.Dispose();Assert.False(texture.IsValid);
         Assert.Throws<ObjectDisposedException>(texture.EnsureCreated);
-        Assert.True(independent.IsValid);Assert.Equal(actual,independent.ReadPixels());
+        Assert.True(independent.IsValid);ImageAssertions.CompareHistory(independent,original).AssertEqual();
     }
     #endregion
 }

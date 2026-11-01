@@ -2277,31 +2277,155 @@ Phase 10.5: Migrate image assertions and runtime observations across all familie
   Outcome: multi-texel correctness checks execute over their existing GPU domains with compact results;
     useful cases remain isolated and identifiable, with no bulk CPU image assertion path left unmapped.
 
-  ☐ Migrate SurfaceLightingConsumerRuntimeFixture Frame/Energy/WaitObservations, SurfaceCacheRuntimeFixture
+  ☑ Migrate SurfaceLightingConsumerRuntimeFixture Frame/Energy/WaitObservations, SurfaceCacheRuntimeFixture
     LightingObservations, SurfaceLightingRefreshSynchronization and all affected runtime consumers as a
     coherent unit. Preserve every requested page/directional texel, exact history equality, freshness,
     weights/confidence, mandatory finite/energy observations, partial coverage and worker completion.
     Retain failure-only diagnostics separately from unconditional correctness observations.
-  ☐ Migrate atmosphere/sky, clouds, liquids/OIT, PBR/material/terrain and postprocess/depth families using
+  ☑ Migrate atmosphere/sky, clouds, liquids/OIT, PBR/material/terrain and postprocess/depth families using
     10.2's exact retained predicates. Include all mips, odd/tail domains, cube faces, temporal slices,
     full-rank permutations, spatial negatives, shoreline/foreground continuity and convergence residuals.
     Preserve existing target dimensions, parameter rows, independent expectations and tolerances.
-  ☐ Migrate engine/composition and remaining RHI/resource/state/shader output assertions, including arrays
+  ☑ Migrate engine/composition and remaining RHI/resource/state/shader output assertions, including arrays
     returned by helpers and scanned later. Retain small direct local tuples; use minimal known payloads
     for readback-API subjects while preserving stride/mip/layer/aspect/range guarantees. Keep these API
     tests independent of the checker that consumes readback/completion services.
-  ☐ Consolidate equivalent immutable numerical setup within the mapped families while retaining named
+  ☑ Consolidate equivalent immutable numerical setup within the mapped families while retaining named
     case diagnostics and independent resets. Keep fresh owners for creation/reload/lifetime/context
     subjects. Retain all distinct SPIR-V specialization/link and production-assignment coverage; no
     additional matrix/case deletion or target shrinking without an exact reviewed replacement mapping.
     Keep CPU-only contracts, production startup scenarios and native effect/restoration coverage intact.
-  ☐ Remove superseded scan/copy/setup paths with migrated callers; update the coverage mapping in this
+  ☑ Remove superseded scan/copy/setup paths with migrated callers; update the coverage mapping in this
     plan. Audit every family/helper for residual multi-texel CPU assertions and unclassified diagnostics.
     Delegate focused checks for each coherent changed family; second-review and independently audit
     the combined migration, including unchanged local-read and readback-API exceptions.
-  ☐ Completion: every 10.2 family has a retained/replaced coverage disposition and the approved assertion
+  ☑ Completion: every 10.2 family has a retained/replaced coverage disposition and the approved assertion
     design is used end-to-end; no shims, weakened oracles, order-dependent megatests or shared mutable
     subject caches remain. Integrated qualification is still required in 10.6.
+
+  Qualification, coverage disposition and completion review:
+    - Inherited sources: 10/10.2's coverage map; Rendering.GpuCommands.Proposal.md, Representative outcomes
+      and verification; Rendering.GpuCommands.Contracts.md, Resource completion and Submission and failure
+      rules; Rendering.GpuResources.md, Wrappers, Snapshot/change publication and Recorded ownership;
+      Rendering.ShaderBindingState.md, Verification boundary. Preserve original owners, domains, native
+      effects, completion, independent expectations and tolerances; no product implementation changes.
+    - Runtime consumer Frame/WaitObservations, requested-page lighting/readiness and screen/world fixed-point
+      synchronization now use GPU reductions and owned histories. Preserve the original even-slot confidence
+      selection. Runtime fixture bulk-array output APIs are removed with their consuming tests migrated.
+    - Constant/range callers, depth mips, solar coverage/energy, LUT node/cache histories, local exposure,
+      Poisson numerical comparisons/residuals, simple-cloud coverage and shared sky/framebuffer outputs
+      have migrated units. Their remaining local/API/diagnostic exceptions are mapped below.
+      GPU moments return 128 bounded bytes; double expectations, bitwise histories, explicit sparse nodes
+      and correlated value/validity predicates retain their original meaning. Each reduction stage proves completion.
+    - SurfaceLightingPageSelection replaces SurfaceLightingPageReadback with exact region selection and
+      independently owned GPU captures. World-probe publication retains original atlas, metadata and
+      directional predicates. The focused page/publication unit passed 71 GPU cases and four CPU planning
+      cases; its checker candidate passed 27 cases, with no failures or skips.
+    - Direct visibility uses independent GPU snapshots for all camera/clipmap/occlusion consumers; its
+      86-case unit passed. Near-field trace, hit and temporal helpers now retain encoded GPU images and
+      decode only RGB inside authored predicates. Preserve exact per-direction confidence/flags, selected
+      screen-hit controls, original history retention and eight-frame scheduling. The 97 passing cases
+      and five corrected integer-readiness cases have receipts; no old array-result API remains there.
+    - Authored predicates return independent witness counts with the complete-domain proof. GPU history
+      projections preserve original inputs without CPU clone/re-upload. Float-product variance rounds
+      into explicit RGBA32F storage before the unchanged double reduction; the 29-case checker candidate
+      passed, including raw double, rounded products, odd-domain projection and independent history proofs.
+      Material bake/atlas predicates retain strict alpha saturation, normal variation, finite/variance,
+      rectangle borders and hostile-state checks. The cloud/checker/full-chain unit passed 40 cases,
+      including the original 64-frame odd-edge schedule, wraparound, revisit bounds and 32-frame replay.
+    - Lookup publication, all atmospheric bands, full 7x5 sky reconstruction and unchanged local tuples
+      passed the 80-case atmosphere/checker/reuse unit. The celestial face/mip, solar/lunar power and
+      atlas bundle has 87 passing rows plus the separately corrected ordered-double-factor checker proof.
+      The complete 9-color/65-step grading, generated-galaxy/four-view and checker-selection unit passed
+      42 cases. Maxima select only a local RGB tuple; image inputs remain on the GPU through final grading.
+    - Debug/combine predicates retain complete RGB domains, exact existence/count thresholds and original
+      strict tolerances. Center-only consumers capture only their nominated 1x1 tuple. Depth hierarchy
+      relations retain every selected mip and readiness retains every volume cell; the unit passed 37 cases.
+      AO stage/lighting/captured-input helpers and their full-domain callers passed 105 focused cases.
+      SyntheticPassTiming and MatchedWorkloadQualityMeasurements retain their original workloads under
+      explicit Diagnostic classification. Routine realistic-contact cases retain their original ROIs/minima;
+      unasserted CPU percentile sorting is removed from those correctness cases.
+    - Velocity flags/reprojection retain their complete original selections and independent CPU bounds;
+      light-shaft halo symmetry and bloom ownership retain complete spatial predicates. Their 28-case
+      bundle passed. Local-exposure prototype pipelines now retain GPU images instead of downloading
+      and re-uploading intermediate stages; independent double references and two-texel histories
+      passed 35 cases. SyntheticLightShaftPassTiming retains its workload as an explicit Diagnostic.
+    - Native reference framebuffer captures preserve renderbuffer subjects and independent native draws.
+      The first 41-case native/debug bundle passed 39 cases; two new hostile-state capture failures
+      were isolated to the helper's blit under rasterizer discard, with valid source pixels. The helper
+      now restores that state around copying; both corrected rows passed with the atlas-trace unit
+      (18 passed, two unchanged pre-existing explicit skips for geometry-hit tint/falloff scenarios).
+    - Atlas temporal/fallback helpers now carry GPU images through temporal/filter/SH9-or-atlas gather
+      and signed lighting diagnostics. Full flags, confidence, scheduling masks and paired frames retain
+      their original independent predicates; 38 cases passed. Gather/resident history passed 35 cases;
+      anchor/history/projection passed 45. SH quadrature retains only its nominated single-probe
+      coefficient tuple for independent CPU integration, not an enclosing image download.
+      Ordered float accumulation preserves the original per-texel expression and sequential addition;
+      its cancellation/odd-final-texel proof passed independently of ordinary double reductions.
+    - Water image reductions retain every original odd footprint and receiver/provenance case through
+      independent authored expectations. Medium indices retain their full 4x4 domain; the single
+      two-texel medium record and one-texel optical/MRT diagnostic tuples remain local. The water image
+      unit passed 103 cases; the six unrelated state/exception failures remain assigned to 10.6.
+    - Spatial upsample/filter and shared enclosure publication passed 24 cases. Scene/material atlas
+      publication passed 47; voxel capture/relight/pipeline passed 11. Original sparse page corners,
+      centers and explicit layers are dispatched as the assertion domain, with independent coverage
+      and byte reconstruction proofs. Full trace material tables/readiness and the 48-cubed geometry
+      and legacy volumes passed the eight-case publication unit. Ordinary whole-layer CPU scan helpers
+      are retired with callers; the remaining full-layer download is explicitly a failure diagnostic.
+    - Storage/terrain qualification passed 52 of 53 rows together. The remaining identity-tessellation
+      row failed before drawing/assertion at framebuffer setup, then passed alone without rebuilding.
+      Preserve the order-dependent setup issue for 10.6 diagnosis; do not count its isolated pass as
+      explaining the combined failure. All source changes remain test-only and unstaged.
+    - Depth/stencil and DynamicTextureReadPixels API subjects retain independent direct payload checks;
+      minimal inputs retain format/aspect coverage and odd multirow stencil pack-layout checks.
+      Other direct scalar probes now select only their nominated texel through GpuLocalRead.
+    - SurfaceCacheReadiness's obsolete CPU scan helper and three self-test rows are replaced by GPU
+      first/interior/final requested texel rows, each with zero/NaN rejection, plus empty coverage,
+      replacement/freshness and all 24 requested page tails. CPU region-planning contracts remain separate.
+    - Remaining composition/postprocess predicates passed 41 cases; residual wait/state/debug predicates
+      passed 36. The shared surface/setup unit retained 70 passing cases and its eight corrected GLSL
+      predicates passed with the 46-case terrain/readback unit. SharedSurfaceInputFixture now consumes
+      the same authored CPU words/palette directly, eliminating legacy GPU upload/download/re-upload;
+      production cell/window/table publication and every original source extent remain intact.
+      Shared page capture/lighting/history checks retain all 8x8 texels. Terrain clip-bias checks retain
+      all 224x224 interior texels; temporal tests read only their originally nominated center tuple.
+    - Residual-family disposition (ordered 10.2 rows): diagnostic/mixed workloads keep their explicit
+      Diagnostic entries and original inputs; synthetic AO, light-shaft, bloom and depth-hierarchy timing
+      methods are classified accordingly. SPIR-V binaries/combination/production-assignment matrices
+      remain unchanged. Atmosphere/sky, clouds, liquids/OIT, LumOn/scene/probes, PBR/material/terrain,
+      postprocess/depth and engine/composition image contracts use complete/sparse GPU predicates as
+      detailed above; their originally local numerical tuples remain direct reads. Remaining native
+      resource/state/shader cases retain unique signatures, lifetime/context/name/forwarding/restoration
+      subjects and their one-texel protocol outputs; no resource-family or interception matrix is deleted.
+      CPU-only files outside GPU retain their independent contracts; no image downloads occur there.
+    - Retained direct exceptions: RenderTestBase's numerical read helpers serve one-pixel BRDF/photometric
+      or explicit infrastructure-API subjects; GpuLocalRead/TextureReferenceReadback select nominated
+      tuples (the whole-base-image reference adapter is constrained to 1x1). Integer shader/ring/link/cache
+      outputs are 1x1x1 protocol tuples. Material publication/photometry and camera/composition outputs
+      remain one-pixel records; FrameLightingStorage/GpuTextureLifetime retain two nominated storage tuples.
+      DynamicTextureReadPixels/DepthStencil/TextureLayerReadback/PixelUnpack retain independent minimal
+      payloads proving scalar/RGBA/aspect, odd-row pack state, selected 2x2 layer/range and unpack offsets.
+      RHI image/readback/ticket/mapping tests retain native payload oracles independent of the checker.
+      LayeredTestTexture.ReadDiagnosticLayer is failure-only; captured AO, galaxy, cloud receipt, bloom,
+      water MRT/export, routing and measurement full-image downloads are explicitly Diagnostic workloads.
+      Unused PixelComparer and TerrainDetailWorkload.Read scans are removed; authored input arrays remain.
+      RenderPassClear/RHICommandContextIntegration packed-stencil assertions retain all 4x4 values on the
+      GPU; the independent readback-API stencil subjects retain their 3x2 direct payload and pack-layout oracle.
+    - Receipts under TestResults/GpuTests105 identify coherent candidates and superseded failures. Focused
+      runtime, numerical and scene units have passing receipts; the six existing water-state/exception
+      failures are retained unchanged for 10.6. Focused evidence qualifies these migration units; the
+      required combined Debug/Release suite remains in 10.6.
+
+    - Final Debug build passed with zero errors. focused-final-review.trx passed 93/93; the final packed-
+      stencil correction passed 21/21 in focused-stencil-review.trx, including an independent 65x3 final-
+      texel mismatch and preserved depth/aspect selector proof. Diagnostic discovery confirms all three
+      original depth-hierarchy measurement rows are excluded from correctness and explicitly selectable.
+      Other passing family receipts remain valid; overlapping selections are not summed as unique cases.
+    - The combined source received a second review and independent audit-stage-completion review against
+      inherited documents, exact 10.2 domains/oracles, helper cleanup, local/API/diagnostic exceptions and
+      focused receipts. Both reviews passed with no remaining required findings. git diff --check passed.
+      No runtime/product changes, full-suite rerun, Release/package, performance or live-game claim.
+      Nothing was staged or committed. Phase 10.6 and pending user-run visual acceptance remain open.
 
 Phase 10.6: Qualify the combined test cleanup and remove temporary support files
   Depends on 10.3–10.5. Governing acceptance: Phase 10 and 10.2's complete coverage/design mapping;
@@ -2316,6 +2440,9 @@ Phase 10.6: Qualify the combined test cleanup and remove temporary support files
   ☐ Diagnose the outstanding water-state/exception failures recorded in 10.1 against the resulting source.
     Preserve expected contracts and tolerances; do not treat an unexplained failure as redundancy or
     change assertions to match incidental behavior. Reconcile any other failing retained correctness case.
+    Include TerrainTessellationTests.DisabledDisplacementRasterMatchesTriangles's order-dependent
+    framebuffer-routing setup error from TestResults/GpuTests105/focused-storage-terrain.trx; its
+    isolated --no-build pass establishes the assertion path but does not explain the combined failure.
   ☐ Delegate final combined VGE correctness qualification on an identified resulting source, including
     required Debug/Release configuration checks. Record commands, filters, counts, failures/skips and
     available runner durations; distinguish build/bootstrap costs and diagnostic selections. Run each

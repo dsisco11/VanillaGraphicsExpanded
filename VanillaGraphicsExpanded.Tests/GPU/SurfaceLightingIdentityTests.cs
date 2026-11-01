@@ -24,9 +24,9 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.TryGetLighting(out var before));
         uint page=Pages(runtime).Single().Key;
-        using var pixels=SurfaceLightingPageReadback.Read(before.OutgoingRadiance,before,page);
-        using var direct=SurfaceLightingPageReadback.Read(before.DirectIrradiance,before,page);
-        using var indirect=SurfaceLightingPageReadback.Read(before.IndirectIrradiance,before,page);
+        using var pixels=SurfaceLightingPageSelection.Capture(before.OutgoingRadiance,before,page);
+        using var direct=SurfaceLightingPageSelection.Capture(before.DirectIrradiance,before,page);
+        using var indirect=SurfaceLightingPageSelection.Capture(before.IndirectIrradiance,before,page);
         long captures=CaptureAttempts(runtime);
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         if(changeLight) runtime.ChangeBlockLight(0); else runtime.InvalidateGeometry();
@@ -34,12 +34,12 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         Assert.True(runtime.TryGetLighting(out var after));
         Assert.True(after.LightingIsStale);
         Assert.Equal(captures,CaptureAttempts(runtime));
-        using var observed1=SurfaceLightingPageReadback.Read(after.OutgoingRadiance,after,page);
-        Assert.True(pixels.Span.SequenceEqual(observed1.Span));
-        using var observed2=SurfaceLightingPageReadback.Read(after.DirectIrradiance,after,page);
-        Assert.True(direct.Span.SequenceEqual(observed2.Span));
-        using var observed3=SurfaceLightingPageReadback.Read(after.IndirectIrradiance,after,page);
-        Assert.True(indirect.Span.SequenceEqual(observed3.Span));
+        using var observed1=SurfaceLightingPageSelection.Capture(after.OutgoingRadiance,after,page);
+        ImageAssertions.CompareHistory(observed1.Texture, pixels).AssertEqual();
+        using var observed2=SurfaceLightingPageSelection.Capture(after.DirectIrradiance,after,page);
+        ImageAssertions.CompareHistory(observed2.Texture, direct).AssertEqual();
+        using var observed3=SurfaceLightingPageSelection.Capture(after.IndirectIrradiance,after,page);
+        ImageAssertions.CompareHistory(observed3.Texture, indirect).AssertEqual();
         Assert.True(runtime.AllRequestedCaptured());
     }
 
@@ -53,7 +53,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.TryGetLighting(out var before));
         uint page=Pages(runtime).Single().Key;
-        using var pixels=SurfaceLightingPageReadback.Read(before.OutgoingRadiance,before,page);
+        using var pixels=SurfaceLightingPageSelection.Capture(before.OutgoingRadiance,before,page);
         long captures=CaptureAttempts(runtime);
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         runtime.GeometryAvailable=false;runtime.InvalidateGeometry();
@@ -70,13 +70,13 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
             Assert.True(queries.TryRead(out var answers));
             Assert.Equal(0,answers[0].Result.W);
         }
-        using var observed4=SurfaceLightingPageReadback.Read(before.OutgoingRadiance,before,page);
-        Assert.True(pixels.Span.SequenceEqual(observed4.Span));
+        using var observed4=SurfaceLightingPageSelection.Capture(before.OutgoingRadiance,before,page);
+        ImageAssertions.CompareHistory(observed4.Texture, pixels).AssertEqual();
         runtime.GeometryAvailable=true;runtime.InvalidateGeometry();
         runtime.RunUntil(()=>runtime.Feedback.IsCaptureAvailable(page));
         Assert.True(runtime.TryGetLighting(out var after));
-        using var observed5=SurfaceLightingPageReadback.Read(after.OutgoingRadiance,after,page);
-        Assert.True(pixels.Span.SequenceEqual(observed5.Span));
+        using var observed5=SurfaceLightingPageSelection.Capture(after.OutgoingRadiance,after,page);
+        ImageAssertions.CompareHistory(observed5.Texture, pixels).AssertEqual();
         Assert.True(after.LightingIsStale);
         Assert.Equal(captures,CaptureAttempts(runtime));
     }
@@ -91,15 +91,15 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.TryGetLighting(out var before));
         var pages=Pages(runtime).OrderBy(pair=>LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(pair.Value)).ToArray();
-        using var untouched=SurfaceLightingPageReadback.Read(before.OutgoingRadiance,before,pages[1].Key);
+        using var untouched=SurfaceLightingPageSelection.Capture(before.OutgoingRadiance,before,pages[1].Key);
         long captures=CaptureAttempts(runtime);
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         runtime.TransformVoxel=(x,y,z,voxel)=>x==0 && y>=32 && y<36 && z>=0 && z<4 ? voxel with { Geometry=1 } : voxel;
         runtime.InvalidateGeometry();
         for(int frame=0;frame<16;frame++) runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var after));
-        using var observed6=SurfaceLightingPageReadback.Read(after.OutgoingRadiance,after,pages[1].Key);
-        Assert.True(untouched.Span.SequenceEqual(observed6.Span));
+        using var observed6=SurfaceLightingPageSelection.Capture(after.OutgoingRadiance,after,pages[1].Key);
+        ImageAssertions.CompareHistory(observed6.Texture, untouched).AssertEqual();
         Assert.Equal(captures+1,CaptureAttempts(runtime));
         using(var readiness=after.Readiness.MapRange<uint>(0,checked((int)pages.Max(pair=>pair.Key)+1),BufferMapAccess.Read))
         {
@@ -109,11 +109,12 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 1;
         runtime.RunUntil(runtime.AllRequestedLightingReady,maximumFrames:64);
         Assert.True(runtime.TryGetLighting(out var recovered));
-        using var removed=SurfaceLightingPageReadback.Read(recovered.OutgoingRadiance,recovered,pages[0].Key);
-        for(int index=0;index<removed.Length;index++) Assert.Equal((index&3)==3?1:0,removed.Span[index]);
-        using var retained=SurfaceLightingPageReadback.Read(recovered.DirectIrradiance,recovered,pages[1].Key);
+        using var removed=SurfaceLightingPageSelection.Capture(recovered.OutgoingRadiance,recovered,pages[0].Key);
+        ImageAssertions.CompareConstant(removed.Texture, 0, channelMask: 7).AssertEqual();
+        ImageAssertions.CompareConstant(removed.Texture, 1, channelMask: 8).AssertEqual();
+        using var retained=SurfaceLightingPageSelection.Capture(recovered.DirectIrradiance,recovered,pages[1].Key);
         // The producer retains C-encoded RGB; this assertion compares physical irradiance.
-        for(int index=0;index<retained.Length;index+=4) Assert.Equal(32,LightingStorage.DecodePersistent(retained.Span[index]));
+        ImageAssertions.CompareConstant(retained.Texture, 32 * LightingStorage.PersistentScale, channelMask: 1).AssertEqual();
         Assert.Equal(captures+1,CaptureAttempts(runtime));
     }
     #endregion

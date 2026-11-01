@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
@@ -95,13 +96,17 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
         var reference=Programs.Create<AoHorizonReferenceProgram>();
         using var original=TestFramework.CreateTestGBuffer((width+1)/2,(height+1)/2,TextureFormat.Rgba16f);
         prepare(reference,draw,original).Reference();
-        float[] rawOriginal=original[0].ReadPixels();
-        if(captured is not null) SameBits(captured,rawOriginal);
+        using var rawOriginal=new GpuImageSnapshot(original[0]);
+        if(captured is not null) ImageAssertions.Compare(original[0],captured,bitwise:true).AssertEqual();
         using var hierarchy=new DepthHierarchyPass();
         hierarchy.Prepare(width,height,Programs.CreateDepthHierarchy());
         hierarchy.Render(reference.ReceiverDepth);
         var imported=(DynamicTexture2D)reference.Hierarchy;
-        for(int level=0;level<imported.MipLevels;level++) SameBits(imported.ReadPixels(level),hierarchy.Texture!.ReadPixels(level));
+        for(int level=0;level<imported.MipLevels;level++)
+        {
+            using var expected=new GpuImageSnapshot(imported,GpuImageSnapshot.Mip(imported,level));
+            ImageAssertions.CompareHistory(hierarchy.Texture!,expected,GpuImageSnapshot.Mip(hierarchy.Texture!,level),bitwise:true).AssertEqual();
+        }
         using var frozen=new FrozenAmbientOcclusionPass();
         using var current=new AmbientOcclusionPass();
         var baselinePipelines=frozen.Prepare(draw,width,height,quality,reference,Programs.Create<AmbientOcclusionFilterShaderProgram>());
@@ -124,7 +129,7 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
 }
         };
         baseline();candidate();
-        SameBits(rawOriginal,Read(frozen,"raw"));
+        ImageAssertions.CompareHistory(Stage(frozen,"raw"),rawOriginal,bitwise:true).AssertEqual();
         CompareStages(frozen,current);
         var masks=Assert.IsType<MinimumChildMaskPass>(AccessTools.Field(typeof(AmbientOcclusionPass),"minimumChildren").GetValue(current));
         ValidateMasks(masks.Texture!,hierarchy.Texture!,width,height);
@@ -156,15 +161,15 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
 
     #endregion
     #region Image and storage validation
-    /// <summary>Reconstructs each conservative footprint independently on the CPU, including nine-child odd extents.</summary>
-    private static void ValidateMasks(DynamicTexture2D masks,DynamicTexture2D hierarchy,int width,int height)
+    /// <summary>Checks each conservative footprint independently on the GPU, including every nine-child odd extent.</summary>
+    private void ValidateMasks(DynamicTexture2D masks,DynamicTexture2D hierarchy,int width,int height)
     {
         for(int level=1;level<=Math.Min(4,hierarchy.MipLevels-1);level++)
         {
             int w=Math.Max(1,width>>level),h=Math.Max(1,height>>level);
             int cw=Math.Max(1,width>>(level-1)),ch=Math.Max(1,height>>(level-1));
-            float[] parent=hierarchy.ReadPixels(level),children=hierarchy.ReadPixels(level-1);
-            ushort[] bits=new ushort[w*h];
+
+
             using(OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,masks.TextureId))
             using(OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new OpenGlStateCache.PixelPackState(1)))
             {
@@ -173,41 +178,47 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
                 GL.GetTexLevelParameter(TextureTarget.Texture2D,level-1,GetTextureParameter.TextureInternalFormat,out int allocatedFormat);
                 Assert.Equal(w,allocatedWidth);Assert.Equal(h,allocatedHeight);
                 Assert.Equal((int)PixelInternalFormat.R16ui,allocatedFormat);
-                GL.GetTexImage(TextureTarget.Texture2D,level-1,PixelFormat.RedInteger,PixelType.UnsignedShort,bits);
+
             }
-            for(int y=0;y<h;y++) for(int x=0;x<w;x++)
-            {
-                int firstX=x*cw/w,firstY=y*ch/h,endX=((x+1)*cw+w-1)/w,endY=((y+1)*ch+h-1)/h;
-                uint expected=0;
-                for(int dy=0;dy<3;dy++) for(int dx=0;dx<3;dx++)
-                    if(firstX+dx<endX && firstY+dy<endY && children[(firstY+dy)*cw+firstX+dx]==parent[y*w+x]) expected|=1u<<(dy*3+dx);
-                Assert.Equal(expected,(uint)bits[y*w+x]);
-            }
+            using var parent=new GpuImageSnapshot(hierarchy,GpuImageSnapshot.Mip(hierarchy,level));
+            using var children=new GpuImageSnapshot(hierarchy,GpuImageSnapshot.Mip(hierarchy,level-1));
+            using var mask=new GpuImageSnapshot(masks,GpuImageSnapshot.Mip(masks,level-1));
+            Assert.Equal((w,h),(parent.Texture.Width,parent.Texture.Height));
+            Assert.Equal((cw,ch),(children.Texture.Width,children.Texture.Height));
+            using var projection=new GpuImageTransform();
+            // R16UI converts exactly to float32, so the following numeric view retains all original mask bits.
+            using var numeric=projection.Apply(mask.Texture,"return a;");
+            ImageAssertions.Predicate(numeric, """
+                ivec2 childSize=ivec2(multipliers.xy),parentSize=ivec2(multipliers.zw);
+                ivec2 first=coordinate.xy*childSize/parentSize;
+                ivec2 end=((coordinate.xy+1)*childSize+parentSize-1)/parentSize;
+                uint expected=0u;
+                for(int dy=0;dy<3;dy++)for(int dx=0;dx<3;dx++)
+                    if(first.x+dx<end.x && first.y+dy<end.y &&
+                        texelFetch(additionalImage,ivec3(first+ivec2(dx,dy),0),0).r==b.r)
+                        expected|=1u<<uint(dy*3+dx);
+                return bvec2(uint(a.r)==expected,false);
+                """,parent.Texture,children.Texture,parameters:new(cw,ch,w,h),mappedSources:true).AssertEqual();
         }
     }
 
     /// <summary>Checks raw, filtered and reconstructed bits through borrowed test-only reflection.</summary>
-    private static void CompareStages(FrozenAmbientOcclusionPass frozen,AmbientOcclusionPass current)
+    private void CompareStages(FrozenAmbientOcclusionPass frozen,AmbientOcclusionPass current)
     {
-        var stages=AmbientOcclusionSceneFixture.ReadStages(current);
-        SameBits(Read(frozen,"raw"),stages.Raw);
-        SameBits(Read(frozen,"filtered"),stages.Filtered);
-        SameBits(((DynamicTexture2D)frozen.Texture!).ReadPixels(),stages.Reconstructed);
+        using var stages=AmbientOcclusionSceneFixture.CaptureStages(current);
+        foreach(var pair in new[]{(stages.Raw,(GpuTexture)Stage(frozen,"raw")),
+            (stages.Filtered,(GpuTexture)Stage(frozen,"filtered")),(stages.Reconstructed,(GpuTexture)frozen.Texture!)})
+        {
+            using var expected=new GpuImageSnapshot(pair.Item2);
+            ImageAssertions.CompareHistory(pair.Item1,expected,bitwise:true).AssertEqual();
+        }
     }
 
-    /// <summary>Reads owned baseline stages without changing the executable owner.</summary>
-    private static float[] Read(FrozenAmbientOcclusionPass frozen,string field)
+    /// <summary>Resolves each actual owned baseline stage without exposing a production diagnostic API.</summary>
+    private static DynamicTexture2D Stage(FrozenAmbientOcclusionPass frozen,string field)
     {
-        return Assert.IsType<DynamicTexture2D>(AccessTools.Field(typeof(FrozenAmbientOcclusionPass),field).GetValue(frozen)).ReadPixels();
+        return Assert.IsType<DynamicTexture2D>(AccessTools.Field(typeof(FrozenAmbientOcclusionPass),field).GetValue(frozen));
     }
-
-    /// <summary>Rejects any changed floating-point representation, including signed zero.</summary>
-    private static void SameBits(float[] expected,float[] actual)
-    {
-        Assert.Equal(expected.Length,actual.Length);
-        Assert.True(MemoryMarshal.AsBytes(expected.AsSpan()).SequenceEqual(MemoryMarshal.AsBytes(actual.AsSpan())),"AO image bits differ.");
-    }
-
     #endregion
     #region Timing
     /// <summary>Includes only submitted GPU work in elapsed-time queries.</summary>

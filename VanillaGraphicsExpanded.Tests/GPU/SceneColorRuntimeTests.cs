@@ -203,7 +203,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
                 commands.EndRenderPass();
             });
 }
-            Assert.All(ReadPrimaryDepth(engine.FboId), value => Assert.Equal(1f, value));
+            ImageAssertions.CompareConstant(depthStorage,1).AssertEqual();
             Assert.Equal(inheritedScissorEnabled, GL.IsEnabled(EnableCap.ScissorTest));
             int[] restoredScissor = new int[4];
             GL.GetInteger(GetPName.ScissorBox, restoredScissor);
@@ -253,10 +253,10 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.Null(LightShaftOcclusionRenderer.Texture);
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             Assert.Equal(earlyOcclusion, LightShaftOcclusionRenderer.Texture!.TextureId);
-            float[] skyPixels = engine[0].ReadPixels();
+            float[] skyPixels = engine[0].ReadPixelsRegion(0,0,1,1);
             Assert.True(direct.RenderLighting());
             composite.OnRenderFrame(0, EnumRenderStage.Opaque);
-            float[] handedOff = engine[0].ReadPixels();
+            float[] handedOff = engine[0].ReadPixelsRegion(0,0,1,1);
             for (int channel = 0; channel < 3; channel++)
                 Assert.InRange(handedOff[channel], skyPixels[channel] - .02f, skyPixels[channel] + .02f);
 
@@ -359,7 +359,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             GL.GetInteger(GetPName.DrawBuffer0, out int restoredDrawRoute);
             Assert.Equal(engine.FboId, restoredFramebuffer);
             Assert.Equal(beforeDrawRoute, restoredDrawRoute);
-            float[] display = engine[0].ReadPixels();
+            float[] display = engine[0].ReadPixelsRegion(0,0,1,1);
             Vector3 physical=new Vector3(handedOff[0],handedOff[1],handedOff[2])*sceneInverseScale;
             double physicalY=.2126*physical.X+.7152*physical.Y+.0722*physical.Z;
             var manualPolicy=ConfigModSystem.Config.CameraExposure.Snapshot();
@@ -538,13 +538,5 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
     #endregion
 
     #region Private
-    /// <summary>Observes the fixture's complete depth initialization without disturbing its draw framebuffer.</summary>
-    private static float[] ReadPrimaryDepth(int framebuffer)
-    {
-        using var read = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer);
-        float[] pixels = new float[4];
-        GL.ReadPixels(0, 0, 2, 2, PixelFormat.DepthComponent, PixelType.Float, pixels);
-        return pixels;
-    }
     #endregion
 }

@@ -38,6 +38,23 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
     public List<int> DrawnPrograms { get; } = [];
     public IReadOnlyCollection<string> LoadedPrograms => programs.Loaded;
     public const int FrameBudget = 160;
+    /// <summary>Exposes the produced image under the runtime owner's existing consumption interval.</summary>
+    internal GpuTexture FinalImage => Screen.IndirectFullTex ?? throw new InvalidOperationException("Indirect output is not allocated.");
+    /// <summary>Exposes all directional radiance texels without downloading their contents.</summary>
+    internal GpuTexture WorldImage => WorldBuffers.Resources?.ProbeRadianceAtlas ?? throw new InvalidOperationException("World output is not allocated.");
+    /// <summary>Exposes the scene-linear RGB or RGBA target without synthesizing a CPU alpha channel.</summary>
+    internal GpuTexture SceneLinearImage => host.SceneLinearColor ?? throw new InvalidOperationException("PBR composition has not produced scene-linear output.");
+    /// <summary>Exposes the engine primary output under the runtime fixture's ownership interval.</summary>
+    internal GpuTexture ComposedImage => Cache.Terrain.Color;
+
+    /// <summary>Checks every component for finiteness and returns peak RGB magnitude with a bounded GPU reduction.</summary>
+    internal float Energy(GpuTexture texture, string? observation = null)
+    {
+        var all = Cache.ImageAssertions.Inspect(texture);
+        Assert.True(all.NonFinite == 0, $"{observation ?? "Lighting output"}: {all}");
+        var rgb = Cache.ImageAssertions.Inspect(texture, channelMask: 7);
+        return (float)Math.Max(Math.Abs(rgb.Minimum), Math.Abs(rgb.Maximum));
+    }
     /// <summary>Supplies authored receiver pixels before any registered lighting callback runs.</summary>
     public System.Func<int, int, RuntimeReceiverSurface>? Receiver { get; set; }
 
@@ -139,8 +156,8 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
             DrawnPrograms.Add(program);
         })) Cache.Frame();
         // Storage allocation precedes the first submitted frame; only published indirect output is readable.
-        if(Screen.HasPublishedIndirect) Energy(FinalPixels(), "final indirect output");
-        if(WorldBuffers.Resources!=null) Energy(WorldPixels(), "world radiance atlas");
+        if(Screen.HasPublishedIndirect) Energy(FinalImage, "final indirect output");
+        if(WorldBuffers.Resources!=null) Energy(WorldImage, "world radiance atlas");
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
@@ -166,47 +183,10 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
         if (!complete) Assert.Fail(DescribeWaitFailure(maximumFrames, observations));
     }
 
-    /// <summary>Reads the final full-resolution indirect output that the renderer publishes to composition.</summary>
-    public float[] FinalPixels() => Screen.IndirectFullTex?.ReadPixels() ?? [];
-
-    /// <summary>Reads the primary engine target after registered PBR composition.</summary>
-    public float[] ComposedPixels() => Cache.Terrain.Color.ReadPixels();
-
-    /// <summary>Reads HDR composition as RGBA before the explicit display transfer.</summary>
-    public float[] SceneLinearPixels()
-    {
-        var texture = host.SceneLinearColor ?? throw new InvalidOperationException("PBR composition has not produced scene-linear output.");
-        float[] pixels = texture.ReadPixels();
-        int count = checked(texture.Width * texture.Height);
-        if (pixels.Length == count * 4) return pixels;
-        Assert.Equal(count * 3, pixels.Length);
-        // Packed HDR stores RGB; retain those values and expose opaque alpha to existing image assertions.
-        float[] rgba = new float[count * 4];
-        for (int pixel = 0; pixel < count; pixel++)
-        {
-            Array.Copy(pixels, pixel * 3, rgba, pixel * 4, 3);
-            rgba[pixel * 4 + 3] = 1f;
-        }
-        return rgba;
-    }
-    /// <summary>Reads the actual worker/query/upload-owned world radiance atlas.</summary>
-    public float[] WorldPixels() => WorldBuffers.Resources?.ProbeRadianceAtlas.ReadPixels() ?? [];
-
     /// <summary>Finds published confidence across physical slots; the interior probe need not occupy slot zero.</summary>
-    public float WorldConfidence => WorldBuffers.Resources?.ProbeMeta0.ReadPixels().Where((_, index) => (index & 3) == 0).Max() ?? 0;
-
-    /// <summary>Checks every RGB channel and returns the peak finite energy at an observable boundary.</summary>
-    public static float Energy(float[] pixels, string? observation = null)
-    {
-        Assert.NotEmpty(pixels); float peak=0;
-        for(int i=0;i<pixels.Length;i++)
-        {
-            if (!float.IsFinite(pixels[i]))
-                Assert.Fail($"{observation ?? "Lighting output"}[{i}] is {pixels[i]}; length={pixels.Length}.");
-            if(i%4!=3) peak=Math.Max(peak,Math.Abs(pixels[i]));
-        }
-        return peak;
-    }
+    public float WorldConfidence => WorldBuffers.Resources is { } resources
+        // The former packed RG scan selected scalar indices divisible by four: red from even physical slots.
+        ? (float)Cache.ImageAssertions.Inspect(resources.ProbeMeta0, channelMask: 1, pixelStride: 2).Maximum : 0;
 
     /// <summary>Submits the currently bound production shader through a real GPU fullscreen primitive.</summary>
     private void Draw()

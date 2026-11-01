@@ -8,6 +8,7 @@ using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.PBR.Tessellation;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -303,20 +304,18 @@ public sealed class TerrainTessellationTests : RenderTestBase
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao);
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, ordinary); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-            var expected = target[0].ReadPixels();
-            var expectedCoordinates = target[1].ReadPixels();
+            using var expected=new GpuImageSnapshot(target[0]);
+            using var expectedCoordinates=new GpuImageSnapshot(target[1]);
             OpenGlStateCache.Current.SetPatchVertices( 3);
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, tessellated);
             var layout = GpuProgramLayout.TryBuild(tessellated);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(tessellated, "vge_displacementEnabled"), 0);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(tessellated, "vge_displacementReactive"), 0);
             GL.DrawArrays(PrimitiveType.Patches, 0, 3);
-            var actual = target[0].ReadPixels();
-            var actualCoordinates = target[1].ReadPixels();
-            for (int i = 0; i < actualCoordinates.Length; i++) Assert.InRange(actualCoordinates[i], expectedCoordinates[i] - .0001f, expectedCoordinates[i] + .0001f);
-            Assert.Equal(expected.Length, actual.Length);
-            for (int i = 0; i < actual.Length; i++) Assert.InRange(actual[i], expected[i] - .0001f, expected[i] + .0001f);
-            Assert.Equal(3f, actual[3]);
+            using var assertions=new GpuImageAssertions();
+            foreach(var pair in new[]{(Image:target[0],Expected:expected),(Image:target[1],Expected:expectedCoordinates)})
+                assertions.Predicate(pair.Image,"return bvec2(all(greaterThanEqual(a,b-vec4(.0001))) && all(lessThanEqual(a,b+vec4(.0001))),false);",pair.Expected.Texture).AssertEqual();
+            Assert.Equal(3f,GpuLocalRead.Scalar(target[0],3));
         }
         finally
         {

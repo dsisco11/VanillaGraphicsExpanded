@@ -87,16 +87,16 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         {
             // Deferred capture must publish unlit albedo and overwrite the cleared material target.
             Assert.InRange(foreground[0], .999f, 1.001f);
-            Assert.InRange(LayeredTestTexture.Read(gbuffer.Surface, 1)[0], .499f, .501f);
-            float[] normal = LayeredTestTexture.Read(gbuffer.Surface, 0);
+            Assert.InRange(Assertions.GpuLocalRead.Tuple(gbuffer.Surface,0,0,1)[0], .499f, .501f);
+            float[] normal = Assertions.GpuLocalRead.Tuple(gbuffer.Surface,0,0);
             Assert.Equal(.5f, normal[0]);
             Assert.Equal(1f, normal[1]);
             Assert.Equal(.5f, normal[2]);
         }
         if (offsetVariant > 0 && route == 1)
         {
-            Assert.Equal(-1f, LayeredTestTexture.Read(gbuffer.Surface, 0)[3]);
-            Assert.InRange(position.ReadPixels()[2], -.501f, -.499f);
+            Assert.Equal(-1f, Assertions.GpuLocalRead.Tuple(gbuffer.Surface,0,0)[3]);
+            Assert.InRange(Assertions.GpuLocalRead.Scalar(position, 2), -.501f, -.499f);
         }
         // Draw a distinguishable farther opaque mesh after the first mesh. Depth must reject it.
         vertices.UploadData<float>([-1, -1, .5f, 3, -1, .5f, -1, 3, .5f]);

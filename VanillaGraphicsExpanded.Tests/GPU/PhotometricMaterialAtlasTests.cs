@@ -32,13 +32,9 @@ public sealed class PhotometricMaterialAtlasTests(HeadlessGLFixture fixture) : R
             TextureStreamingSystem.TickOnRenderThread();
         Assert.Equal(0, TextureStreamingSystem.Manager.PendingCount);
         Assert.True(store.TryGetPageTextures(7, out var page));
-        float[] actual = page.MaterialParamsTexture.ReadPixels();
-        for (int pixel = 0; pixel < 64; pixel++)
-        {
-            Assert.Equal(0, actual[pixel * 4 + 1]);
-            float expected = (float)(Half)loaded[pixel * 3 + 2];
-            Assert.Equal(expected, actual[pixel * 4 + 2]);
-        }
+        var expected=new float[64*4];
+        for(int pixel=0;pixel<64;pixel++)expected[pixel*4+2]=(float)(Half)loaded[pixel*3+2];
+        ImageAssertions.Compare(page.MaterialParamsTexture,expected,channelMask:6).AssertEqual();
         Assert.Equal(LightingCalibration.EmissionReferenceNits, store.MaximumEmissionNits);
     }
 
@@ -58,14 +54,14 @@ public sealed class PhotometricMaterialAtlasTests(HeadlessGLFixture fixture) : R
             TextureStreamingSystem.TickOnRenderThread();
         Assert.Equal(0, TextureStreamingSystem.Manager.PendingCount);
         Assert.True(store.TryGetPageTextures(7, out var page));
-        float stored = page.MaterialParamsTexture.ReadPixels()[2];
+        float stored = Assertions.GpuLocalRead.Scalar(page.MaterialParamsTexture, 2);
         Assert.InRange(stored, 0, upperHalf);
         float maximum = upperHalf * LightingCalibration.EmissionReferenceNits;
         Assert.Equal(maximum, store.MaximumEmissionNits);
         Assert.True(maximum >= coefficient * LightingCalibration.EmissionReferenceNits);
         store.ReplaceMaterialParamsTextureWithData(7, 1, 1, [.5f, 0, 0]);
         Assert.True(store.TryGetPageTextures(7, out page));
-        Assert.Equal(0, page.MaterialParamsTexture.ReadPixels()[2]);
+        Assert.Equal(0, Assertions.GpuLocalRead.Scalar(page.MaterialParamsTexture, 2));
         Assert.Equal(maximum, store.MaximumEmissionNits);
         store.SyncToAtlasPages([], false);
         Assert.Equal(0, store.MaximumEmissionNits);

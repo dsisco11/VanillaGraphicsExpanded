@@ -159,8 +159,8 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
         if (scenario is not (4 or 5)) DrawBoundary(2, true);
         DrawBoundary(scenario is 4 or 5 ? 3 : 4, false);
         if (scenario == 1) { DrawBoundary(6, true); DrawBoundary(9, false); }
-        var optical = LayeredTestTexture.Read(transport, WaterVolumeFrame.OpticalLayer);
-        var source = LayeredTestTexture.Read(transport, WaterVolumeFrame.SourceLayer);
+        var optical = Assertions.GpuLocalRead.Tuple(transport,0,0,WaterVolumeFrame.OpticalLayer);
+        var source = Assertions.GpuLocalRead.Tuple(transport,0,0,WaterVolumeFrame.SourceLayer);
         // The production vertex shader deliberately perturbs clip W by .0008 / Z;
         // its perspective interpolation moves these sloped intersections by under .0004 metres.
         const float rasterTolerance = .0005f;

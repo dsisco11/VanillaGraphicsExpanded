@@ -5,8 +5,8 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Plans exact requested-tile readback regions without including unused atlas texels.</summary>
-internal static class SurfaceCacheReadinessReadback
+/// <summary>Plans exact requested-tile GPU observations without including unused atlas texels.</summary>
+internal static class SurfaceCacheReadiness
 {
     /// <summary>Describes one contiguous requested tile run in a single atlas layer and row.</summary>
     internal readonly record struct Region(int X, int Y, int Width, int Height, int Layer);
@@ -37,41 +37,20 @@ internal static class SurfaceCacheReadinessReadback
         return regions.ToImmutable();
     }
 
-    /// <summary>Requires initialized alpha for every texel; rejects empty or incomplete RGBA observations.</summary>
-    internal static bool IsFullyInitialized(ReadOnlySpan<float> pixels)
-    {
-        if (pixels.IsEmpty || (pixels.Length & 3) != 0) return false;
-        for (int channel = 3; channel < pixels.Length; channel += 4)
-            if (pixels[channel] != 1) return false;
-        return true;
-    }
     #endregion
 
     #region Initialized observation
-    /// <summary>Stages fresh requested regions together and checks every outgoing texel with one mapped observation.</summary>
-    internal static bool AllInitialized(Texture3D texture, ImmutableArray<Region> regions)
+    /// <summary>Checks every requested alpha on the GPU without transferring page contents to the CPU.</summary>
+    internal static bool AllInitialized(Texture3D texture, ImmutableArray<Region> regions, Assertions.GpuImageAssertions assertions)
     {
         if (regions.IsDefaultOrEmpty) return false;
-        int count = 0;
-        foreach (var region in regions)
-            count = checked(count + checked((int)((long)region.Width * region.Height << 2)));
-        using var staging = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription
-        { Role = BufferRole.PixelPack, Mode = ResourceStorageMode.Mutable, Capacity = checked(count * sizeof(float)), Usage = BufferUsage.StreamRead }).RequireResource();
-        int offsetBytes = 0;
-        // Preserve one shared staging allocation and completion marker across all requested runs.
         foreach (var region in regions)
         {
-            RHICommandContext.Current.TransferTextureToBuffer(texture, new(staging, offsetBytes,
-                new(new(0, region.Layer), region.X, region.Y, 0, region.Width, region.Height, 1),
-                new(PixelChannelLayout.Rgba, PixelComponentType.Float)));
-            offsetBytes = checked(offsetBytes + checked(region.Width * region.Height * 4 * sizeof(float)));
+            var result = assertions.CompareConstant(texture, 1,
+                new(new(0, region.Layer), region.X, region.Y, 0, region.Width, region.Height), channelMask: 8);
+            if (result.Mismatches != 0) return false;
         }
-        using var fence = RHICommandContext.Current.InsertFence();
-        if (RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(60)) != CompletionStatus.Ready)
-            throw new InvalidOperationException("Readiness observation did not complete.");
-        using var mapped = staging.MapRange<float>(0, count, BufferMapAccess.Read);
-        if (!mapped.IsMapped) throw new InvalidOperationException("Unable to map requested Surface Cache texels.");
-        return IsFullyInitialized(mapped.Span);
+        return true;
     }
     #endregion
 }

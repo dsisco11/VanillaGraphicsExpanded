@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
@@ -164,19 +165,26 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
         textures.Upload(snapshot);
         Assert.Equal(height * 3, textures.Sky.Height);
         Assert.Equal(height * 3, textures.Radiance.Height);
-        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, textures.Sky.TextureId);
-        float[] actual = new float[total.Length * 3];
-        GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, actual);
-        for (int y = 0; y < height; y++)
-        for (int x = 0; x < width; x++)
+        var expected=new float[total.Length];
+        for(int y=0;y<height;y++)for(int x=0;x<width;x++)
         {
-            int index = (y * width + x) * 4;
-            var direction = AtmosphereMieTransport.Direction(x, y, width, height, 0);
-            Assert.True(actual[index] > 0);
-            float reconstructed = (actual[index] + actual[index + total.Length] * AtmosphereMieTransport.Factor(Vector3.Dot(direction, sun))
-                + actual[index + total.Length * 2] * AtmosphereMieTransport.Factor(Vector3.Dot(direction, moon))) / LightingStorage.PersistentScale;
-            Assert.InRange(Math.Abs(reconstructed - total[index]), 0, 2e-6f);
+            int index=(y*width+x)*4;
+            var direction=AtmosphereMieTransport.Direction(x,y,width,height,0);
+            expected[index]=total[index];
+            expected[index+1]=AtmosphereMieTransport.Factor(Vector3.Dot(direction,sun));
+            expected[index+2]=AtmosphereMieTransport.Factor(Vector3.Dot(direction,moon));
         }
+        using var framework=new ShaderTestFramework();
+        using var oracle=framework.CreateTexture(width,height,TextureFormat.Rgba32f,expected);
+        using var smoothImage=new GpuImageSnapshot(textures.Sky,new(new(),0,0,0,width,height));
+        using var solarImage=new GpuImageSnapshot(textures.Sky,new(new(),0,height,0,width,height));
+        using var lunarImage=new GpuImageSnapshot(textures.Sky,new(new(),0,height*2,0,width,height));
+        ImageAssertions.Predicate(smoothImage.Texture, """
+            precise float reconstructed=a.r+b.r*d.g;
+            reconstructed=reconstructed+c.r*d.b;
+            reconstructed=reconstructed/multipliers.x;
+            return bvec2(a.r>0.0 && abs(reconstructed-d.r)<=2e-6,false);
+            """,solarImage.Texture,lunarImage.Texture,oracle,new(LightingStorage.PersistentScale,0,0,0)).AssertEqual();
         Assert.Throws<ArgumentException>(() => textures.Upload(snapshot with { HasNightSources = false }));
         Assert.Throws<ArgumentException>(() => textures.Upload(snapshot with { MoonAngularRadius = AtmosphereSolarDisk.AngularRadius * .5f }));
         AssertAerialDecoder(textures, smooth, solarMie, lunarMie);

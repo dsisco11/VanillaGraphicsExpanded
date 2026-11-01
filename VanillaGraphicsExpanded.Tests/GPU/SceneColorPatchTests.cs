@@ -35,7 +35,7 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         {
             GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), linearScene);
             framework.RenderQuadTo(program.ProgramId, target);
-            float[] actual = target[cloud ? 3 : 0].ReadPixels();
+            var lower=new double[4*4*4];var upper=new double[lower.Length];
             int[] indexFactors = [41, 29, 53, 43], areaFactors = [23, 59, 47, 37];
             for (int y = 0; y < 4; y++)
             for (int x = 0; x < 4; x++)
@@ -44,8 +44,10 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
                 int index = 1920 * y + x, area = x * y;
                 int hash = (256 + index * indexFactors[channel]) ^ (256 + area * areaFactors[channel]);
                 float expected = linearScene != 0 ? 0 : ((hash % 661) / 330.5f - 1) / 128;
-                Assert.InRange(actual[(y * 4 + x) * 4 + channel], expected - 1e-7f, expected + 1e-7f);
+                int scalar=(y*4+x)*4+channel;
+                lower[scalar]=expected-1e-7f;upper[scalar]=expected+1e-7f;
             }
+            ImageAssertions.CompareIntervals(target[cloud?3:0],lower,upper).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

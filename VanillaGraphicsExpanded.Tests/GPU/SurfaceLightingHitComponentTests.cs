@@ -20,12 +20,11 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
         var bright=RenderHits(room);AssertHits(bright,true);
         room.BlockLight=0;room.Geometry.Dirty();room.Geometry.Publish();room.Seed();
         var dark=RenderHits(room);AssertHits(dark,false);
-        int[] hits=Enumerable.Range(0,dark.Meta.Length/2).Where(i=>(Flags(dark.Meta[i*2+1])&1u)!=0).ToArray();
-        Assert.True(hits.Length>32);
-        Assert.All(hits,i=>Assert.Equal(1,dark.Meta[i*2]));
+        var hits=ObserveTrace(dark,"bool hit=(flags&1u)!=0u; return bvec2(!hit || b.r==1.0,hit);");
+        hits.AssertEqual(); Assert.True(hits.MatchingTexels>32);
         room.BlockLight=32;room.Geometry.Dirty();room.Geometry.Publish();room.Seed();
         var restored=RenderHits(room);AssertHits(restored,true);
-        Assert.Equal(bright.Trace,restored.Trace);
+        ImageAssertions.Predicate(bright.Radiance,"return bvec2(same(a,b,15u),false);",restored.Radiance).AssertEqual();
     }
 
     /// <summary>Bright exterior fields cannot illuminate a sealed dark enclosure at the hit boundary.</summary>
@@ -36,9 +35,8 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
         using var room=new SurfaceLightingEnclosureFixture(blockLight:0){ExteriorBlockLight=32};
         room.Geometry.Dirty();room.Geometry.Publish();room.Seed();room.Bounce();
         var dark=RenderHits(room);AssertHits(dark,false);
-        int[] hits=Enumerable.Range(0,dark.Meta.Length/2).Where(i=>(Flags(dark.Meta[i*2+1])&1u)!=0).ToArray();
-        Assert.True(hits.Length>32);
-        Assert.All(hits,i=>Assert.Equal(1,dark.Meta[i*2]));
+        var hits=ObserveTrace(dark,"bool hit=(flags&1u)!=0u; return bvec2(!hit || b.r==1.0,hit);");
+        hits.AssertEqual(); Assert.True(hits.MatchingTexels>32);
     }
 
     /// <summary>Emission survives zero diffuse reflectance and remains the only source of hit radiance.</summary>
@@ -48,7 +46,7 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
         EnsureShaderTestAvailable();
         using var room=new SurfaceLightingEnclosureFixture(0,0,4){EmissionPolicy=true};room.Seed();
         var pixels=RenderHits(room);AssertHits(pixels,true);
-        Assert.InRange(AssertEnergy(pixels.Trace,true,"emission"),3.99f,4.01f);
+        Assert.InRange(AssertEnergy(pixels,true,"emission"),3.99f,4.01f);
         room.EmissionPolicy=false;room.Seed();AssertHits(RenderHits(room),false);
     }
 
@@ -62,8 +60,8 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
         var bounce=RenderHits(room);room.Bounce();
         var second=RenderHits(room);
         AssertHits(seed,true);AssertHits(bounce,true);AssertHits(second,true);
-        Assert.True(bounce.Trace[0]>seed.Trace[0]*1.1f);
-        Assert.True(second.Trace[0]>bounce.Trace[0]*1.01f);
+        Assert.True(TraceRed(bounce)>TraceRed(seed)*1.1f);
+        Assert.True(TraceRed(second)>TraceRed(bounce)*1.01f);
     }
     #endregion
 
@@ -77,7 +75,7 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
         using var room=new SurfaceLightingEnclosureFixture();room.Seed();AssertHits(RenderHits(room),true);
         if(stale) room.StaleSlots();else room.WithholdPages();
         var missing=RenderHits(room);AssertHits(missing,false);
-        Assert.All(Enumerable.Range(0,missing.Meta.Length/2),i=>Assert.Equal(0,missing.Meta[i*2]));
+        ImageAssertions.CompareConstant(missing.Meta,0,channelMask:1).AssertEqual();
     }
 
     /// <summary>Replacing all geometry and cache resources cannot retain illumination from the retired enclosure.</summary>

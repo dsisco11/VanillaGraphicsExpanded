@@ -111,7 +111,7 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
                 source.UploadDataImmediate(Enumerable.Repeat(depth,width*height).ToArray());
                 owner.Render(source);
                 for(int level=0;level<texture.MipLevels;level++)
-                    Assert.All(texture.ReadPixels(level),value=>Assert.Equal(depth,value));
+                    ImageAssertions.CompareConstant(texture, depth, Assertions.GpuImageSnapshot.Mip(texture, level)).AssertEqual();
                 owner.Prepare(width,height,compute);
                 Assert.Same(texture,owner.Texture);
             }

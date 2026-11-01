@@ -197,13 +197,13 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
 
         TestFramework.RenderQuadTo(programId, outSh9);
 
-        var t0 = ReadProbeTexel(outSh9[0].ReadPixels(), ProbeGridWidth, 0, 0);
-        var t1 = ReadProbeTexel(outSh9[1].ReadPixels(), ProbeGridWidth, 0, 0);
-        var t2 = ReadProbeTexel(outSh9[2].ReadPixels(), ProbeGridWidth, 0, 0);
-        var t3 = ReadProbeTexel(outSh9[3].ReadPixels(), ProbeGridWidth, 0, 0);
-        var t4 = ReadProbeTexel(outSh9[4].ReadPixels(), ProbeGridWidth, 0, 0);
-        var t5 = ReadProbeTexel(outSh9[5].ReadPixels(), ProbeGridWidth, 0, 0);
-        var t6 = ReadProbeTexel(outSh9[6].ReadPixels(), ProbeGridWidth, 0, 0);
+        var t0 = ReadProbeTexel(outSh9[0].ReadPixelsRegion(0,0,1,1), ProbeGridWidth, 0, 0);
+        var t1 = ReadProbeTexel(outSh9[1].ReadPixelsRegion(0,0,1,1), ProbeGridWidth, 0, 0);
+        var t2 = ReadProbeTexel(outSh9[2].ReadPixelsRegion(0,0,1,1), ProbeGridWidth, 0, 0);
+        var t3 = ReadProbeTexel(outSh9[3].ReadPixelsRegion(0,0,1,1), ProbeGridWidth, 0, 0);
+        var t4 = ReadProbeTexel(outSh9[4].ReadPixelsRegion(0,0,1,1), ProbeGridWidth, 0, 0);
+        var t5 = ReadProbeTexel(outSh9[5].ReadPixelsRegion(0,0,1,1), ProbeGridWidth, 0, 0);
+        var t6 = ReadProbeTexel(outSh9[6].ReadPixelsRegion(0,0,1,1), ProbeGridWidth, 0, 0);
 
         UnpackSh9(t0, t1, t2, t3, t4, t5, t6,
             out var c0, out var c1, out var c2, out var c3, out var c4, out var c5, out var c6, out var c7, out var c8);
@@ -301,7 +301,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         sh9GatherId.GBufferSurface = surfaceInput1;
 
         TestFramework.RenderQuadTo(sh9GatherId, outIndirectSh9);
-        var sh9Out = outIndirectSh9[0].ReadPixels();
+        var sh9Out = outIndirectSh9[0].ReadPixelsRegion(0,0,1,1);
 
         // 3) Atlas gather integration
         using var outIndirectAtlas = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f);
@@ -317,7 +317,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         atlasGatherId.GBufferSurface = surfaceInput2;
 
         TestFramework.RenderQuadTo(atlasGatherId, outIndirectAtlas);
-        var atlasOut = outIndirectAtlas[0].ReadPixels();
+        var atlasOut = outIndirectAtlas[0].ReadPixelsRegion(0,0,1,1);
 
         // Compare one representative half-res pixel.
         var (sr, sg, sb, _) = ReadHalfResTexel(sh9Out, 0, 0);

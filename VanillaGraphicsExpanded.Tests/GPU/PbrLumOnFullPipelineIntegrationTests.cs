@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
@@ -143,7 +144,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Shadow uniforms are present but currently not used by the fragment shader.
             // These calls safely no-op if uniforms are optimized out.
 
-            // Phase 23: UBO-backed direct lighting params (VgePbrDirectLightingParamsUBO @ object binding).
+            // UBO-backed direct lighting params (VgePbrDirectLightingParamsUBO @ object binding).
             // The shader now aliases former uniform names to this UBO; without binding it, outputs will be black.
 
             {
@@ -191,9 +192,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TestFramework.RenderQuadTo(pbrDirectProg, targets.DirectLightingMrt);
             AssertNoGLError("Stage: PBR Direct");
 
-            var directDiffusePixels = targets.DirectLightingMrt[0].ReadPixels();
-            var directSpecularPixels = targets.DirectLightingMrt[1].ReadPixels();
-            var emissivePixels = targets.DirectLightingMrt[2].ReadPixels();
+            var directDiffusePixels = targets.DirectLightingMrt[0];
+            var directSpecularPixels = targets.DirectLightingMrt[1];
+            var emissivePixels = targets.DirectLightingMrt[2];
 
             AssertStageHasRgbEnergy(directDiffusePixels, 1e-4f, "Stage: PBR Direct → directDiffuse");
             AssertAllFinite(directSpecularPixels, "Stage: PBR Direct (directSpecular)");
@@ -205,7 +206,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Stage: LumOn Velocity
             // -----------------------------------------------------------------
 
-            // Phase 23: UBO-backed frame state.
+            // UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
                 velocityProg,
                 invCurrViewProjMatrix: invProj,
@@ -222,37 +223,27 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TestFramework.RenderQuadTo(velocityProg, targets.Velocity);
             AssertNoGLError("Stage: Velocity");
 
-            var velocityPixels = targets.Velocity[0].ReadPixels();
+            var velocityPixels = targets.Velocity[0];
             AssertAllFinite(velocityPixels, "Stage: Velocity");
 
-            // Expect near-zero velocity (RG) when prev == curr.
-            for (int i = 0; i < velocityPixels.Length; i += 4)
-            {
-                Assert.InRange(velocityPixels[i + 0], -TestEpsilon, TestEpsilon);
-                Assert.InRange(velocityPixels[i + 1], -TestEpsilon, TestEpsilon);
-            }
-
+            ImageAssertions.Inspect(velocityPixels,-TestEpsilon,TestEpsilon,channelMask:3).AssertFiniteRange();
             // -----------------------------------------------------------------
             // Stage: LumOn HZB build
             // -----------------------------------------------------------------
             targets.Hzb.Prepare(ScreenWidth,ScreenHeight,hzbCompute);
             targets.Hzb.Render(primaryDepth);
             AssertNoGLError("Stage: shared depth hierarchy");
-            var hzbMip0 = targets.Hzb.Texture.ReadPixels(mipLevel: 0);
-            var hzbMip2 = targets.Hzb.Texture.ReadPixels(mipLevel: 2);
-            AssertAllFinite(hzbMip0, "Stage: HZB mip0");
-            AssertAllFinite(hzbMip2, "Stage: HZB mip2");
-
-            // Uniform depth scene => mip0 and mip2 should match 0.5.
-            Assert.All(hzbMip0, v => Assert.InRange(v, 0.5f - TestEpsilon, 0.5f + TestEpsilon));
-            Assert.InRange(hzbMip2[0], 0.5f - TestEpsilon, 0.5f + TestEpsilon);
-
+            using var hzb0=new GpuImageSnapshot(targets.Hzb.Texture,GpuImageSnapshot.Mip(targets.Hzb.Texture,0));
+            using var hzb2=new GpuImageSnapshot(targets.Hzb.Texture,GpuImageSnapshot.Mip(targets.Hzb.Texture,2));
+            AssertAllFinite(hzb0.Texture,"Stage: HZB mip0");AssertAllFinite(hzb2.Texture,"Stage: HZB mip2");
+            ImageAssertions.Inspect(hzb0.Texture,.5f-TestEpsilon,.5f+TestEpsilon).AssertFiniteRange();
+            Assert.InRange(GpuLocalRead.Scalar(hzb2.Texture,0),.5f-TestEpsilon,.5f+TestEpsilon);
             // -----------------------------------------------------------------
             // Stage: LumOn Probe Anchor
             // -----------------------------------------------------------------
 
 
-            // Phase 23: UBO-backed frame state.
+            // UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
                 anchorProg,
                 invProjectionMatrix: invProj,
@@ -263,7 +254,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 anchorJitterScale: 0f,
                 pmjCycleLength: 1);
 
-            // Phase 23: UBO-backed probe params.
+            // UBO-backed probe params.
             anchorProg.DepthDiscontinuityThreshold = .1f;
 
             anchorProg.PrimaryDepth = primaryDepth;
@@ -277,22 +268,13 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TestFramework.RenderQuadTo(anchorProg, targets.ProbeAnchor);
             AssertNoGLError("Stage: Probe Anchor");
 
-            var anchorPosPixels = targets.ProbeAnchor[0].ReadPixels();
-            var anchorNormalPixels = targets.ProbeAnchor[1].ReadPixels();
+            var anchorPosPixels = targets.ProbeAnchor[0];
+            var anchorNormalPixels = targets.ProbeAnchor[1];
             AssertAllFinite(anchorPosPixels, "Stage: Probe Anchor (pos)");
             AssertAllFinite(anchorNormalPixels, "Stage: Probe Anchor (normal)");
 
-            bool anyValid = false;
-            for (int i = 0; i < anchorPosPixels.Length; i += 4)
-            {
-                if (anchorPosPixels[i + 3] > 0.5f)
-                {
-                    anyValid = true;
-                    break;
-                }
-            }
-            Assert.True(anyValid, "Stage: Probe Anchor → no valid probes");
-
+            var valid=ImageAssertions.Predicate(anchorPosPixels,"return bvec2(true,a.a>.5);");
+            valid.AssertEqual();Assert.True(valid.MatchingTexels>0,"Stage: Probe Anchor -> no valid probes");
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Trace
             // -----------------------------------------------------------------
@@ -301,7 +283,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Deterministic non-zero indirect: allow sky miss fallback to contribute.
             // This makes the one-frame integration test robust even if ray hits are rare.
 
-            // Phase 23: UBO-backed frame state.
+            // UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
                 traceProg,
                 invProjectionMatrix: invProj,
@@ -313,7 +295,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 sunColor: new Vintagestory.API.MathTools.Vec3f(0.2f, 0.2f, 0.2f),
                 ambientColor: new Vintagestory.API.MathTools.Vec3f(0.1f, 0.1f, 0.1f));
 
-            // Phase 23: UBO-backed probe params (indirectTint/intensity etc).
+            // UBO-backed probe params (indirectTint/intensity etc).
             traceProg.IndirectTint = new(1,1,1);
 
             using var anchorInputs1 = LayeredTestTexture.Create(targets.ProbeAnchor[0], targets.ProbeAnchor[1]);
@@ -337,16 +319,12 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TestFramework.RenderQuadTo(traceProg, targets.AtlasTrace);
             AssertNoGLError("Stage: Atlas Trace");
 
-            var traceRadiance = targets.AtlasTrace[0].ReadPixels();
-            var traceMeta = targets.AtlasTrace[1].ReadPixels();
+            var traceRadiance = targets.AtlasTrace[0];
+            var traceMeta = targets.AtlasTrace[1];
             AssertAllFinite(traceRadiance, "Stage: Atlas Trace (radiance)");
             AssertAllFinite(traceMeta, "Stage: Atlas Trace (meta)");
 
-            // Confidence is stored in meta.r.
-            for (int i = 0; i < traceMeta.Length; i += 2)
-            {
-                Assert.InRange(traceMeta[i + 0], 0.0f, 1.0f);
-            }
+            ImageAssertions.Inspect(traceMeta,0,1,channelMask:1).AssertFiniteRange();
 
             AssertStageHasRgbEnergy(traceRadiance, 1e-6f, "Stage: Atlas Trace → radiance");
 
@@ -356,9 +334,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             // Keep jitter off in this test (matches Probe Anchor stage).
 
-            // Phase 14: enable velocity reprojection (velocity is near-zero in this test)
+            // enable velocity reprojection (velocity is near-zero in this test)
 
-            // Phase 23: UBO-backed frame state.
+            // UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
                 temporalProg,
                 probeSpacing: ProbeSpacing,
@@ -369,7 +347,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 enableVelocityReprojection: 1,
                 velocityRejectThreshold: 0.01f);
 
-            // Phase 23: UBO-backed probe params (temporalAlpha/hitDistanceRejectThreshold).
+            // UBO-backed probe params (temporalAlpha/hitDistanceRejectThreshold).
             temporalProg.TemporalAlpha = .9f; temporalProg.HitDistanceRejectThreshold = .3f;
 
             temporalProg.ScreenProbeAtlasCurrent = targets.AtlasTrace[0];
@@ -391,7 +369,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TestFramework.RenderQuadTo(temporalProg, targets.AtlasTemporal);
             AssertNoGLError("Stage: Atlas Temporal");
 
-            var temporalRadiance = targets.AtlasTemporal[0].ReadPixels();
+            var temporalRadiance = targets.AtlasTemporal[0];
             AssertAllFinite(temporalRadiance, "Stage: Atlas Temporal (radiance)");
             AssertStageHasRgbEnergy(temporalRadiance, 1e-6f, "Stage: Atlas Temporal → radiance");
 
@@ -399,10 +377,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Stage: LumOn Atlas Filter
             // -----------------------------------------------------------------
 
-            // Phase 23: UBO-backed frame state (probeGridSize).
+            // UBO-backed frame state (probeGridSize).
             UpdateAndBindLumOnFrameUbo(filterProg);
 
-            // Phase 23: UBO-backed probe params (filterRadius/hitDistanceSigma).
+            // UBO-backed probe params (filterRadius/hitDistanceSigma).
             filterProg.FilterRadius = 1; filterProg.HitDistanceSigma = 1;
 
             filterProg.ScreenProbeAtlas = targets.AtlasTemporal[0];
@@ -417,21 +395,21 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TestFramework.RenderQuadTo(filterProg, targets.AtlasFiltered);
             AssertNoGLError("Stage: Atlas Filter");
 
-            var filteredRadiance = targets.AtlasFiltered[0].ReadPixels();
+            var filteredRadiance = targets.AtlasFiltered[0];
             AssertAllFinite(filteredRadiance, "Stage: Atlas Filter (radiance)");
 
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Gather (half-res)
             // -----------------------------------------------------------------
 
-            // Phase 23: UBO-backed frame state.
+            // UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(
                 gatherProg,
                 invProjectionMatrix: invProj,
                 viewMatrix: identity,
                 probeSpacing: ProbeSpacing);
 
-            // Phase 23: UBO-backed probe params (intensity/indirectTint/leakThreshold/sampleStride).
+            // UBO-backed probe params (intensity/indirectTint/leakThreshold/sampleStride).
             gatherProg.Intensity = 1; gatherProg.IndirectTint = [1,1,1]; gatherProg.LeakThreshold = .5f; gatherProg.SampleStride = 1;
 
             gatherProg.ScreenProbeAtlas = targets.AtlasFiltered[0];
@@ -449,7 +427,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TestFramework.RenderQuadTo(gatherProg, targets.IndirectHalf);
             AssertNoGLError("Stage: Gather");
 
-            var indirectHalf = targets.IndirectHalf[0].ReadPixels();
+            var indirectHalf = targets.IndirectHalf[0];
             AssertAllFinite(indirectHalf, "Stage: Gather (indirectHalf)");
             AssertStageHasRgbEnergy(indirectHalf, 1e-6f, "Stage: Gather → indirectHalf");
 
@@ -458,10 +436,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
 
 
-            // Phase 23: UBO-backed frame state.
+            // UBO-backed frame state.
             UpdateAndBindLumOnFrameUbo(upsampleProg);
 
-            // Phase 23: UBO-backed upsample params (depth/normal/spatial sigmas, hole-fill thresholds).
+            // UBO-backed upsample params (depth/normal/spatial sigmas, hole-fill thresholds).
             upsampleProg.UpsampleDepthSigma = .1f; upsampleProg.UpsampleNormalSigma = 16; upsampleProg.UpsampleSpatialSigma = 1; upsampleProg.HoleFillMinConfidence = .05f; upsampleProg.HoleFillRadius = 2;
 
             upsampleProg.IndirectHalf = targets.IndirectHalf[0];
@@ -476,7 +454,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TestFramework.RenderQuadTo(upsampleProg, targets.IndirectFull);
             AssertNoGLError("Stage: Upsample");
 
-            var indirectFull = targets.IndirectFull[0].ReadPixels();
+            var indirectFull = targets.IndirectFull[0];
             AssertAllFinite(indirectFull, "Stage: Upsample (indirectFull)");
             AssertStageHasRgbEnergy(indirectFull, 1e-6f, "Stage: Upsample → indirectFull");
 
@@ -504,7 +482,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TestFramework.RenderQuadTo(pbrCompositeProg, targets.Composite);
             AssertNoGLError("Stage: Composite (full)");
 
-            var compositeFull = targets.Composite[0].ReadPixels();
+            var compositeFull = targets.Composite[0];
             AssertAllFinite(compositeFull, "Stage: Composite (full)");
 
             // Baseline (same wiring, but indirectDiffuse is forced to 0)
@@ -528,7 +506,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TestFramework.RenderQuadTo(pbrCompositeProg, baselineComposite);
             AssertNoGLError("Stage: Composite (baseline)");
 
-            var compositeBaselinePixels = baselineComposite[0].ReadPixels();
+            var compositeBaselinePixels = baselineComposite[0];
             AssertAllFinite(compositeBaselinePixels, "Stage: Composite (baseline)");
 
             // Baseline must match "direct-only" expectation (fog disabled, indirect=0):
@@ -562,7 +540,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TestFramework.RenderQuadTo(pbrCompositeProg, injectedComposite);
             AssertNoGLError("Stage: Composite (injected)");
 
-            var injectedCompositePixels = injectedComposite[0].ReadPixels();
+            var injectedCompositePixels = injectedComposite[0];
             AssertAllFinite(injectedCompositePixels, "Stage: Composite (injected-indirect)");
 
             float baselineLuma = ComputeAverageLuminance(compositeBaselinePixels);
@@ -570,116 +548,42 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             Assert.True(injectedLuma > baselineLuma + 1e-4f,
                 $"Composite did not brighten with injected indirect (baselineLuma={baselineLuma}, injectedLuma={injectedLuma})");
 
-            // Require that the pipeline's composite is measurably different from direct-only baseline.
-            float maxDelta = 0f;
-            for (int i = 0; i < compositeFull.Length; i++)
-            {
-                maxDelta = MathF.Max(maxDelta, MathF.Abs(compositeFull[i] - compositeBaselinePixels[i]));
-            }
-
-            Assert.True(maxDelta > 1e-4f, $"Composite did not change with indirect enabled (maxDelta={maxDelta})");
-
+            var changed=ImageAssertions.Predicate(compositeFull,"precise vec4 delta=abs(a-b);return bvec2(true,any(greaterThan(delta,vec4(.0001))));",compositeBaselinePixels);
+            changed.AssertEqual();Assert.True(changed.MatchingTexels>0,"Composite did not change with indirect enabled.");
             // Final hygiene checkpoint: no GL errors should remain queued for subsequent tests.
             AssertNoGLError("PbrLumOnFullPipelineIntegrationTests end");
         }
 
     }
 
-    private static void AssertAllFinite(float[] values, string stage)
+    /// <summary>Checks every represented stage component while retaining its stage identity in failures.</summary>
+    private void AssertAllFinite(GpuTexture image,string stage)
     {
-        for (int i = 0; i < values.Length; i++)
-        {
-            float v = values[i];
-            Assert.False(float.IsNaN(v) || float.IsInfinity(v), $"{stage}: non-finite value at idx {i}: {v}");
-        }
+        var proof=ImageAssertions.Inspect(image);
+        Assert.True(proof.NonFinite==0,$"{stage}: {proof}");
     }
 
-    private static bool AnyRgbAbove(float[] rgba, float threshold)
+    /// <summary>Requires a positive RGB witness anywhere in the complete original stage output.</summary>
+    private void AssertStageHasRgbEnergy(GpuTexture image,float threshold,string stage)
     {
-        for (int i = 0; i + 2 < rgba.Length; i += 4)
-        {
-            if (rgba[i + 0] > threshold || rgba[i + 1] > threshold || rgba[i + 2] > threshold)
-            {
-                return true;
-            }
-        }
-
-        return false;
+        var proof=ImageAssertions.Predicate(image,"return bvec2(true,any(greaterThan(a.rgb,vec3(multipliers.x))));",
+            parameters:new(threshold,0,0,0));
+        proof.AssertEqual();Assert.True(proof.MatchingTexels>0,$"{stage}: no RGB energy above {threshold}; {proof}");
     }
 
-    private static void AssertStageHasRgbEnergy(float[] rgba, float threshold, string stage)
+    /// <summary>Checks every direct-only RGB component against the independent ordered float sum.</summary>
+    private void AssertCompositeMatchesDirectOnly(GpuTexture composite,GpuTexture diffuse,GpuTexture specular,GpuTexture emissive,float epsilon)
     {
-        if (AnyRgbAbove(rgba, threshold))
-        {
-            return;
-        }
-
-        (float min, float max) = GetMinMax(rgba);
-        Assert.Fail($"{stage} unexpectedly has no RGB energy (threshold={threshold}, min={min}, max={max})");
+        ImageAssertions.Predicate(composite,"precise vec3 expected=(b.rgb+c.rgb)+d.rgb;precise vec3 delta=abs(a.rgb-expected);return bvec2(all(lessThanEqual(delta,vec3(multipliers.x))),false);",
+            diffuse,specular,emissive,parameters:new(epsilon,0,0,0)).AssertEqual();
     }
 
-    private static (float min, float max) GetMinMax(float[] values)
+    /// <summary>Preserves the original scalar float Rec.709 expression and ordered accumulation over every pixel.</summary>
+    private float ComputeAverageLuminance(GpuTexture image)
     {
-        if (values.Length == 0)
-        {
-            return (0f, 0f);
-        }
-
-        float min = float.PositiveInfinity;
-        float max = float.NegativeInfinity;
-        for (int i = 0; i < values.Length; i++)
-        {
-            float v = values[i];
-            if (v < min) min = v;
-            if (v > max) max = v;
-        }
-
-        return (min, max);
+        float sum=ImageAssertions.OrderedFloatSum(image,"(value.r*.2126+value.g*.7152)+value.b*.0722");
+        return sum/(image.Width*image.Height);
     }
-
-    /// <summary>Checks direct-only composition against the independent sum without relaxing arithmetic tolerance.</summary>
-    private static void AssertCompositeMatchesDirectOnly(
-        float[] compositeRgba,
-        float[] directDiffuseRgba,
-        float[] directSpecularRgba,
-        float[] emissiveRgba,
-        float epsilon)
-    {
-        Assert.Equal(directDiffuseRgba.Length, compositeRgba.Length);
-        Assert.Equal(directSpecularRgba.Length, compositeRgba.Length);
-        Assert.Equal(emissiveRgba.Length, compositeRgba.Length);
-
-        for (int i = 0; i + 3 < compositeRgba.Length; i += 4)
-        {
-            for (int c = 0; c < 3; c++)
-            {
-                float expected = directDiffuseRgba[i + c] + directSpecularRgba[i + c] + emissiveRgba[i + c];
-                float actual = compositeRgba[i + c];
-                float delta = MathF.Abs(actual - expected);
-                Assert.True(delta <= epsilon,
-                    $"Stage: Composite baseline mismatch at idx {i / 4} channel {c} (expected={expected}, actual={actual}, delta={delta}, eps={epsilon})");
-            }
-        }
-    }
-
-    private static float ComputeAverageLuminance(float[] rgba)
-    {
-        // Rec.709 luma for quick scalar compare.
-        const float wr = 0.2126f;
-        const float wg = 0.7152f;
-        const float wb = 0.0722f;
-
-        float sum = 0f;
-        int count = 0;
-        for (int i = 0; i + 2 < rgba.Length; i += 4)
-        {
-            sum += rgba[i + 0] * wr + rgba[i + 1] * wg + rgba[i + 2] * wb;
-            count++;
-        }
-
-        return count == 0 ? 0f : sum / count;
-    }
-
     /// <summary>Submits the retained inputs before observing the actual driver sampler binding.</summary>
     private static void AssertSamplerBinding(string stage, GpuProgram program, string samplerUniform, GpuTexture expectedTexture)
     {

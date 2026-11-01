@@ -186,14 +186,14 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         }
         Initialize();
         var uncached = Run(true);
-        var expected = new[] { target[0].ReadPixels(), target[1].ReadPixels() };
+        using var expected = new Assertions.GpuImageSet([target[0], target[1]]);
         Initialize();
         var cached = Run(false);
-        var actual = new[] { target[0].ReadPixels(), target[1].ReadPixels() };
-        Assert.Equal(expected[0], actual[0]);
-        Assert.Equal(expected[1], actual[1]);
-        Assert.Equal(.75f, actual[0][0]);
-        Assert.Equal(.5f, actual[1][0]);
+        using var actual = new Assertions.GpuImageSet([target[0], target[1]]);
+        ImageAssertions.CompareHistory(actual[0].Texture, expected[0]).AssertEqual();
+        ImageAssertions.CompareHistory(actual[1].Texture, expected[1]).AssertEqual();
+        Assert.Equal(.75f, Assertions.GpuLocalRead.Scalar(actual[0].Texture, 0));
+        Assert.Equal(.5f, Assertions.GpuLocalRead.Scalar(actual[1].Texture, 0));
         Assert.True(cached.Count(call => call.StartsWith("Routing")) < uncached.Count(call => call.StartsWith("Routing")));
         output.WriteLine("DYNAMIC_ROUTING_CACHE=" + System.Text.Json.JsonSerializer.Serialize(new { uncached, cached }));
         Assert.Equal(ErrorCode.NoError, GL.GetError());

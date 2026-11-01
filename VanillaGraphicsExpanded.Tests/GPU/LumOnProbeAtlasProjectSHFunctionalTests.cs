@@ -188,8 +188,8 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
 
         TestFramework.RenderQuadTo(programId, outSh);
 
-        var tex0 = outSh[0].ReadPixels();
-        var tex1 = outSh[1].ReadPixels();
+        var tex0 = outSh[0].ReadPixelsRegion(0,0,1,1);
+        var tex1 = outSh[1].ReadPixelsRegion(0,0,1,1);
 
         // For constant radiance, directional terms should cancel out, leaving DC only.
         // Packed layout: tex0.rgb = (shR.x, shG.x, shB.x)

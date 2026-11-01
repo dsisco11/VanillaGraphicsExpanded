@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.PBR;
 using System.Numerics;
@@ -24,7 +25,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
 
     #region Direct Consumer Harness
     /// <summary>Renders debug modes, atlas gather (-1), or SH9 gather (-2), forcing invalid screen probes.</summary>
-    private protected float[] RenderDirectVisibility(WorldProbeAtlasData atlas, ControlledTraceGpuScene? scene,
+    private protected GpuImageSnapshot RenderDirectVisibility(WorldProbeAtlasData atlas, ControlledTraceGpuScene? scene,
         Vector3 sampleCenter, Vector3 cacheOrigin, float spacing, int consumer,
         int size = 4, float span = 0.1f, int budget = 256, VectorInt3 worldOffset = default,
         Vector3 ring = default, bool suppress = false,
@@ -145,7 +146,7 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             UpdateAndBindLumOnWorldProbeUbo(program, new Vec3f(), Vector3.Zero, levelOrigins ?? [cacheOrigin], levelRings ?? [ring]);
             var output = debug ? terrain.Output.PostprocessPass() : screen!.IndirectHalfPass!;
             TestFramework.RenderQuadTo(program, output);
-            return output.Colors[0].Image!.Value.Texture.ReadPixels();
+            return new GpuImageSnapshot((GpuTexture)output.Colors[0].Image!.Value.Texture.Resource!);
         }
 
     }

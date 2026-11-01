@@ -1,3 +1,4 @@
+using System.Numerics;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Generic;
@@ -125,17 +126,24 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     }
 
     /// <summary>
-    /// Reads a pixel from output (using ScreenWidth for stride).
+    /// Decodes only the originally nominated local pixel captured before the next draw.
     /// </summary>
-    private static (float r, float g, float b, float a) ReadPixelScreen(float[] data, int x, int y)
+    private static (float r, float g, float b, float a) ReadLocalPixel(float[] data)
     {
-        int idx = (y * ScreenWidth + x) * 4;
+        Assert.Equal(4,data.Length);
+        int idx=0;
         return (data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
     }
 
+    /// <summary>Checks every original output RGB against the authored constant with the original strict float tolerance.</summary>
+    private void AssertRgb(GpuTexture image,Vector3 expected)
+    {
+        ImageAssertions.Predicate(image,"precise vec3 difference=abs(a.rgb-multipliers.rgb);return bvec2(all(lessThan(difference,vec3(multipliers.w))),false);",
+            parameters:new(expected,TestEpsilon)).AssertEqual();
+    }
     #endregion
 
-    #region Phase 15 Tests
+    #region Composite debug controls
 
     [Fact]
     public void Composite_Metallic0_UsesDiffuseDominant()
@@ -205,7 +213,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         programId.GBufferSurface = surfaceInput1;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var diffuseOut = outputGBuffer[0].ReadPixels();
+        var diffuseOut = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
 
         // Specular debug view uses a separate executable with the same explicit texture bindings.
         programId = CompileDebugShader(LumOnDebugMode.CompositeIndirectSpecular, enablePbrComposite: 1, enableAO: 0);
@@ -226,11 +234,11 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         programId.GBufferSurface = surfaceInput2;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var specOut = outputGBuffer[0].ReadPixels();
+        var specOut = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
 
         // Compare at center-ish pixel for stability
-        var (dr, dg, db, _) = ReadPixelScreen(diffuseOut, 2, 2);
-        var (sr, sg, sb, _) = ReadPixelScreen(specOut, 2, 2);
+        var (dr, dg, db, _) = ReadLocalPixel(diffuseOut);
+        var (sr, sg, sb, _) = ReadLocalPixel(specOut);
 
         float diffuseLuma = dr + dg + db;
         float specLuma = sr + sg + sb;
@@ -303,7 +311,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         programId.GBufferSurface = surfaceInput3;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var diffuseOut = outputGBuffer[0].ReadPixels();
+        var diffuseOut = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
 
         programId = CompileDebugShader(LumOnDebugMode.CompositeIndirectSpecular, enablePbrComposite: 1, enableAO: 0);
         SetupDebugCompositeUniforms(programId,
@@ -323,10 +331,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         programId.GBufferSurface = surfaceInput4;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var specOut = outputGBuffer[0].ReadPixels();
+        var specOut = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
 
-        var (dr, dg, db, _) = ReadPixelScreen(diffuseOut, 2, 2);
-        var (sr, sg, sb, _) = ReadPixelScreen(specOut, 2, 2);
+        var (dr, dg, db, _) = ReadLocalPixel(diffuseOut);
+        var (sr, sg, sb, _) = ReadLocalPixel(specOut);
 
         float diffuseLuma = dr + dg + db;
         float specLuma = sr + sg + sb;
@@ -406,8 +414,8 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             programId.GBufferSurface = surfaceInput5;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outData = outputGBuffer[0].ReadPixels();
-            var (r, g, b, _) = ReadPixelScreen(outData, 2, 2);
+            var outData = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+            var (r, g, b, _) = ReadLocalPixel(outData);
             return r + g + b;
         }
 
@@ -479,23 +487,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
+
 
         // DESIRED: output = direct + indirect = (1,0,0) + (0,1,0) = (1,1,0)
-        for (int py = 0; py < ScreenHeight; py++)
-        {
-            for (int px = 0; px < ScreenWidth; px++)
-            {
-                var (r, g, b, _) = ReadPixelScreen(outputData, px, py);
-
-                Assert.True(MathF.Abs(r - 1.0f) < TestEpsilon,
-                    $"Pixel ({px},{py}) R should be 1.0 (direct), got {r:F3}");
-                Assert.True(MathF.Abs(g - 1.0f) < TestEpsilon,
-                    $"Pixel ({px},{py}) G should be 1.0 (indirect), got {g:F3}");
-                Assert.True(MathF.Abs(b - 0.0f) < TestEpsilon,
-                    $"Pixel ({px},{py}) B should be 0.0, got {b:F3}");
-            }
-        }
+        AssertRgb(outputGBuffer[0],new(1,1,0));
     }
 
     #endregion
@@ -556,23 +551,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
+
 
         // DESIRED: output = indirect * albedo = (1,1,1) * (1,0,0) = (1,0,0)
-        for (int py = 0; py < ScreenHeight; py++)
-        {
-            for (int px = 0; px < ScreenWidth; px++)
-            {
-                var (r, g, b, _) = ReadPixelScreen(outputData, px, py);
-
-                Assert.True(MathF.Abs(r - 1.0f) < TestEpsilon,
-                    $"Pixel ({px},{py}) R should be 1.0 (albedo filtered), got {r:F3}");
-                Assert.True(MathF.Abs(g - 0.0f) < TestEpsilon,
-                    $"Pixel ({px},{py}) G should be 0.0 (filtered by red albedo), got {g:F3}");
-                Assert.True(MathF.Abs(b - 0.0f) < TestEpsilon,
-                    $"Pixel ({px},{py}) B should be 0.0 (filtered by red albedo), got {b:F3}");
-            }
-        }
+        AssertRgb(outputGBuffer[0],new(1,0,0));
     }
 
     #endregion
@@ -635,25 +617,12 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
+
 
         // DESIRED: output = indirect * intensity = 0.25 * 2.0 = 0.5
         float expectedValue = indirect.r * intensity;  // 0.5
 
-        for (int py = 0; py < ScreenHeight; py++)
-        {
-            for (int px = 0; px < ScreenWidth; px++)
-            {
-                var (r, g, b, _) = ReadPixelScreen(outputData, px, py);
-
-                Assert.True(MathF.Abs(r - expectedValue) < TestEpsilon,
-                    $"Pixel ({px},{py}) R should be {expectedValue:F2} (intensity scaled), got {r:F3}");
-                Assert.True(MathF.Abs(g - expectedValue) < TestEpsilon,
-                    $"Pixel ({px},{py}) G should be {expectedValue:F2} (intensity scaled), got {g:F3}");
-                Assert.True(MathF.Abs(b - expectedValue) < TestEpsilon,
-                    $"Pixel ({px},{py}) B should be {expectedValue:F2} (intensity scaled), got {b:F3}");
-            }
-        }
+        AssertRgb(outputGBuffer[0],new(expectedValue));
     }
 
     #endregion
@@ -713,23 +682,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
+
 
         // DESIRED: output = direct (passthrough, no indirect)
-        for (int py = 0; py < ScreenHeight; py++)
-        {
-            for (int px = 0; px < ScreenWidth; px++)
-            {
-                var (r, g, b, _) = ReadPixelScreen(outputData, px, py);
-
-                Assert.True(MathF.Abs(r - direct.r) < TestEpsilon,
-                    $"Pixel ({px},{py}) R should be {direct.r:F2} (passthrough), got {r:F3}");
-                Assert.True(MathF.Abs(g - direct.g) < TestEpsilon,
-                    $"Pixel ({px},{py}) G should be {direct.g:F2} (passthrough), got {g:F3}");
-                Assert.True(MathF.Abs(b - direct.b) < TestEpsilon,
-                    $"Pixel ({px},{py}) B should be {direct.b:F2} (passthrough), got {b:F3}");
-            }
-        }
+        AssertRgb(outputGBuffer[0],new(direct.r,direct.g,direct.b));
     }
 
     #endregion
@@ -788,23 +744,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
+
 
         // DESIRED: Sky pixels output direct only (no indirect for sky)
-        for (int py = 0; py < ScreenHeight; py++)
-        {
-            for (int px = 0; px < ScreenWidth; px++)
-            {
-                var (r, g, b, _) = ReadPixelScreen(outputData, px, py);
-
-                Assert.True(MathF.Abs(r - direct.r) < TestEpsilon,
-                    $"Sky pixel ({px},{py}) R should be {direct.r:F2} (direct only), got {r:F3}");
-                Assert.True(MathF.Abs(g - direct.g) < TestEpsilon,
-                    $"Sky pixel ({px},{py}) G should be {direct.g:F2} (direct only), got {g:F3}");
-                Assert.True(MathF.Abs(b - direct.b) < TestEpsilon,
-                    $"Sky pixel ({px},{py}) B should be {direct.b:F2} (direct only), got {b:F3}");
-            }
-        }
+        AssertRgb(outputGBuffer[0],new(direct.r,direct.g,direct.b));
     }
 
     #endregion
@@ -865,29 +808,15 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var outputData = outputGBuffer[0].ReadPixels();
+
 
         // DESIRED: For metallic=1.0, diffuseWeight=0, so output ≈ direct only
-        for (int py = 0; py < ScreenHeight; py++)
-        {
-            for (int px = 0; px < ScreenWidth; px++)
-            {
-                var (r, g, b, _) = ReadPixelScreen(outputData, px, py);
-
-                // Output should be approximately direct (metals block diffuse)
-                Assert.True(MathF.Abs(r - direct.r) < TestEpsilon,
-                    $"Metal pixel ({px},{py}) R should be ≈{direct.r:F2} (no indirect for metal), got {r:F3}");
-                Assert.True(MathF.Abs(g - direct.g) < TestEpsilon,
-                    $"Metal pixel ({px},{py}) G should be ≈{direct.g:F2} (no indirect for metal), got {g:F3}");
-                Assert.True(MathF.Abs(b - direct.b) < TestEpsilon,
-                    $"Metal pixel ({px},{py}) B should be ≈{direct.b:F2} (no indirect for metal), got {b:F3}");
-            }
-        }
+        AssertRgb(outputGBuffer[0],new(direct.r,direct.g,direct.b));
     }
 
     #endregion
 
-    #region Phase 5 Tests: Medium Priority
+    #region Composition edge cases
 
     /// <summary>
     /// Tests that indirectTint colors the indirect lighting contribution.
@@ -940,10 +869,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         programId.PrimaryDepth = depthTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var outputData = outputGBuffer[0].ReadPixels();
+        var outputData = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
 
         // Output should be red (white indirect * red tint)
-        var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
+        var (r, g, b, _) = ReadLocalPixel(outputData);
         Assert.True(r > 0.5f, $"Red tint should produce red output, got R={r:F3}");
         Assert.True(g < 0.1f, $"Red tint should suppress green, got G={g:F3}");
         Assert.True(b < 0.1f, $"Red tint should suppress blue, got B={b:F3}");
@@ -1007,8 +936,8 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             programId.PrimaryDepth = depthTex;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
-            var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
+            var outputData = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+            var (r, g, b, _) = ReadLocalPixel(outputData);
             dielectricBrightness = (r + g + b) / 3f;
         }
 
@@ -1040,8 +969,8 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             programId.PrimaryDepth = depthTex;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
-            var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
+            var outputData = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+            var (r, g, b, _) = ReadLocalPixel(outputData);
             halfMetallicBrightness = (r + g + b) / 3f;
         }
 
@@ -1073,8 +1002,8 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             programId.PrimaryDepth = depthTex;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
-            var outputData = outputGBuffer[0].ReadPixels();
-            var (r, g, b, _) = ReadPixelScreen(outputData, 2, 2);
+            var outputData = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+            var (r, g, b, _) = ReadLocalPixel(outputData);
             fullMetallicBrightness = (r + g + b) / 3f;
         }
 

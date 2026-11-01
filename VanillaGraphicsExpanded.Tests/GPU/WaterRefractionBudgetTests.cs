@@ -108,7 +108,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         TestFramework.RenderQuadTo(program,target);
         var hitDecision=target[0].ReadPixels();
         Assert.Equal(1,hitDecision[0]); Assert.Equal(2,hitDecision[2]);
-        Assert.InRange(target[4].ReadPixels()[2],-endpointDepth-.002f,-endpointDepth+.002f);
+        Assert.InRange(Assertions.GpuLocalRead.Scalar(target[4], 2),-endpointDepth-.002f,-endpointDepth+.002f);
     }
 
     /// <summary>Actual ray/UV switches retain associated HDR radiance and bounded receiver motion on one smooth plane.</summary>

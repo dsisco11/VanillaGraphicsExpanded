@@ -10,6 +10,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 
@@ -50,21 +51,15 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
         if (scenario == "unsupported") fixture.PublishCaptured(world);
         else if (scenario == "empty") fixture.Publish(new ControlledVoxelWorld());
         else if (scenario is "solid" or "material_missing" or "outside_facing") fixture.Publish(world, materialIdentity: scenario == "material_missing" ? 0u : 1u);
-        var result = RenderGeometry(scenario == "disabled" ? null : fixture.Scene,
+        using var result = RenderGeometry(scenario == "disabled" ? null : fixture.Scene,
             camera: scenario == "outside" ? new Vector3(1000, 0, 0) : scenario == "outside_facing" ? new Vector3(0.5f, 0.5f, 40) : null);
-        for (int i = 0; i < result.Length; i += 4)
-        {
             if (scenario is "solid" or "outside_facing")
             {
-                Assert.True(result[i + 2] > 0.1f);
-                Assert.InRange(result[i] / result[i + 2], 0.098f, 0.102f);
-                Assert.InRange(result[i + 1] / result[i + 2], 0.848f, 0.852f);
+                ImageAssertions.Predicate(result.Texture,"return bvec2(a.b>.1 && a.r/a.b>=.098 && a.r/a.b<=.102 && a.g/a.b>=.848 && a.g/a.b<=.852,false);").AssertEqual();
             }
             else if (scenario == "material_missing")
             {
-                Assert.True(result[i] > 0.1f);
-                Assert.InRange(result[i + 1] / result[i], 0.448f, 0.452f);
-                Assert.Equal(0f, result[i + 2]);
+                ImageAssertions.Predicate(result.Texture,"return bvec2(a.r>.1 && a.g/a.r>=.448 && a.g/a.r<=.452 && a.b==0,false);").AssertEqual();
             }
             else
             {
@@ -73,10 +68,10 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
                     "unsupported" => [1, 0, 1], "unpublished" => [0.5f, 0, 1],
                     "disabled" => [0.1f, 0.2f, 0.8f], "outside" => [0, 0.2f, 0.8f], _ => [0, 0, 0]
                 };
-                for (int c = 0; c < 3; c++) Assert.InRange(result[i + c], expected[c] - 0.001f, expected[c] + 0.001f);
+                ImageAssertions.Predicate(result.Texture,"return bvec2(all(greaterThanEqual(a.rgb,multipliers.rgb-vec3(.001))) && all(lessThanEqual(a.rgb,multipliers.rgb+vec3(.001))),false);",
+                    parameters:new(expected[0],expected[1],expected[2],0)).AssertEqual();
             }
-            Assert.Equal(1f, result[i + 3]);
-        }
+        ImageAssertions.CompareConstant(result.Texture,1,channelMask:8).AssertEqual();
     }
 
     /// <summary>Camera translation changes which real cell is visible while large integer origins preserve that result.</summary>
@@ -93,17 +88,14 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
         for (int x = 2; x <= 8; x++) world.SetBlock(offset + x, y, -5, null);
         using var fixture = new NearFieldVoxelFixture(new VectorInt3(offset, 0, 0));
         fixture.Publish(world);
-        var blocked = RenderGeometry(fixture.Scene, camera: new Vector3(0.5f, 0.5f, 0), playerOrigin: new Vector3d(offset, 0, 0));
-        var clear = RenderGeometry(fixture.Scene, camera: new Vector3(4.5f, 0.5f, 0), playerOrigin: new Vector3d(offset, 0, 0));
+        using var blocked = RenderGeometry(fixture.Scene, camera: new Vector3(0.5f, 0.5f, 0), playerOrigin: new Vector3d(offset, 0, 0));
+        using var clear = RenderGeometry(fixture.Scene, camera: new Vector3(4.5f, 0.5f, 0), playerOrigin: new Vector3d(offset, 0, 0));
         // A different fractional player-origin split must reconstruct the identical absolute camera.
-        var splitOrigin = RenderGeometry(fixture.Scene, camera: new Vector3(0.25f, 1.25f, -0.125f),
+        using var splitOrigin = RenderGeometry(fixture.Scene, camera: new Vector3(0.25f, 1.25f, -0.125f),
             playerOrigin: new Vector3d(offset + 0.25, -0.75, 0.125));
-        Assert.Equal(blocked, splitOrigin);
-        for (int i = 0; i < blocked.Length; i += 4)
-        {
-            Assert.True(blocked[i + 2] > 0.1f);
-            Assert.Equal(0f, clear[i]); Assert.Equal(0f, clear[i + 1]); Assert.Equal(0f, clear[i + 2]);
-        }
+        ImageAssertions.CompareHistory(splitOrigin.Texture,blocked).AssertEqual();
+        ImageAssertions.Predicate(blocked.Texture,"return bvec2(a.b>.1,false);").AssertEqual();
+        ImageAssertions.CompareConstant(clear.Texture,0,channelMask:7).AssertEqual();
     }
     #endregion
 
@@ -125,16 +117,15 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
         bool sawPublicationBoundary = false;
         for (int step = 0; step <= 64; step++)
         {
-            var pixels = RenderGeometry(fixture.Scene, camera: new Vector3(.5f + step * .25f,
+            using var pixels = RenderGeometry(fixture.Scene, camera: new Vector3(.5f + step * .25f,
                 .5f + .1f * MathF.Sin(step), 0), playerOrigin: new Vector3d(offset, 0, 0));
-            for (int pixel = 0; pixel < pixels.Length; pixel += 4)
-            {
-                Assert.True(pixels[pixel + 2] > .1f, "Published wall disappeared during camera movement.");
-                bool boundary = MathF.Abs(pixels[pixel] - pixels[pixel + 2]) < .001f;
-                sawPublicationBoundary |= boundary;
-                if (boundary) Assert.InRange(pixels[pixel + 1], pixels[pixel] - .001f, pixels[pixel] + .001f);
-                else Assert.InRange(pixels[pixel] / pixels[pixel + 2], .098f, .102f);
-            }
+            var proof=ImageAssertions.Predicate(pixels.Texture,"""
+                precise float difference=a.r-a.b;
+                bool boundary=abs(difference)<.001;
+                bool classified=boundary?(a.g>=a.r-.001 && a.g<=a.r+.001):(a.r/a.b>=.098 && a.r/a.b<=.102);
+                return bvec2(a.b>.1 && classified,boundary);
+                """);
+            proof.AssertEqual();sawPublicationBoundary|=proof.MatchingTexels>0;
         }
         Assert.True(sawPublicationBoundary, "The viewer did not expose the 16-block publication grid.");
     }
@@ -146,7 +137,9 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
         EnsureShaderTestAvailable();
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(Plane(0));
-        Assert.Equal(RenderGeometry(fixture.Scene), RenderGeometry(fixture.Scene, legacySelector: 22));
+        using var original=RenderGeometry(fixture.Scene);
+        using var selected=RenderGeometry(fixture.Scene,legacySelector:22);
+        ImageAssertions.CompareHistory(selected.Texture,original).AssertEqual();
     }
     #endregion
 
@@ -162,7 +155,7 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
     }
 
     /// <summary>Renders only production geometry/readiness inputs with a narrow camera frustum and precise world origin.</summary>
-    private float[] RenderGeometry(ControlledTraceGpuScene? scene, Vector3? camera = null, Vector3d? playerOrigin = null, int legacySelector = 70)
+    private GpuImageSnapshot RenderGeometry(ControlledTraceGpuScene? scene, Vector3? camera = null, Vector3d? playerOrigin = null, int legacySelector = 70)
     {
         var program = geometryProgram;
         if (program is null)
@@ -188,7 +181,7 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
             var output = geometryOutput ??= TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f);
             // RenderQuadTo clears every attachment before drawing, so reuse cannot retain old pixels.
             TestFramework.RenderQuadTo(program, output);
-            return output[0].ReadPixels();
+            return new(output[0]);
         }
     }
     #endregion

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -125,7 +126,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
                 GL.DrawArrays(PrimitiveType.Patches,6,6);
             }
             else GL.DrawArrays(PrimitiveType.Patches,0,mode is 10 or 11 ? 12 : 6);
-            float[] actual=target[0].ReadPixels(); int center=(8*16+8)*4;
+            float[] actual=target[0].ReadPixelsRegion(8,8,1,1); int center=0;
             if(mode==12)
             {
                 float expectedW=1+2*.00025f/((expected+3)*.05f);
@@ -144,15 +145,10 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             else {
                 // Both opted-in tiles must really displace, in opposite directions; checking
                 // coverage alone could pass if eligibility silently disabled both surfaces.
-                Assert.True(actual[(8*16+3)*4] > .005f);
-                Assert.True(actual[(8*16+12)*4] < -.005f);
+                Assert.True(GpuLocalRead.Scalar(target[0],(8*16+3)*4) > .005f);
+                Assert.True(GpuLocalRead.Scalar(target[0],(8*16+12)*4) < -.005f);
             }
-            for(int i=0;i<actual.Length;i+=4)
-            {
-                Assert.InRange(actual[i],-.04001f,.04001f);
-                Assert.True(float.IsFinite(actual[i+1])&&float.IsFinite(actual[i+2])&&float.IsFinite(actual[i+3]));
-                Assert.InRange(actual[i+3], .5f, 1.001f); // Every pixel, including the shared diagonal, must remain covered.
-            }
+            ImageAssertions.Predicate(target[0],"return bvec2(a.r>=-.04001 && a.r<=.04001 && !any(isnan(a.gba)) && !any(isinf(a.gba)) && a.a>=.5 && a.a<=1.001,false);").AssertEqual();
             if(mode<10) Assert.InRange(actual[center+3],.999f,1.001f);
         }
         finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0); OpenGlStateCache.Current.SetPatchVertices(oldPatch);  if(program!=0)GpuProgramObject.Adopt(program).Dispose();   }

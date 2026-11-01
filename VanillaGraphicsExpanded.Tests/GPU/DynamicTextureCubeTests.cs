@@ -39,9 +39,10 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         Assert.Equal((int)TextureMinFilter.LinearMipmapLinear, minimum);
         for (int mip = 0; mip < cube.MipLevels; mip++) for (int face = 0; face < 6; face++)
         {
-            int size = Math.Max(1, 3 >> mip); float[] data = new float[size * size * 4];
-            GL.GetTexImage(OpenTK.Graphics.OpenGL.TextureTarget.TextureCubeMapPositiveX + face, mip, PixelFormat.Rgba, PixelType.Float, data);
-            for (int pixel = 0; pixel < size * size; pixel++) Assert.InRange(MathF.Abs(data[pixel * 4] - (face + 1) / 8f), 0, .004f);
+            int size=Math.Max(1,3>>mip);
+            using var selected=new Assertions.GpuImageSnapshot(cube,new(new(mip,face),0,0,0,size,size,1));
+            ImageAssertions.Predicate(selected.Texture,"precise float difference=abs(a.r-multipliers.x);return bvec2(difference<=.004,false);",
+                parameters:new((face+1)/8f,0,0,0)).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -58,9 +59,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, target.FboId);
         GL.ClearBuffer(ClearBuffer.Color, 0, new uint[] { 7, 0, 0, 0 });
         using var textureBinding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)cube).Target), 0, cube.TextureId);
-        uint[] data = new uint[4];
-        GL.GetTexImage(OpenTK.Graphics.OpenGL.TextureTarget.TextureCubeMapPositiveX, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, data);
-        Assert.All(data, value => Assert.Equal(7u, value));
+        ImageAssertions.Inspect(cube,7,7,new(new(0,0),0,0,0,2,2,1)).AssertFiniteRange();
         GL.GetTexParameter(OpenTK.Graphics.OpenGL.TextureTarget.TextureCubeMap, GetTextureParameter.TextureMinFilter, out int minimum);
         Assert.Equal((int)TextureMinFilter.Nearest, minimum);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -102,9 +101,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         target.Bind();
         GL.ClearBuffer(ClearBuffer.Color, 0, new[] { .25f, .5f, .75f, 1f });
         using var textureBinding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)cube).Target), 0, cube.TextureId);
-        float[] data = new float[4 * 4 * 4];
-        GL.GetTexImage(TextureTarget.TextureCubeMapNegativeZ, 1, PixelFormat.Rgba, PixelType.Float, data);
-        for (int pixel = 0; pixel < 16; pixel++) Assert.Equal(.25f, data[pixel * 4]);
+        ImageAssertions.CompareConstant(cube,.25f,new(new(1,5),0,0,0,4,4,1),channelMask:1).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

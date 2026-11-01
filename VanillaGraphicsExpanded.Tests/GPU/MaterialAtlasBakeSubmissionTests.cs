@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -52,8 +53,8 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
                 MaterialAtlasNormalDepthGpuBuilder.ClearAtlasPage(assets.Api, destination, edge, edge);
                 hostile.AssertRestored(); AssertBindings();
             }
-            Assert.True(ReadDestination()[0] == .5f, $"Clear failed: {OpenGlStateCache.Current.BoundaryEntryFailure}; {string.Join(Environment.NewLine, assets.Logs)}");
-            AssertPixels(ReadDestination(), (_, _) => [.5f, .5f, 1f, .5f]);
+            Assert.True(GpuLocalRead.Scalar(destination,0) == .5f, $"Clear failed: {OpenGlStateCache.Current.BoundaryEntryFailure}; {string.Join(Environment.NewLine, assets.Logs)}");
+            AssertPixels(destination, (_, _) => [.5f, .5f, 1f, .5f]);
             float[] sentinel = [.125f, .25f, .75f, .125f];
             destination.UploadDataImmediate(Enumerable.Range(0, edge * edge).SelectMany(_ => sentinel).ToArray());
             // Reject a real cold executable load before the prepared owner allocates scratch images.
@@ -87,27 +88,27 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             foreach (var field in atlasOwner.GetFields(initializationFields).Where(field =>
                 field.FieldType == typeof(PbrHeightBakeShaderProgram) || field.Name is "geometry" or "scratchFbo"))
                 Assert.Null(field.GetValue(null));
-            AssertPixels(ReadDestination(), (_, _) => sentinel);
+            AssertPixels(destination, (_, _) => sentinel);
             using (var hostile = new HostileFullscreenState())
             {
                 Assert.True(MaterialAtlasNormalDepthGpuBuilder.BakePerRect(assets.Api, source,
                     destination, edge, edge, origin, origin, size, size, 1, 1), string.Join(Environment.NewLine, assets.Logs));
                 hostile.AssertRestored(); AssertBindings();
             }
-            float[] rectangle = ReadDestination();
-            var heights = new List<float>();
-            for (int y = 0; y < edge; y++) for (int x = 0; x < edge; x++)
-            {
-                int at = (y * edge + x) * 4;
-                if (Inside(x, y))
-                {
-                    Assert.All(rectangle[at..(at + 4)], value => Assert.True(float.IsFinite(value)));
-                    heights.Add(rectangle[at + 3]);
-                }
-                else Assert.Equal(sentinel, rectangle[at..(at + 4)]);
-            }
-            Assert.True(heights.Max() - heights.Min() > .001f, "The production solver must produce nonflat checkerboard relief.");
-            Assert.Contains(heights, value => value is > .01f and < .99f);
+            using var rectangle = new GpuImageSnapshot(destination);
+            // The complete rectangle is finite; every exterior texel retains the independently authored sentinel.
+            ImageAssertions.Predicate(rectangle.Texture, """
+                bool inside=coordinate.x>=16 && coordinate.x<48 && coordinate.y>=16 && coordinate.y<48;
+                bool valid=inside ? (!any(isnan(a)) && !any(isinf(a))) : all(equal(a,multipliers));
+                return bvec2(valid,false);
+                """,parameters:new(sentinel[0],sentinel[1],sentinel[2],sentinel[3])).AssertEqual();
+            var heights=ImageAssertions.Inspect(rectangle.Texture,
+                selection:new(new(),origin,origin,0,size,size),channelMask:8);
+            Assert.True(heights.Maximum-heights.Minimum>.001f,"The production solver must produce nonflat checkerboard relief.");
+            Assert.True(ImageAssertions.Predicate(rectangle.Texture, """
+                bool inside=coordinate.x>=16 && coordinate.x<48 && coordinate.y>=16 && coordinate.y<48;
+                return bvec2(true,inside && a.a>0.01 && a.a<0.99);
+                """).MatchingTexels>0);
             using (var hostile = new HostileFullscreenState())
             {
                 // An absent input is rejected before admission without touching caller state.
@@ -130,29 +131,22 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
                     destination, edge, edge, origin, origin, size, size, 1, 1));
                 hostile.AssertRestored(); AssertBindings();
             }
-            Assert.Equal(rectangle, ReadDestination());
+            ImageAssertions.CompareHistory(destination,rectangle).AssertEqual();
             using (var hostile = new HostileFullscreenState())
             {
                 MaterialAtlasNormalDepthGpuBuilder.BakePerTexture(assets.Api, source, destination, edge, edge,
                     [new TextureAtlasPosition { atlasTextureId = source.TextureId, x1 = .25f, y1 = .25f, x2 = .75f, y2 = .75f }]);
                 hostile.AssertRestored(); AssertBindings();
             }
-            AssertPixels(ReadDestination(), (x, y) => Inside(x, y)
-                ? rectangle[((y * edge + x) * 4)..((y * edge + x) * 4 + 4)] : [.5f, .5f, 1f, .5f]);
+            ImageAssertions.Predicate(destination, """
+                bool inside=coordinate.x>=16 && coordinate.x<48 && coordinate.y>=16 && coordinate.y<48;
+                vec4 expected=inside?b:vec4(0.5,0.5,1.0,0.5);
+                return bvec2(all(lessThanEqual(abs(a-expected),vec4(0.001))),false);
+                """,rectangle.Texture).AssertEqual();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { OpenGlStateCache.Current.InvalidateAll(); }
 
-        /// <summary>Preserves both caller framebuffer bindings around the texture readback helper.</summary>
-        float[] ReadDestination()
-        {
-            using var bindings = OpenGlStateCache.Current.BindFramebufferScope();
-            using var pack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));
-            using var transferScope = OpenGlStateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, 0);
-            return destination.ReadPixels();
-        }
-        /// <summary>Identifies the requested central atlas rectangle.</summary>
-        static bool Inside(int x, int y) => x >= origin && x < origin + size && y >= origin && y < origin + size;
         /// <summary>Checks all native bindings that the independent entry borrows.</summary>
         void AssertBindings()
         {
@@ -168,15 +162,13 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
             Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
         }
-        /// <summary>Compares every output channel to the independent rectangle or clear expectation.</summary>
-        static void AssertPixels(float[] actual, Func<int, int, float[]> expected)
+        /// <summary>Compares the entire destination to independently authored CPU expectations on the GPU.</summary>
+        void AssertPixels(GpuTexture actual,Func<int,int,float[]> expected)
         {
-            for (int y = 0; y < edge; y++) for (int x = 0; x < edge; x++)
-            {
-                float[] wanted = expected(x, y);
-                for (int channel = 0; channel < 4; channel++)
-                    Assert.InRange(MathF.Abs(actual[(y * edge + x) * 4 + channel] - wanted[channel]), 0, .001f);
-            }
+            var values=new float[edge*edge*4];
+            for(int y=0;y<edge;y++)for(int x=0;x<edge;x++)
+                expected(x,y).CopyTo(values,(y*edge+x)*4);
+            ImageAssertions.Compare(actual,values,tolerance:.001f).AssertEqual();
         }
     }
     #endregion

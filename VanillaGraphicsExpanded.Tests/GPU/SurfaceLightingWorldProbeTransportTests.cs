@@ -1,4 +1,5 @@
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.LumOn.WorldProbes;
@@ -29,13 +30,13 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
         var world=new ControlledVoxelWorld();world.AddRoom((0,32,0),(7,39,7),materialId:room.BlockId);
         var traced=TraceWorker(world,64,0,new(4,36,4));
         var bright=Resolve(room.Geometry.Scene,room.Snapshot,traced);
-        AssertEnergy(atlas.Upload(bright),true,"world atlas bright");
+        AssertAtlasEnergy(atlas.Upload(bright),true,"world atlas bright");
         room.BlockLight=0;room.Geometry.Dirty();room.Geometry.Publish();room.Seed();
         var dark=Resolve(room.Geometry.Scene,room.Snapshot,traced);
-        AssertEnergy(atlas.Upload(dark),false,"world atlas light removed");
+        AssertAtlasEnergy(atlas.Upload(dark),false,"world atlas light removed");
         Assert.Equal(bright.Confidence,dark.Confidence);
         room.BlockLight=32;room.Geometry.Dirty();room.Geometry.Publish();room.Seed();
-        AssertEnergy(atlas.Upload(Resolve(room.Geometry.Scene,room.Snapshot,traced)),true,"world atlas restored");
+        AssertAtlasEnergy(atlas.Upload(Resolve(room.Geometry.Scene,room.Snapshot,traced)),true,"world atlas restored");
         room.WithholdPages();
         Assert.False(Resolve(room.Geometry.Scene,room.Snapshot,traced).Success);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
@@ -89,28 +90,37 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
         Assert.True(traced.Success,"No scheduled direction reached the requested patch.");
         using var atlas=new SurfaceLightingWorldProbeFixture();
         Assert.True(runtime.TryGetLighting(out var original));
-        AssertEnergy(atlas.Upload(Resolve(runtime.Geometry.Resources!,original,traced)),true,"runtime world atlas");
+        AssertAtlasEnergy(atlas.Upload(Resolve(runtime.Geometry.Resources!,original,traced)),true,"runtime world atlas");
         runtime.ChangeBlockLight(0);runtime.Frame();
         runtime.RunUntil(()=>DirectLightEquals(runtime,0));
         Assert.True(runtime.TryGetLighting(out var dark));
         Assert.Equal(original.DependencyRevision,dark.DependencyRevision);
-        AssertEnergy(atlas.Upload(Resolve(runtime.Geometry.Resources!,dark,traced)),false,"runtime light removal");
+        AssertAtlasEnergy(atlas.Upload(Resolve(runtime.Geometry.Resources!,dark,traced)),false,"runtime light removal");
         runtime.ChangeBlockLight(32);runtime.Frame();
         runtime.RunUntil(()=>DirectLightEquals(runtime,32));
         Assert.True(runtime.TryGetLighting(out var restored));
         Assert.Equal(original.DependencyRevision,restored.DependencyRevision);
-        AssertEnergy(atlas.Upload(Resolve(runtime.Geometry.Resources!,restored,traced)),true,"runtime light restoration");
+        AssertAtlasEnergy(atlas.Upload(Resolve(runtime.Geometry.Resources!,restored,traced)),true,"runtime light restoration");
         runtime.RequestAtlasRecreation();runtime.Frame();
         runtime.RunUntil(()=>runtime.TryGetLighting(out var current) && !ReferenceEquals(current.OutgoingRadiance,restored.OutgoingRadiance));
         Assert.True(runtime.TryGetLighting(out var recreated));
         Assert.False(restored.OutgoingRadiance.IsValid);
-        AssertEnergy(atlas.Upload(Resolve(runtime.Geometry.Resources!,recreated,traced)),true,"runtime recreated cache");
+        AssertAtlasEnergy(atlas.Upload(Resolve(runtime.Geometry.Resources!,recreated,traced)),true,"runtime recreated cache");
         runtime.LeaveWorld();Assert.False(runtime.TryGetLighting(out _));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion
 
     #region Worker and transport
+    /// <summary>Retains finite RGB, peak lighting and exact dark-domain requirements without reading directional images.</summary>
+    private void AssertAtlasEnergy(GpuTexture image, bool lit, string boundary)
+    {
+        var result = ImageAssertions.Inspect(image, lit ? double.NegativeInfinity : -.0001f,
+            lit ? double.PositiveInfinity : .0001f, channelMask: 7);
+        Assert.True(result.NonFinite == 0 && result.OutsideRange == 0, $"{boundary}: {result}");
+        if (lit) Assert.True(result.Maximum > .001f, $"{boundary}: {result}");
+    }
+
     /// <summary>Waits for actual refreshed direct values rather than an identity revision that light changes must preserve.</summary>
     private static bool DirectLightEquals(SurfaceCacheRuntimeFixture runtime,float expected)
     {
@@ -125,10 +135,10 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
         float storedExpected = MathF.Pow(decoded, 4) / (MathF.Pow(decoded, 3) + .064f)
             * reference * VanillaGraphicsExpanded.PBR.LightingStorage.PersistentScale;
         if(!runtime.TryGetLighting(out var snapshot) || !runtime.Feedback.TryGetNearDispatchState(out _,out _,out var pages,out _)) return false;
-        using var pixels=SurfaceLightingPageReadback.Read(snapshot.DirectIrradiance,snapshot,pages.Single().Key);
-        for(int index=0;index<pixels.Length;index+=4)
-            if(pixels.Span[index+3]!=1 || Math.Abs(pixels.Span[index]-storedExpected)>.01f) return false;
-        return true;
+        using var pixels=SurfaceLightingPageSelection.Capture(snapshot.DirectIrradiance,snapshot,pages.Single().Key);
+        return runtime.ImageAssertions.CompareConstant(pixels.Texture, 1, channelMask: 8).Mismatches == 0 &&
+            runtime.ImageAssertions.CompareConstant(pixels.Texture, storedExpected, channelMask: 1, tolerance: .01f).Mismatches == 0;
+
     }
 
     /// <summary>Runs the real CPU integrator with controlled collision data and deferred lighting enabled.</summary>

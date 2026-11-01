@@ -19,13 +19,13 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         var world = new ControlledVoxelWorld();
         fixture.Publish(world);
-        Assert.True(Trace(fixture).Radiance[0] > 9);
+        Assert.True(TraceRed(Trace(fixture)) > 9);
         long revision = fixture.Scene.Revision;
         fixture.InvalidateAll();
         Assert.True(fixture.Scene.Revision > revision);
         AssertUnresolved(Trace(fixture));
         fixture.Publish(world);
-        Assert.True(Trace(fixture).Radiance[0] > 9);
+        Assert.True(TraceRed(Trace(fixture)) > 9);
     }
 
     /// <summary>Aliased physical slots must not expose data from a previous world-region identity.</summary>
@@ -54,17 +54,13 @@ public sealed partial class LumOnNearFieldFunctionalTests
         fixture.Pump();
         Assert.Equal(revision, fixture.Scene.Revision);
         var result = Trace(fixture);
-        for (int i = 0; i < result.Radiance.Length; i += 4) Assert.InRange(result.Radiance[i], 9.99f, 10.01f);
+        ObserveTrace(result, "return bvec2(a.r>=9.99 && a.r<=10.01,false);").AssertEqual();
     }
 
     /// <summary>Requires darkness and unavailable confidence, not merely a zero-valued RGB buffer.</summary>
-    private static void AssertUnresolved((float[] Radiance, float[] Meta) result)
+    private void AssertUnresolved(TraceImages result)
     {
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            for (int c = 0; c < 3; c++) Assert.Equal(0, result.Radiance[i + c]);
-            Assert.Equal(0, result.Meta[i / 2]);
-        }
+        ObserveTrace(result, "return bvec2(all(equal(a.rgb,vec3(0))) && b.r==0.0,false);").AssertEqual();
     }
     #endregion
 }

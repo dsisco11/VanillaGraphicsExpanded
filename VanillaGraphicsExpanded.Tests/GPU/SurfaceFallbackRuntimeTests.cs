@@ -127,16 +127,16 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.TryGetLighting(out var initial));
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var pages,out _));uint page=pages.Single().Key;
-        using var before=SurfaceLightingPageReadback.Read(initial.OutgoingRadiance,initial,page);
+        using var before=SurfaceLightingPageSelection.Capture(initial.OutgoingRadiance,initial,page);
         runtime.TransformVoxel=(x,y,z,voxel)=>x>=1?voxel with{Geometry=3u}:voxel;
         runtime.InvalidateGeometry();
         var renderer=(LumonSceneRelightUpdateRenderer)runtime.LightingProvider;
         runtime.RunUntil(()=>Counter(renderer,"fallbackCommitted")>0,256);
         Assert.True(Counter(renderer,"fallbackAdmitted")>0);Assert.Empty(world.LightQueries);
         Assert.True(runtime.TryGetLighting(out var current));
-        using var after=SurfaceLightingPageReadback.Read(current.OutgoingRadiance,current,page);
-        for(int index=3;index<after.Length;index+=4)Assert.Equal(1,after.Span[index]);
-        Assert.Equal(before.Span.ToArray(),after.Span.ToArray());
+        using var after=SurfaceLightingPageSelection.Capture(current.OutgoingRadiance,current,page);
+        ImageAssertions.CompareConstant(after.Texture, 1, channelMask: 8).AssertEqual();
+        ImageAssertions.CompareHistory(after.Texture, before).AssertEqual();
     }
 
     /// <summary>CPU collision hits resolve actual cached radiance through the asynchronous query and normal commit path.</summary>
@@ -156,8 +156,10 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
         bool nonzero=false;
         foreach(uint page in pages.Keys)
         {
-            using var pixels=SurfaceLightingPageReadback.Read(lighting.IndirectIrradiance,lighting,page);
-            for(int index=0;index<pixels.Length;index+=4)nonzero|=pixels.Span[index]>.01f&&pixels.Span[index+3]>0;
+            using var pixels=SurfaceLightingPageSelection.Capture(lighting.IndirectIrradiance,lighting,page);
+            nonzero |= ImageAssertions.CountMatching(pixels.Texture,
+                new(MathF.BitIncrement(.01f),float.NegativeInfinity,float.NegativeInfinity,float.Epsilon),
+                new(float.PositiveInfinity), channelMask: 9).MatchingTexels > 0;
         }
         Assert.True(nonzero);
     }

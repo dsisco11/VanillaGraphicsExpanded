@@ -181,7 +181,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 Assert.NotNull(layer);
                 Assert.Null(SceneColorParticleCapture.Layer(assets.Api));
                 Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(assets.Api, new GpuTextureRef((GpuResource<GpuTextureMetadata>)depth.Resource!)).TextureId);
-                Assert.All(layer.ReadPixels(), value => Assert.Equal(0, value));
+                ImageAssertions.CompareConstant(layer, 0).AssertEqual();
                 int receiver = SceneColorParticleCapture.ReceiverDepth(api, new GpuTextureRef((GpuResource<GpuTextureMetadata>)depth.Resource!)).TextureId;
                 Assert.NotEqual(depth.TextureId, receiver);
                 // Distinguish corrected material depth from a later primary-depth change.
@@ -191,7 +191,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 hierarchy.Prepare(2, 2, hierarchyCompute);
                 hierarchy.Render(corrected);
                 for (int mip = 0; mip < hierarchy.Texture!.MipLevels; mip++)
-                    Assert.All(hierarchy.Texture.ReadPixels(mip), value => Assert.Equal(.75f, value));
+                    ImageAssertions.CompareConstant(hierarchy.Texture, .75f, Assertions.GpuImageSnapshot.Mip(hierarchy.Texture, mip)).AssertEqual();
                 int perCycle = ssao ? 6 : 1;
                 Assert.Equal(cycle * perCycle + 1, resolveDraws);
                 if (ssao) Assert.Equal(new[] { 1f, 2f, 3f, 4f }, engine[3].ReadTexel()[..4]);

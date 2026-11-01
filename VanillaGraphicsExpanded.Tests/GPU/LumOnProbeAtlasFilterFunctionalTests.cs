@@ -107,9 +107,11 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
         programId.HitDistanceSigma = hitDistanceSigma;
     }
 
-    private static (float r, float g, float b, float a) ReadAtlasTexel(float[] rgba, int x, int y)
+    /// <summary>Reads only the originally nominated atlas tuple without downloading neighboring probes.</summary>
+    private static (float r, float g, float b, float a) ReadAtlasTexel(GpuTexture image, int x, int y)
     {
-        int idx = (y * AtlasWidth + x) * 4;
+        var rgba=image.ReadPixelsRegion(x,y,1,1);
+        int idx=0;
         return (rgba[idx + 0], rgba[idx + 1], rgba[idx + 2], rgba[idx + 3]);
     }
 
@@ -146,7 +148,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
         programId.ProbeAnchors = anchorInputs101;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outRgba = outputAtlas[0].ReadPixels();
+        var outRgba = outputAtlas[0];
 
         // Invalid probe (0,0) tile covers [0..7]x[0..7]
         var (r0, g0, b0, _) = ReadAtlasTexel(outRgba, 4, 4);
@@ -195,7 +197,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
         programId.ProbeAnchors = anchorInputs102;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outRgba = outputAtlas[0].ReadPixels();
+        var outRgba = outputAtlas[0];
 
         var (r, g, b, _) = ReadAtlasTexel(outRgba, 4, 4);
         Assert.True(r > 0.9f && g < 0.1f && b < 0.1f,
@@ -247,7 +249,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
             programId.ProbeAnchors = anchorInputs103;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outRgba = outputAtlas[0].ReadPixels();
+            var outRgba = outputAtlas[0];
 
             var (r, _, b, _) = ReadAtlasTexel(outRgba, 4, 4);
             Assert.True(r > 0.3f && r < 0.7f && b > 0.3f && b < 0.7f,
@@ -282,7 +284,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
             programId.ProbeAnchors = anchorInputs104;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outRgba = outputAtlas[0].ReadPixels();
+            var outRgba = outputAtlas[0];
 
             var (r, g, b, _) = ReadAtlasTexel(outRgba, 4, 4);
             Assert.True(r > 0.9f && g < 0.1f && b < 0.1f,

@@ -8,6 +8,7 @@ using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.PBR;
 using Xunit;
 
@@ -86,14 +87,9 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         using var grouped = LayeredTestTexture.Create(anchors, null);
         program.ProbeAnchors = grouped;
         TestFramework.RenderQuadTo(program, output);
-        float[] lighting = output[0].ReadPixels();
-        float[] metadata = output[1].ReadPixels();
-        for (int pixel = 0; pixel < lighting.Length; pixel += 4)
-        {
-            for (int channel = 0; channel < 3; channel++) Assert.Equal(validHistory ? oldStored : 0, lighting[pixel + channel]);
-            Assert.Equal(validHistory ? 1 : 0, metadata[pixel / 2]);
-            Assert.True(float.IsFinite(lighting[pixel + 3]));
-        }
+        ImageAssertions.CompareConstant(output[0],validHistory?oldStored:0,channelMask:7).AssertEqual();
+        ImageAssertions.CompareConstant(output[1],validHistory?1:0,channelMask:1).AssertEqual();
+        ImageAssertions.Inspect(output[0],channelMask:8).AssertFiniteRange();
     }
 
     private static float[] CreateUniformMetaAtlas(float confidence, float flagsBitsAsFloat)
@@ -299,10 +295,11 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
     /// <summary>
     /// Reads a single texel from atlas data.
     /// </summary>
-    private static (float r, float g, float b, float a) ReadAtlasTexel(float[] atlasData, int x, int y)
+    private static (float r, float g, float b, float a) ReadAtlasTexel(GpuTexture atlasData, int x, int y)
     {
-        int idx = (y * AtlasWidth + x) * 4;
-        return (atlasData[idx], atlasData[idx + 1], atlasData[idx + 2], atlasData[idx + 3]);
+        var local=atlasData.ReadPixelsRegion(x,y,1,1);
+        int idx=0;
+        return (local[idx],local[idx+1],local[idx+2],local[idx+3]);
     }
 
     /// <summary>
@@ -324,7 +321,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
     /// <summary>
     /// Tests that history confidence reduces the effective temporal alpha.
     ///
-    /// DESIRED BEHAVIOR (Phase 10):
+    /// DESIRED BEHAVIOR :
     /// - Effective alpha = temporalAlpha * historyConfidence
     /// - With low history confidence, output should skew toward current frame.
     ///
@@ -378,7 +375,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
+        var outputData = outputAtlas[0];
 
         // Sample center texel of each probe and verify it's much closer to current than history.
         int good = 0;
@@ -405,15 +402,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         // A blended radiance retains the current trace classification; combining encoded
         // outcomes with bitwise OR would manufacture invalid outcome 7 from 2 and 5.
-        var outputMeta = outputAtlas[1].ReadPixels();
-        for (int i = 1; i < outputMeta.Length; i += 2)
-            Assert.Equal(2u, (BitConverter.SingleToUInt32Bits(outputMeta[i]) >> 16) & 7u);
+        ImageAssertions.Predicate(outputAtlas[1],"return bvec2(((floatBitsToUint(a.g)>>16)&7u)==2u,false);").AssertEqual();
     }
 
     /// <summary>
     /// Tests that very low history confidence forces a full reset to current.
     ///
-    /// DESIRED BEHAVIOR (Phase 10):
+    /// DESIRED BEHAVIOR :
     /// - If history confidence is below a small threshold, treat history as invalid.
     ///
     /// Setup:
@@ -464,7 +459,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
+        var outputData = outputAtlas[0];
 
         // Sample a few texels and expect near-current output.
         int resetCount = 0;
@@ -544,27 +539,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
-
-        // Verify all texels are zero
-        int zeroCount = 0;
-        for (int y = 0; y < AtlasHeight; y++)
-        {
-            for (int x = 0; x < AtlasWidth; x++)
-            {
-                var (r, g, b, a) = ReadAtlasTexel(outputData, x, y);
-                if (MathF.Abs(r) < TestEpsilon &&
-                    MathF.Abs(g) < TestEpsilon &&
-                    MathF.Abs(b) < TestEpsilon &&
-                    MathF.Abs(a) < TestEpsilon)
-                {
-                    zeroCount++;
-                }
-            }
-        }
-
-        Assert.True(zeroCount == AtlasWidth * AtlasHeight,
-            $"Expected all {AtlasWidth * AtlasHeight} texels to be zero, got {zeroCount}");
+        ImageAssertions.Predicate(outputAtlas[0],"return bvec2(all(lessThan(abs(a),vec4(multipliers.x))),false);",parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
@@ -627,41 +602,15 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
-
-        // Check probe (0,0) - probeIndex=0
-        int probeIndex = 0;
-        int probeX = 0, probeY = 0;
-
-        int nonTracedPreserved = 0;
-        int nonTracedTotal = 0;
-
-        for (int octY = 0; octY < OctahedralSize; octY++)
-        {
-            for (int octX = 0; octX < OctahedralSize; octX++)
-            {
-                bool wasTraced = WasTracedThisFrame(octX, octY, probeIndex, 0, 8);
-
-                if (!wasTraced)
-                {
-                    nonTracedTotal++;
-                    var (x, y) = GetAtlasCoord(probeX, probeY, octX, octY);
-                    var (r, g, b, _) = ReadAtlasTexel(outputData, x, y);
-
-                    // Should be current (red)
-                    if (r > 0.9f && g < 0.1f && b < 0.1f)
-                    {
-                        nonTracedPreserved++;
-                    }
-                }
-            }
-        }
-
-        // With texelsPerFrame=8 and 64 total texels, 56 should be non-traced
-        Assert.True(nonTracedTotal == 56,
-            $"Expected 56 non-traced texels, got {nonTracedTotal}");
-        Assert.True(nonTracedPreserved == nonTracedTotal,
-            $"Expected all {nonTracedTotal} non-traced texels to be preserved, got {nonTracedPreserved}");
+        // Keep the independently computed scheduling mask and original single-probe selection.
+        var mask=new float[AtlasWidth*AtlasHeight];
+        int nonTracedTotal=0;
+        for(int y=0;y<OctahedralSize;y++)for(int x=0;x<OctahedralSize;x++)
+            if(!WasTracedThisFrame(x,y,0,0,8)){mask[y*AtlasWidth+x]=1;nonTracedTotal++;}
+        Assert.Equal(56,nonTracedTotal);
+        using var selection=TestFramework.CreateTexture(AtlasWidth,AtlasHeight,TextureFormat.R32f,mask);
+        var preserved=ImageAssertions.Predicate(outputAtlas[0],"bool selected=b.r==1;return bvec2(!selected || (a.r>.9 && a.g<.1 && a.b<.1),selected);",selection);
+        preserved.AssertEqual();Assert.Equal((uint)nonTracedTotal,preserved.MatchingTexels);
     }
 
     #endregion
@@ -727,7 +676,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
+        var outputData = outputAtlas[0];
 
         // Check a sample of texels for blended color
         int blendedCount = 0;
@@ -820,28 +769,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
-
-        // All texels should be current (red) due to disocclusion
-        int currentCount = 0;
-        int totalTexels = AtlasWidth * AtlasHeight;
-
-        for (int y = 0; y < AtlasHeight; y++)
-        {
-            for (int x = 0; x < AtlasWidth; x++)
-            {
-                var (r, g, b, _) = ReadAtlasTexel(outputData, x, y);
-
-                // Should be approximately red (current)
-                if (r > 0.9f && g < 0.1f && b < 0.1f)
-                {
-                    currentCount++;
-                }
-            }
-        }
-
-        Assert.True(currentCount == totalTexels,
-            $"Expected all {totalTexels} texels to be current (disoccluded), got {currentCount}");
+        ImageAssertions.Predicate(outputAtlas[0],"return bvec2(a.r>.9 && a.g<.1 && a.b<.1,false);",parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
@@ -910,7 +838,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outputData = outputAtlas[0].ReadPixels();
+            var outputData = outputAtlas[0];
 
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             highAlphaBlue = b;
@@ -948,7 +876,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outputData = outputAtlas[0].ReadPixels();
+            var outputData = outputAtlas[0];
 
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             lowAlphaBlue = b;
@@ -1031,12 +959,12 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.VelocityTex = velocityTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
+        var outputData = outputAtlas[0];
 
         if(budget==1)
         {
-            float[] metadata=outputAtlas[1].ReadPixels();
-            Assert.Contains(Enumerable.Range(0,metadata.Length/2),index=>metadata[index*2]==0f && outputData[index*4+2]>.1f);
+            var rejected=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,b.r==0 && a.b>.1);",outputAtlas[1]);
+            rejected.AssertEqual();Assert.True(rejected.MatchingTexels>0);
             return;
         }
         // Sample a clamp-friendly texel (4,4). If history were blended, blue would be > 0.
@@ -1073,8 +1001,9 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var currentAtlas = CreateClampFriendlyCurrentAtlas(EncodeHitDistance(hitDist));
         var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(hitDist));
 
-        float[] frame0Output;
-        float[] frame1Output;
+        GpuImageSnapshot? frame0Output=null,frame1Output=null;
+        try
+        {
 
         // Frame 0
         {
@@ -1108,7 +1037,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            frame0Output = outputAtlas[0].ReadPixels();
+            frame0Output = new(outputAtlas[0]);
         }
 
         // Frame 1
@@ -1143,27 +1072,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            frame1Output = outputAtlas[0].ReadPixels();
+            frame1Output = new(outputAtlas[0]);
         }
 
-        // Compare outputs - they should differ since different texels are traced
-        int differingTexels = 0;
-        for (int i = 0; i < frame0Output.Length; i += 4)
-        {
-            // Check if RGB differs (ignore alpha)
-            float dr = MathF.Abs(frame0Output[i] - frame1Output[i]);
-            float dg = MathF.Abs(frame0Output[i + 1] - frame1Output[i + 1]);
-            float db = MathF.Abs(frame0Output[i + 2] - frame1Output[i + 2]);
-
-            if (dr > 0.1f || dg > 0.1f || db > 0.1f)
-            {
-                differingTexels++;
-            }
+        var differences=ImageAssertions.Predicate(frame0Output!.Texture,"precise vec3 delta=abs(a.rgb-b.rgb);return bvec2(true,any(greaterThan(delta,vec3(.1))));",frame1Output!.Texture);
+        differences.AssertEqual();Assert.True(differences.MatchingTexels>0);
         }
-
-        // Should have some differing texels (different batches traced)
-        Assert.True(differingTexels > 0,
-            "Different frame indices should trace different texels, resulting in different outputs");
+        finally { frame1Output?.Dispose();frame0Output?.Dispose(); }
     }
 
     #endregion
@@ -1234,7 +1149,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outputData = outputAtlas[0].ReadPixels();
+            var outputData = outputAtlas[0];
 
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             strictThresholdBlue = b;
@@ -1273,7 +1188,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outputData = outputAtlas[0].ReadPixels();
+            var outputData = outputAtlas[0];
 
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             looseThresholdBlue = b;
@@ -1342,32 +1257,12 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
-
-        // All texels should be current (red) due to invalid history
-        int currentCount = 0;
-        int totalTexels = AtlasWidth * AtlasHeight;
-
-        for (int y = 0; y < AtlasHeight; y++)
-        {
-            for (int x = 0; x < AtlasWidth; x++)
-            {
-                var (r, g, b, _) = ReadAtlasTexel(outputData, x, y);
-
-                if (r > 0.9f && g < 0.1f && b < 0.1f)
-                {
-                    currentCount++;
-                }
-            }
-        }
-
-        Assert.True(currentCount == totalTexels,
-            $"Expected all {totalTexels} texels to be current (invalid history), got {currentCount}");
+        ImageAssertions.Predicate(outputAtlas[0],"return bvec2(a.r>.9 && a.g<.1 && a.b<.1,false);",parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
 
-    #region Phase 4 Tests: High Priority Missing Coverage
+    #region Additional temporal controls
 
     /// <summary>
     /// Tests that depth (hit distance) rejection triggers precisely at the threshold boundary.
@@ -1435,7 +1330,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outputData = outputAtlas[0].ReadPixels();
+            var outputData = outputAtlas[0];
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             belowThresholdBlue = b;
         }
@@ -1477,7 +1372,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outputData = outputAtlas[0].ReadPixels();
+            var outputData = outputAtlas[0];
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             aboveThresholdBlue = b;
         }
@@ -1543,7 +1438,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
+        var outputData = outputAtlas[0];
 
         // Check that output is clamped - should not be 2.0 (full history)
         // With α=0.9, unclamped would be: 0.1*0.5 + 0.9*2.0 = 1.85
@@ -1601,31 +1496,12 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ProbeAnchors = anchorInputs118;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
-
-        // All texels should be zero (invalid probes output zero)
-        int zeroCount = 0;
-        for (int y = 0; y < AtlasHeight; y++)
-        {
-            for (int x = 0; x < AtlasWidth; x++)
-            {
-                var (r, g, b, a) = ReadAtlasTexel(outputData, x, y);
-                if (MathF.Abs(r) < TestEpsilon &&
-                    MathF.Abs(g) < TestEpsilon &&
-                    MathF.Abs(b) < TestEpsilon)
-                {
-                    zeroCount++;
-                }
-            }
-        }
-
-        Assert.True(zeroCount == AtlasWidth * AtlasHeight,
-            $"All texels should be zero for invalid probes, got {zeroCount}/{AtlasWidth * AtlasHeight}");
+        ImageAssertions.Predicate(outputAtlas[0],"return bvec2(all(lessThan(abs(a.rgb),vec3(multipliers.x))),false);",parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
 
-    #region Phase 5 Tests: Medium Priority
+    #region History admission controls
 
     /// <summary>
     /// Tests that zero history hit distance is rejected as invalid.
@@ -1673,7 +1549,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ProbeAnchors = anchorInputs119;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
+        var outputData = outputAtlas[0];
 
         // With invalid history, output should be closer to current (red) than history (blue)
         var (r, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
@@ -1729,7 +1605,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ProbeAnchors = anchorInputs120;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var outputData = outputAtlas[0].ReadPixels();
+        var outputData = outputAtlas[0];
 
         // Check that output is clamped - should not be near 5.0
         // With α=0.9 and no clamping: 0.1*0.3 + 0.9*5.0 = 4.53
@@ -1797,7 +1673,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             programId.ProbeAnchors = anchorInputs121;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outputData = outputAtlas[0].ReadPixels();
+            var outputData = outputAtlas[0];
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             acceptedBlue = b;
         }
@@ -1831,7 +1707,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             programId.ProbeAnchors = anchorInputs122;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var outputData = outputAtlas[0].ReadPixels();
+            var outputData = outputAtlas[0];
             var (_, _, b, _) = ReadAtlasTexel(outputData, 4, 4);
             rejectedBlue = b;
         }

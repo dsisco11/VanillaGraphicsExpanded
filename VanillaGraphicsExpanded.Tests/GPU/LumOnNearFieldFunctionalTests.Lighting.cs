@@ -21,13 +21,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(world, new Vector4(0.5f, 0.25f, 0.125f, 2));
         var result = Trace(fixture, suppress: true, emissionBoost: 3);
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            Assert.Equal(0,result.Radiance[i]);
-            Assert.Equal(0,result.Radiance[i+1]);
-            Assert.Equal(0,result.Radiance[i+2]);
-            Assert.Equal(0, result.Meta[i / 2]);
-        }
+        ObserveTrace(result, "return bvec2(all(equal(a.rgb,vec3(0))) && b.r==0.0,false);").AssertEqual();
     }
 
     /// <summary>A known wall with missing lighting must remain an opaque hit, never a cache lookup.</summary>
@@ -41,11 +35,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         fixture.Publish(world, materialIdentity: 0);
         var result = Trace(fixture);
         AssertUnresolved(result);
-        for (int i = 1; i < result.Meta.Length; i += 2)
-        {
-            Assert.NotEqual(0u, Flags(result.Meta[i]) & 1u);
-            Assert.Equal(0u, Flags(result.Meta[i]) & (1u << 5));
-        }
+        ObserveTrace(result, "return bvec2((flags&1u)!=0u && (flags&32u)==0u,false);").AssertEqual();
     }
 
     /// <summary>Raw sunlight cannot bypass surface-cache publication, even on an upward face.</summary>
@@ -60,14 +50,10 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(world);
         var result = Trace(fixture);
-        int hitCount = 0;
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            if ((Flags(result.Meta[i / 2 + 1]) & 1u) == 0) continue;
-            hitCount++;
-            Assert.Equal(0,result.Radiance[i]);
-            Assert.Equal(0, result.Meta[i / 2]);
-        }
+
+        var observation = ObserveTrace(result, "bool hit=(flags&1u)!=0u; return bvec2(!hit || (a.r==0.0 && b.r==0.0),hit);");
+        observation.AssertEqual();
+        uint hitCount = observation.MatchingTexels;
         Assert.True(hitCount > 32, "The production rays must exercise the plane's hit-lighting path.");
     }
 
@@ -88,14 +74,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         fixture.Publish(world);
         var result = Trace(fixture);
 
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            Assert.Equal(0,result.Radiance[i]);
-
-            Assert.Equal(0, result.Radiance[i + 1]);
-            Assert.Equal(0, result.Radiance[i + 2]);
-            Assert.Equal(0, result.Meta[i / 2]);
-        }
+        ObserveTrace(result, "return bvec2(all(equal(a.rgb,vec3(0))) && b.r==0.0,false);").AssertEqual();
     }
 
     #endregion

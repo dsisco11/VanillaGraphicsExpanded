@@ -39,8 +39,8 @@ public sealed class ShaderSceneInputsTests : RenderTestBase
                 Assert.NotEqual(current[i].TextureId,independent[i].TextureId);
             }
         }
-        Assert.All(first.Engine.Color.ReadPixels(), value => Assert.Equal(.5f,value));
-        Assert.All(second.Engine.Color.ReadPixels(), value => Assert.Equal(.75f,value));
+        ImageAssertions.CompareConstant(first.Engine.Color, .5f).AssertEqual();
+        ImageAssertions.CompareConstant(second.Engine.Color, .75f).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 

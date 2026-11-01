@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -22,7 +23,7 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
         foreach(int quality in new[]{1,2})foreach(int scene in new[]{0,1,4,5,9}) {
             using var inputs=new AmbientOcclusionSceneFixture(TestFramework,Programs,640,360,scene,receiverDistance:distance,verticalFov:fov);
             inputs.Render(owner,draw,quality);
-            var stages=AmbientOcclusionSceneFixture.ReadStages(owner);
+            using var stages=AmbientOcclusionSceneFixture.CaptureStages(owner);
             AssertStage(stages.Raw);AssertStage(stages.Filtered);AssertStage(stages.Reconstructed);
             float raw=Minimum(stages.Raw),filtered=Minimum(stages.Filtered),final=Minimum(stages.Reconstructed);
             log.WriteLine($"Horizon fov={fov} distance={distance} quality={quality} scene={scene}: rawMin={raw:R}, filteredMin={filtered:R}, finalMin={final:R}");
@@ -34,19 +35,23 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
             }
             // Distant corner contact is not reliably retained in this fixture; check its bounds without claiming surviving contact or a proven cause.
             if(scene==4) {
-                float[] positions=inputs.Position.ReadPixels();
                 float reconstructionHalo=6*(2*distance*MathF.Tan(fov*MathF.PI/360)/360);
-                // The foreground half-plane ends at view-space x=0. Beyond radius plus the spatial footprint, no front point can occlude.
-                for(int pixel=0;pixel<640*360;pixel++)if(positions[pixel*4]>1.25f+reconstructionHalo)
-                    Assert.InRange(stages.Reconstructed[pixel*4],.995f,1.001f);
+                ImageAssertions.Predicate(stages.Reconstructed, """
+                    bool selected=b.r>multipliers.x;
+                    return bvec2(!selected || (a.r>=0.995 && a.r<=1.001),false);
+                    """,inputs.Position,parameters:new(1.25f+reconstructionHalo,0,0,0)).AssertEqual();
             }
-            // Final receiver depth must agree with its real geometry, even when a reduced footprint chose another leaf.
-            float[] depthPixels=inputs.Depth.ReadPixels();
-            for(int y=0;y<360;y+=31)for(int x=0;x<640;x+=37) {
-                int pixel=y*640+x;float hardware=depthPixels[pixel];
-                float expected=DepthFromHardware(hardware);
-                Assert.InRange(stages.Reconstructed[pixel*4+1],expected-.04f,expected+.04f);
-            }
+            // Invert the independent authored perspective relation only at the original sparse receiver grid.
+            var depthAgreement=ImageAssertions.Predicate(stages.Reconstructed, """
+                bool selected=coordinate.x%37==0 && coordinate.y%31==0;
+                precise float hardware=b.r*2.0-1.0;
+                precise float scaled=hardware*99.9;
+                precise float denominator=100.1-scaled;
+                precise float expected=20.0/denominator;
+                precise float lower=expected-0.04,upper=expected+0.04;
+                return bvec2(!selected || (a.g>=lower && a.g<=upper),selected);
+                """,inputs.Depth);
+            depthAgreement.AssertEqual();Assert.Equal(216u,depthAgreement.MatchingTexels);
         }
     }
 
@@ -59,7 +64,7 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
         const int width=257,height=129;
         foreach(int quality in new[]{1,2}) {
             using var inputs=new AmbientOcclusionSceneFixture(TestFramework,Programs,width,height,4,edgeFraction:edgeFraction);
-            inputs.Render(owner,draw,quality);var stages=AmbientOcclusionSceneFixture.ReadStages(owner);
+            inputs.Render(owner,draw,quality);using var stages=AmbientOcclusionSceneFixture.CaptureStages(owner);
             AssertStage(stages.Raw);AssertStage(stages.Filtered);AssertStage(stages.Reconstructed);
             float final=Minimum(stages.Reconstructed);
             if(edgeFraction==0||edgeFraction==1)Assert.InRange(final,.995f,1.001f);
@@ -67,7 +72,8 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
                 Assert.True(final<.995f,$"Visible edge contact disappeared at {edgeFraction}, quality{quality}: {final:R}");
                 // The foreground is a flat surface with no geometry in front of it, including the clipped image boundary.
                 int edge=(int)(width*edgeFraction);
-                for(int y=0;y<height;y++)for(int x=0;x<Math.Max(0,edge-2);x++)Assert.InRange(stages.Reconstructed[(y*width+x)*4],.995f,1.001f);
+                ImageAssertions.Predicate(stages.Reconstructed,"return bvec2(coordinate.x>=int(multipliers.x) || (a.r>=0.995 && a.r<=1.001),false);",
+                    parameters:new(Math.Max(0,edge-2),0,0,0)).AssertEqual();
             }
             log.WriteLine($"Screen edge fraction={edgeFraction} quality={quality}: rawMin={Minimum(stages.Raw):R}, finalMin={final:R}");
         }
@@ -80,15 +86,18 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
     {
         EnsureShaderTestAvailable();using var owner=new AmbientOcclusionPass();using var draw=new PostprocessDraw();
         using var inputs=new AmbientOcclusionSceneFixture(TestFramework,Programs,129,73,7,verticalFov:fov);
-        inputs.Render(owner,draw,2);var stages=AmbientOcclusionSceneFixture.ReadStages(owner);
-        foreach(float[] stage in new[]{stages.Raw,stages.Filtered,stages.Reconstructed})for(int i=0;i<stage.Length;i+=4) {
-            Assert.Equal(1,stage[i]);Assert.Equal(0,stage[i+1]);
+        inputs.Render(owner,draw,2);using var stages=AmbientOcclusionSceneFixture.CaptureStages(owner);
+        foreach(var stage in new[]{stages.Raw,stages.Filtered,stages.Reconstructed})
+        {
+            ImageAssertions.CompareConstant(stage,1,channelMask:1).AssertEqual();
+            ImageAssertions.CompareConstant(stage,0,channelMask:2).AssertEqual();
         }
     }
 
     /// <summary>Compares quality at identical geometry, allocation and pass count using warm ABBA submissions.</summary>
     [Theory]
     [InlineData(1280,720)] [InlineData(1920,1080)]
+    [Trait("Purpose","Diagnostic")]
     public void MatchedWorkloadQualityMeasurements(int width,int height)
     {
         EnsureShaderTestAvailable();using var owner=new AmbientOcclusionPass();using var draw=new PostprocessDraw();
@@ -98,22 +107,19 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
             var sample=inputs.Measure(owner,draw,quality,1);gpu[quality-1].Add(sample.Gpu[0]);cpu[quality-1].Add(sample.Cpu[0]);
         }
         for(int quality=1;quality<=2;quality++)log.WriteLine($"Matched AO {width}x{height} quality{quality}: six ABBA samples GPU median={gpu[quality-1].Order().Skip(2).Take(2).Average():F4}ms range={gpu[quality-1].Min():F4}..{gpu[quality-1].Max():F4}; CPU submission median={cpu[quality-1].Order().Skip(2).Take(2).Average():F4}ms; AO bytes={owner.StorageBytes}; HZB bytes={inputs.HierarchyBytes}; one hierarchy dispatch + up to four mask draws + three AO draws; candidates={(quality==1?24:72)} per half-resolution pixel. Excludes target creation/readback/query waits; not live frame cost.");
-        AssertStage(AmbientOcclusionSceneFixture.ReadStages(owner).Reconstructed);
+        using var stages=AmbientOcclusionSceneFixture.CaptureStages(owner);AssertStage(stages.Reconstructed);
     }
     #endregion
 
     #region Private
-    /// <summary>Independently inverts the authored near/far perspective depth relation.</summary>
-    private static float DepthFromHardware(float depth)=>20f/(100.1f-(depth*2-1)*99.9f);
-
     /// <summary>Finds visibility without mixing depth or encoded normal channels.</summary>
-    private static float Minimum(float[] pixels)=>pixels.Where((_,i)=>i%4==0).Min();
+    private float Minimum(GpuTexture image)=>(float)ImageAssertions.Inspect(image,channelMask:1).Minimum;
 
     /// <summary>Rejects nonfinite intermediates and out-of-range visibility at every spatial stage.</summary>
-    private static void AssertStage(float[] pixels)
+    private void AssertStage(GpuTexture image)
     {
-        Assert.All(pixels,value=>Assert.True(float.IsFinite(value)));
-        foreach(float visibility in pixels.Where((_,i)=>i%4==0))Assert.InRange(visibility,0,1.001f);
+        ImageAssertions.Inspect(image).AssertFiniteRange();
+        ImageAssertions.Inspect(image,0,1.001f,channelMask:1).AssertFiniteRange();
     }
     #endregion
 }

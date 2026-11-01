@@ -27,7 +27,7 @@ public sealed class SurfaceLightingNumericalRuntimeTests : RenderTestBase
         var expected = DiffuseSourceOutgoing(scene);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime,scene,expectedWorldRadiance:expected);
         AssertConstantScreenInput(runtime,expected);
-        AssertPixels(runtime.FinalPixels(), (_, _) => expected, .08f, "analytic enclosure");
+        AssertPixels(runtime, runtime.FinalImage, (_, _) => expected, .08f, "analytic enclosure");
     }
 
     /// <summary>Derives room outgoing radiance from authored raw light, active source calibration and byte material encoding.</summary>
@@ -48,20 +48,12 @@ public sealed class SurfaceLightingNumericalRuntimeTests : RenderTestBase
     internal static void AssertConstantScreenInput(SurfaceLightingConsumerRuntimeFixture runtime,Vector3 expected)
     {
         var atlas=runtime.Screen.ScreenProbeAtlasFilteredTex!;
-        var radiance=atlas.ReadPixels();
-        var meta=runtime.Screen.ScreenProbeAtlasMetaFilteredTex!.ReadPixels();
-        // Both local hits and distant-cache fallbacks must arrive in the same physical units.
-        // The fixed cache encoding is decoded only for RGB; confidence keeps its own meaning.
-        for(int i=0;i<atlas.Width*atlas.Height;i++)
-        {
-            Assert.True(meta[i*2]>0,$"Missing screen direction ({i%atlas.Width},{i/atlas.Width}).");
-            for(int channel=0;channel<3;channel++)
-            {
-                float physical=VanillaGraphicsExpanded.PBR.LightingStorage.DecodePersistent(radiance[i*4+channel]);
-                Assert.True(Math.Abs(physical-expected[channel])<=.01f,
-                    $"Screen direction ({i%atlas.Width},{i/atlas.Width}), channel={channel}: expected physical {expected[channel]}, actual {physical}.");
-            }
-        }
+        var meta = runtime.Cache.ImageAssertions.Inspect(runtime.Screen.ScreenProbeAtlasMetaFilteredTex!, channelMask: 1);
+        Assert.True(meta.NonFinite == 0 && meta.Minimum > 0, $"Missing screen direction: {meta}");
+        float[] encoded = Enumerable.Range(0, atlas.Width * atlas.Height)
+            .SelectMany(_ => new[] { expected.X / 16, expected.Y / 16, expected.Z / 16, 0f }).ToArray();
+        runtime.Cache.ImageAssertions.Compare(atlas, encoded, .01f / 16, channelMask: 7).AssertEqual();
+        runtime.Cache.ImageAssertions.Inspect(atlas, 0, 65504, channelMask: 7).AssertFiniteRange();
     }
     #endregion
 
@@ -80,19 +72,23 @@ public sealed class SurfaceLightingNumericalRuntimeTests : RenderTestBase
     }
 
     /// <summary>Checks all channels in explicitly indexed image regions, with an absolute bound and finite-value requirement.</summary>
-    internal static void AssertPixels(float[] actual, Func<int, int, Vector3> expected, float tolerance, string context)
+    internal static void AssertPixels(SurfaceLightingConsumerRuntimeFixture runtime, GpuTexture actual,
+        Func<int, int, Vector3> expected, float tolerance, string context,
+        GpuTexture? additiveLayers = null, VanillaGraphicsExpanded.Rendering.RHI.RHITextureRegion? selection = null)
     {
-        Assert.Equal(4 * 4 * 4, actual.Length);
+        Assert.Equal(4, actual.Width); Assert.Equal(4, actual.Height);
+        int channels = VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.GetTextureEncoding(actual,
+            VanillaGraphicsExpanded.Rendering.RHI.PixelComponentType.Float).Channels ==
+            VanillaGraphicsExpanded.Rendering.RHI.PixelChannelLayout.Rgb ? 3 : 4;
+        var authored = new float[4 * 4 * channels];
         for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++)
         {
             var reference = expected(x, y);
-            for (int c = 0; c < 3; c++)
-            {
-                float value = actual[(y * 4 + x) * 4 + c];
-                Assert.True(float.IsFinite(value) && Math.Abs(value - reference[c]) <= tolerance,
-                    $"{context} ({x},{y}) channel {c}: expected {reference[c]} +/- {tolerance}, actual {value}");
-            }
+            for (int c = 0; c < 3; c++) authored[(y * 4 + x) * channels + c] = reference[c];
         }
+        var result = runtime.Cache.ImageAssertions.Compare(actual, authored, tolerance, selection,
+            channelMask: 7, additiveLayers: additiveLayers);
+        Assert.True(result.Mismatches == 0 && result.NonFinite == 0, $"{context}: {result}");
     }
     #endregion
 }

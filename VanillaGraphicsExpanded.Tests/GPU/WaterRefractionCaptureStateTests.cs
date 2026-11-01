@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
@@ -138,7 +139,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             GL.GetInteger(GetPName.Viewport, viewport);
             Assert.Equal(new[] { 1, 1, 1, 1 }, viewport);
             Assert.Equal(.75f, composite.PreOverlayScene.Depth!.ReadTexel()[0]);
-            Assert.Equal(1f, composite.PreOverlayScene.Color!.ReadPixels()[3]);
+            Assert.Equal(1f, Assertions.GpuLocalRead.Scalar(composite.PreOverlayScene.Color!, 3));
             Assert.Equal(.75f, terrain.Depth.ReadTexel()[0]);
             Assert.Equal(new float[] { .5f, .5f, .5f, 1f }, terrain.Color.ReadPixels());
             // Simulate the first-person write after clean capture, then run the actual
@@ -157,8 +158,10 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             Assert.Equal(backgroundScale == 2 ? 6 : 5, draws);
             Assert.Equal(.75f, composite.RefractionScene.SourceDepth!.ReadTexel()[0]);
             Assert.Equal(.75f, composite.RefractionScene.Depth!.ReadTexel()[0]);
-            Assert.Equal(composite.PreOverlayScene.Color!.ReadPixels(), composite.RefractionScene.SourceColor!.ReadPixels());
-            Assert.Equal(composite.RefractionScene.SourceColor.ReadPixels(), composite.RefractionScene.Color!.ReadPixels());
+            using(var captured=new GpuImageSnapshot(composite.PreOverlayScene.Color!))
+                ImageAssertions.CompareHistory(composite.RefractionScene.SourceColor!,captured).AssertEqual();
+            using(var source=new GpuImageSnapshot(composite.RefractionScene.SourceColor!))
+                ImageAssertions.CompareHistory(composite.RefractionScene.Color!,source).AssertEqual();
             if (backgroundScale == 2)
                 Assert.Equal(new float[] { .75f, .5f, .5f, 1 }, composite.RefractionScene.Depth.ReadPixels());
             Assert.Equal(.01f, terrain.Depth.ReadTexel()[0]);
@@ -209,14 +212,14 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             // An unavailable receiver target must not fall back to the ordinary
             // composite target or leave the preceding publication readable.
             var preservedColor = Assert.IsType<DynamicTexture2D>(composite.SceneLinearColor);
-            float[] preservedPixels = preservedColor.ReadPixels();
+            using var preservedPixels=new GpuImageSnapshot(preservedColor);
             HarmonyLib.AccessTools.Field(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionScene), "failed")
                 .SetValue(composite.PreOverlayScene, true);
             int beforeFailure = draws;
             HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
             Assert.Equal(beforeFailure + 1, draws); // Direct capture succeeds; composite refuses to submit.
             Assert.False(composite.PreOverlayScene.Published);
-            Assert.Equal(preservedPixels, preservedColor.ReadPixels());
+            ImageAssertions.CompareHistory(preservedColor,preservedPixels).AssertEqual();
             composite.PreOverlayScene.Dispose();
             AssertStableFrames();
 
@@ -326,7 +329,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
             Assert.True(composite.PreOverlayScene.Published);
             Assert.Equal(3, composite.PreOverlayScene.Color!.Width);
-            Assert.All(composite.PreOverlayScene.Depth!.ReadPixels(), value => Assert.Equal(.75f, value));
+            ImageAssertions.CompareConstant(composite.PreOverlayScene.Depth!, .75f).AssertEqual();
             var capturedColor = composite.PreOverlayScene.Color;
             var capturedDepth = composite.PreOverlayScene.Depth;
             // This fixture selected a raw incoming native name, not an active owned RHI submission.
@@ -411,7 +414,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 Assert.Equal(sentinel, ordinaryColor.ReadPixels());
                 Assert.Equal(depth, composite.PreOverlayScene.Depth!.ReadTexel()[0]);
                 Assert.Equal(ErrorCode.NoError, GL.GetError());
-                float[] worldColor = composite.PreOverlayScene.Color!.ReadPixels();
+                using var worldColor=new GpuImageSnapshot(composite.PreOverlayScene.Color!);
                 // Independently registered callbacks must produce the same world lighting as
                 // isolated capture and return the engine's separate read/draw and viewport state.
                 OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, callerTarget.FboId);
@@ -422,7 +425,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
                 AssertCallbackState();
                 if (!config.LumOn.Enabled)
-                    Assert.Equal(worldColor, composite.RefractionScene.SourceColor!.ReadPixels());
+                    ImageAssertions.CompareHistory(composite.RefractionScene.SourceColor!,worldColor).AssertEqual();
                 marker.Draw(terrain, gbuffer);
                 Assert.Equal(-1f, marker.ReadMarker(gbuffer));
                 direct.OnRenderFrame(.016f, EnumRenderStage.Opaque);
@@ -431,7 +434,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 Assert.True(composite.RefractionScene.Published);
                 Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
                 Assert.Equal(depth, composite.RefractionScene.SourceDepth!.ReadTexel()[0]);
-                Assert.Equal(worldColor, composite.RefractionScene.SourceColor!.ReadPixels());
+                ImageAssertions.CompareHistory(composite.RefractionScene.SourceColor!,worldColor).AssertEqual();
                 Assert.NotEqual(sentinel, ordinaryColor.ReadPixels());
             }
         }

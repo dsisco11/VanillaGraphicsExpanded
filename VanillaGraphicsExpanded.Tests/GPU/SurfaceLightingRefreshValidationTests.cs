@@ -32,8 +32,8 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
         Assert.True(runtime.Feedback.TryGetNearChunkSlotAndGeneration(new(0,1,0),out uint oldSlot,out ushort oldGeneration));
         long oldCapture=runtime.Feedback.GetCaptureRevision(physical);
         Assert.True(runtime.TryGetLighting(out var initial));
-        using(var pixels=SurfaceLightingPageReadback.Read(initial.OutgoingRadiance,initial,physical))
-            Assert.True(pixels.Span[0]>.1f);
+        using(var pixels=SurfaceLightingPageSelection.Capture(initial.OutgoingRadiance,initial,physical))
+            Assert.True(Assertions.GpuLocalRead.Scalar(pixels.Texture, 0)>.1f);
         runtime.CameraX=32; runtime.FeedbackChunk=new(1,1,0);
         for(int frame=0;frame<24;frame++)
         {
@@ -50,8 +50,9 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
         Assert.True(runtime.TryGetLighting(out var current));
         Assert.NotEqual(oldCapture,runtime.Feedback.GetCaptureRevision(physical));
         Assert.Same(initial.IndirectIrradiance,current.IndirectIrradiance);
-        using var dark=SurfaceLightingPageReadback.Read(current.OutgoingRadiance,current,physical);
-        for(int index=0;index<dark.Length;index++) Assert.Equal((index&3)==3?1:0,dark.Span[index]);
+        using var dark=SurfaceLightingPageSelection.Capture(current.OutgoingRadiance,current,physical);
+        ImageAssertions.CompareConstant(dark.Texture, 0, channelMask: 7).AssertEqual();
+        ImageAssertions.CompareConstant(dark.Texture, 1, channelMask: 8).AssertEqual();
     }
 
     /// <summary>Remote retained indirect lighting reaches the same energy as a fresh cache of the edited scene.</summary>
@@ -91,8 +92,8 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
                 Assert.True(runtime.TryGetLighting(out var current));
                 Assert.Equal(original.DependencyRevision,current.DependencyRevision);
                 Assert.Equal(capture,runtime.Feedback.GetCaptureRevision(page));
-                using var pixels=SurfaceLightingPageReadback.Read(current.OutgoingRadiance,current,page);
-                for(int index=3;index<pixels.Length;index+=4) Assert.Equal(1,pixels.Span[index]);
+                using var pixels=SurfaceLightingPageSelection.Capture(current.OutgoingRadiance,current,page);
+                ImageAssertions.CompareConstant(pixels.Texture, 1, channelMask: 8).AssertEqual();
             }
             retained=Energy(runtime,page);
             Assert.True(retained<bright*.9f);
@@ -116,11 +117,9 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
         uint referencePage=mapping.Single(pair=>pair.Value==referenceIdentity).Key;
         float expected=Energy(reference,referencePage);
         Assert.True(reference.TryGetLighting(out var referenceLighting));
-        using(var pixels=SurfaceLightingPageReadback.Read(referenceLighting.IndirectIrradiance,referenceLighting,referencePage))
+        using(var pixels=SurfaceLightingPageSelection.Capture(referenceLighting.IndirectIrradiance,referenceLighting,referencePage))
         {
-            bool accumulated=false;
-            for(int index=3;index<pixels.Length;index+=4) accumulated|=pixels.Span[index]>=4;
-            Assert.True(accumulated);
+            Assert.True(ImageAssertions.Inspect(pixels.Texture, channelMask: 8).Maximum >= 4);
         }
         for(int frame=0;frame<128;frame++) reference.Frame();
         Assert.InRange(Math.Abs(Energy(reference,referencePage)-expected),0,Math.Max(.03f,expected*.05f));
@@ -133,10 +132,10 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
     private static float Energy(SurfaceCacheRuntimeFixture runtime,uint page)
     {
         Assert.True(runtime.TryGetLighting(out var snapshot));
-        using var pixels=SurfaceLightingPageReadback.Read(snapshot.IndirectIrradiance,snapshot,page);
-        float sum=0;
-        for(int index=0;index<pixels.Length;index+=4) sum+=pixels.Span[index];
-        return sum/(pixels.Length>>2);
+        using var pixels=SurfaceLightingPageSelection.Capture(snapshot.IndirectIrradiance,snapshot,page);
+        var result = runtime.ImageAssertions.Statistics(pixels.Texture, channelMask: 1);
+        result.AssertFiniteRange();
+        return (float)(result.Sum(0) / (pixels.Texture.Width * pixels.Texture.Height));
     }
     #endregion
 }

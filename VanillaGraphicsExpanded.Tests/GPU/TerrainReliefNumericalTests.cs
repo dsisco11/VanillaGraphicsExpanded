@@ -61,14 +61,14 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
         Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
         FramebufferTestSetup.BindForEngineRendering(target); GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.Blend);GL.Disable(EnableCap.CullFace);
         GL.DrawArrays(PrimitiveType.Triangles,0,3);
-        float[] pixels=target[0].ReadPixels(); int center=(16*32+16)*4;
+        float[] pixels=target[0].ReadPixelsRegion(16,16,1,1); int center=0;
         if(direction==0) Assert.InRange(pixels[center],-.000001f,.000001f);
         else
         {
             float expected=amplitude*(1f+scale/64f)/(Math.Abs(scale)*distance);
             Assert.InRange(pixels[center]*direction,expected*.92f,expected*1.02f);
         }
-        for(int i=0;i<pixels.Length;i+=4) { Assert.True(float.IsFinite(pixels[i]));Assert.InRange(Math.Abs(pixels[i]),0,.031251f);Assert.InRange(pixels[i+2],0,1); }
+        ImageAssertions.Predicate(target[0],"return bvec2(!isnan(a.r) && !isinf(a.r) && abs(a.r)<=.031251 && a.b>=0 && a.b<=1,false);").AssertEqual();
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0);
     }
     #endregion

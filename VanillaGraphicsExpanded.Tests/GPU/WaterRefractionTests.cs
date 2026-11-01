@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
@@ -425,7 +426,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             Assert.True(capturedReceiver.Scene.Published);
             program.RefractionColorTexture = capturedReceiver.Scene.Color;
             program.RefractionDepthTexture = capturedReceiver.Scene.Depth;
-            Assert.True(capturedReceiver.Scene.Color!.ReadPixels().Max() > 1);
+            Assert.True(ImageAssertions.Inspect(capturedReceiver.Scene.Color!).Maximum>1);
         }
         var state = OpenGlStateCache.Current;
         using var framebuffer = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
@@ -437,7 +438,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         DrawBoundary(2, true);
         var baseline = target[1].ReadPixelsRegion(center, center, 1, 1);
         var baselineAccumulation = target[3].ReadPixelsRegion(center, center, 1, 1);
-        var edgeBaseline = target[1].ReadPixelsRegion(8, 0, 1, 8);
+
         if (compatibility == FlowCase) program.Animation = new(0, 1, 0, 0);
         program.RefractionEnabled = true;
         Assert.Equal(1f, BitConverter.ToSingle(((ILiquidShaderProgramBindings)program).FrameParameters.Bytes.Slice(1352, 4)));
@@ -541,8 +542,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         if (scenario == 0 && compatibility == 0)
         {
             // Supported edge receivers retain transmission instead of fading it by position.
-            var edgeRevealage = target[1].ReadPixelsRegion(8, 0, 1, 8);
-            for (int row = 0; row < 8; ++row) Assert.InRange(edgeRevealage[row], 0, .00001f);
+            ImageAssertions.Inspect(target[1],0,.00001f,new(new(0),8,0,0,1,8,1)).AssertFiniteRange();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
 

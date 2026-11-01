@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -43,24 +44,17 @@ public sealed class TraceGeometryPublicationTests : RenderTestBase
             partition.Service(plan);
             Assert.InRange(scene.UploadedBytes - bytes, 0, 65536);
             if (scene.TablesRevision != expected.Revision)
-                Assert.All(Read(scene.Readiness, PixelFormat.RedInteger, 27), value => Assert.Equal((byte)0, value));
+                ImageAssertions.Inspect(scene.Readiness,0,0).AssertFiniteRange();
         }
-        Assert.All(Read(scene.Readiness, PixelFormat.RedInteger, 27), value => Assert.Equal((byte)1, value));
-        uint[] faces = new uint[16384 * 4];
-        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, scene.Faces.TextureId))
-            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.RgbaInteger, PixelType.UnsignedInt, faces);
-        Assert.Equal(expected.Faces.ToArray(), faces);
+        ImageAssertions.Inspect(scene.Readiness,1,1).AssertFiniteRange();
+        uint[] faces=expected.Faces.ToArray();
+        ImageAssertions.CompareBits(scene.Faces,faces).AssertEqual();
         Assert.NotEqual(0u, faces[id * 4]); Assert.Equal(hitReady ? 3u : 1u, faces[id * 4 + 3] & 3u);
         Assert.Equal((uint)fixture.Cube.Id,faces[id * 4 + 3] >> 2);
-        byte[] colors = new byte[16384 * 48];
-        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, scene.Materials.TextureId))
-            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.UnsignedByte, colors);
-        Assert.Equal(expected.Colors.ToArray(), colors);
-        if (hitReady) Assert.Equal((byte)MathF.Round(GgxHemisphereReference.CapturedDiffuse(1)*255), colors[id * 48]);
-        uint[] surfaces = new uint[65536 * 4];
-        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, scene.Surfaces.TextureId))
-            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.RgbaInteger, PixelType.UnsignedInt, surfaces);
-        Assert.Equal(expected.Surfaces.ToArray(), surfaces);
+        byte[] colors=expected.Colors.ToArray();
+        ImageAssertions.CompareRgba8(scene.Materials,colors).AssertEqual();
+        if(hitReady)Assert.Equal((byte)MathF.Round(GgxHemisphereReference.CapturedDiffuse(1)*255),colors[id*48]);
+        ImageAssertions.CompareBits(scene.Surfaces,expected.Surfaces.ToArray()).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -78,25 +72,18 @@ public sealed class TraceGeometryPublicationTests : RenderTestBase
         using var partition = new TraceGeometryPartition(coordinator, cache, new(), scene);
         var plan = TraceGeometryCoverage.Plan(new(anchor + 1, 40, anchor + 1), true, null, 256);
         for (int frame = 1; frame <= 10; frame++) { partition.Prepare(plan); coordinator.Pump(frame); partition.Service(plan); }
-        Assert.All(Read(scene.Readiness, PixelFormat.RedInteger, 27), value => Assert.Equal((byte)1, value));
-        uint[] geometry = new uint[48 * 48 * 48];
-        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, scene.Geometry.TextureId))
-            GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, geometry);
-        Assert.All(geometry, value => Assert.Equal(2u, value));
-        byte[] light = Read(scene.Light, PixelFormat.Rgba, geometry.Length * 4);
-        for (int c = 0; c < 4; c++) Assert.Equal((byte)(0x44332211u >> (8 * c)), light[c]);
-        uint[] legacy = new uint[geometry.Length];
-        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, scene.Legacy.TextureId))
-            GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, legacy);
-        Assert.All(legacy, value => Assert.Equal(23u, value));
-
+        ImageAssertions.Inspect(scene.Readiness,1,1).AssertFiniteRange();
+        ImageAssertions.Inspect(scene.Geometry,2,2).AssertFiniteRange();
+        byte[] light=GpuLocalRead.Rgba8(scene.Light,0,0);
+        for(int c=0;c<4;c++)Assert.Equal((byte)(0x44332211u>>(8*c)),light[c]);
+        ImageAssertions.Inspect(scene.Legacy,23,23).AssertFiniteRange();
         version++;
         partition.Prepare(plan);
-        Assert.All(Read(scene.Readiness, PixelFormat.RedInteger, 27), value => Assert.Equal((byte)0, value));
+        ImageAssertions.Inspect(scene.Readiness,0,0).AssertFiniteRange();
         coordinator.Pump(11); partition.Service(plan);
         var moved = TraceGeometryCoverage.Plan(new(anchor + 1000, 40, anchor + 1000), true, null, 256);
         partition.Prepare(moved);
-        Assert.All(Read(scene.Readiness, PixelFormat.RedInteger, 27), value => Assert.Equal((byte)0, value));
+        ImageAssertions.Inspect(scene.Readiness,0,0).AssertFiniteRange();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -112,27 +99,10 @@ public sealed class TraceGeometryPublicationTests : RenderTestBase
             byte[] expected = Enumerable.Range(0, 12).Select(i => (byte)(i * 19)).ToArray();
             texture.UploadDataImmediate(expected);
             GL.GetInteger(GetPName.UnpackAlignment, out int alignment); Assert.Equal(8, alignment);
-            byte[] observed = new byte[12];
-            using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId))
-                GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.UnsignedByte, observed);
-            Assert.Equal(expected, observed);
+            ImageAssertions.CompareRgba8(texture,expected).AssertEqual();
         }
         finally { GL.PixelStore(PixelStoreParameter.UnpackAlignment, 4); }
     }
 
-    /// <summary>Reads tightly packed 3D bytes without relying on the default four-byte row alignment.</summary>
-    private static byte[] Read(Texture3D texture, PixelFormat format, int count)
-    {
-        byte[] data = new byte[count];
-        GL.GetInteger(GetPName.PackAlignment, out int alignment);
-        GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-        try
-        {
-            using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, texture.TextureId);
-            GL.GetTexImage(TextureTarget.Texture3D, 0, format, PixelType.UnsignedByte, data);
-        }
-        finally { GL.PixelStore(PixelStoreParameter.PackAlignment, alignment); }
-        return data;
-    }
     #endregion
 }

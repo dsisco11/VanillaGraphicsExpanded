@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -105,18 +106,8 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.UseProgram(0);
         GpuFramebuffer.Unbind();
 
-        float[] pixels = target[0].ReadPixels();
-        Assert.NotEmpty(pixels);
-
-        float minA = float.PositiveInfinity;
-        float maxA = float.NegativeInfinity;
-
-        for (int i = 0; i < pixels.Length; i += 4)
-        {
-            float a = pixels[i + 3];
-            if (a < minA) minA = a;
-            if (a > maxA) maxA = a;
-        }
+        var alpha=ImageAssertions.Inspect(target[0],channelMask:8);
+        float minA=(float)alpha.Minimum,maxA=(float)alpha.Maximum;
 
         // Sanity: should vary and stay in a renderdoc-friendly range.
         Assert.True(maxA - minA > 0.25f, $"Alpha appears constant; min={minA}, max={maxA}");
@@ -124,9 +115,9 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         Assert.InRange(maxA, 0.90f, 1.01f);
 
         // Spot-check RGB normal output when normalStrength=0: should be approximately (0.5, 0.5, 1.0).
-        Assert.InRange(pixels[0], 0.49f, 0.51f);
-        Assert.InRange(pixels[1], 0.49f, 0.51f);
-        Assert.InRange(pixels[2], 0.99f, 1.01f);
+        Assert.InRange(GpuLocalRead.Scalar(target[0],0), 0.49f, 0.51f);
+        Assert.InRange(GpuLocalRead.Scalar(target[0],1), 0.49f, 0.51f);
+        Assert.InRange(GpuLocalRead.Scalar(target[0],2), 0.99f, 1.01f);
     }
 
     [Fact]
@@ -274,16 +265,8 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.UseProgram(0);
         GpuFramebuffer.Unbind();
 
-        float[] pixels = target[0].ReadPixels();
-        float minA = float.PositiveInfinity;
-        float maxA = float.NegativeInfinity;
-
-        for (int i = 0; i < pixels.Length; i += 4)
-        {
-            float a = pixels[i + 3];
-            if (a < minA) minA = a;
-            if (a > maxA) maxA = a;
-        }
+        var alpha=ImageAssertions.Inspect(target[0],channelMask:8);
+        float minA=(float)alpha.Minimum,maxA=(float)alpha.Maximum;
 
         return (minA, maxA);
     }
@@ -330,7 +313,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.UseProgram(0);
         GpuFramebuffer.Unbind();
 
-        float[] pixels = target[0].ReadPixels();
+        float[] pixels = target[0].ReadPixelsRegion(0,0,1,1);
         return new[] { pixels[0], pixels[1], pixels[2] };
     }
 
@@ -446,22 +429,10 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.UseProgram(0);
         GpuFramebuffer.Unbind();
 
-        float[] pixels = outFbo[0].ReadPixels();
-        Assert.NotEmpty(pixels);
-
-        float minA = float.PositiveInfinity;
-        float maxA = float.NegativeInfinity;
-        int ones = 0;
-        int zeros = 0;
-
-        for (int i = 0; i < pixels.Length; i += 4)
-        {
-            float a = pixels[i + 3];
-            if (a < minA) minA = a;
-            if (a > maxA) maxA = a;
-            if (a > 0.999f) ones++;
-            if (a < 0.001f) zeros++;
-        }
+        var alpha=ImageAssertions.Inspect(outFbo[0],channelMask:8);
+        float minA=(float)alpha.Minimum,maxA=(float)alpha.Maximum;
+        uint ones=ImageAssertions.Predicate(outFbo[0],"return bvec2(true,a.a>0.999);").MatchingTexels;
+        uint zeros=ImageAssertions.Predicate(outFbo[0],"return bvec2(true,a.a<0.001);").MatchingTexels;
 
         Assert.True(maxA - minA > 0.10f, $"Alpha too flat; min={minA}, max={maxA}");
         Assert.True(ones < (w * h * 0.95), $"Alpha appears saturated to 1.0; ones={ones}/{w*h}");
@@ -548,17 +519,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GpuFramebuffer.Unbind();
         GL.Disable(EnableCap.Blend);
 
-        float[] pixels = target[0].ReadPixels();
-        Assert.NotEmpty(pixels);
-
-        int ones = 0;
-        for (int i = 0; i < pixels.Length; i += 4)
-        {
-            if (pixels[i + 3] > 0.999f)
-            {
-                ones++;
-            }
-        }
+        uint ones=ImageAssertions.Predicate(target[0],"return bvec2(true,a.a>0.999);").MatchingTexels;
 
         Assert.True(ones < (w * h * 0.98), $"Alpha appears solid white under blending; ones={ones}/{w*h}");
     }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -28,7 +29,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
                 });
         using var local = new NearFieldVoxelFixture();
         local.Publish(world);
-        var result = RenderDirectVisibility(CreateUniformCache(), local.Scene,
+        using var result = RenderDirectVisibility(CreateUniformCache(), local.Scene,
             new Vector3(.5f, .5f, -5 - inwardError), new Vector3(-7.5f, -7.5f, -13), 16,
             consumer, receiverNormal: Vector3.UnitZ);
         AssertLighting(result, consumer, lit);

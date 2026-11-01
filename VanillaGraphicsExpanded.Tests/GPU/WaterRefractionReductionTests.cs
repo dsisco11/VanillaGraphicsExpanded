@@ -81,7 +81,8 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
         int reducedWidth = (width + 1) / 2, reducedHeight = (height + 1) / 2;
         using var target = CreateMRTRenderTarget(reducedWidth, reducedHeight, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
-        float[] actualColor = target[0].ReadPixels(), actualDepth = target[1].ReadPixels();
+        var expectedColors=new float[reducedWidth*reducedHeight*4];
+        var expectedDepths=new float[expectedColors.Length];
         for (int y = 0; y < reducedHeight; y++)
         for (int x = 0; x < reducedWidth; x++)
         {
@@ -97,21 +98,29 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
                 if (selected < 0 || depths[candidate] > depths[selected]) selected = candidate;
             }
             int destination = (y * reducedWidth + x) * 4;
-            if (selected < 0)
-            {
-                Assert.Equal(0, actualColor[destination + 3]);
-                Assert.Equal(0, actualDepth[destination + 3]);
-                continue;
-            }
-            for (int channel = 0; channel < 4; channel++) Assert.Equal(colors[selected * 4 + channel], actualColor[destination + channel]);
-            Assert.Equal(depths[selected], actualDepth[destination]);
-            Assert.InRange(MathF.Abs(actualDepth[destination + 1] - (selected % width + .5f) / width), 0, 1e-6f);
-            Assert.InRange(MathF.Abs(actualDepth[destination + 2] - (selected / width + .5f) / height), 0, 1e-6f);
-            Assert.Equal(1, actualDepth[destination + 3]);
+            if(selected<0)continue;
+            for(int channel=0;channel<4;channel++)expectedColors[destination+channel]=colors[selected*4+channel];
+            expectedDepths[destination]=depths[selected];
+            expectedDepths[destination+1]=(selected%width+.5f)/width;
+            expectedDepths[destination+2]=(selected/width+.5f)/height;
+            expectedDepths[destination+3]=1;
         }
+        AssertAssociatedReceivers(target[0],target[1],expectedColors,expectedDepths,false);
     }
     #endregion
     #region Private
+    /// <summary>Preserves exact receiver/validity association and the independently authored float UV bounds over the full original reduction.</summary>
+    private void AssertAssociatedReceivers(GpuTexture color,GpuTexture depth,float[] expectedColors,float[] expectedDepths,bool completeInvalid)
+    {
+        using var colorOracle=TestFramework.CreateTexture(color.Width,color.Height,TextureFormat.Rgba32f,expectedColors);
+        using var depthOracle=TestFramework.CreateTexture(depth.Width,depth.Height,TextureFormat.Rgba32f,expectedDepths);
+        ImageAssertions.Predicate(color,"""
+            bool complete=d.a==1 || multipliers.x==1;
+            precise vec2 difference=abs(c.gb-d.gb);
+            bool valid=complete?(same(a,b,15u) && same(c,d,9u) && all(lessThanEqual(difference,vec2(.000001)))):(a.a==0 && c.a==0);
+            return bvec2(valid,false);
+            """,colorOracle,depth,depthOracle,parameters:new(completeInvalid?1:0,0,0,0)).AssertEqual();
+    }
     /// <summary>Verifies receiver selection and isolates the optional large draw-only workload.</summary>
     private void CheckReceivers(bool measure)
     {
@@ -149,7 +158,7 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
         program.SourceColor=color; program.SourceDepth=depth;
         using var target=CreateMRTRenderTarget(cases.Count,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program,target);
-        float[] actualColor=target[0].ReadPixels(),actualDepth=target[1].ReadPixels();
+        var expectedColors=new float[cases.Count*4];var expectedDepths=new float[expectedColors.Length];
         for(int scenario=0;scenario<cases.Count;scenario++)
         {
             int selected=cases[scenario].Selected,offset=scenario*4;
@@ -159,13 +168,9 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
                 expectedColor=[cases[scenario].Red[selected],2,1,cases[scenario].Alpha[selected]];
                 expectedDepth=[cases[scenario].Depth[selected],(scenario*2+selected%2+.5f)/width,(selected/2+.5f)/2,1];
             }
-            Assert.Equal(expectedColor,actualColor.AsSpan(offset,4).ToArray());
-            Assert.Equal(expectedDepth[0],actualDepth[offset]);
-            Assert.Equal(expectedDepth[3],actualDepth[offset+3]);
-            for(int coordinate=1;coordinate<=2;coordinate++)
-                Assert.InRange(MathF.Abs(expectedDepth[coordinate]-actualDepth[offset+coordinate]),0,1e-6f);
-            output.WriteLine($"reduction-case={scenario} color={string.Join(',',actualColor.AsSpan(offset,4).ToArray())} depth={string.Join(',',actualDepth.AsSpan(offset,4).ToArray())}");
+            expectedColor.CopyTo(expectedColors,offset);expectedDepth.CopyTo(expectedDepths,offset);
         }
+        AssertAssociatedReceivers(target[0],target[1],expectedColors,expectedDepths,true);
         if(measure)
         {
             // Query only repeated draws after publication and activation, using

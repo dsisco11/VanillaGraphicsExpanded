@@ -183,8 +183,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 });
             });
 
-            float[] packed = outAtlas.ReadPixels();
-            (float minA, float maxA, int nanA, int ones) = AlphaStats(packed);
+            (float minA, float maxA, int nanA, int ones) = AlphaStats(outAtlas);
 
             Assert.Equal(0, nanA);
             Assert.True(maxA - minA > 0.05f, $"Packed alpha too flat. min={minA}, max={maxA}");
@@ -271,8 +270,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 });
             });
 
-            float[] packed = outAtlas.ReadPixels();
-            (_, float maxA, _, int ones) = AlphaStats(packed);
+            (_, float maxA, _, int ones) = AlphaStats(outAtlas);
 
             // This test is expected to show heavy saturation.
             Assert.True(maxA >= 0.99f);
@@ -441,22 +439,12 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 });
             });
 
-            float[] packed1 = outAtlas1.ReadPixels();
-            float[] packed2 = outAtlas2.ReadPixels();
-
-            // Prove the final baked texture changes.
-            float maxAbsDiffA = 0f;
-            float maxAbsDiffRgb = 0f;
-            for (int i = 0; i < packed1.Length; i += 4)
-            {
-                maxAbsDiffRgb = Math.Max(maxAbsDiffRgb, Math.Abs(packed1[i + 0] - packed2[i + 0]));
-                maxAbsDiffRgb = Math.Max(maxAbsDiffRgb, Math.Abs(packed1[i + 1] - packed2[i + 1]));
-                maxAbsDiffRgb = Math.Max(maxAbsDiffRgb, Math.Abs(packed1[i + 2] - packed2[i + 2]));
-                maxAbsDiffA = Math.Max(maxAbsDiffA, Math.Abs(packed1[i + 3] - packed2[i + 3]));
-            }
-
-            Assert.True(maxAbsDiffA > 0.01f, $"Expected alpha to change with depthScale; maxAbsDiffA={maxAbsDiffA}");
-            Assert.True(maxAbsDiffRgb > 0.001f, $"Expected RGB to change with normalScale; maxAbsDiffRgb={maxAbsDiffRgb}");
+            // The original maxima exceed their thresholds exactly when at least one corresponding component does.
+            Assert.True(ImageAssertions.Predicate(outAtlas1,"return bvec2(true,abs(a.a-b.a)>0.01);",
+                outAtlas2).MatchingTexels>0,"Expected alpha to change with depthScale.");
+            Assert.True(ImageAssertions.Predicate(outAtlas1,
+                "return bvec2(true,any(greaterThan(abs(a.rgb-b.rgb),vec3(0.001))));",
+                outAtlas2).MatchingTexels>0,"Expected RGB to change with normalScale.");
         }
     }
 
@@ -624,28 +612,11 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 });
             });
 
-            float[] flat = outAtlasFlat.ReadPixels();
-            float[] scaled = outAtlasScaled.ReadPixels();
-
-            // Flat normals should be constant-ish and near (0.5,0.5,1.0).
-            float maxDevR = 0f, maxDevG = 0f, maxDevB = 0f;
-            float maxDiffRgb = 0f;
-            for (int i = 0; i < flat.Length; i += 4)
-            {
-                maxDevR = Math.Max(maxDevR, Math.Abs(flat[i + 0] - 0.5f));
-                maxDevG = Math.Max(maxDevG, Math.Abs(flat[i + 1] - 0.5f));
-                maxDevB = Math.Max(maxDevB, Math.Abs(flat[i + 2] - 1.0f));
-
-                maxDiffRgb = Math.Max(maxDiffRgb, Math.Abs(flat[i + 0] - scaled[i + 0]));
-                maxDiffRgb = Math.Max(maxDiffRgb, Math.Abs(flat[i + 1] - scaled[i + 1]));
-                maxDiffRgb = Math.Max(maxDiffRgb, Math.Abs(flat[i + 2] - scaled[i + 2]));
-            }
-
-            Assert.True(maxDevR < 0.02f, $"Expected flat normal R≈0.5; maxDevR={maxDevR}");
-            Assert.True(maxDevG < 0.02f, $"Expected flat normal G≈0.5; maxDevG={maxDevG}");
-            Assert.True(maxDevB < 0.02f, $"Expected flat normal B≈1.0; maxDevB={maxDevB}");
-
-            Assert.True(maxDiffRgb > 0.001f, $"Expected normalScale=0 vs 1 to change RGB; maxDiffRgb={maxDiffRgb}");
+            ImageAssertions.Predicate(outAtlasFlat,
+                "return bvec2(all(lessThan(abs(a.rgb-vec3(0.5,0.5,1.0)),vec3(0.02))),false);").AssertEqual();
+            Assert.True(ImageAssertions.Predicate(outAtlasFlat,
+                "return bvec2(true,any(greaterThan(abs(a.rgb-b.rgb),vec3(0.001))));",
+                outAtlasScaled).MatchingTexels>0,"Expected normalScale=0 vs 1 to change RGB.");
         }
     }
 
@@ -766,28 +737,17 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         GpuFramebuffer.Unbind();
     }
 
-    private static float MeanR32f(DynamicTexture2D tex)
+    /// <summary>Returns the mean of every original scalar through a bounded double GPU sum.</summary>
+    private float MeanR32f(DynamicTexture2D tex)
     {
-        float[] data = tex.ReadPixels();
-        if (data.Length == 0) return 0f;
-        double sum = 0;
-        for (int i = 0; i < data.Length; i++) sum += data[i];
-        return (float)(sum / data.Length);
+        return (float)(ImageAssertions.Statistics(tex,channelMask:1).Sum(0)/(tex.Width*tex.Height));
     }
 
-    private static (float invNeg, float invPos) ComputeAsymmetricInvScales(DynamicTexture2D tex, float center)
+    /// <summary>Derives authored normalization inputs from complete-domain extrema without downloading the height field.</summary>
+    private (float invNeg, float invPos) ComputeAsymmetricInvScales(DynamicTexture2D tex, float center)
     {
-        float[] data = tex.ReadPixels();
-        if (data.Length == 0) return (0f, 0f);
-
-        float min = float.PositiveInfinity;
-        float max = float.NegativeInfinity;
-        for (int i = 0; i < data.Length; i++)
-        {
-            float v = data[i];
-            if (v < min) min = v;
-            if (v > max) max = v;
-        }
+        var extrema=ImageAssertions.Inspect(tex,channelMask:1);
+        float min=(float)extrema.Minimum,max=(float)extrema.Maximum;
 
         const float eps = 1e-6f;
         const float maxInv = 64f;
@@ -821,69 +781,29 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         return RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = width, Height = height, Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, width, height), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba8), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()).ToArray())]).RequireResource();
     }
 
-    private static void AssertFiniteAndHasVariance(DynamicTexture2D tex, int channels, string name)
+    /// <summary>Checks the original first-channel finite values and variance, retaining float products with double sums.</summary>
+    private void AssertFiniteAndHasVariance(DynamicTexture2D tex, int channels, string name)
     {
-        float[] data = tex.ReadPixels();
-        Assert.NotEmpty(data);
-
-        double sum = 0;
-        double sumSq = 0;
-        int n = 0;
-
-        int stride = channels;
-        for (int i = 0; i < data.Length; i += stride)
-        {
-            // Use first channel only for variance checks.
-            float v = data[i];
-            Assert.False(float.IsNaN(v), $"{name} contains NaN");
-            Assert.False(float.IsInfinity(v), $"{name} contains Infinity");
-
-            sum += v;
-            sumSq += v * v;
-            n++;
-        }
-
-        double mean = sum / Math.Max(1, n);
-        double var = sumSq / Math.Max(1, n) - mean * mean;
-        if (var < 0) var = 0; // numeric noise
-        Assert.True(var > 1e-8, $"{name} variance too low: {var}");
+        var moments=ImageAssertions.Statistics(tex,channelMask:1,squareInFloat:true);
+        Assert.True(moments.NonFinite==0,name+": "+moments);
+        int count=tex.Width*tex.Height;
+        double mean=moments.Sum(0)/count;
+        double variance=Math.Max(0,moments.SumSquares(0)/count-mean*mean);
+        Assert.True(variance>1e-8,$"{name} variance too low: {variance}");
     }
 
-    private static void AssertFinite(DynamicTexture2D tex, int channels, string name)
+    /// <summary>Checks the original first-channel finite contract over the complete image.</summary>
+    private void AssertFinite(DynamicTexture2D tex, int channels, string name)
     {
-        float[] data = tex.ReadPixels();
-        Assert.NotEmpty(data);
-
-        int stride = channels;
-        for (int i = 0; i < data.Length; i += stride)
-        {
-            float v = data[i];
-            Assert.False(float.IsNaN(v), $"{name} contains NaN");
-            Assert.False(float.IsInfinity(v), $"{name} contains Infinity");
-        }
+        var observation=ImageAssertions.Inspect(tex,channelMask:1);
+        Assert.True(observation.NonFinite==0,name+": "+observation);
     }
 
-    private static (float minA, float maxA, int nanA, int ones) AlphaStats(float[] rgba)
+    /// <summary>Retains every alpha value's finite classification, extrema and strict white-saturation threshold.</summary>
+    private (float minA, float maxA, int nanA, int ones) AlphaStats(GpuTexture image)
     {
-        float minA = float.PositiveInfinity;
-        float maxA = float.NegativeInfinity;
-        int nanA = 0;
-        int ones = 0;
-
-        for (int i = 0; i < rgba.Length; i += 4)
-        {
-            float a = rgba[i + 3];
-            if (float.IsNaN(a) || float.IsInfinity(a))
-            {
-                nanA++;
-                continue;
-            }
-
-            minA = Math.Min(minA, a);
-            maxA = Math.Max(maxA, a);
-            if (a > 0.999f) ones++;
-        }
-
-        return (minA, maxA, nanA, ones);
+        var observation=ImageAssertions.Inspect(image,channelMask:8);
+        uint ones=ImageAssertions.Predicate(image,"return bvec2(true,!isnan(a.a) && !isinf(a.a) && a.a>0.999);").MatchingTexels;
+        return ((float)observation.Minimum,(float)observation.Maximum,(int)observation.NonFinite,(int)ones);
     }
 }

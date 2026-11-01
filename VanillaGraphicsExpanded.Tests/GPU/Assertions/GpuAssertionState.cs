@@ -9,7 +9,7 @@ internal sealed class GpuAssertionState : IDisposable
     private readonly (nint Handle, long Generation) origin = RenderContextRegistry.Current();
     private readonly int program = GL.GetInteger(GetPName.CurrentProgram);
     private readonly int active = GL.GetInteger(GetPName.ActiveTexture);
-    private readonly (int Array, int Sampler)[] textures = new (int, int)[3];
+    private readonly (int Array, int Sampler)[] textures = new (int, int)[5];
     private readonly (int Name, int Level, int Layered, int Layer, int Access, int Format)[] images = new (int, int, int, int, int, int)[2];
 
     #region Public API

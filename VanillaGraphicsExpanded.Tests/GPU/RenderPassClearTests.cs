@@ -46,22 +46,16 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
                      new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1)),
                      new(AttachmentIndex:4, Load:AttachmentLoad.Clear, Clear: ColorClearValue.UInt(3, 7, 4294967294, 19))]));
                 Assert.True(boundary.HasRenderPass);
-                using var reads = OpenGlStateCache.Current.BindFramebufferScope();
-                OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer, target.FboId);
-                using var pack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));
-                GL.ReadBuffer(ReadBufferMode.ColorAttachment2);
-                int[] signedPixels = new int[64]; GL.ReadPixels(0, 0, 4, 4, PixelFormat.RgbaInteger, PixelType.Int, signedPixels);
-                GL.ReadBuffer(ReadBufferMode.ColorAttachment4);
-                uint[] unsignedPixels = new uint[64]; GL.ReadPixels(0, 0, 4, 4, PixelFormat.RgbaInteger, PixelType.UnsignedInt, unsignedPixels);
-                GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-                float[] floatPixels = new float[64]; GL.ReadPixels(0, 0, 4, 4, PixelFormat.Rgba, PixelType.Float, floatPixels);
-                for (int i = 0; i < 64; i++)
-                {
-                    Assert.Equal(new[] { -3, 7, -16777217, 19 }[i % 4], signedPixels[i]);
-                    Assert.Equal(new uint[] { 3, 7, 4294967294, 19 }[i % 4], unsignedPixels[i]);
-                    Assert.Equal(new[] { .25f, .5f, .75f, 1 }[i % 4], floatPixels[i]);
-                }
             });
+            using var signedContents = Assertions.GpuImageSnapshot.FromAttachment(signed);
+            using var unsignedContents = Assertions.GpuImageSnapshot.FromAttachment(unsigned);
+            using var floatContents = Assertions.GpuImageSnapshot.FromAttachment(floats);
+            ImageAssertions.CompareBits(signedContents.Texture,
+                Enumerable.Range(0,16).SelectMany(_ => new int[] {-3,7,-16777217,19}).Select(value => unchecked((uint)value)).ToArray()).AssertEqual();
+            ImageAssertions.CompareBits(unsignedContents.Texture,
+                Enumerable.Range(0,16).SelectMany(_ => new uint[] {3,7,4294967294,19}).ToArray()).AssertEqual();
+            ImageAssertions.Compare(floatContents.Texture,
+                Enumerable.Range(0,16).SelectMany(_ => new float[] {.25f,.5f,.75f,1}).ToArray()).AssertEqual();
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest));
             bool[] mask = new bool[4]; GL.GetBoolean(GetPName.ColorWritemask, mask); Assert.All(mask, Assert.False);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -90,8 +84,8 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
                     DepthLoad: clearDepth ? AttachmentLoad.Clear : AttachmentLoad.Preserve, ClearDepth: .75f,
                     StencilLoad: clearDepth ? AttachmentLoad.Preserve : AttachmentLoad.Clear, ClearStencil: 0x59)));
             });
-            Assert.All(texture.ReadPixels(), value => Assert.InRange(value, clearDepth ? .749f : .249f, clearDepth ? .751f : .251f));
-            Assert.All(texture.ReadStencilPixels(), value => Assert.Equal(clearDepth ? (byte)0x36 : (byte)0x59, value));
+            ImageAssertions.Inspect(texture, clearDepth ? .749f : .249f, clearDepth ? .751f : .251f).AssertFiniteRange();
+            ImageAssertions.CompareStencil(texture,clearDepth ? (byte)0x36 : (byte)0x59).AssertEqual();
             Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
             Assert.Equal(0, GL.GetInteger(GetPName.StencilWritemask));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -117,14 +111,12 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
                     Clear:discard ? null : ColorClearValue.Float(1, 1, 1, 1)), new(AttachmentIndex:1)], area: new(1, 1, 2, 2)));
             Assert.Equal(2, boundary.PassViewport.Width); Assert.Equal(2, boundary.PassViewport.Height);
         });
-        Assert.All(target[1].ReadPixels(), value => Assert.Equal(.75f, value));
-        float[] pixels = target[0].ReadPixels();
-        for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++)
-        {
-            bool inside = x is 1 or 2 && y is 1 or 2;
-            if (discard && inside) continue; // Discard deliberately provides no content guarantee in this region.
-            for (int component = 0; component < 4; component++) Assert.Equal(inside ? 1 : .25f, pixels[(y * 4 + x) * 4 + component]);
-        }
+        ImageAssertions.CompareConstant(target[1], .75f).AssertEqual();
+        foreach (var border in new RHITextureRegion[] {
+            new(new(0),0,0,0,4,1), new(new(0),0,3,0,4,1),
+            new(new(0),0,1,0,1,2), new(new(0),3,1,0,1,2) })
+            ImageAssertions.CompareConstant(target[0], .25f, border).AssertEqual();
+        if (!discard) ImageAssertions.CompareConstant(target[0], 1, new(new(0),1,1,0,2,2)).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -150,8 +142,8 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
                 StencilStore: discardDepth ? AttachmentStore.Preserve : AttachmentStore.Discard)));
         });
         // Only the retained aspect has a defined value under a discard contract.
-        if (discardDepth) Assert.All(texture.ReadStencilPixels(), value => Assert.Equal((byte)0x47, value));
-        else Assert.All(texture.ReadPixels(), value => Assert.InRange(value, .624f, .626f));
+        if (discardDepth) ImageAssertions.CompareStencil(texture,0x47).AssertEqual();
+        else ImageAssertions.Inspect(texture, .624f, .626f).AssertFiniteRange();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

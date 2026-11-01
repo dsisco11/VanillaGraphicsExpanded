@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
@@ -47,19 +48,17 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         // TraceScene occupancy: fill entire volume as solid so DDA hits deterministically.
         uint packed = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 1);
-        using var occ = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        FillR32ui3D(occ.TextureId, occRes, occRes, occRes, packed);
+        uint[] occupancy = Enumerable.Repeat(packed, checked(occRes * occRes * occRes)).ToArray();
 
         // LUTs: lightId=1 -> red; scalars map [0..32] -> i/32.
         using var lightColorLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_LightColorLut" }).RequireResource();
         using var blockScalar = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16f, Width = System.Math.Max(1, 33), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_BlockScalar" }).RequireResource();
         using var sunScalar = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16f, Width = System.Math.Max(1, 33), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SunScalar" }).RequireResource();
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 16384), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
         using var surfaceLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 256), Height = System.Math.Max(1, 256), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SurfaceLut" }).RequireResource();
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f); // disable sun
-        UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
+        uint[] palette = CreateMaterialPaletteAndUploadSurfaceLut(surfaceLut);
 
         // Output irradiance atlas.
         using var irradiance = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_IrradianceAtlas" }).RequireResource();
@@ -78,7 +77,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
 
-        using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+        using var sharedSurface = new SharedSurfaceInputFixture(occRes, occupancy, palette);
         computeProgram.BindSharedGeometry(sharedSurface.Scene);
 
         // SSBO binding matches shader: binding=0.
@@ -110,8 +109,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 1)");
 
-        float[] outRgba = ReadTexImageRgba16f_2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount);
-        (float r, float g, float b, float a) = SampleRgba(outRgba, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
+        var outRgba=irradiance;
+        (float r, float g, float b, float a) = SampleRgba(outRgba, layer: 0, x: tileSize / 2, y: tileSize / 2);
 
         Assert.InRange(a, 0.99f, 1.01f);
         Assert.True(r > 0.001f || g > 0.001f || b > 0.001f, $"Expected non-zero irradiance, got rgb=({r},{g},{b})");
@@ -137,20 +136,17 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
         FillR16f2DArray(depthAtlas.TextureId, tileSize, tileSize, atlasCount, value: 0f);
         FillMaterialNormalPlusZ(materialAtlas.TextureId, tileSize, tileSize, atlasCount);
-
-        using var occ = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        FillR32ui3D(occ.TextureId, occRes, occRes, occRes, 0u);
+        uint[] occupancy = Enumerable.Repeat(0u, checked(occRes * occRes * occRes)).ToArray();
 
         using var lightColorLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_LightColorLut" }).RequireResource();
         using var blockScalar = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16f, Width = System.Math.Max(1, 33), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_BlockScalar" }).RequireResource();
         using var sunScalar = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16f, Width = System.Math.Max(1, 33), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SunScalar" }).RequireResource();
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 16384), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
         using var surfaceLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 256), Height = System.Math.Max(1, 256), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SurfaceLut" }).RequireResource();
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
 
-        UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
+        uint[] palette = CreateMaterialPaletteAndUploadSurfaceLut(surfaceLut);
 
         using var irradiance = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_IrradianceAtlas" }).RequireResource();
         FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
@@ -165,7 +161,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
         debugCounter.UploadZeros(counterCount: 4);
 
-        using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+        using var sharedSurface = new SharedSurfaceInputFixture(occRes, occupancy, palette);
         computeProgram.BindSharedGeometry(sharedSurface.Scene);
         computeProgram.BindRelightWorkSsbo(workSsbo);
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
@@ -223,19 +219,16 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
         FillR16f2DArray(depthAtlas.TextureId, tileSize, tileSize, atlasCount, value: 0f);
         FillMaterialNormalPlusZ(materialAtlas.TextureId, tileSize, tileSize, atlasCount);
-
-        using var occ = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        FillR32ui3D(occ.TextureId, occRes, occRes, occRes, 0u);
+        uint[] occupancy = Enumerable.Repeat(0u, checked(occRes * occRes * occRes)).ToArray();
 
         using var lightColorLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_LightColorLut" }).RequireResource();
         using var blockScalar = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16f, Width = System.Math.Max(1, 33), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_BlockScalar" }).RequireResource();
         using var sunScalar = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16f, Width = System.Math.Max(1, 33), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SunScalar" }).RequireResource();
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 16384), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
         using var surfaceLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 256), Height = System.Math.Max(1, 256), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SurfaceLut" }).RequireResource();
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
-        UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
+        uint[] palette = CreateMaterialPaletteAndUploadSurfaceLut(surfaceLut);
 
         using var irradiance = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_IrradianceAtlas" }).RequireResource();
         FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
@@ -246,7 +239,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
 
-        using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+        using var sharedSurface = new SharedSurfaceInputFixture(occRes, occupancy, palette);
         computeProgram.BindSharedGeometry(sharedSurface.Scene);
         computeProgram.BindRelightWorkSsbo(workSsbo);
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
@@ -274,8 +267,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 2)");
 
-        float[] outRgba = ReadTexImageRgba16f_2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount);
-        (float r, float g, float b, float a) = SampleRgba(outRgba, tileSize, tileSize, layer: 0, x: 0, y: 0);
+        var outRgba=irradiance;
+        (float r, float g, float b, float a) = SampleRgba(outRgba, layer: 0, x: 0, y: 0);
 
         Assert.Equal(0f, a);
         Assert.InRange(r, -1e-4f, 1e-4f);
@@ -305,8 +298,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         FillMaterialNormalPlusZ(materialAtlas.TextureId, tileSize, tileSize, atlasCount);
 
         uint packed = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 1);
-        using var occ = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        FillR32ui3D(occ.TextureId, occRes, occRes, occRes, packed);
+        uint[] occupancy = Enumerable.Repeat(packed, checked(occRes * occRes * occRes)).ToArray();
 
         using var lightColorLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_LightColorLut" }).RequireResource();
         using var blockScalar = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16f, Width = System.Math.Max(1, 33), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_BlockScalar" }).RequireResource();
@@ -314,10 +306,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
-
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 16384), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
         using var surfaceLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 256), Height = System.Math.Max(1, 256), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SurfaceLut" }).RequireResource();
-        UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
+        uint[] palette = CreateMaterialPaletteAndUploadSurfaceLut(surfaceLut);
 
         using var irradiance = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_IrradianceAtlas" }).RequireResource();
         FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
@@ -334,7 +324,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
 
-        using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+        using var sharedSurface = new SharedSurfaceInputFixture(occRes, occupancy, palette);
         computeProgram.BindSharedGeometry(sharedSurface.Scene);
         computeProgram.BindRelightWorkSsbo(workSsbo);
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
@@ -378,8 +368,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 4)");
 
-        float[] outRgba = ReadTexImageRgba16f_2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount);
-        (float r, float g, float b, float a) = SampleRgba(outRgba, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
+        var outRgba=irradiance;
+        (float r, float g, float b, float a) = SampleRgba(outRgba, layer: 0, x: tileSize / 2, y: tileSize / 2);
 
         Assert.InRange(a, 1.99f, 2.01f);
         Assert.False(float.IsNaN(r) || float.IsNaN(g) || float.IsNaN(b));
@@ -413,10 +403,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
-
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 16384), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
         using var surfaceLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 256), Height = System.Math.Max(1, 256), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SurfaceLut" }).RequireResource();
-        UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
+        uint[] palette = CreateMaterialPaletteAndUploadSurfaceLut(surfaceLut);
 
         using var irradiance = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_IrradianceAtlas" }).RequireResource();
         FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
@@ -430,9 +418,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         int startZ = localZ + 1; // floor(localZ + 1.01)
         uint packedSolid = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 1);
-
-        using var occ = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        FillOccHalfspaceZ(occ.TextureId, occRes, thresholdZ: startZ, solidForZGreaterOrEqual: true, packedSolid: packedSolid);
+        uint[] occupancy = CreateOccHalfspaceZ(occRes, thresholdZ: startZ, solidForZGreaterOrEqual: true, packedSolid: packedSolid);
 
         Span<LumonSceneRelightWorkGpu> work = stackalloc LumonSceneRelightWorkGpu[1];
         work[0] = new LumonSceneRelightWorkGpu(physicalPageId: 1u, chunkSlot: 0u, patchId: patchId, virtualPageIndex: 0u);
@@ -442,7 +428,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
         debugCounter.UploadZeros(counterCount: 4);
 
-        using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+        using var sharedSurface = new SharedSurfaceInputFixture(occRes, occupancy, palette);
         computeProgram.BindSharedGeometry(sharedSurface.Scene);
         computeProgram.BindRelightWorkSsbo(workSsbo);
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
@@ -477,8 +463,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         Assert.Equal(0u, counters[2]);           // misses
         Assert.Equal(0u, counters[3]);           // oob starts
 
-        float[] outRgba = ReadTexImageRgba16f_2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount);
-        (float r, float g, float b, float a) = SampleRgba(outRgba, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
+        var outRgba=irradiance;
+        (float r, float g, float b, float a) = SampleRgba(outRgba, layer: 0, x: tileSize / 2, y: tileSize / 2);
         Assert.InRange(a, 0.99f, 1.01f);
         Assert.True(r > 1e-3f || g > 1e-3f || b > 1e-3f, "Expected non-zero irradiance from halfspace hits.");
 
@@ -507,8 +493,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         FillMaterialNormalPlusZ(materialAtlas.TextureId, tileSize, tileSize, atlasCount);
 
         uint packed = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 1);
-        using var occ = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        FillR32ui3D(occ.TextureId, occRes, occRes, occRes, packed);
+        uint[] occupancy = Enumerable.Repeat(packed, checked(occRes * occRes * occRes)).ToArray();
 
         using var lightColorLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_LightColorLut" }).RequireResource();
         using var blockScalar = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16f, Width = System.Math.Max(1, 33), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_BlockScalar" }).RequireResource();
@@ -516,10 +501,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
-
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 16384), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
         using var surfaceLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 256), Height = System.Math.Max(1, 256), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SurfaceLut" }).RequireResource();
-        UploadMaterialPaletteAndSurfaceLut(materialPalette, surfaceLut);
+        uint[] palette = CreateMaterialPaletteAndUploadSurfaceLut(surfaceLut);
 
         using var irradiance = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_IrradianceAtlas" }).RequireResource();
         FillRgba16f2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
@@ -530,7 +513,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[2]);
         using var debugCounter = new ComponentAtomicCounters(counterCount: 4);
 
-        using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+        using var sharedSurface = new SharedSurfaceInputFixture(occRes, occupancy, palette);
         computeProgram.BindSharedGeometry(sharedSurface.Scene);
         computeProgram.BindRelightWorkSsbo(workSsbo);
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
@@ -557,8 +540,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
 
         GpuTestFence.WaitForGpuOrSkip("RelightVoxelDda dispatch (case 6)");
 
-        float[] outRgba = ReadTexImageRgba16f_2DArray(irradiance.TextureId, tileSize, tileSize, atlasCount);
-        (float r, float g, float b, float a) = SampleRgba(outRgba, tileSize, tileSize, layer: 0, x: tileSize / 2, y: tileSize / 2);
+        var outRgba=irradiance;
+        (float r, float g, float b, float a) = SampleRgba(outRgba, layer: 0, x: tileSize / 2, y: tileSize / 2);
 
         Assert.Equal(0f, a);
         Assert.InRange(r, -1e-4f, 1e-4f);
@@ -612,7 +595,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         throw new InvalidOperationException($"Unable to find a safe patchId seed for halfspace occRes={occRes}.");
     }
 
-    private static void FillOccHalfspaceZ(int textureId, int res, int thresholdZ, bool solidForZGreaterOrEqual, uint packedSolid)
+    /// <summary>Authors the full halfspace while retaining illuminated boundary air cells.</summary>
+    private static uint[] CreateOccHalfspaceZ(int res, int thresholdZ, bool solidForZGreaterOrEqual, uint packedSolid)
     {
         thresholdZ = Math.Clamp(thresholdZ, 0, res);
 
@@ -632,9 +616,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
             }
         }
 
-        GL.BindTexture(TextureTarget.Texture3D, textureId);
-        GL.TexSubImage3D(TextureTarget.Texture3D, 0, 0, 0, 0, res, res, res, PixelFormat.RedInteger, PixelType.UnsignedInt, data);
-        GL.BindTexture(TextureTarget.Texture3D, 0);
+        return data;
     }
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, ReadOnlySpan<T> data) where T : unmanaged
@@ -678,7 +660,8 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         lut.UploadDataImmediate(data);
     }
 
-    private static void UploadMaterialPaletteAndSurfaceLut(Texture2D materialPalette, Texture2D surfaceLut)
+    /// <summary>Authors face identities and uploads the actual surface lookup consumed by relighting.</summary>
+    private static uint[] CreateMaterialPaletteAndUploadSurfaceLut(Texture2D surfaceLut)
     {
         // Populate only entry 1: all faces use surfaceId=1.
         uint sid = 1u;
@@ -688,7 +671,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         pal[1 * 4 + 1] = packed2;
         pal[1 * 4 + 2] = packed2;
         pal[1 * 4 + 3] = 0u;
-        materialPalette.UploadDataImmediate(pal);
+
 
         // SurfaceLut: set surfaceId=1 at (x=1,y=0) to white albedo, roughness=0.
         uint[] surf = new uint[256 * 256 * 4];
@@ -698,6 +681,7 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         surf[o + 2] = 255u;
         surf[o + 3] = 0u;
         surfaceLut.UploadDataImmediate(surf);
+        return pal;
     }
 
     private static void FillMaterialNormalPlusZ(int textureId, int width, int height, int depth)
@@ -761,29 +745,12 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         GL.BindTexture(TextureTarget.Texture2DArray, 0);
     }
 
-    private static void FillR32ui3D(int textureId, int width, int height, int depth, uint value)
-    {
-        uint[] data = new uint[checked(width * height * depth)];
-        Array.Fill(data, value);
 
-        GL.BindTexture(TextureTarget.Texture3D, textureId);
-        GL.TexSubImage3D(TextureTarget.Texture3D, 0, 0, 0, 0, width, height, depth, PixelFormat.RedInteger, PixelType.UnsignedInt, data);
-        GL.BindTexture(TextureTarget.Texture3D, 0);
-    }
-
-    private static float[] ReadTexImageRgba16f_2DArray(int textureId, int width, int height, int depth)
+    /// <summary>Decodes only the originally nominated irradiance tuple, retaining its explicit atlas layer.</summary>
+    private static (float R, float G, float B, float A) SampleRgba(GpuTexture image, int layer, int x, int y)
     {
-        float[] data = new float[checked(width * height * depth * 4)];
-        GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-        GL.BindTexture(TextureTarget.Texture2DArray, textureId);
-        GL.GetTexImage(TextureTarget.Texture2DArray, level: 0, PixelFormat.Rgba, PixelType.Float, data);
-        GL.BindTexture(TextureTarget.Texture2DArray, 0);
-        return data;
-    }
-
-    private static (float R, float G, float B, float A) SampleRgba(float[] rgba, int width, int height, int layer, int x, int y)
-    {
-        int idx = (((layer * height) + y) * width + x) * 4;
+        var rgba=GpuLocalRead.Tuple(image,x,y,layer);
+        int idx=0;
         return (rgba[idx + 0], rgba[idx + 1], rgba[idx + 2], rgba[idx + 3]);
     }
 

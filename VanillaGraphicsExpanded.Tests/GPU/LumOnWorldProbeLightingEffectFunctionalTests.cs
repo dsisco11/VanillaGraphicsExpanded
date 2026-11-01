@@ -51,15 +51,14 @@ public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFu
             program.IndirectDiffuseFull = normal;
             program.WorldProbeSuppressedLighting = ready ? suppressed : null;
             TestFramework.RenderQuadTo(program, output);
-            var pixels = output[0].ReadPixels();
+
             float luminance = red * 0.2126f + green * 0.7152f + blue * 0.0722f;
             float magnitude = Math.Abs(luminance) * gain;
             float brightness = magnitude / (1 + magnitude);
             float[] expected = !ready ? [0.5f, 0, 0.5f]
                 : luminance >= 0 ? [brightness, brightness * 0.35f, 0] : [0, brightness * 0.35f, brightness];
-            for (int i = 0; i < pixels.Length; i += 4)
-                for (int channel = 0; channel < 3; channel++)
-                    Assert.InRange(pixels[i + channel], expected[channel] - TestEpsilon, expected[channel] + TestEpsilon);
+            ImageAssertions.Predicate(output[0],"return bvec2(all(greaterThanEqual(a.rgb,multipliers.rgb-vec3(multipliers.w))) && all(lessThanEqual(a.rgb,multipliers.rgb+vec3(multipliers.w))),false);",
+                parameters:new(expected[0],expected[1],expected[2],TestEpsilon)).AssertEqual();
         }
     }
     #endregion

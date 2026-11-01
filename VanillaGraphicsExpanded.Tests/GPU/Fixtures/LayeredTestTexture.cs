@@ -42,8 +42,8 @@ internal static class LayeredTestTexture
         catch { texture.Dispose(); throw; }
     }
 
-    /// <summary>Reads one selected array layer through the texture owner's readback API.</summary>
-    internal static float[] Read(Texture3D texture, int layer)
+    /// <summary>Downloads an explicitly requested failure-diagnostic layer; routine assertions retain GPU images or nominated local tuples.</summary>
+    internal static float[] ReadDiagnosticLayer(Texture3D texture, int layer)
     {
         using var pixels = texture.ReadPixelsRegion(0, 0, texture.Width, texture.Height, layer);
         return pixels.Span.ToArray();

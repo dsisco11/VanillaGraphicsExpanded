@@ -17,6 +17,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Runs production surface-cache renderers against controlled engine edges and real GPU resources.</summary>
 internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
 {
+    private Assertions.GpuImageAssertions? imageAssertions;
+    /// <summary>Owns compact observation programs independently of producer resources and frame lifetime.</summary>
+    internal Assertions.GpuImageAssertions ImageAssertions => imageAssertions ??= new();
     private readonly BinaryShaderApiFixture assets = new();
     private readonly ScopedPbrMaterialFixture material = new();
     private readonly ShaderTestFramework drawing = new();
@@ -72,9 +75,9 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         foreach (var page in pages) if (ready.Span[(int)page.Physical] == 0) return false;
         // Admission permits partial lighting. Read every requested texel, coalescing only neighboring requested tiles.
         // Both the snapshot and pooled observations remain local: another call sees writes and resource replacement.
-        var regions = SurfaceCacheReadinessReadback.Plan(pages.Select(page => page.Physical),
+        var regions = SurfaceCacheReadiness.Plan(pages.Select(page => page.Physical),
             snapshot.TileSize, snapshot.TilesPerAxis, snapshot.TilesPerAtlas);
-        return SurfaceCacheReadinessReadback.AllInitialized(snapshot.OutgoingRadiance, regions);
+        return SurfaceCacheReadiness.AllInitialized(snapshot.OutgoingRadiance, regions, ImageAssertions);
     }
 
     /// <summary>Observes completion of all requested terrain captures without accepting allocation as successful capture.</summary>
@@ -311,17 +314,6 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         => Feedback.TryGetNearDebugSamplingState(out _, out _, out var irradiance, out _, out _, out _)
             ? irradiance : null;
 
-    /// <summary>Returns true once the surface-cache viewer draws lit cache values instead of a diagnostic color.</summary>
-    public bool ViewerShowsLighting()
-    {
-        float[] pixels = ReadPixels();
-        for (int i = 0; i < pixels.Length; i += 4)
-        {
-            if (pixels[i] < .85f || pixels[i + 1] < .85f || pixels[i + 2] < .85f || pixels[i + 3] < .99f) return false;
-        }
-        return Draws > 0;
-    }
-
     /// <summary>Changes the physical tile layout so the production pool must replace its atlases.</summary>
     public void RequestAtlasRecreation() => Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge == 2 ? 1 : 2;
 
@@ -343,24 +335,16 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Raises the real world-lifetime event consumed by every production owner.</summary>
     public void LeaveWorld() => Events.LeaveWorld();
 
-    /// <summary>Reads the rendered viewer output without inspecting shader internals.</summary>
-    public float[] ReadPixels()
-    {
-        FramebufferTestSetup.BindForEngineRendering(presentation);
-        float[] result = new float[edge*edge*4];
-        GL.ReadPixels(0, 0, edge, edge, PixelFormat.Rgba, PixelType.Float, result);
-        return result;
-    }
-
     /// <summary>Implements the engine mesh draw using a real fullscreen GPU triangle.</summary>
     private void Draw() { drawing.RenderQuad(GL.GetInteger(GetPName.CurrentProgram)); }
+
     #endregion
 
     #region Teardown
     /// <summary>Disposes production owners before their mocked engine and material dependencies.</summary>
     public void Dispose()
     {
-        controller?.Dispose(); debug?.Dispose(); frameCamera?.Dispose(); lights?.Dispose();
+        imageAssertions?.Dispose(); controller?.Dispose(); debug?.Dispose(); frameCamera?.Dispose(); lights?.Dispose();
         if (!productionOwned) { relight.Dispose(); Feedback.Dispose(); Geometry.Dispose(); }
         partitions.Dispose();
         if (!productionOwned)

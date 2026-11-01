@@ -6,13 +6,14 @@ using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
-/// Functional tests for the LumOn Velocity shader pass (Phase 14).
+/// Integration tests for the LumOn velocity shader pass.
 ///
 /// These tests render <c>lumon_velocity</c> into a tiny offscreen target and verify:
 /// - Static camera produces ~zero velocity
@@ -114,7 +115,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         int identityLocation=program.ProgramLayout.GetUniformLocation(program.ProgramId,"gBufferPatchId");
         GL.GetUniform(program.ProgramId,identityLocation,out int identityUnit);Assert.Equal(1,identityUnit);
         TestFramework.RenderQuadTo(program,target);
-        var pixels=ReadPixelsFloat(target);for(int i=3;i<pixels.Length;i+=4)Assert.Equal(1u<<6,BitConverter.SingleToUInt32Bits(pixels[i]));
+        ImageAssertions.Predicate(target[0],"return bvec2(floatBitsToUint(a.a)==64u,false);").AssertEqual();
     }
     #endregion
 
@@ -142,7 +143,10 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         SetupVelocityUniforms(program, current, temporal.PreviousViewProjection, historyValid ? 1 : 0);
         program.PrimaryDepth = depth;
         TestFramework.RenderQuadTo(program, target);
-        var pixels = ReadPixelsFloat(target);
+        // Compute independent CPU bounds for every original interior pixel.
+        int interiorWidth=ScreenWidth-2,interiorHeight=ScreenHeight-2;
+        var lower=new double[interiorWidth*interiorHeight*4];
+        var upper=new double[lower.Length];
         for (int y = 1; y < ScreenHeight - 1; y++)
         for (int x = 1; x < ScreenWidth - 1; x++)
         {
@@ -151,11 +155,15 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
             Vector4 oldRelative = new(uv.X * 2 - 1 + .0625f, uv.Y * 2 - 1 + .125f, -.03125f, 1);
             Vector4 clip = MulMat4Vec4(previous, oldRelative);
             Vector2 expected = historyValid ? uv - new Vector2(clip.X / clip.W, clip.Y / clip.W) * .5f - new Vector2(.5f) : Vector2.Zero;
-            int index = (y * ScreenWidth + x) * 4;
-            Assert.InRange(pixels[index], expected.X - TestEpsilon, expected.X + TestEpsilon);
-            Assert.InRange(pixels[index + 1], expected.Y - TestEpsilon, expected.Y + TestEpsilon);
-            Assert.Equal(historyValid ? 1u : 2u, BitConverter.SingleToUInt32Bits(pixels[index + 3]));
+            int index = ((y-1)*interiorWidth+x-1)*4;
+            lower[index]=expected.X-TestEpsilon;upper[index]=expected.X+TestEpsilon;
+            lower[index+1]=expected.Y-TestEpsilon;upper[index+1]=expected.Y+TestEpsilon;
         }
+        var region=new RHITextureRegion(new(0,0),1,1,0,interiorWidth,interiorHeight,1);
+        ImageAssertions.CompareIntervals(target[0],lower,upper,region,3).AssertEqual();
+        using var interior=new GpuImageSnapshot(target[0],region);
+        ImageAssertions.Predicate(interior.Texture,"return bvec2(floatBitsToUint(a.a)==uint(multipliers.x),false);",
+            parameters:new(historyValid?1:2,0,0,0)).AssertEqual();
     }
     #endregion
 
@@ -181,24 +189,8 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         programId.PrimaryDepth = depthTex;
         TestFramework.RenderQuadTo(programId, outRt);
 
-        var pixels = ReadPixelsFloat(outRt);
-
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                int idx = (y * ScreenWidth + x) * 4;
-                float vx = pixels[idx + 0];
-                float vy = pixels[idx + 1];
-                float packed = pixels[idx + 3];
-
-                Assert.InRange(vx, -TestEpsilon, TestEpsilon);
-                Assert.InRange(vy, -TestEpsilon, TestEpsilon);
-
-                uint flags = BitConverter.SingleToUInt32Bits(packed);
-                Assert.True((flags & FlagValid) != 0u);
-            }
-        }
+        ImageAssertions.Predicate(outRt[0],"return bvec2(abs(a.r)<=multipliers.x && abs(a.g)<=multipliers.x && (floatBitsToUint(a.a)&1u)!=0u,false);",
+            parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     [Fact]
@@ -227,24 +219,9 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         programId.PrimaryDepth = depthTex;
         TestFramework.RenderQuadTo(programId, outRt);
 
-        var pixels = ReadPixelsFloat(outRt);
-
-        for (int y = 0; y < ScreenHeight; y++)
-        {
-            for (int x = 0; x < ScreenWidth; x++)
-            {
-                int idx = (y * ScreenWidth + x) * 4;
-                float vx = pixels[idx + 0];
-                float vy = pixels[idx + 1];
-                float packed = pixels[idx + 3];
-
-                Assert.InRange(vx, expectedVx - TestEpsilon, expectedVx + TestEpsilon);
-                Assert.InRange(vy, -TestEpsilon, TestEpsilon);
-
-                uint flags = BitConverter.SingleToUInt32Bits(packed);
-                Assert.True((flags & FlagValid) != 0u);
-            }
-        }
+        // Preserve the CPU-rounded interval endpoints of the independent translation oracle.
+        ImageAssertions.Predicate(outRt[0],"return bvec2(a.r>=multipliers.x && a.r<=multipliers.y && abs(a.g)<=multipliers.z && (floatBitsToUint(a.a)&1u)!=0u,false);",
+            parameters:new(expectedVx-TestEpsilon,expectedVx+TestEpsilon,TestEpsilon,0)).AssertEqual();
     }
 
     [Fact]
@@ -268,7 +245,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         programId.PrimaryDepth = depthTex;
         TestFramework.RenderQuadTo(programId, outRt);
 
-        var pixels = ReadPixelsFloat(outRt);
+
 
         // Compare center-ish pixel vs corner pixel magnitudes.
         // gl_FragCoord.xy is (x+0.5, y+0.5); currUv is divided by screenSize.
@@ -283,19 +260,11 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
         Assert.True(expectedCornerMag > expectedCenterMag + 1e-4f);
 
-        // Read back those exact pixels and compare against expected vectors.
-        static (float vx, float vy, uint flags) GetPixel(float[] data, int x, int y, int w)
-        {
-            int idx = (y * w + x) * 4;
-            float vx = data[idx + 0];
-            float vy = data[idx + 1];
-            uint flags = BitConverter.SingleToUInt32Bits(data[idx + 3]);
-            return (vx, vy, flags);
-        }
-
-        var centerPx = GetPixel(pixels, x: 1, y: 1, w: ScreenWidth);
-        var cornerPx = GetPixel(pixels, x: 3, y: 3, w: ScreenWidth);
-
+        // Only these two local tuples are the subject of the rotation assertions.
+        var center=outRt[0].ReadPixelsRegion(1,1,1,1);
+        var corner=outRt[0].ReadPixelsRegion(3,3,1,1);
+        var centerPx=(vx:center[0],vy:center[1],flags:BitConverter.SingleToUInt32Bits(center[3]));
+        var cornerPx=(vx:corner[0],vy:corner[1],flags:BitConverter.SingleToUInt32Bits(corner[3]));
         Assert.True((centerPx.flags & FlagValid) != 0u);
         Assert.True((cornerPx.flags & FlagValid) != 0u);
 

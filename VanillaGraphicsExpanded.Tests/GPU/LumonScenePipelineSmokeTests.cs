@@ -162,10 +162,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         // Occupancy volume + LUTs (simple deterministic radiance).
         // Note: materialPaletteIndex must be non-zero for DDA to register hits (solidness is encoded via matIdx != 0).
         uint occPacked = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 1);
-        using var occ = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        FillR32ui3D(occ.TextureId, occRes, occRes, occRes, occPacked);
-
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
+        uint[] occupancy = Enumerable.Repeat(occPacked, checked(occRes * occRes * occRes)).ToArray();
         uint[] pal = new uint[64 * 4];
         uint sid = 9u;
         uint packed2 = sid | (sid << 16);
@@ -173,7 +170,6 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         pal[1 * 4 + 1] = packed2;
         pal[1 * 4 + 2] = packed2;
         pal[1 * 4 + 3] = 0u;
-        materialPalette.UploadDataImmediate(pal);
 
         using var surfaceLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 256), Height = System.Math.Max(1, 256), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SurfaceLut" }).RequireResource();
         uint[] surf = new uint[256 * 256 * 4];
@@ -228,7 +224,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             using var relightSsbo = CreateSsbo<LumonSceneRelightWorkGpu>("Test_RelightWorkSSBO", relightOut.AsSpan(0, relightCount));
 
             // Capture voxel → depth/material.
-            using var sharedSurface = new SharedSurfaceInputFixture(occ, materialPalette);
+            using var sharedSurface = new SharedSurfaceInputFixture(occRes, occupancy, pal);
         captureComputeProgram.BindSharedGeometry(sharedSurface.Scene);
             captureComputeProgram.BindCaptureWorkSsbo(captureSsbo);
             captureComputeProgram.BindPatchMetaSsbo(patchMetaSsbo);
@@ -243,7 +239,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             GpuTestFence.WaitForGpuOrSkip("ScenePipelineSmoke capture pass dispatch");
 
             // Relight → irradiance.
-            using var sharedRelight = new SharedSurfaceInputFixture(occ, materialPalette);
+            using var sharedRelight = new SharedSurfaceInputFixture(occRes, occupancy, pal);
         relightComputeProgram.BindSharedGeometry(sharedRelight.Scene);
             relightComputeProgram.BindRelightWorkSsbo(relightSsbo);
             relightComputeProgram.BindPatchMetaSsbo(patchMetaSsbo);
@@ -273,25 +269,17 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
         Assert.Equal(desiredPages, virtualToPhysical.Count);
 
-        // Validate: many pages have non-zero weight and non-zero RGB at the tile center.
-        float[] rgba = ReadTexImageRgba16f_2DArray(irradianceAtlas.TextureId, atlasW, atlasH, atlasCount);
-
-        int pagesWithWeight = 0;
-        int pagesWithRgb = 0;
-        foreach (uint pid in virtualToPhysical.Values)
+        var positions=new List<(int X,int Y,int Layer)>();
+        foreach(uint pid in virtualToPhysical.Values)
         {
-            pool.PagePool.DecodePhysicalId(pid, out ushort atlasIdx, out ushort tileX, out ushort tileY);
-            int cx = tileX * tileSize + tileSize / 2;
-            int cy = tileY * tileSize + tileSize / 2;
-            (float r, float g, float b, float a) = SampleRgba(rgba, atlasW, atlasH, layer: atlasIdx, x: cx, y: cy);
-
-            if (a > 0.5f) pagesWithWeight++;
-            if (r > 1e-3f || g > 1e-3f || b > 1e-3f) pagesWithRgb++;
+            pool.PagePool.DecodePhysicalId(pid,out ushort atlasIdx,out ushort tileX,out ushort tileY);
+            positions.Add((tileX*tileSize+tileSize/2,tileY*tileSize+tileSize/2,atlasIdx));
         }
-
-        Assert.True(pagesWithWeight >= desiredPages - 1, $"Expected most pages to have weight, got {pagesWithWeight}/{desiredPages}");
-        Assert.True(pagesWithRgb >= (desiredPages * 3) / 4, $"Expected most pages to have RGB, got {pagesWithRgb}/{desiredPages}");
-
+        var weight=ImageAssertions.PredicateAt(irradianceAtlas,positions,"return bvec2(true,value.a>.5);");
+        var rgb=ImageAssertions.PredicateAt(irradianceAtlas,positions,"return bvec2(true,any(greaterThan(value.rgb,vec3(.001))));");
+        weight.AssertEqual();rgb.AssertEqual();
+        Assert.True(weight.MatchingTexels>=desiredPages-1,"Expected most pages to have weight.");
+        Assert.True(rgb.MatchingTexels>=(desiredPages*3)/4,"Expected most pages to have RGB.");
     }
 
     private static uint[] FindSafeVoxelPatchIdsForSortedRequests(int desiredPages, int occRes)
@@ -419,14 +407,6 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         GL.BindTexture(TextureTarget.Texture2DArray, 0);
     }
 
-    private static void FillR32ui3D(int textureId, int width, int height, int depth, uint value)
-    {
-        uint[] data = new uint[checked(width * height * depth)];
-        Array.Fill(data, value);
-        GL.BindTexture(TextureTarget.Texture3D, textureId);
-        GL.TexSubImage3D(TextureTarget.Texture3D, 0, 0, 0, 0, width, height, depth, PixelFormat.RedInteger, PixelType.UnsignedInt, data);
-        GL.BindTexture(TextureTarget.Texture3D, 0);
-    }
 
     private static void UploadLightColorLut(Texture2D lut, int redId)
     {
@@ -458,22 +438,6 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             data[i] = (i / 32f) * scale;
         }
         lut.UploadDataImmediate(data);
-    }
-
-    private static float[] ReadTexImageRgba16f_2DArray(int textureId, int width, int height, int depth)
-    {
-        float[] data = new float[checked(width * height * depth * 4)];
-        GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-        GL.BindTexture(TextureTarget.Texture2DArray, textureId);
-        GL.GetTexImage(TextureTarget.Texture2DArray, level: 0, PixelFormat.Rgba, PixelType.Float, data);
-        GL.BindTexture(TextureTarget.Texture2DArray, 0);
-        return data;
-    }
-
-    private static (float R, float G, float B, float A) SampleRgba(float[] rgba, int width, int height, int layer, int x, int y)
-    {
-        int idx = (((layer * height) + y) * width + x) * 4;
-        return (rgba[idx + 0], rgba[idx + 1], rgba[idx + 2], rgba[idx + 3]);
     }
 
     private sealed class RecordingPageTableWriter : ILumonScenePageTableWriter

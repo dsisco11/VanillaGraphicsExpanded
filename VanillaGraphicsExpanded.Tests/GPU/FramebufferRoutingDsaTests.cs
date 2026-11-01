@@ -25,11 +25,11 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
         using var scene=new RoutingScene();scene.Initialize();List<string> fallback;
         using(var capture=new GraphicsTransitionCapture()){scene.Render(standalone);fallback=[..capture.Calls];}
-        scene.AssertRestored();var expected=scene.ReadOutput();scene.Initialize();List<string> named;
+        scene.AssertRestored();using var expected=scene.CaptureOutput();scene.Initialize();List<string> named;
         using(var capture=new GraphicsTransitionCapture()){scene.Render(standalone);named=[..capture.Calls];}
-        scene.AssertRestored();var actual=scene.ReadOutput();
-        for(int layer=0;layer<expected.Length;layer++)Assert.Equal(expected[layer],actual[layer]);
-        Assert.Equal(.25f,actual[0][0]);Assert.Equal(.5f,actual[3][0]);
+        scene.AssertRestored();using var actual=scene.CaptureOutput();
+        for(int layer=0;layer<expected.Count;layer++)ImageAssertions.CompareHistory(actual[layer].Texture, expected[layer]).AssertEqual();
+        Assert.Equal(.25f,Assertions.GpuLocalRead.Scalar(actual[0].Texture, 0));Assert.Equal(.5f,Assertions.GpuLocalRead.Scalar(actual[3].Texture, 0));
         Assert.Equal(4,fallback.Count(call=>call.StartsWith("RoutingNamed:")));
         Assert.Equal(4,named.Count(call=>call.StartsWith("RoutingNamed:")));
         Assert.Equal(fallback.Count(call=>call.StartsWith("Routing")),named.Count(call=>call.StartsWith("Routing")));
@@ -215,7 +215,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer,incoming.FboId);
         }
         /// <summary>Reads physical outputs after capture without changing the compared operation count.</summary>
-        internal float[][] ReadOutput()=>images.Select(image=>image.ReadPixels()).ToArray();
+        internal Assertions.GpuImageSet CaptureOutput() => new(images);
         /// <summary>Requires every deferred framebuffer lifetime and active image borrow to have ended.</summary>
         internal void AssertReleased(){foreach(var image in images)Assert.True(image.Resize(3,3));foreach(var target in targets)target.Dispose();}
         /// <summary>Releases only resources allocated by this fixture.</summary>

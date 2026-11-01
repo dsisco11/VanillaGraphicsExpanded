@@ -92,9 +92,8 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
     scope12.Run(()=>owner.Render(commands, draw, source, (null, 0), settings));
 }
             float expected = enabled ? MathF.Sqrt(.04f * .18f) : .04f;
-            float[] actual = owner.Texture.ReadPixels();
-            for (int pixel = 0; pixel < actual.Length; pixel += 4)
-                Assert.InRange(actual[pixel], expected - .0003f, expected + .0003f);
+            ImageAssertions.Predicate(owner.Texture,"return bvec2(a.r>=multipliers.x && a.r<=multipliers.y,false);",
+                parameters:new(expected-.0003f,expected+.0003f,0,0)).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

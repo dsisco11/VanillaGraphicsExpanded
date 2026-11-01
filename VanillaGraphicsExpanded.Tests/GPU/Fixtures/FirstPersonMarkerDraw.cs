@@ -56,7 +56,7 @@ internal sealed class FirstPersonMarkerDraw : IDisposable
     /// <summary>Reads the actual marker attachment after rasterization.</summary>
     public float ReadMarker(GBufferManager buffers)
     {
-        return LayeredTestTexture.Read(buffers.SurfaceTexture!, 0)[3];
+        return Assertions.GpuLocalRead.Tuple(buffers.SurfaceTexture!,0,0)[3];
     }
 
     /// <summary>Releases only this simulated engine draw's temporary objects.</summary>

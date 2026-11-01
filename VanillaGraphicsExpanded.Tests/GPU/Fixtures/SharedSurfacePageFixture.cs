@@ -27,6 +27,8 @@ internal sealed class SharedSurfacePageFixture : IDisposable
 
     /// <summary>Exposes the actual history atlas to the production invalidation owner.</summary>
     internal GpuTexture IrradianceAtlas => irradiance;
+    /// <summary>Exposes the complete captured face identity image for GPU assertions.</summary>
+    internal GpuTexture MaterialAtlas => material;
 
     #region Setup and execution
     /// <summary>Creates a +X page with an exact integer chunk origin, including coordinates beyond float precision.</summary>
@@ -116,28 +118,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     }
     #endregion
 
-    #region Readback and lifetime
-    /// <summary>Reads all irradiance texels, including their accumulated sample weights.</summary>
-    public float[] ReadLighting()
-    {
-        var data = new float[Size * Size * 4];
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
-        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, irradiance.TextureId);
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
-        GL.GetTexImage(TextureTarget.Texture2DArray, 0, PixelFormat.Rgba, PixelType.Float, data);
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
-        return data;
-    }
-
-    /// <summary>Reads the captured face surface identities without substituting a CPU material lookup.</summary>
-    public byte[] ReadMaterial()
-    {
-        var data = new byte[Size * Size * 4];
-        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, material.TextureId);
-        GL.GetTexImage(TextureTarget.Texture2DArray, 0, PixelFormat.Rgba, PixelType.UnsignedByte, data);
-        return data;
-    }
-
+    #region Private
     /// <summary>Dispatches one page and makes both image results and completion flags available for inspection.</summary>
     private static void Dispatch(Action submit)
     {

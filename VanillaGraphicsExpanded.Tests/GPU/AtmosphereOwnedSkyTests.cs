@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
@@ -97,20 +98,18 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         sky.PublishConstant(new(total));
         // Compare draw composition to the actual binary16 upload rather than treating
         // its subnormal quantization as a shader subtraction error.
-        float[] stored = new float[4*2*4*2];
-        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,AtmosphereModSystem.SkyTextureId))
-            GL.GetTexImage(TextureTarget.Texture2D,0,PixelFormat.Rgba,PixelType.Float,stored);
-        float decoded = stored[0]/AtmosphereModSystem.Lighting.LookupStorageScale;
+        float decoded=GpuLocalRead.Scalar((GpuTexture)AtmosphereModSystem.SkyTexture.Resource!,0)
+            /AtmosphereModSystem.Lighting.LookupStorageScale;
         Assert.InRange(MathF.Abs(decoded-total),0,MathF.Pow(2,-24)/AtmosphereModSystem.Lighting.LookupStorageScale);
         foreach(float daylight in new[]{0f,.5f,1f})
         {
-            float[] upward=sky.Draw(Vector3.UnitY,true,daylight:daylight,ownedCelestial:true,replacedBackground:stellar);
+            using var upwardImage=sky.Draw(Vector3.UnitY,true,daylight:daylight,ownedCelestial:true,replacedBackground:stellar);float[] upward=upwardImage.Texture.ReadPixelsRegion(0,0,1,1);
             Assert.All(upward[..3],value=>Assert.InRange(value,decoded-1e-7f,decoded+1e-7f));
             Assert.Equal(0,upward[3]);
-            float[] fog=sky.Draw(Vector3.UnitY,true,daylight:daylight,fogMin:.3f,ownedCelestial:true,replacedBackground:stellar);
+            using var fogImage=sky.Draw(Vector3.UnitY,true,daylight:daylight,fogMin:.3f,ownedCelestial:true,replacedBackground:stellar);float[] fog=fogImage.Texture.ReadPixelsRegion(0,0,1,1);
             Assert.InRange(fog[3],.29999f,.30001f);
         }
-        float[] below=sky.Draw(-Vector3.UnitY,true,ownedCelestial:true,replacedBackground:stellar);
+        using var belowImage=sky.Draw(-Vector3.UnitY,true,ownedCelestial:true,replacedBackground:stellar);float[] below=belowImage.Texture.ReadPixelsRegion(0,0,1,1);
         Assert.All(below[..3],value=>Assert.InRange(value,decoded-1e-7f,decoded+1e-7f));
     }
     /// <summary>The installed owned shader independently reconstructs solar and lunar angular lobes from three bands.</summary>
@@ -122,7 +121,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         sky.PublishNight();
         foreach (Vector3 direction in new[] {Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ})
         {
-            float[] actual = sky.Draw(direction, true);
+            using var actualImage=sky.Draw(direction, true);float[] actual=actualImage.Texture.ReadPixelsRegion(0,0,1,1);
             Vector3 expected = new Vector3(.001f) + new Vector3(.01f, 0, 0) * AtmosphereMieTransport.Factor(Vector3.Dot(direction, Vector3.UnitX))
                 + new Vector3(0, .02f, 0) * AtmosphereMieTransport.Factor(Vector3.Dot(direction, Vector3.UnitY));
             for (int channel = 0; channel < 3; channel++)
@@ -141,7 +140,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         float bound = 80 + VanillaGraphicsExpanded.PBR.SceneColor.SceneColorCompatibilityBounds.PhysicalSky(perception, .5f, 2);
         foreach (Vector3 direction in new[] { Vector3.UnitZ, new Vector3(.3f, .2f, -.9f) })
         {
-            float[] actual = sky.Draw(Vector3.Normalize(direction), true, underwater: underwater, nightVision: 2, psychedelic: perception);
+            using var actualImage=sky.Draw(Vector3.Normalize(direction), true, underwater: underwater, nightVision: 2, psychedelic: perception);float[] actual=actualImage.Texture.ReadPixelsRegion(0,0,1,1);
             Assert.All(actual[..3], value => Assert.InRange(value, 0, bound));
         }
     }
@@ -155,7 +154,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         EnsureShaderTestAvailable();
         using var sky = new FullscreenSky(Programs.Create<AtmosphereSkyShaderProgram>(), TestFramework);
         sky.PublishConstant(new(8, 4, 2));
-        float[] actual = sky.Draw(Vector3.UnitZ, linear);
+        using var actualImage=sky.Draw(Vector3.UnitZ, linear);float[] actual=actualImage.Texture.ReadPixelsRegion(0,0,1,1);
         for (int channel = 0; channel < 3; channel++)
         {
             float radiance = 8f / (1 << channel);
@@ -165,7 +164,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         Assert.Equal(1, actual[3]);
         Assert.Equal(new float[] { 0, 0, 0, 1 }, sky.Target[1].ReadPixels());
         foreach (int attachment in new[] { 2, 3, 4, 5, 7 })
-            Assert.All(sky.Target[attachment].ReadPixels(), value => Assert.Equal((float)attachment, value));
+            ImageAssertions.CompareConstant(sky.Target[attachment], (float)attachment).AssertEqual();
         using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, sky.Target[6].TextureId))
         {
             uint[] patch = new uint[4];
@@ -184,7 +183,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         EnsureShaderTestAvailable();
         using var sky = new FullscreenSky(Programs.Create<AtmosphereSkyShaderProgram>(), TestFramework);
         sky.PublishConstant(new(2, 1, .5f));
-        float[] actual = sky.Draw(Vector3.UnitZ, true, daylight: daylight);
+        using var actualImage=sky.Draw(Vector3.UnitZ, true, daylight: daylight);float[] actual=actualImage.Texture.ReadPixelsRegion(0,0,1,1);
         Assert.InRange(actual[3], daylight - .00001f, daylight + .00001f);
         Assert.InRange(actual[0], 1.99999f, 2.00001f);
     }
@@ -198,7 +197,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         EnsureShaderTestAvailable();
         using var sky = new FullscreenSky(Programs.Create<AtmosphereSkyShaderProgram>(), TestFramework);
         sky.PublishConstant(new(2, 1, .5f));
-        float[] actual = sky.Draw(Vector3.UnitY, linear, daylight: .2f, fogMin: .25f);
+        using var actualImage=sky.Draw(Vector3.UnitY, linear, daylight: .2f, fogMin: .25f);float[] actual=actualImage.Texture.ReadPixelsRegion(0,0,1,1);
         Assert.InRange(actual[3], .39999f, .40001f);
     }
 
@@ -212,7 +211,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         Matrix4x4 projection = Perspective(1.2f, 1);
         projection.M33 = -1100f / 900; projection.M43 = -200000f / 900;
         Matrix4x4 transform = Matrix4x4.CreateLookAt(Vector3.Zero, Vector3.UnitY, Vector3.UnitZ) * projection;
-        float[] actual = sky.Draw(Vector3.UnitY, true, daylight: 0, transform: transform, flatFogDensity: -.001f, flatFogStart: 300);
+        using var actualImage=sky.Draw(Vector3.UnitY, true, daylight: 0, transform: transform, flatFogDensity: -.001f, flatFogStart: 300);float[] actual=actualImage.Texture.ReadPixelsRegion(0,0,1,1);
         // At radius 250, depth is 2/3; the vertical exponential contributes less than the depth term.
         float expected = MathF.Max(.001f * (2f / 3) * 300 / 3.3f, 1 - MathF.Exp(-.05f));
         Assert.InRange(MathF.Abs(actual[3] - expected), 0, .00001f);
@@ -229,7 +228,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         EnsureShaderTestAvailable();
         using var sky = new FullscreenSky(Programs.Create<AtmosphereSkyShaderProgram>(), TestFramework, liquidDepth: 0);
         sky.PublishConstant(new(2, 1, .5f));
-        float[] actual = sky.Draw(Vector3.UnitZ, linear, underwater: underwater ? 1 : 0, nightVision: .5f);
+        using var actualImage=sky.Draw(Vector3.UnitZ, linear, underwater: underwater ? 1 : 0, nightVision: .5f);float[] actual=actualImage.Texture.ReadPixelsRegion(0,0,1,1);
         float murk = underwater ? 0 : 1 - .1f / 100;
         float[] tint = [.2f, .1f, .05f];
         float[] night = [.05f, .25f, .05f];
@@ -254,8 +253,8 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         using var sky = new FullscreenSky(Programs.Create<AtmosphereSkyShaderProgram>(), TestFramework);
         sky.PublishConstant(new(.7f, .3f, .1f));
         Vector3 direction = Vector3.Normalize(new Vector3(.3f, .7f, .4f));
-        float[] original = sky.Draw(direction, linear, daylight: .4f);
-        float[] affected = sky.Draw(direction, linear, daylight: .4f, psychedelic: .75f);
+        using var originalImage=sky.Draw(direction, linear, daylight: .4f);float[] original=originalImage.Texture.ReadPixelsRegion(0,0,1,1);
+        using var affectedImage=sky.Draw(direction, linear, daylight: .4f, psychedelic: .75f);float[] affected=affectedImage.Texture.ReadPixelsRegion(0,0,1,1);
         Assert.Equal(original[3], affected[3]);
         Assert.Contains(Enumerable.Range(0, 3), channel => MathF.Abs(original[channel] - affected[channel]) > .0001f);
         Assert.All(affected, value => Assert.True(float.IsFinite(value) && value >= 0));
@@ -289,7 +288,8 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         Assert.True(Matrix4x4.Invert(view, out var inverseView));
         Matrix4x4 projection = orthographic ? Matrix4x4.CreateOrthographic(9, 5, .1f, 100) : Perspective(fov, (float)width / height);
         if (!orthographic) { projection.M31 = .2f; projection.M32 = -.15f; }
-        float[] actual = sky.Draw(-Vector3.UnitZ, true, sun: sun, transform: view * projection);
+        using var actual = sky.Draw(-Vector3.UnitZ, true, sun: sun, transform: view * projection);
+        var expectedPixels=new float[width*height*4];var tolerances=new float[expectedPixels.Length];
         // Analytic perspective rays avoid reproducing the shader's inverse-projection algorithm.
         for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++)
@@ -299,9 +299,10 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
             Vector3 ray = Vector3.Normalize(Vector3.TransformNormal(cameraRay, inverseView));
             float expected = .2f + .05f * AtmosphereMieTransport.Factor(Vector3.Dot(ray, sun));
             int i = (y * width + x) * 4;
-            for (int channel = 0; channel < 3; channel++) Assert.InRange(MathF.Abs(actual[i + channel] - expected), 0, .0001f);
-            Assert.Equal(1, actual[i + 3]);
+            for (int channel = 0; channel < 3; channel++) { expectedPixels[i+channel]=expected;tolerances[i+channel]=.0001f; }
+            expectedPixels[i+3]=1;
         }
+        ImageAssertions.CompareFloating(actual.Texture,expectedPixels,tolerances).AssertEqual();
     }
 
     /// <summary>Tracks the published non-axis-aligned sun instead of leaving the Mie lobe at a fixed pole.</summary>
@@ -324,8 +325,8 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         }
         sky.Publish(pixels, mie, width, height, 0, sun);
         Vector3 away = Vector3.Normalize(sun + Vector3.Normalize(Vector3.Cross(sun, Vector3.UnitY)) * MathF.Tan(MathF.PI / 6));
-        float[] center = sky.Draw(sun, true, sun: sun);
-        float[] offset = sky.Draw(away, true, sun: sun);
+        using var centerImage=sky.Draw(sun, true, sun: sun);float[] center=centerImage.Texture.ReadPixelsRegion(0,0,1,1);
+        using var offsetImage=sky.Draw(away, true, sun: sun);float[] offset=offsetImage.Texture.ReadPixelsRegion(0,0,1,1);
         Assert.InRange(center[0], .2f + .05f * AtmosphereMieTransport.Factor(1) - .0001f, .2f + .05f * AtmosphereMieTransport.Factor(1) + .0001f);
         Assert.InRange(offset[0], .2f + .05f * AtmosphereMieTransport.Factor(Vector3.Dot(sun, away)) - .0001f, .2f + .05f * AtmosphereMieTransport.Factor(Vector3.Dot(sun, away)) + .0001f);
         Assert.True(center[0] > offset[0]);
@@ -361,7 +362,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         {
             float elevation = AtmosphereSkyMapping.Elevation(v, horizon);
             Vector3 direction = new(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), MathF.Cos(elevation) * MathF.Sin(azimuth));
-            float[] actual = sky.Draw(direction, linear, horizon: horizon);
+            using var actualImage=sky.Draw(direction, linear, horizon: horizon);float[] actual=actualImage.Texture.ReadPixelsRegion(0,0,1,1);
             float lobe = .05f * AtmosphereMieTransport.Factor(direction.Y);
             float peak = Math.Max(v, .375f) + lobe;
             float expectedRed = linear ? v + lobe : Display(v + lobe, peak);
@@ -467,7 +468,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
                 { Width = width, Height = height, HorizonElevation = horizon, SkyMie = ImmutableArray.CreateRange(mie) });
         }
         /// <summary>Centers the requested direction under the inverse view-projection transform and captures a single fragment.</summary>
-        internal float[] Draw(Vector3 direction, bool linear, float daylight = 1, float underwater = 0, float nightVision = 0, float horizon = 0, Vector3? sun = null, float psychedelic = 0, float fogMin = 0, Matrix4x4? transform = null, float flatFogDensity = 0, float flatFogStart = 0,bool ownedCelestial=false,float replacedBackground=0)
+        internal GpuImageSnapshot Draw(Vector3 direction, bool linear, float daylight = 1, float underwater = 0, float nightVision = 0, float horizon = 0, Vector3? sun = null, float psychedelic = 0, float fogMin = 0, Matrix4x4? transform = null, float flatFogDensity = 0, float flatFogStart = 0,bool ownedCelestial=false,float replacedBackground=0)
         {
             Vector3 up = MathF.Abs(direction.Y) > .99f ? Vector3.UnitZ : Vector3.UnitY;
             Matrix4x4 viewProjection = transform ?? Matrix4x4.CreateLookAt(Vector3.Zero, direction, up) * Perspective(1.2f, 1);
@@ -508,7 +509,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
                 GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
-            return Target[0].ReadPixels();
+            return new GpuImageSnapshot(Target[0]);
         }
         /// <summary>Retires the test publication and geometry before their shared context closes.</summary>
         public void Dispose()

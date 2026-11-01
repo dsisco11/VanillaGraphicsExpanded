@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
@@ -51,7 +52,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         shader.SourceImage=red; shader.Capture(Vector4.Zero,new(1,0,1,0)); Draw(shader,target);
         Assert.Equal(0,target[0].ReadTexel()[0]);
         shader.SourceImage=green; Draw(shader,target);
-        Assert.Equal(4,target[0].ReadPixels()[1]);
+        Assert.Equal(4,Assertions.GpuLocalRead.Scalar(target[0], 1));
         shader.SourceImage=red; shader.Capture(Vector4.Zero,new(0,.5f,.25f,-20)); Draw(shader,target);
         Assert.Equal(new[]{1f,0f,0f,1f},target[0].ReadPixels());
         using var knee=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[1f,1f,1f,1f]);
@@ -92,13 +93,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
             if(mode is 2 or 3)shader.CaptureGaussian(4,mode==3);
             else shader.Capture(new(4,0,mode,mode==4?1:0),mode==4?new(.25f,.25f,.25f,0):Vector4.Zero);
             Draw(shader,target);
-            float[] result=target[0].ReadPixels();
-            for(int i=0;i<result.Length;i+=4)
-            {
-                Assert.InRange(result[i],3.99999f,4.00001f);
-                Assert.InRange(result[i+1],1.99999f,2.00001f);
-                Assert.InRange(result[i+2],.99999f,1.00001f);
-            }
+            ImageAssertions.Predicate(target[0],"return bvec2(a.r>=3.99999 && a.r<=4.00001 && a.g>=1.99999 && a.g<=2.00001 && a.b>=.99999 && a.b<=1.00001,false);").AssertEqual();
         }
     }
 
@@ -116,24 +111,25 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         shader.SourceImage=source; shader.SecondaryImage=source;
         shader.CaptureGaussian(4,false); Draw(shader,horizontal);
         shader.SourceImage=horizontal[0]; shader.CaptureGaussian(4,true); Draw(shader,result);
-        float[] broad=result[0].ReadPixels();
+        var lower=new double[33*17*4];var upper=new double[lower.Length];
         float normalization=Enumerable.Range(-4,9).Sum(t=>MathF.Exp(-16.7f*t*t/16));
         float[] coefficients=Enumerable.Range(0,5).Select(t=>MathF.Exp(-16.7f*t*t/16)/normalization).ToArray();
-        double sum=0;
+
         for(int y=0;y<17;y++) for(int x=0;x<33;x++)
         {
             int dx=x-16,dy=y-8;
             float expected=Math.Abs(dx)<=4&&Math.Abs(dy)<=4 ? 256*MathF.Exp(-16.7f*(dx*dx+dy*dy)/16)/(normalization*normalization):0;
-            float value=broad[(y*33+x)*4];
+
             float wx=Math.Abs(dx)<=4?coefficients[Math.Abs(dx)]:0,wy=Math.Abs(dy)<=4?coefficients[Math.Abs(dy)]:0;
             float ex=GaussianInterpolationError(coefficients,dx),ey=GaussianInterpolationError(coefficients,dy);
             float tolerance=256*(wx*ey+wy*ex+ex*ey)+.00001f;
-            Assert.InRange(value,expected-tolerance,expected+tolerance);
-            sum+=value;
+            int scalar=(y*33+x)*4;lower[scalar]=expected-tolerance;upper[scalar]=expected+tolerance;
         }
-        Assert.InRange(sum,255.99,256.01);
-        Assert.True(broad[(8*33+16)*4]>1);
-        Assert.True(broad[(6*33+14)*4]>0);
+        ImageAssertions.CompareIntervals(result[0],lower,upper,channelMask:1).AssertEqual();
+        var mass=ImageAssertions.Statistics(result[0],channelMask:1);mass.AssertFiniteRange();
+        Assert.InRange(mass.Sum(0),255.99,256.01);
+        Assert.True(GpuLocalRead.Scalar(result[0],(8*33+16)*4)>1);
+        Assert.True(GpuLocalRead.Scalar(result[0],(6*33+14)*4)>0);
     }
 
     /// <summary>Every configured support radius must cover intervening texels without comb-shaped troughs as an impulse moves.</summary>
@@ -172,38 +168,44 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
             using var source=TestFramework.CreateTexture(33,17,TextureFormat.Rgba32f,pixels);
             shader.SourceImage=source;shader.SecondaryImage=source;
             shader.CaptureGaussian(radius,false);Draw(shader,target);
-            float[] image=target[0].ReadPixels();
-            float[] profile=Enumerable.Range(16,11).Select(x=>image[(8*33+x)*4]).ToArray();
-            output.WriteLine($"Gaussian radius={radius} phase={phase}: {string.Join(", ",profile.Select(v=>v.ToString("G7")))}");
+            var lower=new double[33*4];var upper=new double[lower.Length];
             float[] kernel=Enumerable.Range(-radius,2*radius+1).Select(x=>MathF.Exp(-16.7f*x*x/(radius*radius))).ToArray();
             float normalization=kernel.Sum();
             float[] coefficients=kernel.Skip(radius).Select(v=>v/normalization).ToArray();
-            double mass=0,moment=0;
+
             for(int x=0;x<33;x++)
             {
                 int first=x-16,second=x-17;
                 float expected=(Math.Abs(first)<=radius ? (1-phase)*kernel[first+radius]/normalization:0)
                     +(Math.Abs(second)<=radius ? phase*kernel[second+radius]/normalization:0);
-                float actual=image[(8*33+x)*4];
+
                 float tolerance=(1-phase)*GaussianInterpolationError(coefficients,first)
                     +phase*GaussianInterpolationError(coefficients,second)+.00001f;
-                Assert.InRange(actual,expected-tolerance,expected+tolerance);
-                mass+=actual;moment+=actual*x;
+                lower[x*4]=expected-tolerance;upper[x*4]=expected+tolerance;
             }
+            var row=new RHITextureRegion(new(0),0,8,0,33,1,1);
+            ImageAssertions.CompareIntervals(target[0],lower,upper,row,1).AssertEqual();
+            var massProof=ImageAssertions.Statistics(target[0],row,1);massProof.AssertFiniteRange();
+            using var transform=new GpuImageTransform();
+            using var weighted=transform.Apply(target[0],"precise float moment=a.r*float(coordinate.x);return vec4(moment,0,0,0);");
+            var momentProof=ImageAssertions.Statistics(weighted,row,1);momentProof.AssertFiniteRange();
+            double mass=massProof.Sum(0),moment=momentProof.Sum(0);
             Assert.InRange(mass,.9999,1.0001);Assert.InRange(moment/mass,16+phase-.0001,16+phase+.0001);
             if(phase==0)
             {
                 // The pure Gaussian truncation ratio is radius-independent. Tiny paired tails may round to zero.
                 float expectedRatio=MathF.Exp(-16.7f);
-                float actualRatio=profile[radius]/profile[0];
+                float actualRatio=GpuLocalRead.Scalar(target[0],(8*33+16+radius)*4)/GpuLocalRead.Scalar(target[0],(8*33+16)*4);
                 float ratioTolerance=GaussianInterpolationError(coefficients,radius)/coefficients[0]+1e-10f;
                 Assert.InRange(actualRatio,Math.Max(0,expectedRatio-ratioTolerance),expectedRatio+ratioTolerance);
                 output.WriteLine($"Gaussian radius={radius} boundary/center={actualRatio:G9}, ideal={expectedRatio:G9}, absolute bound={ratioTolerance:G9}");
             }
-            int start=phase==0?0:1;
-            for(int x=start+1;x<profile.Length;x++)
-                Assert.True(profile[x]<=profile[x-1]+.00001f,
-                    $"Gaussian radius={radius}, phase={phase} has a trough at offset {x-1}: {profile[x-1]:G7} followed by {profile[x]:G7}. Profile: {string.Join(", ",profile)}");
+            var monotone=ImageAssertions.Predicate(target[0],"""
+                bool selected=coordinate.y==8 && coordinate.x>=int(multipliers.x)+17 && coordinate.x<=26;
+                float previous=texelFetch(actualImage,ivec3(max(coordinate.x-1,0),coordinate.y,0),0).r;
+                return bvec2(!selected || a.r<=previous+.00001,selected);
+                """,parameters:new(phase==0?0:1,0,0,0));
+            monotone.AssertEqual();Assert.Equal(phase==0?10u:9u,monotone.MatchingTexels);
         }
     }
 
@@ -234,13 +236,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     using var scope64=commands.EnterBoundary(new("Tests.BloomOwner",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope64.Run(()=>owner.Render(commands,submission,source,(null,-20),settings));
 }
-        float[] actual=first.ReadPixels();
-        for(int pixel=0;pixel<actual.Length;pixel+=4)
-        {
-            Assert.InRange(actual[pixel],1.99f,2.01f);
-            Assert.InRange(actual[pixel+1],.995f,1.005f);
-            Assert.InRange(actual[pixel+2],.4975f,.5025f);
-        }
+        ImageAssertions.Predicate(first,"return bvec2(a.r>=1.99 && a.r<=2.01 && a.g>=.995 && a.g<=1.005 && a.b>=.4975 && a.b<=.5025,false);").AssertEqual();
         owner.Prepare(assets.Api,submission,width,height,levels);
         Assert.Same(first,owner.Texture);
         {
@@ -282,26 +278,23 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     using var scope66=commands.EnterBoundary(new("Tests.BloomImpulse",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope66.Run(()=>owner.Render(commands,submission,source,(null,0),settings));
 }
-            float[] halo=owner.Texture.ReadPixels();int support=0;
-            for(int y=0;y<65;y++)for(int x=0;x<129;x++)
-            {
-                float value=halo[(y*129+x)*4];
-                Assert.True(float.IsFinite(value)&&value>=0);
-                if(value>.00001f)support++;
-                Assert.InRange(halo[(y*129+128-x)*4],value-.0002f,value+.0002f);
-                Assert.InRange(halo[((64-y)*129+x)*4],value-.0002f,value+.0002f);
-            }
-            float[] profile=Enumerable.Range(64,65).Select(x=>halo[(32*129+x)*4]).ToArray();
-            float maxRise=profile.Zip(profile.Skip(1),(a,b)=>b-a).Max();
-            output.WriteLine($"Owned graph levels={levels}, centered impulse: maximum outward rise={maxRise:G7}; profile={string.Join(", ",profile.Select(v=>v.ToString("G7")))}");
+            Assert.Equal(129,owner.Texture.Width);Assert.Equal(65,owner.Texture.Height);
+            var halo=ImageAssertions.Predicate(owner.Texture,"""
+                float horizontal=texelFetch(actualImage,ivec3(128-coordinate.x,coordinate.y,0),0).r;
+                float vertical=texelFetch(actualImage,ivec3(coordinate.x,64-coordinate.y,0),0).r;
+                bool valid=!isnan(a.r) && !isinf(a.r) && a.r>=0 && horizontal>=a.r-.0002 && horizontal<=a.r+.0002 && vertical>=a.r-.0002 && vertical<=a.r+.0002;
+                return bvec2(valid,a.r>.00001);
+                """);
+            halo.AssertEqual();int support=checked((int)halo.MatchingTexels);
             if(levels==3)narrowSupport=support;else Assert.True(support>narrowSupport);
         }
-        Assert.Equal(pixels,source.ReadPixels());
+        ImageAssertions.Compare(source,pixels).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
     /// <summary>Measures the complete owned graph with fixed synthetic inputs, excluding allocation and shader compilation.</summary>
     [Fact]
+    [Trait("Purpose","Diagnostic")]
     public void SyntheticBloomGraphTiming()
     {
         EnsureShaderTestAvailable();

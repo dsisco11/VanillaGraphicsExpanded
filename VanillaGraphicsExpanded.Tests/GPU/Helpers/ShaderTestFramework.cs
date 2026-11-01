@@ -33,8 +33,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 /// FramebufferTestSetup.BindForEngineRendering(outputGBuffer);
 /// framework.RenderQuad(programId);
 ///
-/// // Read back and validate
-/// var result = outputGBuffer[0].ReadPixels();
+/// // Compare the complete output with an independent GPU assertion
+/// ImageAssertions.CompareConstant(outputGBuffer[0], expectedValue).AssertEqual();
 /// </code>
 /// </remarks>
 public sealed class ShaderTestFramework : IDisposable

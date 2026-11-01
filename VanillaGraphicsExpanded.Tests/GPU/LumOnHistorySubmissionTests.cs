@@ -33,7 +33,17 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
                 buffers.ScreenProbeAtlasFilteredTex!, buffers.ScreenProbeAtlasMetaFilteredTex!,
                 buffers.IndirectHalfTex!, buffers.IndirectFullTex!, buffers.ProbeTraceMaskTex!, buffers.ProbePisEnergyTex!, buffers.VelocityTex!];
             foreach (var image in images)
-                image.UploadDataImmediate(Enumerable.Repeat(.75f, image.ReadPixels().Length).ToArray());
+            {
+                int channels=RHICommandContext.Current.GetTextureEncoding(image,PixelComponentType.Float).Channels switch
+                {
+                    PixelChannelLayout.Red or PixelChannelLayout.RedInteger=>1,
+                    PixelChannelLayout.Rg or PixelChannelLayout.RgInteger=>2,
+                    PixelChannelLayout.Rgb or PixelChannelLayout.RgbInteger=>3,
+                    PixelChannelLayout.Rgba or PixelChannelLayout.RgbaInteger=>4,
+                    _=>throw new InvalidOperationException("Expected a color history image.")
+                };
+                image.UploadDataImmediate(Enumerable.Repeat(.75f,image.Width*image.Height*channels).ToArray());
+            }
             var coefficients = buffers.ProbeSh9!;
             coefficients.UploadDataImmediate(Enumerable.Repeat(.75f, coefficients.Width * coefficients.Height * 28).ToArray(), 0, 0, 0, coefficients.Width, coefficients.Height, 7);
             buffers.HasPublishedIndirect = true;
@@ -45,9 +55,8 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
             {
                 buffers.ClearHistory();
                 hostile.AssertRestored();
-                Assert.All(images, image => Assert.All(image.ReadPixels(), value => Assert.Equal(0, value)));
-                for (int layer = 0; layer < 7; layer++)
-                    Assert.All(LayeredTestTexture.Read(coefficients, layer), value => Assert.Equal(0, value));
+                Assert.All(images, image => ImageAssertions.CompareConstant(image, 0).AssertEqual());
+                ImageAssertions.CompareConstant(coefficients,0).AssertEqual();
             }
             Assert.False(buffers.HasPublishedIndirect);
             Assert.True(buffers.HistoryRevision > revision);
@@ -85,8 +94,7 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
         }
         if (fail) Assert.Same(expected, Assert.Throws<ArithmeticException>(() => Run())); else Assert.True(Run());
         hostile.AssertRestored();
-        float[] pixels = target[0].ReadPixels();
-        for (int i = 0; i < pixels.Length; i++) Assert.Equal(new[] { .25f, .5f, .75f, 1 }[i % 4], pixels[i]);
+        ImageAssertions.Compare(target[0],Enumerable.Repeat(new[]{.25f,.5f,.75f,1f},16).SelectMany(x=>x).ToArray()).AssertEqual();
 #if DEBUG
         Assert.Equal(draws, OpenGlStateCache.Current.DrawSubmissions);
 #endif

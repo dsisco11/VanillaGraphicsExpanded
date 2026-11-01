@@ -100,13 +100,13 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
-    /// <summary>Reads each production-owned stage without adding a diagnostic API or altering production submission.</summary>
-    internal static (float[] Raw,float[] Filtered,float[] Reconstructed) ReadStages(AmbientOcclusionPass owner)
+    /// <summary>Captures each complete production-owned stage without altering production submission.</summary>
+    internal static AmbientOcclusionStages CaptureStages(AmbientOcclusionPass owner)
     {
         var raw=Assert.IsType<DynamicTexture2D>(AccessTools.Field(typeof(AmbientOcclusionPass),"raw").GetValue(owner));
         var filtered=Assert.IsType<DynamicTexture2D>(AccessTools.Field(typeof(AmbientOcclusionPass),"filtered").GetValue(owner));
         var output=Assert.IsType<DynamicTexture2D>(owner.Texture);
-        return(raw.ReadPixels(),filtered.ReadPixels(),output.ReadPixels());
+        return new([raw,filtered,output]);
     }
 
     /// <summary>Prepares matched horizon-only submissions sharing one completed hierarchy and unchanged scene inputs.</summary>

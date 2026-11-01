@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
@@ -15,6 +16,7 @@ public sealed class DepthHierarchyMeasurementTests(HeadlessGLFixture fixture, IT
     #region Public API
     /// <summary>Measures warm GPU work and CPU submissions after verifying identical complete mip chains.</summary>
     [Theory]
+    [Trait("Purpose", "Diagnostic")]
     [InlineData(1280,720)]
     [InlineData(1920,1080)]
     [InlineData(3840,2160)]
@@ -38,7 +40,10 @@ public sealed class DepthHierarchyMeasurementTests(HeadlessGLFixture fixture, IT
         }
         compute.Render(source); RenderRaster();
         for(int level=0;level<compute.Texture!.MipLevels;level++)
-            Assert.Equal(raster.Texture!.ReadPixels(level),compute.Texture.ReadPixels(level));
+        {
+            using var reference=new GpuImageSnapshot(raster.Texture!,GpuImageSnapshot.Mip(raster.Texture!,level));
+            ImageAssertions.CompareHistory(compute.Texture,reference,selection:GpuImageSnapshot.Mip(compute.Texture,level)).AssertEqual();
+        }
         var rasterGpu=new List<double>(); var computeGpu=new List<double>();
         var rasterCpu=new List<double>(); var computeCpu=new List<double>();
         // Alternate ordering to avoid attributing a consistent first-run bias to either path.

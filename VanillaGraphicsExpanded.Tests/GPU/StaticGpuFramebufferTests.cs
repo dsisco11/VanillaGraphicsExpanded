@@ -43,7 +43,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         target.Bind();
         Assert.Throws<InvalidOperationException>(() => OpenGLFramebufferRouting.SetDrawBuffer(OpenGlStateCache.Current, DrawBufferMode.None));
         texture.UploadDataImmediate(Enumerable.Repeat(.375f, 16).ToArray());
-        Assert.All(texture.ReadPixels(), value => Assert.Equal(.375f, value));
+        ImageAssertions.CompareConstant(texture, .375f).AssertEqual();
         target.Dispose();
         Assert.True(texture.Resize(3, 3));
         Assert.Equal(ErrorCode.NoError, GL.GetError());

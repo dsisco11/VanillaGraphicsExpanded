@@ -42,14 +42,7 @@ public sealed class LumOnTraceOutcomeDebugFunctionalTests : LumOnShaderFunctiona
             UpdateAndBindLumOnFrameUbo(program);
             program.ProbeAtlasMeta = metadata;
             TestFramework.RenderQuadTo(program, output);
-            var pixels = output[0].ReadPixels();
-            for (int i = 0; i < pixels.Length; i += 4)
-            {
-                Assert.Equal(red, pixels[i]);
-                Assert.Equal(green, pixels[i + 1]);
-                Assert.Equal(blue, pixels[i + 2]);
-                Assert.Equal(1f, pixels[i + 3]);
-            }
+            ImageAssertions.Compare(output[0],Enumerable.Repeat(new[]{red,green,blue,1f},ScreenWidth*ScreenHeight).SelectMany(x=>x).ToArray()).AssertEqual();
         }
     }
     #endregion

@@ -259,7 +259,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         source.UploadDataImmediate(Enumerable.Repeat(.625f, 65 * 37).ToArray());
         hierarchy.Render(source);
         for (int level = 0; level < hierarchy.Texture!.MipLevels; level++)
-            Assert.All(hierarchy.Texture.ReadPixels(level), value => Assert.Equal(.625f, value));
+            ImageAssertions.CompareConstant(hierarchy.Texture, .625f, Assertions.GpuImageSnapshot.Mip(hierarchy.Texture, level)).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 

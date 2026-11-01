@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -134,16 +135,18 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         using var textures=new AtmosphereTextureSet(lighting);
         textures.Upload(lighting);var first=textures.ExternalTransmission;textures.Upload(lighting);
         Assert.Same(first,textures.ExternalTransmission);
-        float[] data=first.ReadPixels();
+        using var previous=new GpuImageSnapshot(first);
+        var samples=new Dictionary<int,Vector3>();
         foreach(int i in new[]{0,64,255,511})
         {
             float e=AtmosphereSkyMapping.Elevation(i/511f,lighting.HorizonElevation);
             Vector3 expected=AtmosphereModel.ExternalTransmittance(new(MathF.Cos(e),MathF.Sin(e),0),lighting.Altitude,2.75f);
-            for(int c=0;c<3;c++)Assert.InRange(Math.Abs(data[4*i+c]-expected[c]),0,.000001f);
+            samples.Add(i,expected);
         }
+        ImageAssertions.CompareSelected(first,samples,.000001f).AssertEqual();
         textures.Upload(lighting with{CloudCoverage=.5f,ExternalTransmission=AtmosphereExternalTransmission.Build(.001f,4.5f)});
         Assert.Same(first,textures.ExternalTransmission);
-        Assert.False(data.SequenceEqual(first.ReadPixels()));
+        Assert.True(ImageAssertions.CompareHistory(first,previous).Mismatches>0);
         textures.Dispose();Assert.False(first.IsValid);
     }
     /// <summary>Resolution, field of view, off-axis position and subpixel phase preserve calibrated RGB flux.</summary>
@@ -199,14 +202,11 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         using var transmission=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .5f,.25f,.75f,1,.5f,.25f,.75f,1 }).AsSpan()).ToArray())]).RequireResource();
         shader.GalaxyMap=cube;shader.ExternalTransmission=transmission;
         using var geometry=new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>(),3);
-        float[] actual=Draw(shader,geometry,CelestialDrawPass.FullscreenLayout,32,1);
+        using var actual=Draw(shader,geometry,CelestialDrawPass.FullscreenLayout,32,1);
         float red=(rotated?1f:6f)*.125f*.5f;
-        for(int i=0;i<actual.Length;i+=4)
-        {
-            Assert.InRange(actual[i],red-.0001f,red+.0001f);
-            Assert.InRange(actual[i+1],.06249f,.06251f);
-            Assert.InRange(actual[i+2],.37499f,.37501f);
-        }
+        ImageAssertions.Inspect(actual.Texture,red-.0001f,red+.0001f,channelMask:1).AssertFiniteRange();
+        ImageAssertions.Inspect(actual.Texture,.06249f,.06251f,channelMask:2).AssertFiniteRange();
+        ImageAssertions.Inspect(actual.Texture,.37499f,.37501f,channelMask:4).AssertFiniteRange();
     }
     #endregion
 
@@ -230,21 +230,22 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         using var buffer=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         buffer.UploadData(Enumerable.Range(0,count).SelectMany(_=>new[]{new Vector4(direction,.001f),new Vector4(1,.5f,.25f,0)}).ToArray());
         using var geometry=new ArrayGraphicsGeometry(CelestialStarGeometry.Layout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>{[0]=buffer});
-        float[] data=Draw(shader,geometry,CelestialStarGeometry.Layout,size,count);
-        double[] integrated=new double[3];
+        using var data=Draw(shader,geometry,CelestialStarGeometry.Layout,size,count);
+        var weights=new double[size*size];
         for(int y=0;y<size;y++)for(int x=0;x<size;x++)
         {
             double lowX=(2.0*x/size-1)/projection.M11,highX=(2.0*(x+1)/size-1)/projection.M11;
             double lowY=(2.0*y/size-1)/projection.M22,highY=(2.0*(y+1)/size-1)/projection.M22;
             double area=CornerArea(highX,highY)-CornerArea(lowX,highY)-CornerArea(highX,lowY)+CornerArea(lowX,lowY);
-            for(int c=0;c<3;c++)integrated[c]+=data[(y*size+x)*4+c]*area;
+            weights[y*size+x]=area;
         }
-        return new((float)integrated[0],(float)integrated[1],(float)integrated[2]);
+        var integrated=ImageAssertions.WeightedStatistics(data.Texture,weights,channelMask:7);
+        return new((float)integrated.Sum(0),(float)integrated.Sum(1),(float)integrated.Sum(2));
     }
     /// <summary>Integrates a rectangular perspective pixel analytically in double precision.</summary>
     private static double CornerArea(double x,double y)=>Math.Atan2(x*y,Math.Sqrt(1+x*x+y*y));
     /// <summary>Submits actual prepared graphics pipelines and verifies glow output remains empty.</summary>
-    private float[] Draw(GpuProgram shader,ArrayGraphicsGeometry geometry,RHIVertexLayout layout,int size,int count)
+    private GpuImageSnapshot Draw(GpuProgram shader,ArrayGraphicsGeometry geometry,RHIVertexLayout layout,int size,int count)
     {
         using var color=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var glow=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
@@ -268,9 +269,9 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         Assert.Equal(priorFramebuffer,GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(priorDepth,GL.IsEnabled(EnableCap.DepthTest));Assert.Equal(priorBlend,GL.IsEnabled(EnableCap.Blend));
         GL.GetBoolean(GetPName.DepthWritemask,out bool currentWrites);Assert.Equal(priorWrites,currentWrites);
-        Assert.All(glow.ReadPixels(),value=>Assert.Equal(0,value));
+        ImageAssertions.CompareConstant(glow, 0).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
-        float[] pixels=color.ReadPixels();Assert.All(pixels,value=>Assert.True(float.IsFinite(value)&&value>=0));return pixels;
+        ImageAssertions.Inspect(color,0).AssertFiniteRange();return new GpuImageSnapshot(color);
     }
     /// <summary>Checks independent RGB energy with a one-percent relative tolerance.</summary>
     private static void AssertEnergy(Vector3 expected,Vector3 actual)

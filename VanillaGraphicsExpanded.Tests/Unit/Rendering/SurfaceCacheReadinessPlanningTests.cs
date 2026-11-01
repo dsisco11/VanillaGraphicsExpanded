@@ -3,15 +3,15 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 
 /// <summary>Checks that readiness batching observes exactly the requested physical texels.</summary>
-public sealed class SurfaceCacheReadinessReadbackPlanningTests
+public sealed class SurfaceCacheReadinessPlanningTests
 {
     #region Physical region coverage
     /// <summary>Adjacent requested pages merge while gaps, atlas rows and atlas layers remain separate.</summary>
     [Fact]
     public void MergesOnlyContiguousRequestedPagesInSameRowAndLayer()
     {
-        var regions = SurfaceCacheReadinessReadback.Plan([18, 4, 2, 17, 1, 5, 2], 2, 4, 16);
-        Assert.Equal(new SurfaceCacheReadinessReadback.Region[]
+        var regions = SurfaceCacheReadiness.Plan([18, 4, 2, 17, 1, 5, 2], 2, 4, 16);
+        Assert.Equal(new SurfaceCacheReadiness.Region[]
         {
             new(0, 0, 4, 2, 0), new(6, 0, 2, 2, 0), new(0, 2, 2, 2, 0), new(0, 0, 4, 2, 1)
         }, regions);
@@ -35,7 +35,7 @@ public sealed class SurfaceCacheReadinessReadbackPlanningTests
                     (local / tilesPerAxis) * tileSize + y, physical / tilesPerAtlas));
         }
         var actual = new HashSet<(int X, int Y, int Layer)>();
-        foreach (var region in SurfaceCacheReadinessReadback.Plan(requested, tileSize, tilesPerAxis, tilesPerAtlas))
+        foreach (var region in SurfaceCacheReadiness.Plan(requested, tileSize, tilesPerAxis, tilesPerAtlas))
             for (int y = region.Y; y < region.Y + region.Height; y++)
             for (int x = region.X; x < region.X + region.Width; x++)
                 Assert.True(actual.Add((x, y, region.Layer)), "A requested pixel must be observed only once.");
@@ -47,32 +47,14 @@ public sealed class SurfaceCacheReadinessReadbackPlanningTests
     public void ChangedRequestsProduceFreshCoverage()
     {
         uint[] requested = [1, 2];
-        var first = SurfaceCacheReadinessReadback.Plan(requested, 2, 4, 16);
+        var first = SurfaceCacheReadiness.Plan(requested, 2, 4, 16);
         requested[1] = 4;
-        var second = SurfaceCacheReadinessReadback.Plan(requested, 2, 4, 16);
+        var second = SurfaceCacheReadiness.Plan(requested, 2, 4, 16);
         Assert.Single(first);
         Assert.Equal(2, second.Length);
-        Assert.Empty(SurfaceCacheReadinessReadback.Plan([], 2, 4, 16));
-        Assert.Throws<ArgumentOutOfRangeException>(() => SurfaceCacheReadinessReadback.Plan([0], 2, 4, 16));
+        Assert.Empty(SurfaceCacheReadiness.Plan([], 2, 4, 16));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SurfaceCacheReadiness.Plan([0], 2, 4, 16));
     }
     #endregion
 
-    #region Complete alpha domain
-    /// <summary>Uninitialized interior and final texels cannot hide behind neighboring initialized tiles.</summary>
-    [Theory]
-    [InlineData(0)]
-    [InlineData(5)]
-    [InlineData(15)]
-    public void EveryRequestedTexelMustHaveInitializedAlpha(int texel)
-    {
-        var pixels = new float[16 << 2];
-        for (int index = 3; index < pixels.Length; index += 4) pixels[index] = 1;
-        Assert.True(SurfaceCacheReadinessReadback.IsFullyInitialized(pixels));
-        pixels[(texel << 2) + 3] = 0;
-        Assert.False(SurfaceCacheReadinessReadback.IsFullyInitialized(pixels));
-        pixels[(texel << 2) + 3] = float.NaN;
-        Assert.False(SurfaceCacheReadinessReadback.IsFullyInitialized(pixels));
-        Assert.False(SurfaceCacheReadinessReadback.IsFullyInitialized([]));
-    }
-    #endregion
 }

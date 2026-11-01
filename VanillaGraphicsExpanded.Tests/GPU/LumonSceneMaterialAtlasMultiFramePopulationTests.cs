@@ -99,8 +99,6 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R16f, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
         using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
         const int occRes = 32;
-        using var occL0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
 
         FillR16f2DArray(depthAtlas.TextureId, atlasW, atlasH, atlasCount, value: 0f);
         FillRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount, r: 0, g: 0, b: 0, a: 0);
@@ -108,7 +106,6 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         uint occPacked = LumonSceneOccupancyPacking.Pack(blockLevel: 0, sunLevel: 0, lightId: 0, materialPaletteIndex: 1);
         uint[] occ = new uint[occRes * occRes * occRes];
         Array.Fill(occ, occPacked);
-        occL0.UploadDataImmediate(occ, x: 0, y: 0, z: 0, regionWidth: occRes, regionHeight: occRes, regionDepth: occRes, mipLevel: 0);
 
         uint[] pal = new uint[64 * 4];
         uint sid = 9u;
@@ -117,7 +114,6 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         pal[1 * 4 + 1] = packed2;
         pal[1 * 4 + 2] = packed2;
         pal[1 * 4 + 3] = 0u;
-        materialPalette.UploadDataImmediate(pal);
 
         using var patchMetaSsbo = CreateSsbo<LumonScenePatchMetadataGpu>("Test_PatchMetaSSBO", new LumonScenePatchMetadataGpu[desiredPages + 1]);
         using var slotInfoSsbo = CreateSsbo<int>("Test_ChunkSlotInfoSSBO", new int[4]);
@@ -189,7 +185,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             captureComputeProgram.BindDepthAtlasImage(depthAtlas);
             captureComputeProgram.BindMaterialAtlasImage(materialAtlas);
 
-        using var sharedSurface = new SharedSurfaceInputFixture(occL0, materialPalette);
+        using var sharedSurface = new SharedSurfaceInputFixture(occRes, occ, pal);
         captureComputeProgram.BindSharedGeometry(sharedSurface.Scene);
 
             captureComputeProgram.SetAtlasLayout((uint)tileSize, (uint)tilesPerAxis, (uint)tilesPerAtlas, 0u);
@@ -204,22 +200,14 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
 
         Assert.Equal(desiredPages, virtualToPhysical.Count);
 
-        // Read back material atlas and validate that every allocated physical page has non-zero oct-normal in its tile.
-        byte[] rgba = ReadTexImageRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount);
-
-        for (uint physicalPageId = 1; physicalPageId <= (uint)desiredPages; physicalPageId++)
+        var positions=new List<(int X,int Y,int Layer)>();
+        for(uint physicalPageId=1;physicalPageId<=(uint)desiredPages;physicalPageId++)
         {
-            DecodePhysicalId(physicalPageId, tilesPerAtlas, tilesPerAxis, out int atlasIndex, out int tileX, out int tileY);
-
-            int texelX = tileX * tileSize;
-            int texelY = tileY * tileSize;
-
-            int idx = (((atlasIndex * atlasH) + texelY) * atlasW + texelX) * 4;
-            byte r = rgba[idx + 0];
-            byte g = rgba[idx + 1];
-            Assert.True((r | g) != 0, $"Expected tile for physicalPageId={physicalPageId} to be written (oct-normal!=0).");
+            DecodePhysicalId(physicalPageId,tilesPerAtlas,tilesPerAxis,out int atlasIndex,out int tileX,out int tileY);
+            positions.Add((tileX*tileSize,tileY*tileSize,atlasIndex));
         }
-
+        var proof=ImageAssertions.PredicateAt(materialAtlas,positions,"return bvec2(value.r!=0 || value.g!=0,true);");
+        proof.AssertEqual();Assert.Equal((uint)desiredPages,proof.MatchingTexels);
     }
 
     [Fact]
@@ -379,16 +367,6 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         GL.BindTexture(TextureTarget.Texture2DArray, textureId);
         GL.TexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, 0, width, height, depth, PixelFormat.Rgba, PixelType.UnsignedByte, data);
         GL.BindTexture(TextureTarget.Texture2DArray, 0);
-    }
-
-    private static byte[] ReadTexImageRgba8_2DArray(int textureId, int width, int height, int depth)
-    {
-        byte[] data = new byte[checked(width * height * depth * 4)];
-        GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-        GL.BindTexture(TextureTarget.Texture2DArray, textureId);
-        GL.GetTexImage(TextureTarget.Texture2DArray, level: 0, PixelFormat.Rgba, PixelType.UnsignedByte, data);
-        GL.BindTexture(TextureTarget.Texture2DArray, 0);
-        return data;
     }
 
     private static void DecodePhysicalId(uint physicalPageId, int tilesPerAtlas, int tilesPerAxis, out int atlasIndex, out int tileX, out int tileY)

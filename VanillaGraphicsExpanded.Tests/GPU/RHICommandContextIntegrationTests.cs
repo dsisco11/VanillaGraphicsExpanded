@@ -58,9 +58,9 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
 }
         Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
         Assert.Equal(0x35, GL.GetInteger(GetPName.StencilWritemask)); Assert.Equal(0x53, GL.GetInteger(GetPName.StencilBackWritemask));
-        Assert.All(color.ReadPixels(), value => Assert.InRange(value, .1999f, .2001f));
-        Assert.All(depth.ReadPixels(), value => Assert.InRange(value, .7499f, .7501f));
-        Assert.All(depth.ReadStencilPixels(), value => Assert.Equal((byte)0x59, value));
+        ImageAssertions.Inspect(color, .1999f, .2001f).AssertFiniteRange();
+        ImageAssertions.Inspect(depth, .7499f, .7501f).AssertFiniteRange();
+        ImageAssertions.CompareStencil(depth,0x59).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -102,7 +102,7 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         Assert.False(GL.IsEnabled(EnableCap.ScissorTest));
         int[] restored = new int[4]; GL.GetInteger(GetPName.ScissorBox, restored);
         Assert.Equal(new[] { 2, 1, 1, 2 }, restored);
-        Assert.All(target[0].ReadPixels(), value => Assert.InRange(value, .1999f, .2001f));
+        ImageAssertions.Inspect(target[0], .1999f, .2001f).AssertFiniteRange();
         Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

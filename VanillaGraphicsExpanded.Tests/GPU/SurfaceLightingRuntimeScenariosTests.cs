@@ -27,8 +27,8 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
         // Validate the exact snapshot retained as the comparison baseline.
-        float[] reference = runtime.FinalPixels();
-        Assert.All(reference.Where((_, i) => i % 4 != 3), value => Assert.True(value > .001f));
+        using var reference = new Assertions.GpuImageSnapshot(runtime.FinalImage);
+        Assert.True(ImageAssertions.Inspect(reference.Texture, channelMask: 7).Minimum > .001f);
         long revision = runtime.Screen.HistoryRevision;
         runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         for (int i=0;i<8;i++) runtime.Frame();
@@ -43,7 +43,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
             SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
             Assert.True(runtime.Screen.HistoryRevision > revision);
             AssertBoundaries(runtime, light != 0);
-            if (light != 0) Assert.Equal(reference, runtime.FinalPixels());
+            if (light != 0) ImageAssertions.CompareHistory(runtime.FinalImage, reference).AssertEqual();
         }
     }
 
@@ -79,14 +79,14 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         SeedAndPause(runtime);
         Settle(runtime, true);
         long revision = runtime.Screen.HistoryRevision;
-        float[] seed = runtime.FinalPixels();
+        float seed = runtime.Screen.IndirectFullTex!.ReadPixelsRegion(0, 0, 1, 1)[0];
         AdvanceBounce(runtime);
         Settle(runtime, true);
-        float[] first = runtime.FinalPixels();
-        Assert.True(first[0] > seed[0] * 1.1f, $"First final-pixel bounce: {seed[0]} -> {first[0]}");
+        float first = runtime.Screen.IndirectFullTex!.ReadPixelsRegion(0, 0, 1, 1)[0];
+        Assert.True(first > seed * 1.1f, $"First final-pixel bounce: {seed} -> {first}");
         AdvanceBounce(runtime);
         Settle(runtime, true);
-        Assert.True(runtime.FinalPixels()[0] > first[0] * 1.01f);
+        Assert.True(runtime.Screen.IndirectFullTex!.ReadPixelsRegion(0, 0, 1, 1)[0] > first * 1.01f);
         Assert.Equal(revision, runtime.Screen.HistoryRevision);
         AssertBoundaries(runtime, true);
     }
@@ -106,8 +106,8 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
         // Validate the exact snapshot retained as the comparison baseline.
-        float[] reference = runtime.FinalPixels();
-        Assert.All(reference.Where((_, i) => i % 4 != 3), value => Assert.True(value > .001f));
+        using var reference = new Assertions.GpuImageSnapshot(runtime.FinalImage);
+        Assert.True(ImageAssertions.Inspect(reference.Texture, channelMask: 7).Minimum > .001f);
         foreach (bool open in new[] { false, true })
         {
             long revision = runtime.Screen.HistoryRevision;
@@ -123,7 +123,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
             SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
             Assert.True(runtime.Screen.HistoryRevision > revision);
             AssertBoundaries(runtime, open);
-            if (open) AssertClose(reference, runtime.FinalPixels(), .01f);
+            if (open) AssertClose(reference, runtime.FinalImage, .01f);
         }
     }
 
@@ -151,8 +151,8 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         foreach (var page in scene.Feedback())
             scene.Unloaded.TryAdd(VanillaGraphicsExpanded.Voxels.ChunkProcessing.ChunkKey.FromChunkCoords(page.Chunk.X,page.Chunk.Y,page.Chunk.Z),0);
         runtime.Frame();
-        runtime.RunUntil(() => IsDark(runtime.FinalPixels()) && IsDark(runtime.WorldPixels()));
-        Assert.All(runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels().Where((_,i)=>i%2==0), value=>Assert.Equal(0,value));
+        runtime.RunUntil(() => IsDark(runtime.FinalImage) && IsDark(runtime.WorldImage));
+        ImageAssertions.CompareConstant(runtime.WorldBuffers.Resources!.ProbeMeta0, 0, channelMask: 1).AssertEqual();
         int reloadFrame = runtime.Cache.Frames;
         scene.BlockLight = 0;
         scene.Unloaded.Clear();
@@ -204,8 +204,8 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene,
             SurfaceLightingConsumerRuntimeFixture.FrameBudget - (runtime.Cache.Frames - reloadFrame));
         AssertBoundaries(runtime, false);
-        Assert.True(IsDark(runtime.WorldPixels()));
-        Assert.Contains(runtime.WorldBuffers.Resources!.ProbeMeta0.ReadPixels().Where((_,i)=>i%2==0),value=>value>=.25f);
+        Assert.True(IsDark(runtime.WorldImage));
+        Assert.True(ImageAssertions.Inspect(runtime.WorldBuffers.Resources!.ProbeMeta0, channelMask: 1).Maximum >= .25f);
         TestContext.Current.TestOutputHelper?.WriteLine($"Dark reload: retainedIndirect={retainedPeak}, finalIndirect={previous.Indirect}, completedSweeps={completedSweeps}/{maximumSweeps}, reloadFrames={runtime.Cache.Frames - reloadFrame}/{SurfaceLightingConsumerRuntimeFixture.FrameBudget}.");
     }
     /// <summary>A dark replacement cache cannot reuse populated final lighting, and restoring its source restores the seeded image.</summary>
@@ -222,7 +222,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
         AssertBoundaries(runtime, true);
-        float[] reference = runtime.FinalPixels();
+        using var reference = new Assertions.GpuImageSnapshot(runtime.FinalImage);
         var oldAtlas = runtime.Cache.IrradianceAtlas();
         long revision = runtime.Screen.HistoryRevision;
         runtime.Cache.ChangeBlockLight(0);
@@ -238,7 +238,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         runtime.Frame();
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
-        AssertClose(reference, runtime.FinalPixels(), .01f);
+        AssertClose(reference, runtime.FinalImage, .01f);
     }
 
     #endregion
@@ -270,42 +270,48 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
     }
 
     /// <summary>Preserves the previous per-pixel restoration tolerance at the real runtime output.</summary>
-    private static void AssertClose(float[] expected, float[] actual, float tolerance)
+    private void AssertClose(Assertions.GpuImageSnapshot expected, VanillaGraphicsExpanded.Rendering.GpuTexture actual, float tolerance)
     {
-        Assert.Equal(expected.Length, actual.Length);
-        for (int i=0;i<actual.Length;i++) if (i%4!=3)
-            Assert.InRange(Math.Abs(actual[i]-expected[i]),0,tolerance);
+        ImageAssertions.CompareHistory(actual, expected, tolerance: tolerance, channelMask: 7).AssertEqual();
     }
 
     /// <summary>Requires complete cache readiness and valid world data within the shared 160-frame transition budget.</summary>
-    private static void Settle(SurfaceLightingConsumerRuntimeFixture runtime, bool lit)
+    private void Settle(SurfaceLightingConsumerRuntimeFixture runtime, bool lit)
     {
         runtime.RunUntil(() => runtime.Cache.AllRequestedLightingReady() && runtime.Screen.IndirectFullTex != null
             && runtime.WorldBuffers.Resources != null
-            && runtime.WorldBuffers.Resources.ProbeMeta0.ReadPixels().Where((_,i)=>i%2==0).Any(v=>v>=.25f)
-            && (lit ? AllLit(runtime.FinalPixels()) : IsDark(runtime.FinalPixels()) && IsDark(runtime.WorldPixels())), SurfaceLightingConsumerRuntimeFixture.FrameBudget - 8);
+            && ImageAssertions.Inspect(runtime.WorldBuffers.Resources.ProbeMeta0, channelMask: 1).Maximum >= .25f
+            && (lit ? AllLit(runtime.FinalImage) : IsDark(runtime.FinalImage) && IsDark(runtime.WorldImage)), SurfaceLightingConsumerRuntimeFixture.FrameBudget - 8);
         // Complete a directional sweep so intermediate assertions cannot pass on a transient final output.
         for (int frame=0;frame<8;frame++) runtime.Frame();
     }
 
     /// <summary>Checks each produced lighting boundary; all final RGB channels must agree with the scene state.</summary>
-    private static void AssertBoundaries(SurfaceLightingConsumerRuntimeFixture runtime, bool lit)
+    private void AssertBoundaries(SurfaceLightingConsumerRuntimeFixture runtime, bool lit)
     {
-        foreach (var pixels in new[] { runtime.Screen.ScreenProbeAtlasHistoryTex!.ReadPixels(),
-            runtime.Screen.ScreenProbeAtlasFilteredTex!.ReadPixels(), runtime.Screen.IndirectHalfTex!.ReadPixels(), runtime.FinalPixels() })
+        foreach (var pixels in new[] { runtime.Screen.ScreenProbeAtlasHistoryTex!,
+            runtime.Screen.ScreenProbeAtlasFilteredTex!, runtime.Screen.IndirectHalfTex!, runtime.FinalImage })
         {
-            float peak = SurfaceLightingConsumerRuntimeFixture.Energy(pixels);
+            float peak = runtime.Energy(pixels);
             if (lit) Assert.True(peak>.001f); else Assert.InRange(peak,0,.0001f);
         }
-        Assert.True(lit ? AllLit(runtime.FinalPixels()) : IsDark(runtime.FinalPixels()));
-        Assert.Contains(runtime.Screen.ScreenProbeAtlasMetaHistoryTex!.ReadPixels().Where((_,i)=>i%2==0), value=>value>.5f);
+        Assert.True(lit ? AllLit(runtime.FinalImage) : IsDark(runtime.FinalImage));
+        Assert.True(ImageAssertions.Inspect(runtime.Screen.ScreenProbeAtlasMetaHistoryTex!, channelMask: 1).Maximum > .5f);
     }
 
     /// <summary>Requires finite nonzero illumination in every final RGB channel.</summary>
-    private static bool AllLit(float[] pixels) => pixels.Length>0 && pixels.Where((_,i)=>i%4!=3).All(v=>float.IsFinite(v)&&v>.001f);
+    private bool AllLit(VanillaGraphicsExpanded.Rendering.GpuTexture image)
+    {
+        var result = ImageAssertions.Inspect(image, channelMask: 7);
+        return result.NonFinite == 0 && result.Minimum > .001f;
+    }
 
     /// <summary>Requires finite darkness across every RGB channel.</summary>
-    private static bool IsDark(float[] pixels) => pixels.Length>0 && pixels.Where((_,i)=>i%4!=3).All(v=>float.IsFinite(v)&&Math.Abs(v)<=.0001f);
+    private bool IsDark(VanillaGraphicsExpanded.Rendering.GpuTexture image)
+    {
+        var result = ImageAssertions.Inspect(image, -.0001f, .0001f, channelMask: 7);
+        return result.NonFinite == 0 && result.OutsideRange == 0;
+    }
 
     #endregion
 }

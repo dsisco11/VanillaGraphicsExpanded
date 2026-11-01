@@ -28,7 +28,7 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
     {
         EnsureShaderTestAvailable();
         using var context = new PsoWorkloadContext(fixture);
-        Measurement current = Run(workload);
+        using Measurement current = Run(workload);
         Assert.DoesNotContain(current.Events, item => item.StartsWith("application:LineWidth("));
         Assert.DoesNotContain(current.Events, item => item.StartsWith("application:Scissor("));
         if (workload != "point-resolve") Assert.DoesNotContain(current.Events, item => item.StartsWith("application:PointSize("));
@@ -36,8 +36,9 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         {
             Assert.Contains(current.Events, item => item.StartsWith("application:PointSize(1"));
             // The real resolve stores physical RGB at persistent scale 1/16; validity/distance alpha stays unscaled.
-            Assert.Equal(new[] { .046875f, .0078125f, .03125f, 1f }, current.Pixels[0].Skip((4 * 8 + 3) * 4).Take(4));
-            Assert.Equal(4, current.Pixels[0].Count(value => value != 0));
+            Assert.Equal(new[] { .046875f, .0078125f, .03125f, 1f }, current.Pixels[0].Texture.ReadPixelsRegion(3, 4, 1, 1));
+            ImageAssertions.Inspect(current.Pixels[0].Texture).AssertFiniteRange();
+            Assert.Equal(4u, ImageAssertions.Inspect(current.Pixels[0].Texture).Nonzero);
         }
         if (workload == "cloud") Assert.Contains("validated:active-blend-factors",current.Events);
         AssertDormantOutputPayloads(current.Events);
@@ -59,14 +60,14 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         {
             using var scene = new ProductionSkyDrawScene(1);
             scene.Initialize();
-            return Measure(() => scene.Draw(true), scene.Read);
+            return Measure(() => scene.Draw(true), () => scene.CaptureOutput());
         }
         if (workload == "cloud")
         {
             using var programs = new ComponentShaderPrograms();
             using var scene = new CloudStoredVolumeViewScene(programs,8,8);
             var settings=VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewSettings.Default;
-            float[][] pixels=[];return Measure(() => pixels=scene.Draw(settings), () => pixels);
+            return Measure(() => { scene.PrepareDraw(settings); Assert.True(scene.DrawOnly()); }, () => scene.CaptureOutput());
         }
         return PointResolve();
     }
@@ -95,7 +96,7 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
             commands.BindResources(program.CaptureBindings());
             commands.Draw(geometry.Inputs, new(0, 1)); commands.EndRenderPass();
         });
-}, () => [image.ReadPixels()]);
+}, () => new Assertions.GpuImageSet([image]));
     }
     #endregion
 
@@ -116,7 +117,7 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
     }
 
     /// <summary>Separates hostile setup and raw native inspection from the bounded observed callback.</summary>
-    private static Measurement Measure(Action draw, Func<float[][]> pixels)
+    private Measurement Measure(Action draw, Func<Assertions.GpuImageSet> pixels)
     {
         PsoNativeStateFingerprint.MakeDormantHostile();
         string before = PsoNativeStateFingerprint.Read();
@@ -130,8 +131,12 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
 #endif
         string after = PsoNativeStateFingerprint.Read();
         Assert.Equal(before, after);
-        float[][] images = pixels();
-        Assert.Contains(images.SelectMany(v => v), value => value > 0);
+        var images = pixels();
+        try
+        {
+            Assert.True(Enumerable.Range(0, images.Count).Any(i => ImageAssertions.Inspect(images[i].Texture).Positive > 0));
+        }
+        catch { images.Dispose(); throw; }
         return new(
 #if DEBUG
             calls,
@@ -146,5 +151,11 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
 #if DEBUG
         long FixedCalls,
 #endif
-        string[] Events, float[][] Pixels);
+        string[] Events, Assertions.GpuImageSet Pixels) : IDisposable
+    {
+        #region Public API
+        /// <summary>Retires independent images after the workload's native and output checks finish.</summary>
+        public void Dispose() => Pixels.Dispose();
+        #endregion
+    }
 }

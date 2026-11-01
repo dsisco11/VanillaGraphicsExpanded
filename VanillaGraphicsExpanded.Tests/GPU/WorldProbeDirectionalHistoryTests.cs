@@ -26,10 +26,10 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
 #if DEBUG
         Assert.Equal(dispatches+1,resources.InvalidationDispatchCount);
 #endif
-        Assert.All(resources.ProbeRadianceAtlas.ReadPixels(),value=>Assert.Equal(0,value));
-        Assert.All(resources.ProbeVis0.ReadPixels(),value=>Assert.Equal(0,value));
-        Assert.All(resources.ProbeDist0.ReadPixels(),value=>Assert.Equal(0,value));
-        Assert.All(resources.ProbeMeta0.ReadPixels(),value=>Assert.Equal(0,value));
+        ImageAssertions.CompareConstant(resources.ProbeRadianceAtlas, 0).AssertEqual();
+        ImageAssertions.CompareConstant(resources.ProbeVis0, 0).AssertEqual();
+        ImageAssertions.CompareConstant(resources.ProbeDist0, 0).AssertEqual();
+        ImageAssertions.CompareConstant(resources.ProbeMeta0, 0).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
@@ -64,28 +64,29 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
         resources.QueueClearLocalBox(0,new(),new(1,0,0),new(3,1,1));
         resources.QueueClearLocalBox(0,new(),new(),new(2,1,1));
         Assert.Equal(16,resources.PendingInvalidationCount);
-        Assert.All(resources.ProbeRadianceAtlas.ReadPixels(),value=>Assert.Equal(1,value));
+        ImageAssertions.CompareConstant(resources.ProbeRadianceAtlas, 1).AssertEqual();
         resources.FlushHistoryInvalidation();
 #if DEBUG
         Assert.Equal(initialDispatches+1,resources.InvalidationDispatchCount);
 #endif
         Assert.Equal(0,resources.PendingInvalidationCount);
-        Assert.Equal(16<<4,resources.ProbeRadianceAtlas.ReadPixels().Where((_,i)=>(i&3)==3).Count(value=>value==0));
+        var cleared=ImageAssertions.Predicate(resources.ProbeRadianceAtlas,"return bvec2(true,a.a==0);");
+        cleared.AssertEqual();Assert.Equal((uint)(16<<4),cleared.MatchingTexels);
         Fill(resources);
         resources.FlushHistoryInvalidation();
 #if DEBUG
         Assert.Equal(initialDispatches+1,resources.InvalidationDispatchCount);
 #endif
-        Assert.All(resources.ProbeRadianceAtlas.ReadPixels(),value=>Assert.Equal(1,value));
-        Assert.All(resources.ProbeMeta0.ReadPixels(),value=>Assert.Equal(1,value));
+        ImageAssertions.CompareConstant(resources.ProbeRadianceAtlas, 1).AssertEqual();
+        ImageAssertions.CompareConstant(resources.ProbeMeta0, 1).AssertEqual();
         // Full reset must be immediate and independent of fixed-function write restrictions.
         GL.Enable(EnableCap.ScissorTest);GL.Scissor(0,0,1,1);GL.ColorMask(false,false,false,false);
         try { resources.ClearAll(); }
         finally { GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true); }
-        Assert.All(resources.ProbeRadianceAtlas.ReadPixels(),value=>Assert.Equal(0,value));
-        Assert.All(resources.ProbeMeta0.ReadPixels(),value=>Assert.Equal(0,value));
-        Assert.All(resources.ProbeVis0.ReadPixels(),value=>Assert.Equal(0,value));
-        Assert.All(resources.ProbeDist0.ReadPixels(),value=>Assert.Equal(0,value));
+        ImageAssertions.CompareConstant(resources.ProbeRadianceAtlas, 0).AssertEqual();
+        ImageAssertions.CompareConstant(resources.ProbeMeta0, 0).AssertEqual();
+        ImageAssertions.CompareConstant(resources.ProbeVis0, 0).AssertEqual();
+        ImageAssertions.CompareConstant(resources.ProbeDist0, 0).AssertEqual();
 #if DEBUG
         Assert.Equal(initialDispatches+2,resources.InvalidationDispatchCount);
 #endif
@@ -114,22 +115,27 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
             Assert.Equal(new[]{3,4,5,6},scissor);Assert.Equal(new[]{false,true,false,true},mask);
         }
         finally { GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true); }
-        var radiance=resources.ProbeRadianceAtlas.ReadPixels();
-        var metadata=resources.ProbeMeta0.ReadPixels();
-        var visibility=resources.ProbeVis0.ReadPixels();
-        var distance=resources.ProbeDist0.ReadPixels();
+        // Author expected coordinates independently of the invalidation shader, including every direction.
+        var radiance=new float[resources.ProbeRadianceAtlas.Width*resources.ProbeRadianceAtlas.Height*4];
+        var metadata=new float[resources.ProbeMeta0.Width*resources.ProbeMeta0.Height*2];
+        var visibility=new float[resources.ProbeVis0.Width*resources.ProbeVis0.Height*4];
+        var distance=new float[resources.ProbeDist0.Width*resources.ProbeDist0.Height*2];
         for(int level=0;level<2;level++)for(int z=0;z<4;z++)for(int y=0;y<4;y++)for(int x=0;x<4;x++)
         {
             bool cleared=level==1 && x!=2 && y>=2 && z>=1 && z<=2;
             float expected=cleared?0:1;
             int scalar=((level*4+y)*16+z*4+x)*4;
-            Assert.Equal(expected,metadata[scalar>>1]);Assert.Equal(expected,visibility[scalar]);Assert.Equal(expected,distance[scalar>>1]);
+            metadata[scalar>>1]=expected;visibility[scalar]=expected;distance[scalar>>1]=expected;
             for(int v=0;v<4;v++)for(int u=0;u<4;u++)
             {
                 int pixel=(((level*4+y)*4+v)*64+(z*4+x)*4+u)*4;
-                for(int c=0;c<4;c++) Assert.Equal(expected,radiance[pixel+c]);
+                for(int c=0;c<4;c++)radiance[pixel+c]=expected;
             }
         }
+        ImageAssertions.Compare(resources.ProbeRadianceAtlas,radiance).AssertEqual();
+        ImageAssertions.Compare(resources.ProbeMeta0,metadata,channelMask:1).AssertEqual();
+        ImageAssertions.Compare(resources.ProbeVis0,visibility,channelMask:1).AssertEqual();
+        ImageAssertions.Compare(resources.ProbeDist0,distance,channelMask:1).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

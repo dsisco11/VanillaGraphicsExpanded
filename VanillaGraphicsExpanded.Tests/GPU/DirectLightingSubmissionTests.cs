@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.PBR;
@@ -39,15 +40,18 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
             int drawFbo = GL.GetInteger(GetPName.DrawFramebufferBinding), readFbo = GL.GetInteger(GetPName.ReadFramebufferBinding);
             Assert.True(scene.Candidate.RenderLighting(scene.Actual)); Assert.Equal(before + 1, scene.Draws);
             Compare(scene, kind == 0);
-            if (kind == 2) Assert.Contains(LayeredTestTexture.Read(scene.Actual.Radiance, DirectLightingTargets.EmissiveLayer), value => value > .01f);
+            if(kind==2)Assert.True(ImageAssertions.Inspect(scene.Actual.Radiance,selection:new(new(0,DirectLightingTargets.EmissiveLayer),0,0,0,scene.Actual.Radiance.Width,scene.Actual.Radiance.Height,1)).Maximum>.01f);
             AssertHostile(width, height, drawFbo, readFbo);
             Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
             if (kind is 3 or 6)
             {
-                float[] shadowed = LayeredTestTexture.Read(scene.Actual.Radiance, DirectLightingTargets.DiffuseLayer);
+                var selection=new RHITextureRegion(new(0,DirectLightingTargets.DiffuseLayer),0,0,0,scene.Actual.Radiance.Width,scene.Actual.Radiance.Height,1);
+                using var shadowed=new GpuImageSnapshot(scene.Actual.Radiance,selection);
                 scene.Uniforms.DropShadowIntensity = 0;
                 Assert.True(scene.Candidate.RenderLighting(scene.Actual));
-                Assert.Contains(LayeredTestTexture.Read(scene.Actual.Radiance, DirectLightingTargets.DiffuseLayer).Zip(shadowed), pair => pair.First > pair.Second + .001f);
+                using var unshadowed=new GpuImageSnapshot(scene.Actual.Radiance,selection);
+                var brighter=ImageAssertions.Predicate(unshadowed.Texture,"return bvec2(true,any(greaterThan(a,b+vec4(.001))));",shadowed.Texture);
+                brighter.AssertEqual();Assert.True(brighter.MatchingTexels>0);
                 scene.Uniforms.DropShadowIntensity = 1;
                 Assert.True(scene.Candidate.RenderLighting(scene.Actual));
             }
@@ -55,7 +59,11 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
         scene.Neutral();
         Assert.True(scene.Candidate.RenderLighting());
         for (int attachment = 0; attachment < 3; attachment++)
-            Assert.Equal(LayeredTestTexture.Read(scene.Actual.Radiance, attachment), LayeredTestTexture.Read(Assert.IsType<Texture3D>(scene.Normal.Colors[attachment].Image!.Value.Texture.Resource), attachment));
+        {
+            var selection=new RHITextureRegion(new(0,attachment),0,0,0,scene.Actual.Radiance.Width,scene.Actual.Radiance.Height,1);
+            using var expected=new GpuImageSnapshot(Assert.IsType<Texture3D>(scene.Normal.Colors[attachment].Image!.Value.Texture.Resource),selection);
+            ImageAssertions.CompareHistory(scene.Actual.Radiance,expected,selection).AssertEqual();
+        }
         var unchangedPipeline = scene.Candidate.PrepareBoundaryPipeline();
         // Publish the changed inputs through the candidate first, so reference activation cannot hide skipped updates.
         scene.Inputs(2, .25f); Hostile();
@@ -103,23 +111,21 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
     #endregion
 
     #region Private
-    /// <summary>Compares every channel and reports maximum error rather than a selected sample.</summary>
+    /// <summary>Compares every original channel against the independent reference with its float absolute-plus-relative tolerance.</summary>
     private void Compare(DirectLightingComparisonFixture scene, bool zero)
     {
         for (int attachment = 0; attachment < 3; attachment++)
         {
-            float[] expected = LayeredTestTexture.Read(scene.Expected.Radiance, attachment);
-            float[] actual = LayeredTestTexture.Read(scene.Actual.Radiance, attachment);
-            Assert.Equal(expected.Length, actual.Length); float maximum = 0; int mismatches = 0;
-            for (int i = 0; i < expected.Length; i++)
-            {
-                Assert.True(float.IsFinite(expected[i]) && float.IsFinite(actual[i]));
-                float error = MathF.Abs(actual[i] - expected[i]); maximum = MathF.Max(maximum, error);
-                if (error > .001f + .002f * MathF.Abs(expected[i])) mismatches++;
-                if (zero) { Assert.Equal(0, expected[i]); Assert.Equal(0, actual[i]); }
-            }
-            output.WriteLine($"attachment {attachment}: maximum error {maximum}; mismatched components {mismatches}");
-            Assert.Equal(0, mismatches);
+            var selection=new RHITextureRegion(new(0,attachment),0,0,0,scene.Actual.Radiance.Width,scene.Actual.Radiance.Height,1);
+            using var expected=new GpuImageSnapshot(scene.Expected.Radiance,selection);
+            using var actual=new GpuImageSnapshot(scene.Actual.Radiance,selection);
+            var proof=ImageAssertions.Predicate(actual.Texture,"""
+                precise vec4 difference=abs(a-b);
+                precise vec4 allowed=vec4(.001)+.002*abs(b);
+                bool finite=!any(isnan(a)) && !any(isinf(a)) && !any(isnan(b)) && !any(isinf(b));
+                return bvec2(finite && all(lessThanEqual(difference,allowed)) && (multipliers.x==0 || (all(equal(a,vec4(0))) && all(equal(b,vec4(0))))),false);
+                """,expected.Texture,parameters:new(zero?1:0,0,0,0));
+            proof.AssertEqual();output.WriteLine($"attachment {attachment}: {proof}");
         }
     }
 

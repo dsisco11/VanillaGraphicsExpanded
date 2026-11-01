@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
@@ -35,14 +36,10 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
         }, new System.Numerics.Vector3(reflectance));
         Assert.True(fixture.Page.Capture(fixture.Geometry.Scene));
         Assert.True(fixture.Page.Relight(fixture.Geometry.Scene));
-        float[] pixels = fixture.Page.ReadLighting();
-        for (int i = 0; i < pixels.Length; i += 4)
-        {
-            // L = 32*capturedDiffuse/pi at each wall; E = pi*L for cosine-weighted sampling.
-            float expected = 32f * GgxHemisphereReference.CapturedDiffuse(reflectance);
-            for (int channel = 0; channel < 3; channel++) Assert.InRange(pixels[i + channel], expected - .1f, expected + .1f);
-            Assert.Equal(1f, pixels[i + 3]);
-        }
+        float expected=32f*GgxHemisphereReference.CapturedDiffuse(reflectance);
+        ImageAssertions.Predicate(fixture.Page.IrradianceAtlas,
+            "return bvec2(all(greaterThanEqual(a.rgb,vec3(multipliers.x))) && all(lessThanEqual(a.rgb,vec3(multipliers.y))) && a.a==1,false);",
+            parameters:new(expected-.1f,expected+.1f,0,0)).AssertEqual();
     }
 
     /// <summary>Resolved directions cannot contribute a biased average when another direction exhausts traversal.</summary>
@@ -55,22 +52,13 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
                 LumonSceneOccupancyPacking.PackClamped(32, 0, 0, 0), 0));
         Assert.True(fixture.Page.Capture(fixture.Geometry.Scene));
         fixture.Page.Relight(fixture.Geometry.Scene, steps: 2, rays: 1);
-        float[] firstDirections = fixture.Page.ReadLighting();
+        using var firstDirections = new GpuImageSnapshot(fixture.Page.IrradianceAtlas);
         fixture.Page.ResetLighting();
         Assert.False(fixture.Page.Relight(fixture.Geometry.Scene, steps: 2, rays: 16));
-        float[] batches = fixture.Page.ReadLighting();
-        // r=0 is identical in both dispatches. A successful first ray and rejected
-        // full batch proves the same texel contains both resolved and unresolved directions.
-        bool mixed = false;
-        for (int i = 0; i < batches.Length; i += 4)
-        {
-            if (firstDirections[i + 3] == 1f && batches[i + 3] == 0f)
-            {
-                mixed = true;
-                for (int channel = 0; channel < 3; channel++) Assert.Equal(0f, batches[i + channel]);
-            }
-        }
-        Assert.True(mixed, "Fixture must exercise a mixed resolved/unresolved hemisphere batch.");
+        // The first ray is identical; require at least one texel whose complete batch is rejected.
+        var mixed=ImageAssertions.Predicate(fixture.Page.IrradianceAtlas,
+            "bool selected=b.a==1 && a.a==0;return bvec2(!selected || all(equal(a.rgb,vec3(0))),selected);",second:firstDirections.Texture);
+        mixed.AssertEqual();Assert.True(mixed.MatchingTexels>0,"Fixture must exercise a mixed resolved/unresolved hemisphere batch.");
     }
 
     /// <summary>A saturated history must not add energy when another equal-light batch arrives.</summary>
@@ -81,26 +69,20 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
         using var fixture = new DynamicSurfaceLightingFixture(32);
         Assert.True(fixture.Page.Capture(fixture.Geometry.Scene));
         Assert.True(fixture.Page.Relight(fixture.Geometry.Scene));
-        float[] expected = fixture.Page.ReadLighting();
-        float[] history = (float[])expected.Clone();
-        // Seed the same representable incoming sample at a saturated weight. Absolute GGX
-        // normalization is checked separately; this test isolates exact temporal stability.
-        for(int i=0;i<history.Length;i+=4)
-        {
-            Assert.Equal(1f,expected[i+3]);
-            history[i+3]=1024;
-        }
-        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, fixture.Page.IrradianceAtlas.TextureId))
-            GL.TexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, 0, 8, 8, 1, PixelFormat.Rgba, PixelType.Float, history);
+        using var expected = new GpuImageSnapshot(fixture.Page.IrradianceAtlas);
+        ImageAssertions.CompareConstant(expected.Texture,1,channelMask:8).AssertEqual();
+        // Preserve the completed representable sample; only the authored temporal weight changes.
+        using var transform=new GpuImageTransform();
+        using var history=transform.Apply(expected.Texture,"return vec4(a.rgb,1024);");
+        var area=new VanillaGraphicsExpanded.Rendering.RHI.RenderArea(0,0,8,8);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BlitImages(new(
+            VanillaGraphicsExpanded.Rendering.RHI.RHIAttachment.FromTexture(history),area,
+            VanillaGraphicsExpanded.Rendering.RHI.RHIAttachment.FromTexture(fixture.Page.IrradianceAtlas),area));
         for(int repeat=0;repeat<3;repeat++)
         {
             Assert.True(fixture.Page.Relight(fixture.Geometry.Scene));
-            float[] result = fixture.Page.ReadLighting();
-            for (int i = 0; i < result.Length; i += 4)
-            {
-                for (int channel = 0; channel < 3; channel++) Assert.Equal(expected[i+channel], result[i + channel]);
-                Assert.Equal(1024f, result[i + 3]);
-            }
+            ImageAssertions.CompareHistory(fixture.Page.IrradianceAtlas,expected,channelMask:7).AssertEqual();
+            ImageAssertions.CompareConstant(fixture.Page.IrradianceAtlas,1024,channelMask:8).AssertEqual();
         }
     }
     #endregion

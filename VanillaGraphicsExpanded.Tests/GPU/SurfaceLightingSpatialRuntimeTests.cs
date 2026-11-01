@@ -2,6 +2,8 @@ using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -33,7 +35,7 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
             runtime.Frame();
             AssertAnchors(runtime,scene);
             Settle(runtime,true);
-            AssertPixels(runtime.FinalPixels(),true);
+            AssertPixels(runtime.FinalImage,true);
         }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
@@ -68,9 +70,9 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         Assert.Equal(27,overlap.Count);
         runtime.RunUntil(()=>
         {
-            var meta=resources.ProbeMeta0.ReadPixels();
-            return overlap.All(p=>meta[((p.Y+(int)ring.Y)%resolution*resources.AtlasWidth+
-                (p.X+(int)ring.X)%resolution+(p.Z+(int)ring.Z)%resolution*resolution)<<1]>=.25f);
+            return overlap.All(p => ImageAssertions.Inspect(resources.ProbeMeta0,
+                selection: new(new(0), (p.X + (int)ring.X) % resolution + (p.Z + (int)ring.Z) % resolution * resolution,
+                    (p.Y + (int)ring.Y) % resolution, 0, 1, 1), channelMask: 1).Minimum >= .25f);
         });
         // Stop further producer work through its budget, preserving a coherent published generation.
         runtime.RunUntil(runtime.Cache.AllRequestedLightingReady);
@@ -78,8 +80,9 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         runtime.Frame(); runtime.Frame();
         // Isolate ring retention from legitimate asynchronous refreshes of surviving tiles.
         runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=1;
-        var before=runtime.WorldPixels(); var reference=runtime.FinalPixels();
-        var metaBefore=resources.ProbeMeta0.ReadPixels();
+        using var before = new Assertions.GpuImageSnapshot(runtime.WorldImage);
+        using var reference = new Assertions.GpuImageSnapshot(runtime.FinalImage);
+        using var metaBefore = new Assertions.GpuImageSnapshot(resources.ProbeMeta0);
         Assert.True(runtime.Cache.TryGetLighting(out var initial));
         var shifts=new List<VanillaGraphicsExpanded.LumOn.WorldProbes.LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>();
         runtime.WorldBuffers.AnchorShifted+=shifts.Add;
@@ -92,10 +95,10 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         Assert.Equal(1,shift.DeltaProbes.X);
         Assert.Equal(0,shift.DeltaProbes.Y); Assert.Equal(0,shift.DeltaProbes.Z);
         Assert.NotEqual(shift.PrevRingOffset.X,shift.NewRingOffset.X);
-        AssertAnchors(runtime,scene); AssertPixels(runtime.FinalPixels(),true);
-        var after=runtime.WorldPixels();
+        AssertAnchors(runtime,scene); AssertPixels(runtime.FinalImage,true);
+
         Assert.Same(resources,runtime.WorldBuffers.Resources);
-        var metaAfter=resources.ProbeMeta0.ReadPixels();
+
         // Every supported old coordinate becomes x-1; wrapping must retain its physical tile.
         int tileSize=resources.WorldProbeTileSize;
         foreach(var p in overlap)
@@ -106,18 +109,15 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
             Assert.Equal(sx,(p.X-shift.DeltaProbes.X+shift.NewRingOffset.X)%resolution);
             Assert.Equal(sy,(p.Y-shift.DeltaProbes.Y+shift.NewRingOffset.Y)%resolution);
             Assert.Equal(sz,(p.Z-shift.DeltaProbes.Z+shift.NewRingOffset.Z)%resolution);
-            int metaIndex=(sy*resources.AtlasWidth+sx+sz*resolution)<<1;
-            Assert.Equal(metaBefore[metaIndex],metaAfter[metaIndex]);
-            Assert.Equal(BitConverter.SingleToUInt32Bits(metaBefore[metaIndex+1]),
-                BitConverter.SingleToUInt32Bits(metaAfter[metaIndex+1]));
-            bool populated=false;
-            for(int oy=0;oy<tileSize;oy++) for(int ox=0;ox<tileSize;ox++) for(int c=0;c<4;c++)
-            {
-                int index=(((sy*tileSize+oy)*resources.RadianceAtlasWidth+(sx+sz*resolution)*tileSize+ox)<<2)+c;
-                Assert.Equal(before[index],after[index]);
-                populated|=c!=3 && before[index]>.001f;
-            }
-            Assert.True(populated,"Each surviving world tile must contain actual produced lighting.");
+            var metaRegion = new RHITextureRegion(new(0), sx + sz * resolution, sy, 0, 1, 1);
+            using var oldMeta = new Assertions.GpuImageSnapshot(metaBefore.Texture, metaRegion);
+            ImageAssertions.CompareHistory(resources.ProbeMeta0, oldMeta, metaRegion, channelMask: 1).AssertEqual();
+            ImageAssertions.CompareHistory(resources.ProbeMeta0, oldMeta, metaRegion, channelMask: 2, bitwise: true).AssertEqual();
+            var tileRegion = new RHITextureRegion(new(0), (sx + sz * resolution) * tileSize, sy * tileSize, 0, tileSize, tileSize);
+            using var oldTile = new Assertions.GpuImageSnapshot(before.Texture, tileRegion);
+            ImageAssertions.CompareHistory(runtime.WorldImage, oldTile, tileRegion).AssertEqual();
+            Assert.True(ImageAssertions.Inspect(oldTile.Texture, channelMask: 7).Maximum > .001f,
+                "Each surviving world tile must contain actual produced lighting.");
         }
         // Newly assigned edge slots remain unavailable while uploads are paused. The
         // prefilled-tile clear tests separately prove that this clear removes old light.
@@ -126,18 +126,17 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
             int sx=(resolution-1+shift.NewRingOffset.X)%resolution;
             int sy=(y+shift.NewRingOffset.Y)%resolution;
             int sz=(z+shift.NewRingOffset.Z)%resolution;
-            int metaIndex=(sy*resources.AtlasWidth+sx+sz*resolution)<<1;
-            Assert.Equal(0,metaAfter[metaIndex]);
-            Assert.Equal(0u,BitConverter.SingleToUInt32Bits(metaAfter[metaIndex+1]));
-            for(int oy=0;oy<tileSize;oy++) for(int ox=0;ox<tileSize;ox++) for(int c=0;c<4;c++)
-                Assert.Equal(0,after[(((sy*tileSize+oy)*resources.RadianceAtlasWidth+
-                    (sx+sz*resolution)*tileSize+ox)<<2)+c]);
+            var metaRegion = new RHITextureRegion(new(0), sx + sz * resolution, sy, 0, 1, 1);
+            ImageAssertions.CompareConstant(resources.ProbeMeta0, 0, metaRegion).AssertEqual();
+            using var clearedMeta = new Assertions.GpuImageSnapshot(resources.ProbeMeta0, metaRegion);
+            Assert.Equal(0u, ImageAssertions.CountFlags(clearedMeta.Texture, uint.MaxValue, 2).FlagMatches);
+            ImageAssertions.CompareConstant(runtime.WorldImage, 0,
+                new(new(0), (sx + sz * resolution) * tileSize, sy * tileSize, 0, tileSize, tileSize)).AssertEqual();
         }
         scene.Position=new(0,36,5); scene.EyeOffsetX=0;
         runtime.Frame(); runtime.Frame();
         AssertAnchors(runtime,scene);
-        foreach(var pair in reference.Zip(runtime.FinalPixels()).Where((_,i)=>i%4!=3))
-            Assert.InRange(Math.Abs(pair.First-pair.Second),0,.03f);
+        ImageAssertions.CompareHistory(runtime.FinalImage, reference, tolerance: .03f, channelMask: 7).AssertEqual();
     }
     /// <summary>Signed chunk crossings preserve allocations; reused unavailable slots cannot expose old light before reload.</summary>
     [Theory]
@@ -166,8 +165,8 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         for(int frame=0;frame<8;frame++)
         {
             runtime.Frame();
-            AssertPixels(runtime.FinalPixels(),false);
-            Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()),0,.0001f);
+            AssertPixels(runtime.FinalImage,false);
+            Assert.InRange(runtime.Energy(runtime.WorldImage),0,.0001f);
         }
         Assert.Same(geometry,runtime.Cache.Geometry.Resources);
         AssertCellReady(runtime,448,36,5,false);
@@ -193,13 +192,13 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
             bool lit=x==0;
             scene.Position=new(x,36,5); scene.Bob=.1f; scene.Yaw=.15f;
             runtime.Frame();
-            if(!lit) AssertPixels(runtime.FinalPixels(),false);
+            if(!lit) AssertPixels(runtime.FinalImage,false);
             Settle(runtime,lit); AssertAnchors(runtime,scene);
-            for(int i=0;i<8;i++) { runtime.Frame(); AssertPixels(runtime.FinalPixels(),lit); }
+            for(int i=0;i<8;i++) { runtime.Frame(); AssertPixels(runtime.FinalImage,lit); }
             if(x==8f)
             {
                 runtime.Cache.GeometryAvailable=false;
-                for(int i=0;i<4;i++) { runtime.Frame(); AssertPixels(runtime.FinalPixels(),false); }
+                for(int i=0;i<4;i++) { runtime.Frame(); AssertPixels(runtime.FinalImage,false); }
                 runtime.Cache.GeometryAvailable=true; Settle(runtime,false);
             }
         }
@@ -217,10 +216,10 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         runtime.Cache.Config.LumOn.DebugMode=VanillaGraphicsExpanded.LumOn.LumOnDebugMode.WorldProbeLightingEffect;
         runtime.Cache.Config.WorldProbeClipmap.ClipmapResolution=4;
         Settle(runtime,true);
-        runtime.RunUntil(()=>SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f && runtime.Screen.WorldProbeSuppressedLighting!=null);
-        var baseline=runtime.FinalPixels();
-        var suppressed=runtime.Screen.WorldProbeSuppressedLighting!.ReadPixels();
-        Assert.True(baseline.Zip(suppressed).Where((_,i)=>i%4!=3).All(p=>Math.Abs(p.First-p.Second)<.02f),"Resolved screen hits must not receive an additional gather world term.");
+        runtime.RunUntil(()=>runtime.Energy(runtime.WorldImage)>.001f && runtime.Screen.WorldProbeSuppressedLighting!=null);
+        using var baseline = new Assertions.GpuImageSnapshot(runtime.FinalImage);
+        ImageAssertions.CompareHistory(runtime.Screen.WorldProbeSuppressedLighting!, baseline,
+            tolerance: MathF.BitDecrement(.02f), channelMask: 7).AssertEqual();
         runtime.RunUntil(runtime.Cache.AllRequestedLightingReady);
         runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         runtime.Cache.Config.LumOn.ProbeSpacingPx=4;
@@ -230,16 +229,16 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         {
             scene.Yaw=yaw; runtime.Frame();
             for(int i=0;i<24;i++) runtime.Frame();
-            var final=runtime.FinalPixels();
-            TestContext.Current.TestOutputHelper?.WriteLine($"sh9={sh9}, yaw={yaw}, finalMin={final.Where((_,i)=>i%4!=3).Min()}, finalMax={final.Where((_,i)=>i%4!=3).Max()}, worldEnergy={SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())}, screenPublished={runtime.Screen.HasPublishedIndirect}, indirectTexture={runtime.Screen.IndirectFullTex?.TextureId}, suppressedTexture={runtime.Screen.WorldProbeSuppressedLighting?.TextureId}");
-            AssertPixels(final,true); var without=runtime.Screen.WorldProbeSuppressedLighting!.ReadPixels();
-            float difference=final.Zip(without).Where((_,i)=>i%4!=3).Max(p=>Math.Abs(p.First-p.Second));
-            var meta=runtime.Screen.ScreenProbeAtlasMetaTraceTex!.ReadPixels();
-            int world=meta.Where((_,i)=>i%2==1).Count(value=>(BitConverter.SingleToUInt32Bits(value)&32)!=0);
-            observations.Add($"yaw={yaw},delta={difference},worldRays={world},minRGB={final.Where((_,i)=>i%4!=3).Min()}");
-            worldSelected|=difference>.001f;
-            gatherSelected|=world==0 && difference>.001f;
-            tracedWorldSelected|=world>0 && difference>.001f;
+            var final = ImageAssertions.Inspect(runtime.FinalImage, channelMask: 7);
+            AssertPixels(runtime.FinalImage, true);
+            using var without = new Assertions.GpuImageSnapshot(runtime.Screen.WorldProbeSuppressedLighting!);
+            bool different = ImageAssertions.CompareHistory(runtime.FinalImage, without,
+                tolerance: .001f, channelMask: 7).Mismatches != 0;
+            int world = (int)ImageAssertions.CountFlags(runtime.Screen.ScreenProbeAtlasMetaTraceTex!, 32, 2).FlagMatches;
+            observations.Add($"yaw={yaw},deltaAboveThreshold={different},worldRays={world},minRGB={final.Minimum}");
+            worldSelected |= different;
+            gatherSelected |= world == 0 && different;
+            tracedWorldSelected |= world > 0 && different;
         }
         TestContext.Current.TestOutputHelper?.WriteLine(string.Join(";",observations));
         Assert.True(worldSelected,string.Join(";",observations));
@@ -249,56 +248,56 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         runtime.Cache.Config.LumOn.ProbeSpacingPx=1; scene.Yaw=0;
         runtime.Cache.GeometryAvailable=false;
         for(int i=0;i<4;i++) runtime.Frame();
-        AssertPixels(runtime.FinalPixels(),false);
-        Assert.All(runtime.Screen.ScreenProbeAtlasMetaTraceTex!.ReadPixels().Where((_,i)=>i%2==0),c=>Assert.Equal(0,c));
+        AssertPixels(runtime.FinalImage,false);
+        ImageAssertions.CompareConstant(runtime.Screen.ScreenProbeAtlasMetaTraceTex!, 0, channelMask: 1).AssertEqual();
         runtime.Cache.GeometryAvailable=true; Settle(runtime,true);
     }
     #endregion
     #region Observations
     /// <summary>Waits for actual lighting and checks every final pixel, never just a maximum-energy sample.</summary>
-    private static void Settle(SurfaceLightingConsumerRuntimeFixture runtime,bool lit)
+    private void Settle(SurfaceLightingConsumerRuntimeFixture runtime,bool lit)
     {
         runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.IndirectFullTex!=null &&
-            runtime.WorldBuffers.Resources!=null && runtime.WorldBuffers.Resources.ProbeMeta0.ReadPixels().Where((_,i)=>i%2==0).Any(c=>c>=.25f) &&
-            runtime.Screen.ScreenProbeAtlasMetaTraceTex!.ReadPixels().Where((_,i)=>i%2==0).Count(c=>c>=.99f)>=32 &&
-            runtime.FinalPixels().Where((_,i)=>i%4!=3).All(value=>float.IsFinite(value) && (lit?value>.001f:Math.Abs(value)<=.0001f)));
+            runtime.WorldBuffers.Resources!=null && ImageAssertions.Inspect(runtime.WorldBuffers.Resources.ProbeMeta0, channelMask: 1).Maximum >= .25f &&
+            ImageAssertions.Inspect(runtime.Screen.ScreenProbeAtlasMetaTraceTex!, .99f, double.PositiveInfinity, channelMask: 1).InsideRange>=32 &&
+            PixelsMatch(runtime.FinalImage, lit));
     }
 
     /// <summary>Compares shader-generated anchors against independent ray/box intersections in absolute world coordinates.</summary>
-    private static void AssertAnchors(SurfaceLightingConsumerRuntimeFixture runtime,SpatialLightingScene scene)
+    private void AssertAnchors(SurfaceLightingConsumerRuntimeFixture runtime, SpatialLightingScene scene)
     {
-        var anchors=LayeredTestTexture.Read(runtime.Screen.ProbeAnchors!, 0);
-        var normals=LayeredTestTexture.Read(runtime.Screen.ProbeAnchors!, 1);
-        for(int i=0;i<scene.VisiblePoints.Length;i++)
-        {
-            Assert.True(anchors[i*4+3]>=.5f);
-            var actual=new Vector3(anchors[i*4],anchors[i*4+1],anchors[i*4+2])+scene.Position;
-            Assert.InRange(Vector3.Distance(actual,scene.VisiblePoints[i]),0,.02f);
-            var normal=new Vector3(normals[i*4],normals[i*4+1],normals[i*4+2])*2-Vector3.One;
-            Assert.InRange(Vector3.Distance(normal,scene.VisibleNormals[i]),0,.001f);
-        }
+        var image = runtime.Screen.ProbeAnchors!;
+        Assert.Equal(image.Width * image.Height, scene.VisiblePoints.Length);
+        var positions = scene.VisiblePoints.SelectMany(p => new[] { p.X - scene.Position.X, p.Y - scene.Position.Y, p.Z - scene.Position.Z, 0f }).ToArray();
+        var normals = scene.VisibleNormals.SelectMany(n => new[] { (n.X + 1) / 2, (n.Y + 1) / 2, (n.Z + 1) / 2, 0f }).ToArray();
+        RHITextureRegion positionsRegion = new(new(0, 0), 0, 0, 0, image.Width, image.Height);
+        RHITextureRegion normalsRegion = positionsRegion with { Subresource = new(0, 1) };
+        Assert.True(ImageAssertions.Inspect(image, selection: positionsRegion, channelMask: 8).Minimum >= .5f);
+        ImageAssertions.Compare(image, positions, .02f, positionsRegion, channelMask: 7, vectorDistance: true).AssertEqual();
+        ImageAssertions.Compare(image, normals, .001f / 2, normalsRegion, channelMask: 7, vectorDistance: true).AssertEqual();
     }
 
     /// <summary>Reads the real ring publication bit using independently wrapped signed voxel coordinates.</summary>
-    private static void AssertCellReady(SurfaceLightingConsumerRuntimeFixture runtime,int x,int y,int z,bool ready)
+    private void AssertCellReady(SurfaceLightingConsumerRuntimeFixture runtime, int x, int y, int z, bool ready)
     {
-        var scene=runtime.Cache.Geometry.Resources!;
-        int n=scene.Resolution/16;
-        var cells=new uint[n*n*n];
-        using var binding=VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D,0,scene.Readiness.TextureId);
-        GL.GetTexImage(TextureTarget.Texture3D,0,PixelFormat.RedInteger,PixelType.UnsignedInt,cells);
-        int sx=((x>>4)%n+n)%n,sy=((y>>4)%n+n)%n,sz=((z>>4)%n+n)%n;
-        Assert.Equal(ready?1u:0u,cells[(sz*n+sy)*n+sx]);
+        var scene = runtime.Cache.Geometry.Resources!;
+        int n = scene.Resolution / 16;
+        int sx = ((x >> 4) % n + n) % n, sy = ((y >> 4) % n + n) % n, sz = ((z >> 4) % n + n) % n;
+        ImageAssertions.CompareBits(scene.Readiness, [ready ? 1u : 0u],
+            selection: new(new(0), sx, sy, sz, 1, 1, 1)).AssertEqual();
     }
     /// <summary>Checks all RGB channels for leakage, lost illumination and nonfinite output.</summary>
-    private static void AssertPixels(float[] pixels,bool lit)
+    private void AssertPixels(GpuTexture image, bool lit)
     {
-        Assert.NotEmpty(pixels);
-        for(int i=0;i<pixels.Length;i++)
-        {
-            Assert.True(float.IsFinite(pixels[i]));
-            if(i%4!=3) { if(lit) Assert.True(pixels[i]>.001f,$"Dark channel {i}: {pixels[i]}"); else Assert.InRange(Math.Abs(pixels[i]),0,.0001f); }
-        }
+        ImageAssertions.Inspect(image).AssertFiniteRange();
+        Assert.True(PixelsMatch(image, lit), $"Lighting domain {image.Width}x{image.Height} does not match lit={lit}.");
+    }
+
+    /// <summary>Checks every RGB component with compact finite and range predicates.</summary>
+    private bool PixelsMatch(GpuTexture image, bool lit)
+    {
+        var rgb = ImageAssertions.Inspect(image, -.0001f, .0001f, channelMask: 7);
+        return rgb.NonFinite == 0 && (lit ? rgb.Minimum > .001f : rgb.OutsideRange == 0);
     }
     #endregion
 }

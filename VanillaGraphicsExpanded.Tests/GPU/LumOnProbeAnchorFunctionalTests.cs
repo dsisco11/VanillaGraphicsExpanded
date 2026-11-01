@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -126,10 +127,10 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         using var surfaceInput1 = LayeredTestTexture.Create(normalTex, null, null);
         programId.GBufferSurface = surfaceInput1;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var pos0 = outputGBuffer[0].ReadPixels();
+        var pos0 = outputGBuffer[0].ReadPixelsRegion(0,0,1,1);
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var pos0b = outputGBuffer[0].ReadPixels();
+        var pos0b = outputGBuffer[0].ReadPixelsRegion(0,0,1,1);
 
         // Compare probe (0,0) output
         for (int i = 0; i < 4; i++)
@@ -141,7 +142,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         // Render with a different frameIndex: result should change for at least one component.
         SetupProbeAnchorUniforms(programId, invProjection, invView, frameIndex: 1, anchorJitterEnabled: true, anchorJitterScale: jitterScale);
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        var pos1 = outputGBuffer[0].ReadPixels();
+        var pos1 = outputGBuffer[0].ReadPixelsRegion(0,0,1,1);
 
         bool changed =
             MathF.Abs(pos0[0] - pos1[0]) > 1e-4f ||
@@ -235,24 +236,18 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         return (screenX / ScreenWidth, screenY / ScreenHeight);
     }
 
-    /// <summary>
-    /// Decodes a normal from G-buffer format [0,1] to [-1,1].
-    /// </summary>
-    private static (float x, float y, float z) DecodeNormal(float r, float g, float b)
+    /// <summary>Checks every decoded normal with the original float normalization and strict per-component tolerance.</summary>
+    private void AssertDecodedNormals(GpuTexture image,float[] expected)
     {
-        float x = r * 2.0f - 1.0f;
-        float y = g * 2.0f - 1.0f;
-        float z = b * 2.0f - 1.0f;
-        float len = MathF.Sqrt(x * x + y * y + z * z);
-        if (len > 0.001f)
-        {
-            x /= len;
-            y /= len;
-            z /= len;
-        }
-        return (x, y, z);
+        using var oracle=TestFramework.CreateTexture(ProbeGridWidth,ProbeGridHeight,TextureFormat.Rgba32f,expected);
+        ImageAssertions.Predicate(image,"""
+            precise vec3 normal=a.rgb*2-1;
+            precise float length=sqrt((normal.x*normal.x+normal.y*normal.y)+normal.z*normal.z);
+            if(length>.001)normal=normal/length;
+            precise vec3 difference=abs(normal-b.rgb);
+            return bvec2(all(lessThan(difference,vec3(multipliers.x))),false);
+            """,oracle,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
-
     /// <summary>
     /// Encodes a normal to G-buffer format [-1,1] to [0,1].
     /// </summary>
@@ -372,39 +367,17 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         programId.GBufferSurface = surfaceInput2;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        // Read back results
-        var positionData = outputGBuffer[0].ReadPixels();
-
-        // Verify each probe's world position
-        for (int py = 0; py < ProbeGridHeight; py++)
+        var expected=new float[ProbeGridWidth*ProbeGridHeight*4];
+        for(int py=0;py<ProbeGridHeight;py++)for(int px=0;px<ProbeGridWidth;px++)
         {
-            for (int px = 0; px < ProbeGridWidth; px++)
-            {
-                int idx = (py * ProbeGridWidth + px) * 4;
-
-                // Calculate expected world position using MatrixHelper-based methods
-                var (u, v) = ProbeToScreenUV(px, py);
-                var viewPos = ReconstructViewPos(u, v, testDepth, invProjection);
-                var expectedPos = TransformToWorld(viewPos, invView);
-
-                float actualX = positionData[idx + 0];
-                float actualY = positionData[idx + 1];
-                float actualZ = positionData[idx + 2];
-                float validity = positionData[idx + 3];
-
-                // Assert position within tolerance
-                Assert.True(MathF.Abs(actualX - expectedPos.X) < TestEpsilon,
-                    $"Probe ({px},{py}) X mismatch: expected {expectedPos.X}, got {actualX}");
-                Assert.True(MathF.Abs(actualY - expectedPos.Y) < TestEpsilon,
-                    $"Probe ({px},{py}) Y mismatch: expected {expectedPos.Y}, got {actualY}");
-                Assert.True(MathF.Abs(actualZ - expectedPos.Z) < TestEpsilon,
-                    $"Probe ({px},{py}) Z mismatch: expected {expectedPos.Z}, got {actualZ}");
-
-                // Validity should be 1.0 for uniform depth (no edges)
-                Assert.True(validity >= 0.9f,
-                    $"Probe ({px},{py}) should be valid, got validity={validity}");
-            }
+            var(u,v)=ProbeToScreenUV(px,py);
+            var position=TransformToWorld(ReconstructViewPos(u,v,testDepth,invProjection),invView);
+            int i=(py*ProbeGridWidth+px)*4;
+            expected[i]=position.X;expected[i+1]=position.Y;expected[i+2]=position.Z;
         }
+        using var oracle=TestFramework.CreateTexture(ProbeGridWidth,ProbeGridHeight,TextureFormat.Rgba32f,expected);
+        ImageAssertions.Predicate(outputGBuffer[0],"precise vec3 difference=abs(a.rgb-b.rgb);return bvec2(all(lessThan(difference,vec3(multipliers.x))) && a.a>=.9,false);",
+            oracle,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
@@ -452,33 +425,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         programId.GBufferSurface = surfaceInput3;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        // Read back normal output (second attachment)
-        var normalOutput = outputGBuffer[1].ReadPixels();
-
-        // Expected: upward normal (0, 1, 0) encoded as (0.5, 1.0, 0.5)
-        var (expectedR, expectedG, expectedB) = EncodeNormal(0f, 1f, 0f);
-
-        for (int py = 0; py < ProbeGridHeight; py++)
-        {
-            for (int px = 0; px < ProbeGridWidth; px++)
-            {
-                int idx = (py * ProbeGridWidth + px) * 4;
-
-                float actualR = normalOutput[idx + 0];
-                float actualG = normalOutput[idx + 1];
-                float actualB = normalOutput[idx + 2];
-
-                // Decode and compare
-                var (actualNx, actualNy, actualNz) = DecodeNormal(actualR, actualG, actualB);
-
-                Assert.True(MathF.Abs(actualNx - 0f) < TestEpsilon,
-                    $"Probe ({px},{py}) normal X mismatch: expected 0, got {actualNx}");
-                Assert.True(MathF.Abs(actualNy - 1f) < TestEpsilon,
-                    $"Probe ({px},{py}) normal Y mismatch: expected 1, got {actualNy}");
-                Assert.True(MathF.Abs(actualNz - 0f) < TestEpsilon,
-                    $"Probe ({px},{py}) normal Z mismatch: expected 0, got {actualNz}");
-            }
-        }
+        var expected=Enumerable.Repeat(new[]{0f,1f,0f,0f},ProbeGridWidth*ProbeGridHeight).SelectMany(x=>x).ToArray();
+        AssertDecodedNormals(outputGBuffer[1],expected);
     }
 
     #endregion
@@ -527,28 +475,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
-        var positionData = outputGBuffer[0].ReadPixels();
-
-        // Verify all probes are valid
-        int validCount = 0;
-        for (int py = 0; py < ProbeGridHeight; py++)
-        {
-            for (int px = 0; px < ProbeGridWidth; px++)
-            {
-                int idx = (py * ProbeGridWidth + px) * 4;
-                float validity = positionData[idx + 3];
-
-                // Valid probes should have validity >= 0.5 (could be 0.5 for edges, 1.0 for interior)
-                Assert.True(validity >= 0.5f,
-                    $"Probe ({px},{py}) should be valid (validity >= 0.5), got {validity}");
-
-                if (validity > 0.5f)
-                    validCount++;
-            }
-        }
-
-        // With uniform depth, we expect all probes to be fully valid (no edges detected)
-        Assert.True(validCount > 0, "At least some probes should be fully valid (validity = 1.0)");
+        var valid=ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(a.a>=.5,a.a>.5);");
+        valid.AssertEqual();Assert.True(valid.MatchingTexels>0);
     }
 
     #endregion
@@ -598,33 +526,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
-        var positionData = outputGBuffer[0].ReadPixels();
-
-        // Verify all probes are invalid
-        for (int py = 0; py < ProbeGridHeight; py++)
-        {
-            for (int px = 0; px < ProbeGridWidth; px++)
-            {
-                int idx = (py * ProbeGridWidth + px) * 4;
-
-                float posX = positionData[idx + 0];
-                float posY = positionData[idx + 1];
-                float posZ = positionData[idx + 2];
-                float validity = positionData[idx + 3];
-
-                // Sky pixels should produce invalid probes
-                Assert.True(validity < 0.1f,
-                    $"Probe ({px},{py}) should be invalid for sky depth, got validity={validity}");
-
-                // Position should be zeroed for invalid probes
-                Assert.True(MathF.Abs(posX) < TestEpsilon,
-                    $"Probe ({px},{py}) invalid probe X should be 0, got {posX}");
-                Assert.True(MathF.Abs(posY) < TestEpsilon,
-                    $"Probe ({px},{py}) invalid probe Y should be 0, got {posY}");
-                Assert.True(MathF.Abs(posZ) < TestEpsilon,
-                    $"Probe ({px},{py}) invalid probe Z should be 0, got {posZ}");
-            }
-        }
+        ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(a.a<.1 && all(lessThan(abs(a.rgb),vec3(multipliers.x))),false);",
+            parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
@@ -679,22 +582,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
-        var positionData = outputGBuffer[0].ReadPixels();
-
-        // DESIRED: With checkerboard pattern, ALL probes should detect depth discontinuities
-        // Each probe's 2×2 cell contains alternating near/far depths
-        for (int py = 0; py < ProbeGridHeight; py++)
-        {
-            for (int px = 0; px < ProbeGridWidth; px++)
-            {
-                int idx = (py * ProbeGridWidth + px) * 4;
-                float validity = positionData[idx + 3];
-
-                // DESIRED: Probes at depth discontinuities should have partial validity (0.5)
-                Assert.True(validity > 0.4f && validity < 0.6f,
-                    $"Probe ({px},{py}) should have partial validity (≈0.5) at depth edge, got {validity}");
-            }
-        }
+        ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(a.a>.4 && a.a<.6,false);").AssertEqual();
     }
 
     #endregion
@@ -763,30 +651,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
-        var positionData = outputGBuffer[0].ReadPixels();
-
-        // DESIRED: All probes should be marked invalid due to zero-length normals
-        for (int py = 0; py < ProbeGridHeight; py++)
-        {
-            for (int px = 0; px < ProbeGridWidth; px++)
-            {
-                int idx = (py * ProbeGridWidth + px) * 4;
-                float posX = positionData[idx + 0];
-                float posY = positionData[idx + 1];
-                float posZ = positionData[idx + 2];
-                float validity = positionData[idx + 3];
-
-                // DESIRED: No NaN values in output
-                Assert.False(float.IsNaN(validity),
-                    $"Probe ({px},{py}) validity should not be NaN");
-                Assert.False(float.IsNaN(posX) || float.IsNaN(posY) || float.IsNaN(posZ),
-                    $"Probe ({px},{py}) position should not contain NaN");
-
-                // DESIRED: Invalid probes due to degenerate normal
-                Assert.True(validity < 0.5f,
-                    $"Probe ({px},{py}) should be invalid (validity < 0.5) due to zero-length normal, got {validity}");
-            }
-        }
+        ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(!any(isnan(a)) && a.a<.5,false);").AssertEqual();
     }
 
     #endregion
@@ -835,38 +700,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back normal output
-        var normalOutput = outputGBuffer[1].ReadPixels();
-
-        // Expected normals per quadrant (from CreateNormalBufferAxisAligned)
-        (float x, float y, float z)[] expectedNormals =
-        [
-            (1f, 0f, 0f),   // Probe (0,0) - Top-left quadrant: +X
-            (0f, 1f, 0f),   // Probe (1,0) - Top-right quadrant: +Y
-            (0f, 0f, 1f),   // Probe (0,1) - Bottom-left quadrant: +Z
-            (0f, -1f, 0f)   // Probe (1,1) - Bottom-right quadrant: -Y
-        ];
-
-        for (int py = 0; py < ProbeGridHeight; py++)
-        {
-            for (int px = 0; px < ProbeGridWidth; px++)
-            {
-                int probeIdx = py * ProbeGridWidth + px;
-                int idx = probeIdx * 4;
-
-                var (expectedNx, expectedNy, expectedNz) = expectedNormals[probeIdx];
-                var (actualNx, actualNy, actualNz) = DecodeNormal(
-                    normalOutput[idx + 0],
-                    normalOutput[idx + 1],
-                    normalOutput[idx + 2]);
-
-                Assert.True(MathF.Abs(actualNx - expectedNx) < TestEpsilon,
-                    $"Probe ({px},{py}) normal X mismatch: expected {expectedNx}, got {actualNx}");
-                Assert.True(MathF.Abs(actualNy - expectedNy) < TestEpsilon,
-                    $"Probe ({px},{py}) normal Y mismatch: expected {expectedNy}, got {actualNy}");
-                Assert.True(MathF.Abs(actualNz - expectedNz) < TestEpsilon,
-                    $"Probe ({px},{py}) normal Z mismatch: expected {expectedNz}, got {actualNz}");
-            }
-        }
+        float[] expected=[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,-1,0,0];
+        AssertDecodedNormals(outputGBuffer[1],expected);
     }
 
     #endregion

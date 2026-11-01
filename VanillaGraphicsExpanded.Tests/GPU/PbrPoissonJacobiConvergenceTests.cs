@@ -100,18 +100,8 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         GL.BindVertexArray(0);
         GL.DeleteVertexArray(vao);
 
-        float[] gpu = outTex.ReadPixels();
         float[] cpu = ComputeJacobiStepCpu(input.H, input.B, input.Width, input.Height);
-
-        Assert.Equal(cpu.Length, gpu.Length);
-
-        // Tight epsilon: this is one stencil step and should match very closely.
-        const float eps = 1e-4f;
-        for (int i = 0; i < cpu.Length; i++)
-        {
-            float d = MathF.Abs(cpu[i] - gpu[i]);
-            Assert.True(d <= eps, $"{name}: mismatch at i={i}, cpu={cpu[i]}, gpu={gpu[i]}, d={d}");
-        }
+        ImageAssertions.Compare(outTex, cpu, 1e-4f).AssertEqual();
     }
 
     [Theory]
@@ -188,10 +178,11 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 
         // After an even number of iterations, h0 is the latest; after odd, h1.
         DynamicTexture2D hSolved = (iterations % 2 == 0) ? h0 : h1;
-        float[] h = hSolved.ReadPixels();
-
-        // Compute residual r = Laplacian(h) - b, using the same periodic stencil as the shader.
-        var stats = ComputeResidualStats(h, rhs.Data, rhs.Width, rhs.Height);
+        // Evaluate the independently authored periodic equation over every solved texel.
+        var residual = ImageAssertions.PeriodicLaplacianResidual(hSolved, rhs.Data);
+        residual.AssertFiniteRange();
+        var stats = (RmsResidual: (float)Math.Sqrt(residual.SumSquares(0) / (rhs.Width * rhs.Height)),
+            RmsB: (float)Math.Sqrt(rhs.Data.Sum(value => (double)(value * value)) / (rhs.Width * rhs.Height)));
 
         // Absolute checks.
         Assert.True(stats.RmsB > 1e-6 || name == "zero", $"RHS '{name}' unexpectedly near-zero");
@@ -221,41 +212,6 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         GL.ClearColor(value, 0f, 0f, 0f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
         GpuFramebuffer.Unbind();
-    }
-
-    private static (float RmsResidual, float RmsB) ComputeResidualStats(float[] h, float[] b, int width, int height)
-    {
-        double sumRes2 = 0;
-        double sumB2 = 0;
-
-        int idx = 0;
-        for (int y = 0; y < height; y++)
-        {
-            int yUp = (y + 1) % height;
-            int yDn = (y - 1 + height) % height;
-
-            for (int x = 0; x < width; x++, idx++)
-            {
-                int xRt = (x + 1) % width;
-                int xLt = (x - 1 + width) % width;
-
-                float hC = h[idx];
-                float hL = h[y * width + xLt];
-                float hR = h[y * width + xRt];
-                float hD = h[yDn * width + x];
-                float hU = h[yUp * width + x];
-
-                float lap = (hL + hR + hD + hU - 4f * hC);
-                float res = lap - b[idx];
-
-                sumRes2 += res * res;
-                sumB2 += b[idx] * b[idx];
-            }
-        }
-
-        float rmsRes = (float)Math.Sqrt(sumRes2 / (width * height));
-        float rmsB = (float)Math.Sqrt(sumB2 / (width * height));
-        return (rmsRes, rmsB);
     }
 
     private enum RhsKind

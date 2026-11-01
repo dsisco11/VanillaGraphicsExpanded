@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using VanillaGraphicsExpanded.LumOn;
@@ -12,7 +13,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 /// <summary>Production shader bindings shared by the near-field scenarios.</summary>
-public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
+public abstract partial class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
 {
     #region Scenario programs
     /// <summary>Identifies every variable shader selection authored by this harness; per-draw inputs remain uncached.</summary>
@@ -28,7 +29,7 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
 
     #region Shader Harness
     /// <summary>Runs the production shader with the production sixteen-unit texture layout.</summary>
-    private protected (float[] Radiance, float[] Meta) Trace(NearFieldVoxelFixture? fixture, int budget = 256, bool suppress = false, float cacheDistance = 100, float emissionBoost = 1, VanillaGraphicsExpanded.Numerics.VectorInt3 worldOffset = default, int cacheResolution = 1,
+    private protected TraceImages Trace(NearFieldVoxelFixture? fixture, int budget = 256, bool suppress = false, float cacheDistance = 100, float emissionBoost = 1, VanillaGraphicsExpanded.Numerics.VectorInt3 worldOffset = default, int cacheResolution = 1,
         bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool nearFieldTracing = true, float screenEmission = 0, bool worldCache = true, VanillaGraphicsExpanded.WorldPartition.PartitionBounds? supportedOrigins = null, float maximumTraceReach = 0, float cacheSpacing = 8, VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryGpuScene? shared = null, VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingSnapshot? surfaceLighting = null, Vector3? anchorPosition = null, VanillaGraphicsExpanded.Numerics.Vector3d matrixRemainder = default, Action<RHIRenderPassDescription>? consume = null, VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu.LumOnWorldProbeClipmapGpuResources? worldResources = null, GpuTexture? history = null, GpuTexture? historyMeta = null, int texelsPerFrame = 64, int frameIndex = 0, float rayMaxDistance = 4, ShaderLightingResources? resources = null)
     {
         var key = new TraceProgramKey(nearFieldTracing, emissionBoost, texelsPerFrame, worldCache,
@@ -85,14 +86,11 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
         program.IndirectTint = new(1,1,1);
         var output = buffers.ScreenProbeAtlasTracePass!;
         TestFramework.RenderQuadTo(program, output);
-        var result = (output.Colors[0].Image!.Value.Texture.ReadPixels(), output.Colors[1].Image!.Value.Texture.ReadPixels());
+        // Capture before downstream temporal consumers can reuse any attachment.
+        var result = CaptureTrace((GpuTexture)output.Colors[0].Image!.Value.Texture.Resource!,
+            (GpuTexture)output.Colors[1].Image!.Value.Texture.Resource!);
         consume?.Invoke(output);
-        // Test expectations describe physical hit luminance; storage metadata and borrowed consumers stay encoded.
-        for (int offset = 0; offset < result.Item1.Length; offset += 4)
-            for (int channel = 0; channel < 3; channel++)
-                result.Item1[offset + channel] /= LightingStorage.PersistentScale;
         return result;
-
         /// <summary>Authors controlled values in a production-owned attachment, without choosing sampler slots.</summary>
         DynamicTexture2D Populate(DynamicTexture2D texture, params float[] value)
         {

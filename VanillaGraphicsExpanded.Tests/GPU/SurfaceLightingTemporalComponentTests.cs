@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -22,7 +23,7 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
         long revision=history.Buffers.HistoryRevision;
         var retained=RenderHistory(room,history);
         Assert.False(retained.Reset); Assert.Equal(revision,history.Buffers.HistoryRevision);
-        AssertRetainedDirections(bright.Pixels.Trace,retained,history.FrameIndex-1);
+        AssertRetainedDirections(bright.Pixels.Radiance,retained,history.FrameIndex-1);
         AssertHits(retained.Pixels,true);
         foreach(int light in new[]{0,32})
         {
@@ -30,7 +31,7 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
             var first=RenderHistory(room,history); Assert.True(first.Reset);
             if(light==0) AssertHits(first.Pixels,false);
             var settled=Sweep(room,history,light!=0,SurfaceLightingHistoryFixture.SweepFrames-1);
-            if(light!=0) AssertClose(bright.Pixels.Trace,settled.Pixels.Trace,.01f);
+            if(light!=0) AssertClose(bright.Pixels.Radiance,settled.Pixels.Radiance,.01f);
         }
     }
 
@@ -46,11 +47,11 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
         room.Bounce();
         var bounce=RenderHistory(room,history);
         Assert.False(bounce.Reset); Assert.Equal(revision,history.Buffers.HistoryRevision);
-        AssertRetainedDirections(seed.Pixels.Trace,bounce,history.FrameIndex-1);
+        AssertRetainedDirections(seed.Pixels.Radiance,bounce,history.FrameIndex-1);
         // At least one freshly traced direction must actually blend old energy, not merely copy current.
-        Assert.Contains(Enumerable.Range(0,256),i => bounce.Raw[i*4] > seed.Pixels.Trace[i*4]+.01f
-            && bounce.Pixels.Trace[i*4] < bounce.Raw[i*4]-.001f
-            && bounce.Pixels.Trace[i*4] > seed.Pixels.Trace[i*4]+.0001f);
+        Assert.True(ImageAssertions.Predicate(bounce.Raw, """
+            return bvec2(true,a.r>b.r+0.01 && c.r<a.r-0.001 && c.r>b.r+0.0001);
+            """,seed.Pixels.Radiance,bounce.Pixels.Radiance).MatchingTexels>0);
         AssertHits(bounce.Pixels,true);
     }
     #endregion
@@ -66,7 +67,7 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
         Sweep(room,history,true);
         var absent=RenderHistory(room,history,available:false);
         Assert.True(absent.Reset); AssertHits(absent.Pixels,false);
-        Assert.All(Enumerable.Range(0,256),i=>Assert.Equal(0,absent.Pixels.Meta[i*2]));
+        ImageAssertions.CompareConstant(absent.Pixels.Meta,0,channelMask:1).AssertEqual();
         Sweep(room,history,true);
         long geometry=room.Geometry.Scene.Revision;
         room.DependencyRevision++;
@@ -113,13 +114,13 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
             Assert.Equal(0u,VanillaGraphicsExpanded.LumOn.Scene.LumonSceneOccupancyPacking.UnpackBlockLevel(room.Sample(4,36,4).LegacyLight));
             var first=RenderHistory(room,history); Assert.True(first.Reset);
             var settled=Sweep(room,history,doorOpen,SurfaceLightingHistoryFixture.SweepFrames-1);
-            if(doorOpen) AssertClose(open.Pixels.Trace,settled.Pixels.Trace,.01f);
+            if(doorOpen) AssertClose(open.Pixels.Radiance,settled.Pixels.Radiance,.01f);
             else
             {
                 AssertHits(first.Pixels,false);
-                Assert.Contains(Enumerable.Range(0,256),i=>settled.Pixels.Trace[i*4+3]<open.Pixels.Trace[i*4+3]-.01f);
-                var unresolved=Enumerable.Range(0,256).Where(i=>settled.Pixels.Meta[i*2]!=1).ToArray();
-                Assert.True(unresolved.Length==0,string.Join("; ",unresolved.Select(i=>$"pixel={i}, flags={Flags(settled.Pixels.Meta[i*2+1]):X}, distance={MathF.Exp(settled.Pixels.Trace[i*4+3])-1:F3}")));
+                Assert.True(ImageAssertions.Predicate(settled.Pixels.Radiance,
+                    "return bvec2(true,a.a<b.a-0.01);",open.Pixels.Radiance).MatchingTexels>0);
+                ImageAssertions.CompareConstant(settled.Pixels.Meta,1,channelMask:1).AssertEqual();
             }
         }
     }
@@ -134,49 +135,43 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
         {
             frame=RenderHistory(room,history);
             if(i>0) Assert.False(frame.Reset);
-            foreach(var pixels in new[]{frame.Raw,frame.Pixels.Trace})
-                for(int channel=0;channel<pixels.Length;channel++)
-                    Assert.True(float.IsFinite(pixels[channel]),"Every intermediate frame must remain finite.");
+            foreach(var pixels in new[]{frame.Raw,frame.Pixels.Radiance}) ImageAssertions.Inspect(pixels).AssertFiniteRange();
             if(!lit) AssertHits(frame.Pixels,false);
         }
         AssertHits(frame.Pixels,lit);
         return frame;
     }
 
-    /// <summary>Checks every untraced RGBA direction is bit-identical to previous temporal output.</summary>
-    private static void AssertRetainedDirections(float[] previous,HistoryFrame frame,int index)
+    /// <summary>Checks every untraced RGBA direction equals previous temporal output, with actual retained illumination.</summary>
+    private void AssertRetainedDirections(GpuTexture previous,HistoryFrame frame,int index)
     {
-        int lit=0;
-        for(int i=0;i<256;i++) if(!Traced(i,index))
-        {
-            for(int c=0;c<4;c++) Assert.Equal(previous[i*4+c],frame.Pixels.Trace[i*4+c]);
-            if(previous[i*4]>.001f) lit++;
-        }
-        Assert.True(lit>32,"Untraced retained history must contain actual cache-originating illumination.");
+        var observation=ImageAssertions.Predicate(frame.Pixels.Radiance,Selection+"""
+            return bvec2(traced || same(a,b,15u),!traced && b.r>0.001);
+            """,previous,parameters:new(index,0,0,0));
+        observation.AssertEqual();
+        Assert.True(observation.MatchingTexels>32,"Untraced retained history must contain actual cache-originating illumination.");
     }
 
-    /// <summary>Checks reset directions cannot copy lighting from the obsolete generation.</summary>
-    private static void AssertColdUntracedDirections(HistoryFrame frame,int index)
+    /// <summary>Checks reset directions cannot copy lighting or confidence from the obsolete generation.</summary>
+    private void AssertColdUntracedDirections(HistoryFrame frame,int index)
     {
-        for(int i=0;i<256;i++) if(!Traced(i,index))
-        {
-            for(int c=0;c<4;c++) Assert.Equal(0,frame.Pixels.Trace[i*4+c]);
-            Assert.Equal(0,frame.Pixels.Meta[i*2]);
-        }
+        ImageAssertions.Predicate(frame.Pixels.Radiance,Selection+"""
+            return bvec2(traced || (all(equal(a,vec4(0))) && b.r==0.0),false);
+            """,frame.Pixels.Meta,parameters:new(index,0,0,0)).AssertEqual();
     }
 
-    /// <summary>Mirrors the documented batch schedule solely to select assertions, never to generate shader output.</summary>
-    private static bool Traced(int pixel,int frame)
-    {
-        int x=pixel%16,y=pixel/16,probe=x/8+(y/8)*2,direction=(y%8)*8+x%8;
-        return direction/8==(frame+probe)%8;
-    }
+    // The documented eight-direction batch schedule selects assertions; it never predicts shader radiance.
+    private const string Selection = """
+        int pixel=int(index),x=pixel%16,y=pixel/16,probe=x/8+(y/8)*2,direction=(y%8)*8+x%8;
+        bool traced=direction/8==(int(multipliers.x)+probe)%8;
 
-    /// <summary>Compares every RGB output with an absolute half-float transport tolerance.</summary>
-    private static void AssertClose(float[] expected,float[] actual,float tolerance)
+        """;
+
+    /// <summary>Compares every RGB output with the original absolute half-float transport tolerance.</summary>
+    private void AssertClose(GpuTexture expected,GpuTexture actual,float tolerance)
     {
-        Assert.Equal(expected.Length,actual.Length);
-        for(int i=0;i<actual.Length;i++) if(i%4!=3) Assert.InRange(Math.Abs(actual[i]-expected[i]),0,tolerance);
+        ImageAssertions.Predicate(actual,"return bvec2(all(lessThanEqual(abs(a.rgb-b.rgb),vec3(multipliers.x))),false);",
+            expected,parameters:new(tolerance,0,0,0)).AssertEqual();
     }
     #endregion
 }

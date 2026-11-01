@@ -89,7 +89,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
             Assert.True(submission.Draw("primitive", shader, geometry.Inputs, new(0, 2), topology, pointSize: 3));
             hostile.AssertRestored();
             Assert.Equal(target.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
-            Assert.Contains(target[0].ReadPixels(), value => value > .9f);
+            Assert.True(ImageAssertions.Inspect(target[0]).Maximum>.9f);
         }
         shader.InvalidateAssets(); target.Bind();
         Assert.True(submission.Draw("primitive", shader, geometry.Inputs, new(0, 2), topology));
@@ -175,14 +175,14 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
                 depthTest: true, pointSize: 6, programPointSize: true, depthWrite: true, blending: blending));
             hostile.AssertRestored();
         }
-        float[] accumulation = target[3].ReadPixels();
-        Assert.True(Enumerable.Range(0, 64).Count(pixel => accumulation[pixel * 4 + 2] > .1f) > 4);
+        var accumulation=ImageAssertions.Predicate(target[3],"return bvec2(true,a.b>.1);");
+        accumulation.AssertEqual();Assert.True(accumulation.MatchingTexels>4);
         int center = (4 * 8 + 4) * 4;
-        Assert.InRange(target[1].ReadPixels()[4 * 8 + 4], 0, .001f);
-        Assert.InRange(target[2].ReadPixels()[center + 3], .999f, 1.001f);
-        Assert.True(target[4].ReadPixels()[center + 2] > 0);
-        Assert.True(target[5].ReadPixels()[center + 2] > 0);
-        Assert.InRange(depth.ReadPixels()[4 * 8 + 4], .499f, .501f);
+        Assert.InRange(Assertions.GpuLocalRead.Scalar(target[1], 4 * 8 + 4), 0, .001f);
+        Assert.InRange(Assertions.GpuLocalRead.Scalar(target[2], center + 3), .999f, 1.001f);
+        Assert.True(Assertions.GpuLocalRead.Scalar(target[4], center + 2) > 0);
+        Assert.True(Assertions.GpuLocalRead.Scalar(target[5], center + 2) > 0);
+        Assert.InRange(Assertions.GpuLocalRead.Scalar(depth, 4 * 8 + 4), .499f, .501f);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

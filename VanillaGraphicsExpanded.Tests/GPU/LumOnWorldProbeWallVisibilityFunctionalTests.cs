@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using System.Threading;
 using OpenTK.Graphics.OpenGL;
@@ -73,31 +74,22 @@ public sealed class LumOnWorldProbeWallVisibilityFunctionalTests : DirectWorldPr
 
         using var local = new NearFieldVoxelFixture();
         local.Publish(world);
-        var irradiance = RenderDirectVisibility(atlas, local.Scene, new Vector3(0, 0, sampleZ), new Vector3(-15.5f), 32, consumer, GridSize, 5);
-        var confidence = consumer >= 0
+        using var irradiance = RenderDirectVisibility(atlas, local.Scene, new Vector3(0, 0, sampleZ), new Vector3(-15.5f), 32, consumer, GridSize, 5);
+        using var confidenceImage = consumer >= 0
             ? RenderDirectVisibility(atlas, local.Scene, new Vector3(0, 0, sampleZ), new Vector3(-15.5f), 32, 33, GridSize, 5)
-            : irradiance;
-        int rejected = 0;
-        int accepted = 0;
-        // Viewers tone-map physical E; the lighting consumer gathers E/pi.
+            : null;
+        var confidence = confidenceImage ?? irradiance;
+        // Every exact segment is clear: the original contract requires zero rejected texels.
+        // Therefore every confidence and RGB value must satisfy the independently authored lit interval.
+        uint confidenceChannel = consumer >= 0 ? 1u : 8u;
+        var rejectedSamples = ImageAssertions.Inspect(confidence.Texture, 0.001f, double.PositiveInfinity, channelMask: confidenceChannel);
+        int rejected = checked((int)rejectedSamples.OutsideRange);
+        int accepted = GridSize * GridSize - rejected;
+        ImageAssertions.Inspect(confidence.Texture, trace.Confidence - 0.002f, trace.Confidence + 0.002f,
+            channelMask: confidenceChannel).AssertFiniteRange();
         float expectedLighting = consumer >= 0 ? MathF.PI / (1 + MathF.PI) : 1f;
-        for (int pixel = 0; pixel < GridSize * GridSize; pixel++)
-        {
-            int i = pixel * 4;
-            float sampleConfidence = confidence[i + (consumer >= 0 ? 0 : 3)];
-            if (sampleConfidence < 0.001f)
-            {
-                rejected++;
-                for (int c = 0; c < 3; c++) Assert.Equal(0f, irradiance[i + c]);
-            }
-            else
-            {
-                accepted++;
-                Assert.InRange(sampleConfidence, trace.Confidence - 0.002f, trace.Confidence + 0.002f);
-                for (int c = 0; c < 3; c++)
-                    Assert.InRange(irradiance[i + c], expectedLighting - 0.003f, expectedLighting + 0.003f);
-            }
-        }
+        ImageAssertions.Inspect(irradiance.Texture, expectedLighting - 0.003f, expectedLighting + 0.003f,
+            channelMask: 7).AssertFiniteRange();
         output.WriteLine($"Consumer={consumer}, wall inset={inset}: {rejected}/{GridSize * GridSize} false rejections, {accepted} accepted; all exact segments clear.");
         Assert.True(accepted > 0, "The fixture must retain a lit control region.");
         Assert.Equal(0, rejected);

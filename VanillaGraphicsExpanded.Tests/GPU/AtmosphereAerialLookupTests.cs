@@ -102,9 +102,9 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Lum
     using var scope8=commands.EnterBoundary(new("Tests.AerialOcclusion",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope8.Run(()=>draw.Submit(commands,pipeline,target.PostprocessPass(), program.CaptureBindings()));
 }
-            float[] actual=target[0].ReadPixels();
             float[] expected=availability>0?new[]{2.6f,1.6f,1.1f,1f,.6f,.6f,.6f,1f}:Enumerable.Repeat(1f,8).ToArray();
-            for(int i=0;i<8;i++)Assert.InRange(actual[i],expected[i]-.002f,expected[i]+.002f);
+            ImageAssertions.CompareIntervals(target[0],expected.Select(value=>(double)(value-.002f)).ToArray(),
+                expected.Select(value=>(double)(value+.002f)).ToArray()).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }

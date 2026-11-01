@@ -50,18 +50,8 @@ public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestB
         fixture.Publish(world);
         var result = Trace(fixture);
         var suppressed = Trace(fixture, suppress: true);
-        Assert.Equal(result.Meta, suppressed.Meta);
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            for (int c = 0; c < 3; c++)
-            {
-                Assert.Equal(0,result.Radiance[i+c]);
-                Assert.Equal(result.Radiance[i + c], suppressed.Radiance[i + c]);
-            }
-            Assert.Equal(0f, result.Meta[i / 2]);
-            Assert.Equal(1u,Flags(result.Meta[i / 2+1])&1u);
-            Assert.Equal(0u, Flags(result.Meta[i / 2 + 1]) & (1u << 5));
-        }
+        ImageAssertions.Predicate(result.Meta, "return bvec2(same(a,b,3u),false);", suppressed.Meta).AssertEqual();
+        ObserveTrace(result, "return bvec2(all(equal(a.rgb,vec3(0))) && same(a,c,7u) && b.r==0.0 && (flags&1u)==1u && (flags&32u)==0u,false);", suppressed).AssertEqual();
     }
 
     /// <summary>Unpublished data, unsupported cells and exhausted traversal never authorize cache or sky.</summary>
@@ -75,12 +65,7 @@ public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestB
         using var fixture = new NearFieldVoxelFixture();
         if (publish) fixture.Publish(new ControlledVoxelWorld { IsLoaded = _ => !unsupported });
         var result = Trace(fixture, budget: budget);
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            Assert.Equal(0f, result.Radiance[i]);
-            Assert.Equal(0f, result.Meta[i / 2]);
-            Assert.Equal(0u, Flags(result.Meta[i / 2 + 1]) & ((1u << 5) | (1u << 1)));
-        }
+        ObserveTrace(result, "return bvec2(a.r==0.0 && b.r==0.0 && (flags&34u)==0u,false);").AssertEqual();
     }
 
     /// <summary>A fully known clear segment admits distant cache lighting and suppression affects only that lighting.</summary>
@@ -92,14 +77,8 @@ public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestB
         fixture.Publish(new ControlledVoxelWorld());
         var result = Trace(fixture);
         var suppressed = Trace(fixture, suppress: true);
-        Assert.Equal(result.Meta, suppressed.Meta);
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            Assert.InRange(result.Radiance[i], 9.9f, 10.1f);
-            Assert.Equal(0f, suppressed.Radiance[i]);
-            Assert.Equal(1f, result.Meta[i / 2]);
-            Assert.NotEqual(0u, Flags(result.Meta[i / 2 + 1]) & (1u << 5));
-        }
+        ImageAssertions.Predicate(result.Meta, "return bvec2(same(a,b,3u),false);", suppressed.Meta).AssertEqual();
+        ObserveTrace(result, "return bvec2(a.r>=9.9 && a.r<=10.1 && c.r==0.0 && b.r==1.0 && (flags&32u)!=0u,false);", suppressed).AssertEqual();
     }
     #endregion
 

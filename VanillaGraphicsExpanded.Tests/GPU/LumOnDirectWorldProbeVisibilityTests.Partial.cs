@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -17,7 +18,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         using var local=new NearFieldVoxelFixture();local.Publish(new ControlledVoxelWorld());
         var atlas=CreateUniformCache();
         for(int i=3;i<atlas.Radiance.Length;i+=4) atlas.Radiance[i]=0;
-        var result=RenderDirectVisibility(atlas,local.Scene,new Vector3(.5f,.5f,-5),new Vector3(-7.5f),16,consumer);
+        using var result = RenderDirectVisibility(atlas,local.Scene,new Vector3(.5f,.5f,-5),new Vector3(-7.5f),16,consumer);
         AssertLighting(result,consumer,false);
     }
 
@@ -29,8 +30,10 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         using var local=new NearFieldVoxelFixture();local.Publish(new ControlledVoxelWorld());
         var atlas=CreateUniformCache();
         for(int i=0;i<atlas.Radiance.Length;i++) if((i&3)!=3) atlas.Radiance[i]=0;
-        AssertLighting(RenderDirectVisibility(atlas,local.Scene,new Vector3(.5f,.5f,-5),new Vector3(-7.5f),16,33),33,true);
-        AssertLighting(RenderDirectVisibility(atlas,local.Scene,new Vector3(.5f,.5f,-5),new Vector3(-7.5f),16,31),31,false);
+        using var confidence = RenderDirectVisibility(atlas,local.Scene,new Vector3(.5f,.5f,-5),new Vector3(-7.5f),16,33);
+        AssertLighting(confidence,33,true);
+        using var darkness = RenderDirectVisibility(atlas,local.Scene,new Vector3(.5f,.5f,-5),new Vector3(-7.5f),16,31);
+        AssertLighting(darkness,31,false);
     }
     #endregion
 }

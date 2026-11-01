@@ -74,7 +74,7 @@ public sealed class LumOnPisMaskFunctionalTests : LumOnShaderFunctionalTestBase
             UpdateAndBindLumOnFrameUbo(program);
             using var output = TestFramework.CreateTestGBuffer(2, 2, TextureFormat.Rg32f, TextureFormat.R32f);
             TestFramework.RenderQuadTo(program, output);
-            var mask = output[0].ReadPixels();
+            var mask = output[0].ReadPixelsRegion(0,0,1,1);
             uint low = BitConverter.SingleToUInt32Bits(mask[0]), high = BitConverter.SingleToUInt32Bits(mask[1]);
             float energy = output[1].ReadTexel()[0];
             Assert.Equal(ErrorCode.NoError, GL.GetError());

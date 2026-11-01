@@ -29,11 +29,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(new ControlledVoxelWorld());
         var result = Trace(fixture, cacheResolution: 2);
-        for (int i = 0; i < result.Radiance.Length; i += 4)
-        {
-            Assert.InRange(result.Radiance[i], 9.99f, 10.01f);
-            Assert.Equal(1, result.Meta[i / 2]);
-        }
+        ObserveTrace(result, "return bvec2(a.r>=9.99 && a.r<=10.01 && b.r==1.0,false);").AssertEqual();
     }
 
     /// <summary>Moving away from a cache center must change a directional lookup while leaving a constant field unchanged.</summary>
@@ -45,13 +41,10 @@ public sealed partial class LumOnNearFieldFunctionalTests
         fixture.Publish(new ControlledVoxelWorld());
         var centered = Trace(fixture, directionalCache: true);
         var displaced = Trace(fixture, directionalCache: true, anchorX: 3);
-        int changed = 0;
-        for (int i = 0; i < centered.Radiance.Length; i += 4)
-        {
-            Assert.Equal(1, displaced.Meta[i / 2]);
-            if (Math.Abs(centered.Radiance[i] - displaced.Radiance[i]) > 0.03f) changed++;
-            Assert.InRange(displaced.Radiance[i + 1], 9.99f, 10.01f);
-        }
+
+        var comparison = ObserveTrace(displaced, "return bvec2(b.r==1.0 && a.g>=9.99 && a.g<=10.01,abs(c.r-a.r)>0.03);", centered);
+        comparison.AssertEqual();
+        uint changed = comparison.MatchingTexels;
         Assert.True(changed > 16, "The parallax correction must address different directional cache texels.");
     }
 

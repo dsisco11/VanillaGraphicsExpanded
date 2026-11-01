@@ -29,7 +29,7 @@ public sealed class SkyDrawTests(HeadlessGLFixture fixture, ITestOutputHelper ou
         }
         Assert.Single(scene.Contexts);
         scene.AssertRestored();
-        var expected = scene.ReadOutput();
+        using var expected = scene.CaptureOutput();
         scene.Initialize();
         List<string> shared;
         using (var capture = new GraphicsTransitionCapture())
@@ -39,10 +39,10 @@ public sealed class SkyDrawTests(HeadlessGLFixture fixture, ITestOutputHelper ou
         }
         Assert.Single(scene.Contexts);
         scene.AssertRestored();
-        var actual = scene.ReadOutput();
-        for (int image = 0; image < 2; image++) Assert.Equal(expected[image], actual[image]);
-        Assert.Equal(new[] { .5f, .4375f, .5625f, 1.375f }, actual[0][..4]);
-        Assert.Equal(new[] { .25f, .21875f, .28125f, 1.375f }, actual[1][..4]);
+        using var actual = scene.CaptureOutput();
+        for (int image = 0; image < 2; image++) ImageAssertions.CompareHistory(actual[image].Texture, expected[image]).AssertEqual();
+        Assert.Equal(new[] { .5f, .4375f, .5625f, 1.375f }, actual[0].Texture.ReadPixelsRegion(0, 0, 1, 1));
+        Assert.Equal(new[] { .25f, .21875f, .28125f, 1.375f }, actual[1].Texture.ReadPixelsRegion(0, 0, 1, 1));
         Assert.Equal(new[] { "prepare:sky0", "prepare:sky1", "prepare:sky2", "prepare:sky3",
             "draw:sky0", "draw:sky1", "draw:sky2", "draw:sky3" }, scene.Events);
         foreach (string prefix in new[] { "Framebuffer:", "Program:" })
@@ -79,7 +79,7 @@ public sealed class SkyDrawTests(HeadlessGLFixture fixture, ITestOutputHelper ou
         SkyDraw.Run([new("clear", [], scene.DrawClear, error => throw error), scene.Passes[1].PrepareDraw()!]);
         Assert.Single(scene.Contexts);
         scene.AssertRestored();
-        Assert.Equal(new[] { .125f, .25f, .5f, 1f }, scene.ReadClear()[..4]);
+        Assert.Equal(new[] { .125f, .25f, .5f, 1f }, scene.ReadClearPixel());
     }
     #endregion
 

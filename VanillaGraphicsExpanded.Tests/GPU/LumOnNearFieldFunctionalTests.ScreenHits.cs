@@ -28,25 +28,15 @@ public sealed partial class LumOnNearFieldFunctionalTests
         var offScreen = Trace(fixture);
         var onScreen = Trace(fixture, screenDepth: depth);
         var suppressed = Trace(fixture, screenDepth: depth, suppress: true);
-        Assert.Equal(onScreen.Radiance, suppressed.Radiance);
-        Assert.Equal(onScreen.Meta, suppressed.Meta);
-        int checkedHits = 0;
-        for (int pixel = 0; pixel < onScreen.Meta.Length / 2; pixel++)
-        {
-            // The independent screen-only control proves these directions actually
-            // take the accepted screen-hit branch, avoiding a vacuous miss-path test.
-            if ((Flags(screenOnly.Meta[pixel * 2 + 1]) & 1u) == 0) continue;
-            checkedHits++;
-            Assert.Equal(0f, onScreen.Meta[pixel * 2]);
-            Assert.Equal(1u, Flags(onScreen.Meta[pixel * 2 + 1]) & 1u);
-            Assert.Equal(0u, Flags(onScreen.Meta[pixel * 2 + 1]) & (1u << 5));
-            for (int c = 0; c < 3; c++)
-            {
-                Assert.Equal(0,offScreen.Radiance[pixel*4+c]);
-                Assert.InRange(onScreen.Radiance[pixel * 4 + c],
-                    offScreen.Radiance[pixel * 4 + c] - 0.002f, offScreen.Radiance[pixel * 4 + c] + 0.002f);
-            }
-        }
+        ImageAssertions.Predicate(onScreen.Radiance, "return bvec2(same(a,b,15u),false);", suppressed.Radiance).AssertEqual();
+        ImageAssertions.Predicate(onScreen.Meta, "return bvec2(same(a,b,3u),false);", suppressed.Meta).AssertEqual();
+        var checkedDirections = ObserveScreenTrace(onScreen, screenOnly, """
+            bool hit=(floatBitsToUint(c.g)&1u)!=0u;
+            bool valid=b.r==0.0 && (flags&1u)==1u && (flags&32u)==0u
+                && all(equal(d.rgb,vec3(0))) && all(lessThanEqual(abs(a.rgb-d.rgb),vec3(0.002)));
+            return bvec2(!hit || valid,hit);
+            """, offScreen);
+        checkedDirections.AssertEqual(); uint checkedHits=checkedDirections.MatchingTexels;
         Assert.True(checkedHits > 0, "The visible plane must produce accepted screen hits.");
     }
 
@@ -59,14 +49,11 @@ public sealed partial class LumOnNearFieldFunctionalTests
         float depth = ScreenDepthAt(-7);
         var screenOnly = Trace(fixture, screenDepth: depth, nearFieldTracing: false);
         var result = Trace(fixture, screenDepth: depth);
-        int checkedHits = 0;
-        for (int pixel = 0; pixel < result.Meta.Length / 2; pixel++)
-        {
-            if ((Flags(screenOnly.Meta[pixel * 2 + 1]) & 1u) == 0) continue;
-            checkedHits++;
-            Assert.Equal(0f, result.Meta[pixel * 2]);
-            for (int c = 0; c < 3; c++) Assert.Equal(0f, result.Radiance[pixel * 4 + c]);
-        }
+        var checkedDirections = ObserveScreenTrace(result, screenOnly, """
+            bool hit=(floatBitsToUint(c.g)&1u)!=0u;
+            return bvec2(!hit || (b.r==0.0 && all(equal(a.rgb,vec3(0)))),hit);
+            """);
+        checkedDirections.AssertEqual(); uint checkedHits=checkedDirections.MatchingTexels;
         Assert.True(checkedHits > 0);
     }
 
@@ -85,17 +72,15 @@ public sealed partial class LumOnNearFieldFunctionalTests
         var screenOnly = Trace(fixture, screenDepth: depth, nearFieldTracing: false, screenEmission: 0.25f, emissionBoost: 2);
         var result = Trace(fixture, screenDepth: depth, screenEmission: 0.25f, emissionBoost: 2);
         var suppressed = Trace(fixture, screenDepth: depth, screenEmission: 0.25f, emissionBoost: 2, suppress: true);
-        Assert.Equal(result.Radiance, suppressed.Radiance);
-        Assert.Equal(result.Meta, suppressed.Meta);
-        int checkedHits = 0;
-        for (int pixel = 0; pixel < result.Meta.Length / 2; pixel++)
-        {
-            if ((Flags(screenOnly.Meta[pixel * 2 + 1]) & 1u) == 0) continue;
-            checkedHits++;
-            Assert.Equal(publish ? 0f : 1f, result.Meta[pixel * 2]);
-            // A known local occluder must not borrow the screen surface emission.
-            for (int c = 0; c < 3; c++) Assert.InRange(result.Radiance[pixel * 4 + c], publish ? 0 : 0.495f, publish ? 0 : 0.505f);
-        }
+        ImageAssertions.Predicate(result.Radiance, "return bvec2(same(a,b,15u),false);", suppressed.Radiance).AssertEqual();
+        ImageAssertions.Predicate(result.Meta, "return bvec2(same(a,b,3u),false);", suppressed.Meta).AssertEqual();
+        var checkedDirections = ObserveScreenTrace(result, screenOnly, """
+            bool hit=(floatBitsToUint(c.g)&1u)!=0u;
+            bool valid=b.r==multipliers.x && all(greaterThanEqual(a.rgb,vec3(multipliers.y)))
+                && all(lessThanEqual(a.rgb,vec3(multipliers.z)));
+            return bvec2(!hit || valid,hit);
+            """, parameters:new(publish?0:1,publish?0:.495f,publish?0:.505f,0));
+        checkedDirections.AssertEqual(); uint checkedHits=checkedDirections.MatchingTexels;
         Assert.True(checkedHits > 0);
     }
 
@@ -111,14 +96,11 @@ public sealed partial class LumOnNearFieldFunctionalTests
         float depth = ScreenDepthAt(-7);
         var screenOnly = Trace(fixture, screenDepth: depth, nearFieldTracing: false, screenEmission: 1);
         var result = Trace(fixture, screenDepth: depth, screenEmission: 1);
-        int checkedHits = 0;
-        for (int pixel = 0; pixel < result.Meta.Length / 2; pixel++)
-        {
-            if ((Flags(screenOnly.Meta[pixel * 2 + 1]) & 1u) == 0) continue;
-            checkedHits++;
-            Assert.Equal(0f, result.Meta[pixel * 2]);
-            for (int c = 0; c < 3; c++) Assert.Equal(0f, result.Radiance[pixel * 4 + c]);
-        }
+        var checkedDirections = ObserveScreenTrace(result, screenOnly, """
+            bool hit=(floatBitsToUint(c.g)&1u)!=0u;
+            return bvec2(!hit || (b.r==0.0 && all(equal(a.rgb,vec3(0)))),hit);
+            """);
+        checkedDirections.AssertEqual(); uint checkedHits=checkedDirections.MatchingTexels;
         Assert.True(checkedHits > 0);
     }
 

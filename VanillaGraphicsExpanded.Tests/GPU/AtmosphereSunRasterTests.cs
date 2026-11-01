@@ -79,7 +79,10 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         UboPacking.WriteInt32(inputBytes, 4, displayTransfer ? 0 : 1);
         UboPacking.WriteVec4(inputBytes, 32, 3f, 2f, 1f, AtmosphereSolarDisk.AngularRadius);
         UboPacking.WriteFloat(inputBytes, 48, AtmosphereSolarDiskStorage.MaximumScale(new(3,2,1),1,1));
-        float[]? baseline = null;
+        Assertions.GpuImageSnapshot? baseline = null;
+        double baselineCoverage = 0;
+        try
+        {
         for (int iteration = 0; iteration < 4; iteration++)
         {
             FramebufferTestSetup.BindForEngineRendering(target);
@@ -93,31 +96,29 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
             inputs.SetBytes(inputBytes);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
-            float[] pixels = target[0].ReadPixels();
-            float[] glowPixels = target[1].ReadPixels();
-            for (int pixel = 0; pixel < pixels.Length; pixel += 4)
-            {
-                Assert.Equal(pixels[pixel + 3], glowPixels[pixel + 3]);
-                if (pixels[pixel + 3] == 0 || !displayTransfer) Assert.Equal(0f, glowPixels[pixel]);
-                else Assert.InRange(glowPixels[pixel], .88f, 1f);
-            }
+            using var glowPixels = new Assertions.GpuImageSnapshot(target[1]);
+            ImageAssertions.CompareHistory(target[0], glowPixels, channelMask: 8).AssertEqual();
+            if (!displayTransfer) ImageAssertions.CompareConstant(target[1], 0, channelMask: 1).AssertEqual();
+            else ImageAssertions.InspectCoverage(target[1], .88f, 1f).AssertFiniteRange();
             if (iteration == 0)
             {
-                baseline = pixels;
+                baseline = new(target[0]);
+                baselineCoverage = ImageAssertions.Statistics(target[0], channelMask: 8).Sum(3);
                 float expected = displayTransfer ? 1.055f * MathF.Pow(.75f, 1 / 2.4f) - .055f : 3f;
                 if (displayTransfer) expected -= 31.5f / (64f * 255f);
-                Assert.InRange(pixels[(32 * 64 + 32) * 4], expected - .00001f, expected + .00001f);
-                Assert.Equal(0f, pixels[0]);
+                Assert.InRange(Assertions.GpuLocalRead.Scalar(target[0], (32 * 64 + 32) * 4), expected - .00001f, expected + .00001f);
+                Assert.Equal(0f, Assertions.GpuLocalRead.Scalar(target[0], 0));
             }
-            else if (iteration == 1) Assert.Equal(baseline!, pixels);
-            else if (iteration == 3) Assert.All(pixels, value => Assert.Equal(0f, value));
+            else if (iteration == 1) ImageAssertions.CompareHistory(target[0], baseline!).AssertEqual();
+            else if (iteration == 3) ImageAssertions.CompareConstant(target[0], 0).AssertEqual();
             else
             {
-                float full = 0, half = 0;
-                for (int i = 3; i < pixels.Length; i += 4) { full += baseline![i]; half += pixels[i]; }
-                Assert.InRange(half / full, .47f, .53f);
+                double half = ImageAssertions.Statistics(target[0], channelMask: 8).Sum(3);
+                Assert.InRange(half / baselineCoverage, .47f, .53f);
             }
         }
+        }
+        finally { baseline?.Dispose(); }
     }
     #endregion
 }

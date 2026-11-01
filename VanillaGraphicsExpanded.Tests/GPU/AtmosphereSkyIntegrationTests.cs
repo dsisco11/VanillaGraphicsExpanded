@@ -156,26 +156,10 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                 for (int attachment = 2; attachment < 8; attachment++)
                 {
                     if (attachment == 2 && !ssao) continue;
-                    // Metadata layers share one array allocation; read their framebuffer attachment instead of a 2D alias.
-                    using var read = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, engine.FboId);
-                    int priorReadBuffer = GL.GetInteger(GetPName.ReadBuffer);
-                    try
-                    {
-                        GL.ReadBuffer(ReadBufferMode.ColorAttachment0 + attachment);
-                        if (attachment == 6)
-                        {
-                            uint[] pixels = new uint[16];
-                            GL.ReadPixels(0, 0, 2, 2, PixelFormat.RgbaInteger, PixelType.UnsignedInt, pixels);
-                            Assert.All(pixels, value => Assert.Equal(6u, value));
-                        }
-                        else
-                        {
-                            float[] pixels = new float[16];
-                            GL.ReadPixels(0, 0, 2, 2, PixelFormat.Rgba, PixelType.Float, pixels);
-                            Assert.All(pixels, value => Assert.Equal((float)attachment, value));
-                        }
-                    }
-                    finally { GL.ReadBuffer((ReadBufferMode)priorReadBuffer); }
+                    using var contents = Assertions.GpuImageSnapshot.FromAttachment(engine.GetAttachment(FramebufferSlot.Color0 + attachment)!);
+                    if (attachment == 6)
+                        ImageAssertions.CompareBits(contents.Texture, Enumerable.Repeat(6u, 16).ToArray()).AssertEqual();
+                    else ImageAssertions.CompareConstant(contents.Texture, attachment).AssertEqual();
                 }
             }
             Mock.Get(render).Verify(value => value.DeleteMesh(It.IsAny<MeshRef>()), Times.Never);

@@ -9,6 +9,7 @@ using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -207,22 +208,14 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
             programId.SuppressWorldProbeRadiance = false;
             TestFramework.RenderQuadTo(programId, output);
 
-            var radianceOut = output[0].ReadPixels();
-            var metaOut = output[1].ReadPixels();
+            using var radianceOut = new GpuImageSnapshot(output[0]);
+            using var metaOut = new GpuImageSnapshot(output[1]);
 
             // Validate a single texel (0,0): should be world-probe fallback, not sky.
             // radianceOut is RGBA, metaOut is RG (confidence, flagsBitsAsFloat).
-            int atlasX = 0;
-            int atlasY = 0;
-            int radIdx = (atlasY * AtlasWidth + atlasX) * 4;
-            int metaIdx = (atlasY * AtlasWidth + atlasX) * 2;
-
-            float r = radianceOut[radIdx + 0];
-            float g = radianceOut[radIdx + 1];
-            float b = radianceOut[radIdx + 2];
-            float conf = metaOut[metaIdx + 0];
-            float flagsF = metaOut[metaIdx + 1];
-
+            float[] selected=output[0].ReadPixelsRegion(0,0,1,1);
+            float[] selectedMeta=output[1].ReadPixelsRegion(0,0,1,1);
+            float r=selected[0],g=selected[1],b=selected[2],conf=selectedMeta[0],flagsF=selectedMeta[1];
             uint flags = unchecked((uint)BitConverter.SingleToInt32Bits(flagsF));
 
             Assert.True((flags & LUMON_META_WORLDPROBE_FALLBACK) != 0u, "Expected WORLDPROBE_FALLBACK flag on a miss texel");
@@ -233,42 +226,33 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
                 Assert.True(r > 0.8f && g < 0.2f && b < 0.2f, $"Expected red first-probe radiance, got ({r:F3}, {g:F3}, {b:F3})");
             else
             {
-                // All directions are actual CPU hit results. Equal corner confidence makes the
-                // expected blend exactly the exterior corner weight, with no sky contribution.
-                for (int i = 0; i < radianceOut.Length; i += 4)
-                {
-                    for (int channel = 0; channel < 3; channel++)
-                        Assert.InRange(radianceOut[i + channel],
-                            expectedRadiance == -2 ? 0f : expectedRadiance - 0.002f,
-                            expectedRadiance == -2 ? 1.002f : expectedRadiance + 0.002f);
-                    Assert.True(metaOut[i / 2] >= minimumConfidence);
-                    if (minimumConfidence == 0) Assert.Equal(0f, metaOut[i / 2]);
-                    Assert.True((unchecked((uint)BitConverter.SingleToInt32Bits(metaOut[i / 2 + 1])) & LUMON_META_WORLDPROBE_FALLBACK) != 0);
-                }
+                var accepted=ImageAssertions.Predicate(radianceOut.Texture,"""
+                    bool color=all(greaterThanEqual(a.rgb,vec3(multipliers.x))) && all(lessThanEqual(a.rgb,vec3(multipliers.y)));
+                    bool confidence=b.r>=multipliers.z && (multipliers.z!=0 || b.r==0);
+                    return bvec2(color && confidence && (floatBitsToUint(b.g)&32u)!=0u,false);
+                    """,metaOut.Texture,parameters:new(expectedRadiance==-2?0:expectedRadiance-.002f,
+                        expectedRadiance==-2?1.002f:expectedRadiance+.002f,minimumConfidence,0));
+                accepted.AssertEqual();
             }
-
-            if (expectedRadiance == -2)
-                Assert.Contains(Enumerable.Range(0, radianceOut.Length / 4), pixel => radianceOut[pixel * 4] > 0.001f);
-
+            if(expectedRadiance==-2)
+            {
+                var lit=ImageAssertions.Predicate(radianceOut.Texture,"return bvec2(true,a.r>.001);");
+                lit.AssertEqual();Assert.True(lit.MatchingTexels>0);
+            }
             // Suppressing accepted world radiance must preserve visibility and validity, rather
             // than taking the bright green sky fallback or changing the ray's hit distance.
             programId.SuppressWorldProbeRadiance = true;
             TestFramework.RenderQuadTo(programId, output);
-            var suppressedRadiance = output[0].ReadPixels();
-            var suppressedMeta = output[1].ReadPixels();
-            Assert.Equal(metaOut, suppressedMeta);
-            for (int i = 0; i < radianceOut.Length; i += 4)
-            {
-                Assert.Equal(0f, suppressedRadiance[i]);
-                Assert.Equal(0f, suppressedRadiance[i + 1]);
-                Assert.Equal(0f, suppressedRadiance[i + 2]);
-                Assert.Equal(radianceOut[i + 3], suppressedRadiance[i + 3]);
-            }
+            using var suppressedRadiance=new GpuImageSnapshot(output[0]);
+            using var suppressedMeta=new GpuImageSnapshot(output[1]);
+            ImageAssertions.CompareHistory(suppressedMeta.Texture,metaOut).AssertEqual();
+            ImageAssertions.CompareConstant(suppressedRadiance.Texture,0,channelMask:7).AssertEqual();
+            ImageAssertions.CompareHistory(suppressedRadiance.Texture,radianceOut,channelMask:8).AssertEqual();
             using var normalBranch = new ShaderLightingResources(Programs.Api);
             using var suppressedBranch = new ShaderLightingResources(Programs.Api);
             foreach (bool sh9 in runPipeline ? new[] { false, true } : Array.Empty<bool>())
             {
-                AssertPairedHistoryReachesGather(normalBranch, suppressedBranch, radianceOut, suppressedRadiance, metaOut, sh9, expectedRadiance != 0);
+                AssertPairedHistoryReachesGather(normalBranch, suppressedBranch, radianceOut.Texture, suppressedRadiance.Texture, metaOut.Texture, sh9, expectedRadiance != 0);
             }
         }
     }

@@ -29,20 +29,14 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
         var restored = Trace(geometry, resources: first);
         Assert.NotSame(first.EnsureScreen(4, 4, 2).ScreenProbeAtlasTraceTex,
             second.EnsureScreen(4, 4, 2).ScreenProbeAtlasTraceTex);
-        Assert.Equal(bright.Radiance, restored.Radiance);
-        Assert.Equal(bright.Meta, restored.Meta);
-        Assert.Equal(bright.Meta, suppressed.Meta);
-        for (int index = 0; index < bright.Radiance.Length; index += 4)
-        {
-            for (int channel = 0; channel < 3; channel++)
-            {
-                Assert.InRange(restored.Radiance[index + channel], 9.9f, 10.1f);
-                Assert.Equal(0f, suppressed.Radiance[index + channel]);
-            }
-            Assert.Equal(1f, restored.Meta[index >> 1]);
-            Assert.NotEqual(0u, Flags(restored.Meta[(index >> 1) + 1]) & (1u << 5));
-            Assert.Equal(0u, Flags(disabled.Meta[(index >> 1) + 1]) & (1u << 5));
-        }
+        ImageAssertions.Predicate(bright.Radiance, "return bvec2(same(a,b,15u),false);", restored.Radiance).AssertEqual();
+        ImageAssertions.Predicate(bright.Meta, "return bvec2(same(a,b,15u),false);", restored.Meta).AssertEqual();
+        ImageAssertions.Predicate(bright.Meta, "return bvec2(same(a,b,15u),false);", suppressed.Meta).AssertEqual();
+        ObserveTrace(restored, """
+            return bvec2(all(greaterThanEqual(a.rgb,vec3(9.9))) && all(lessThanEqual(a.rgb,vec3(10.1)))
+                && all(equal(c.rgb,vec3(0))) && b.r==1.0 && (flags&32u)!=0u,false);
+            """, suppressed).AssertEqual();
+        ObserveTrace(disabled, "return bvec2((flags&32u)==0u,false);").AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -64,7 +58,7 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
         var radiance = output.Colors[0].Image!.Value.Texture;
         first.Scene.EnsureSize(4, 4);
         var depth = first.Scene.Engine.Depth;
-        float[]? prior = null;
+        TraceImages? prior = null;
         for (int frame = 0; frame < 2; frame++)
         {
             var result = Trace(geometry, nearFieldTracing: false, worldCache: false,
@@ -75,9 +69,9 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
             Assert.Same(history, screen.ScreenProbeAtlasHistoryTex);
             Assert.Same(depth, first.Scene.Engine.Depth);
             Assert.True(radiance.IsValid);
-            Assert.All(other.ScreenProbeAtlasTraceTex.ReadPixels(), value => Assert.Equal(.75f, value));
-            if (prior != null) Assert.Equal(prior, result.Radiance);
-            prior = result.Radiance;
+            ImageAssertions.CompareConstant(other.ScreenProbeAtlasTraceTex, .75f).AssertEqual();
+            if (prior != null) ImageAssertions.Predicate(prior.Radiance, "return bvec2(same(a,b,15u),false);", result.Radiance).AssertEqual();
+            prior = result;
         }
         first.Dispose();
         Assert.False(radiance.IsValid);

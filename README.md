@@ -198,18 +198,34 @@ verify serialization and replacement protocols, not operating-system filesystem 
 ### Compact GPU assertions
 
 `GPU/Assertions/GpuImageAssertions` compares complete selected image domains against independent CPU
-expectations or a retained `GpuImageSnapshot`. It also provides finite/range/extrema/positive counters and
-rank-permutation/slice checks. Selections retain their original extent, mip, region, channels and layers or
-cube faces. The checker returns sixteen words plus failure coordinates/rank identities; it does not download
+expectations or a retained `GpuImageSnapshot`. It also provides finite/range/extrema/positive counters,
+double sums and squared sums, channel ratios, coverage predicates and rank-permutation/slice checks.
+Selections retain their original extent, mip, region, channels, explicit sparse coordinates and layers or
+cube faces. Packed stencil comparisons change the sampling mode only on an owned GPU copy and retain
+the source depth aspect and selector. The checker returns thirty-two words containing counters, moments and failure coordinates/rank identities; it does not download
 image pixels. Keep existing local tuple reads and tests of readback APIs independent from this checker.
 
 Checker executables and snapshots belong to their original registered physical context; callers dispose them within
 that lifetime. There is no global native-name cache. Integer image outputs leave SSBO base/range bindings
 untouched, preserve program/texture/sampler/image selectors and restore pixel-pack state. A completion
-marker and exact processed-texel count reject absent or partial dispatch; histogram validation has its own marker and count. Synchronous result transfer supplies
+marker and exact processed-texel count reject absent or partial dispatch; histogram validation and both
+statistics reduction stages have independent completion evidence. Synchronous result transfer supplies
 completion without a blanket `Finish`. Exact float comparisons equate signed zero and NaNs deliberately;
 opposite infinities differ and subnormals retain their value. Tolerance is absolute and evaluated from the
 represented values in double precision. Finite/range checks remain explicit independent predicates.
+Double CPU expectations keep their original precision. Sparse comparisons prove the exact number of
+authored components compared. Existing scalar probes use `GpuLocalRead` to read only their nominated texel.
+Authored GPU predicates correlate retained images and independently count selected witnesses, preserving
+conditional checks without a vacuous pass. Explicit mapped-source predicates can inspect cross-resolution
+inputs at independently authored coordinates. `GpuImageTransform` authors history copies and projections
+on the GPU; expectations remain separate. When an oracle requires float products with double sums,
+products round into RGBA32F storage before the double reduction. `OrderedFloatSum` retains explicitly
+required sequential float addition; `WeightedStatistics` retains independent double quadrature weights.
+`PredicateAt` checks every nominated coordinate and layer, while `CompareRgba8` reconstructs normalized
+metadata bytes before comparing independently authored values. Local float, integer and byte tuples use
+the selected RHI readback region directly, preserving their original representations. Shared surface
+fixtures publish their authored CPU cell/table inputs directly into production scene storage; history
+seeding and later comparisons stay on the GPU.
 
 `LayeredTestTexture.Create` uses compatible GPU copies or GPU nearest conversion with zero channel
 expansion, including alpha. Immutable authored inputs/catalogs may be shared; mutable test subjects and

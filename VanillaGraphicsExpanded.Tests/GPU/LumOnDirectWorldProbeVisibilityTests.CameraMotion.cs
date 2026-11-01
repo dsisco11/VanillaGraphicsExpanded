@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -41,7 +42,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
             var receiverRelative = new Vector3(0.25f, height - 0.375f, -5.625f);
             foreach (float bob in new[] { 0f, 0.25f, -0.25f, 0f })
             {
-                var pixels = RenderDirectVisibility(atlas, local.Scene, receiverRelative,
+                using var pixels = RenderDirectVisibility(atlas, local.Scene, receiverRelative,
                     probeRelative - new Vector3(8), 16, consumer, size: 1, span: 0,
                     playerOrigin: playerOrigin, cameraBob: bob);
                 AssertLighting(pixels, consumer, clear);

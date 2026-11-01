@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -33,6 +34,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     private CloudMapInput input;
     private uint updateFrame;
     private object? replacementIdentity;
+    private GpuImageTransform? projections;
     private CloudVolumeViewScene preparedScene=null!;
     /// <summary>Reports only the view owner's allocated trace products and reconstruction metadata.</summary>
     internal long ViewTargetBytes=>renderer.TargetBytes;
@@ -42,16 +44,16 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
 #endif
     /// <summary>Exposes retained density identity so view-only changes cannot silently replace the cloud fields.</summary>
     internal DynamicTexture3D StoredDensity=>storage.Published.Density;
-    /// <summary>Reads actual fresh-ray validity and cell/block visits after the timed view submission.</summary>
-    internal float[] TraceReceipts=>renderer.TraceReceipts?.ReadPixels()??[];
-    /// <summary>Reads the successfully committed history metadata, independently of fresh-ray scheduling.</summary>
-    internal float[] HistoryReceipts=>renderer.HistoryReceipts?.ReadPixels()??[];
+    /// <summary>Exposes completed fresh-ray validity and cell/block visits outside timed submission.</summary>
+    internal GpuTexture TraceReceipts=>renderer.TraceReceipts??throw new InvalidOperationException("No completed trace receipts.");
+    /// <summary>Exposes successfully committed history metadata independently of fresh-ray scheduling.</summary>
+    internal GpuTexture HistoryReceipts=>renderer.HistoryReceipts??throw new InvalidOperationException("No completed history receipts.");
     /// <summary>Requests the compiled receipt variant while keeping native composition unchanged.</summary>
     internal bool CaptureDiagnostics {get;set;}=true;
-    /// <summary>Reads real contribution, update class, rejection and observation age outside submission.</summary>
-    internal float[] HistoryDiagnostics=>renderer.HistoryDiagnostics?.ReadPixels()??[];
-    /// <summary>Reads physical compact transport without native encoding or OIT expansion.</summary>
-    internal float[] HistoryCloud=>renderer.CompletedHistory?.Images[0].ReadPixels()??[];
+    /// <summary>Exposes optional contribution, update class, rejection and observation age outside submission.</summary>
+    internal GpuTexture? HistoryDiagnostics=>renderer.HistoryDiagnostics;
+    /// <summary>Exposes physical compact transport without native encoding or OIT expansion.</summary>
+    internal GpuTexture HistoryCloud=>renderer.CompletedHistory?.Images[0]??throw new InvalidOperationException("No completed history.");
     /// <summary>Authors prior transport and confidence independently of the current trace.</summary>
     internal void SeedHistory(float[] cloud,float[] metadata,float[] diagnostics,float[]? bins=null)
     {
@@ -61,6 +63,29 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         completed.Diagnostics?.UploadDataImmediate(diagnostics);
         if(bins is not null)completed.Images[1].UploadDataImmediate(bins);
     }
+    /// <summary>Seeds completed physical images on the GPU while retaining independently authored diagnostic ages.</summary>
+    internal void SeedHistory(GpuTexture cloud,GpuTexture metadata,float[] diagnostics,GpuTexture? bins=null)
+    {
+        var completed=renderer.CompletedHistory??throw new InvalidOperationException("History has not been drawn.");
+        CopyHistoryImage(cloud,completed.Images[0]);CopyHistoryImage(metadata,completed.Images[2]);
+        completed.Images[3].UploadDataImmediate(diagnostics.Where((_,index)=>index%4==3).ToArray());
+        completed.Diagnostics?.UploadDataImmediate(diagnostics);
+        if(bins is not null)CopyHistoryImage(bins,completed.Images[1]);
+    }
+
+    /// <summary>Feeds completed cloud, bucket, metadata and required age products back without a CPU image transfer.</summary>
+    internal void SeedHistory(CloudTemporalObservation observation)
+    {
+        var completed=renderer.CompletedHistory??throw new InvalidOperationException("History has not been drawn.");
+        CopyHistoryImage(observation.Cloud,completed.Images[0]);CopyHistoryImage(observation.Bins,completed.Images[1]);
+        CopyHistoryImage(observation.Metadata,completed.Images[2]);CopyHistoryImage(observation.Age,completed.Images[3]);
+        if(completed.Diagnostics is {} diagnostics)
+        {
+            using var age=(projections??=Own(new GpuImageTransform())).Apply(observation.Age,"return vec4(0,0,0,a.r);");
+            CopyHistoryImage(age,diagnostics);
+        }
+    }
+
     /// <summary>Borrows opt-in query owners for a separate nonnested per-pass measurement.</summary>
     internal void SetPassTimers(GpuTimerQuery[]? timers){renderer.PassTimers=timers;}
     /// <summary>Reports the shared history admission used by the last view.</summary>
@@ -114,7 +139,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         fields.Occupancy.UploadData(Enumerable.Repeat(sigma==0?0u:1u,d.Blocks).ToArray());
     }
     /// <summary>Filters authored compact rays with explicit previous-camera rotation and material translation through the actual temporal program.</summary>
-    internal float[][] FilterAuthored(float[] cloud,float[] bins,float[] metadata,bool diagnostics=true,Vector3 translation=default,float previousYaw=0)
+    internal CloudTemporalObservation FilterAuthored(float[] cloud,float[] bins,float[] metadata,bool diagnostics=true,Vector3 translation=default,float previousYaw=0)
     {
         temporalProgram.ConfigureOptions(()=>temporalProgram.DiagnosticsEnabled=diagnostics);
         Assert.True(temporalProgram.EnsureReady(),temporalProgram.PreparationFailure?.ToString());
@@ -152,8 +177,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     using var scope39=commands.EnterBoundary(new("Tests.Cloud.Temporal.Authored",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pass.Pipeline!],value=>value),operations:BoundaryOperations.RenderPasses));
     scope39.Run(()=>pass.Draw(commands,geometry.Inputs));
 }
-            return [destination.Images[0].ReadPixels(),destination.Images[1].ReadPixels(),destination.Images[2].ReadPixels(),
-                destination.Diagnostics?.ReadPixels()??[],destination.Images[3].ReadPixels()];
+            return new CloudTemporalObservation(destination.Images,destination.Diagnostics);
         }
         finally
         {
@@ -186,7 +210,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         material.UploadDataImmediate(depths);
     }
     /// <summary>Draws actual typed OIT, optionally advancing the complete independent stored-volume update chain.</summary>
-    internal float[][] Draw(CloudVolumeViewSettings settings,float scale=1,CloudVolumeSolution? solution=null,bool succeeds=true,float? clear=null)
+    internal void Draw(CloudVolumeViewSettings settings,float scale=1,CloudVolumeSolution? solution=null,bool succeeds=true,float? clear=null)
     {
         if(solution is not null)
         {
@@ -209,10 +233,10 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         PrepareDraw(settings,scale,clear);
         bool drawn=solution is null?DrawOnly():renderer.Draw(solution.Drawable!,input,preparedScene,engineOutput,()=>true,captureDiagnostics:CaptureDiagnostics);
         if(succeeds)Assert.True(drawn,renderer.Failure);else{Assert.False(drawn);Assert.NotNull(renderer.Failure);}
-        return output.Images.Select(texture=>texture.ReadPixels()).ToArray();
+
     }
     /// <summary>Submits borrowed inputs through the real typed view and verifies restored native selections.</summary>
-    internal float[][] DrawBorrowedInputs(CloudVolumeViewSettings settings)
+    internal GpuImageSet DrawBorrowedInputs(CloudVolumeViewSettings settings)
     {
         using var borrowedMap=new BorrowedTexture(map.TextureId);
         using var borrowedMaterial=new BorrowedTexture(material.TextureId);
@@ -229,8 +253,17 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         Assert.Equal(read,GL.GetInteger(GetPName.ReadFramebufferBinding));
         Assert.Equal(unit,GL.GetInteger(GetPName.ActiveTexture));
         Assert.Equal(texture,GL.GetInteger(GetPName.TextureBinding2D));
-        return output.Images.Select(image=>image.ReadPixels()).ToArray();
+        return CaptureOutput();
     }
+    /// <summary>Draws the complete view and returns independent OIT snapshots only when a caller needs an image observation.</summary>
+    internal GpuImageSet DrawAndCapture(CloudVolumeViewSettings settings,float scale=1,CloudVolumeSolution? solution=null,bool succeeds=true,float? clear=null)
+    {
+        Draw(settings,scale,solution,succeeds,clear);
+        return CaptureOutput();
+    }
+    /// <summary>Retains independently owned OIT attachment images after native handback.</summary>
+    internal Assertions.GpuImageSet CaptureOutput() => new(output.Images);
+
     /// <summary>Prepares immutable view inputs and clears targets outside the measured draw interval.</summary>
     internal void PrepareDraw(CloudVolumeViewSettings settings,float scale=1,float? clear=null)
     {
@@ -311,6 +344,15 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     #region Private
     /// <summary>Adopts resources immediately so partial constructor failure cannot leak an allocation.</summary>
     private T Own<T>(T value)where T:IDisposable{resources.Add(value);return value;}
+    /// <summary>Converts corresponding completed images through a nearest GPU blit, retaining original target formats.</summary>
+    private static void CopyHistoryImage(GpuTexture source,GpuTexture destination)
+    {
+        if(ReferenceEquals(source,destination))return;
+        if(source.Width!=destination.Width||source.Height!=destination.Height||source.Depth!=1||destination.Depth!=1)
+            throw new ArgumentException("History images must retain their complete plane.");
+        var area=new RenderArea(0,0,source.Width,source.Height);
+        RHICommandContext.Current.BlitImages(new(RHIAttachment.FromTexture(source),area,RHIAttachment.FromTexture(destination),area));
+    }
     /// <summary>Encodes one finite camera distance using the fixture's projection coefficients.</summary>
     private static float Depth(float distance)=>(1.00020002f-.200020002f/distance)*.5f+.5f;
     #endregion

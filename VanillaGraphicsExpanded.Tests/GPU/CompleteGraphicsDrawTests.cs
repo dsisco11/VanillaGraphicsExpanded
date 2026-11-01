@@ -9,6 +9,7 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Pipeline.State;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Proves the fullscreen consumer's state footprint with deterministic real MRT drawing.</summary>
@@ -243,22 +244,21 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
         /// <summary>Checks all pixels of all outputs, independent of GL state metadata.</summary>
         public void AssertPixels()
         {
-            using var pack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));
+            using var assertions=new GpuImageAssertions();
             for (int target = 0; target < 3; target++)
             {
-                GL.ReadBuffer(ReadBufferMode.ColorAttachment0 + target); byte[] pixels = new byte[8 * 8 * 4];
-                GL.ReadPixels(0, 0, 8, 8, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-                for (int i = 0; i < pixels.Length; i++) Assert.Equal((byte)(i % 4 == target || i % 4 == 3 ? 255 : 0), pixels[i]);
+                using var image=NativeFramebufferImage.Capture(framebuffer,target,8,8,TextureFormat.Rgba8);
+                var expected=new float[8*8*4];
+                for(int i=0;i<expected.Length;i++)expected[i]=i%4==target || i%4==3?1:0;
+                assertions.Compare(image.Texture,expected).AssertEqual();
             }
         }
         /// <summary>Checks shader-observed facing for every covered pixel independently of native winding metadata.</summary>
         public void AssertFacingPixels(bool front)
         {
-            using var pack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment0); byte[] pixels = new byte[8 * 8 * 4];
-            GL.ReadPixels(0, 0, 8, 8, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
-            for (int pixel = 0; pixel < 64; pixel++)
-                Assert.Equal(front ? new byte[] { 255, 0, 0, 255 } : new byte[] { 0, 255, 0, 255 }, pixels.AsSpan(pixel * 4, 4).ToArray());
+            using var assertions=new GpuImageAssertions();
+            using var image=NativeFramebufferImage.Capture(framebuffer,0,8,8,TextureFormat.Rgba8);
+            assertions.Compare(image.Texture,Enumerable.Repeat(front?new[]{1f,0f,0f,1f}:new[]{0f,1f,0f,1f},64).SelectMany(x=>x).ToArray()).AssertEqual();
         }
         /// <summary>Releases fixture resources while the collection context remains active.</summary>
         public void Dispose()

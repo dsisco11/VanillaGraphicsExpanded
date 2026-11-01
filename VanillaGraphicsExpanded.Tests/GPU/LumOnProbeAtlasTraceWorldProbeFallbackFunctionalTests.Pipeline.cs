@@ -5,6 +5,8 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -13,7 +15,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
 {
     #region Paired Pipeline
     /// <summary>Processes actual trace outputs for two frames with separate history textures.</summary>
-    private void AssertPairedHistoryReachesGather(ShaderLightingResources normalBranch, ShaderLightingResources suppressedBranch, float[] normalTrace, float[] suppressedTrace, float[] metadata, bool sh9, bool expectLighting = true)
+    private void AssertPairedHistoryReachesGather(ShaderLightingResources normalBranch, ShaderLightingResources suppressedBranch, GpuTexture normalTrace, GpuTexture suppressedTrace, GpuTexture metadata, bool sh9, bool expectLighting = true)
     {
         {
             var temporal = Programs.Create<LumOnScreenProbeAtlasTemporalShaderProgram>(shader => shader.TexelsPerFrame = 64);
@@ -37,15 +39,16 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             var depth = terrain.Depth;
             depth.UploadDataImmediate(CreateUniformData(ScreenWidth, ScreenHeight, 1, depthValue));
             var meta = inputs.ScreenProbeAtlasMetaHistoryTex!;
-            meta.UploadDataImmediate(metadata);
+            var region=new RHITextureRegion(new(0),0,0,0,AtlasWidth,AtlasHeight,1);
+            RHICommandContext.Current.CopyTexture(metadata,region,meta,region);
             // Each branch owns its own temporal outputs. Frame two reads only its own first frame.
-            float[][] gathered = new float[2][];
+            GpuTexture[] gathered = new GpuTexture[2];
             for (int branch = 0; branch < 2; branch++)
             {
                 var resources = branch == 0 ? normalBranch : suppressedBranch;
                 var buffers = resources.EnsureScreen(ScreenWidth, ScreenHeight, ProbeSpacing);
                 var trace = buffers.ScreenProbeAtlasHistoryTex!;
-                trace.UploadDataImmediate(branch == 0 ? normalTrace : suppressedTrace);
+                RHICommandContext.Current.CopyTexture(branch==0?normalTrace:suppressedTrace,region,trace,region);
                 var first = buffers.ScreenProbeAtlasCurrentPass!;
                 var second = buffers.ScreenProbeAtlasTracePass!;
                 var filtered = buffers.ScreenProbeAtlasFilteredPass!;
@@ -96,25 +99,18 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                     }
                     TestFramework.RenderQuadTo(gather, output);
                 }
-                gathered[branch] = output.Colors[0].Image!.Value.Texture.ReadPixels();
+                gathered[branch] = output.Colors[0].Image!.Value.Texture.Resource as GpuTexture ?? throw new InvalidOperationException("Expected fixture-owned gather storage.");
             }
-            for (int i = 0; i < gathered[0].Length; i += 4)
-            {
-                if (expectLighting)
-                    Assert.True(gathered[0][i] + gathered[0][i + 1] + gathered[0][i + 2] > 0.1f,
-                        $"World trace lighting was lost before {(sh9 ? "SH9" : "atlas")} gather");
-                else
-                    for (int channel = 0; channel < 3; channel++)
-                        Assert.InRange(gathered[0][i + channel], -1e-6f, 1e-6f);
-                Assert.True(gathered[0][i + 3] > 0.1f, "Screen gather must be well above the world-fallback threshold");
-                Assert.Equal(gathered[0][i + 3], gathered[1][i + 3]);
-                for (int channel = 0; channel < 3; channel++) Assert.Equal(0f, gathered[1][i + channel]);
-            }
+            ImageAssertions.Predicate(gathered[0],"""
+                precise float brightness=(a.r+a.g)+a.b;
+                bool color=multipliers.x==1?brightness>.1:all(greaterThanEqual(a.rgb,vec3(-.000001))) && all(lessThanEqual(a.rgb,vec3(.000001)));
+                return bvec2(color && a.a>.1 && same(a,b,8u) && all(equal(b.rgb,vec3(0))),false);
+                """,gathered[1],parameters:new(expectLighting?1:0,0,0,0)).AssertEqual();
             var normalOutput = normalBranch.EnsureScreen(ScreenWidth, ScreenHeight, ProbeSpacing).IndirectHalfTex!;
             var suppressedOutput = suppressedBranch.EnsureScreen(ScreenWidth, ScreenHeight, ProbeSpacing).IndirectHalfTex!;
             suppressedBranch.Scene.EnsureSize(HalfResWidth, HalfResHeight);
             AssertGatherLightingEffect(normalOutput, suppressedOutput, suppressedBranch.Scene.Engine.Output,
-                gathered[0], gathered[1], expectLighting);
+                expectLighting);
         }
     }
 

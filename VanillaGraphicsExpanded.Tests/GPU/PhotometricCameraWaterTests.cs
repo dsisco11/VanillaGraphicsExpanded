@@ -61,8 +61,8 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
                 if (reference is not null) Assert.InRange(Math.Abs(physical - reference[channel]), 0, .00001f);
             }
             reference = actual.Take(3).Select(value => value / scale).ToArray();
-            Assert.Equal(-7, optical.ReadPixels()[3]);
-            Assert.Equal(-1, source.ReadPixels()[3]);
+            Assert.Equal(-7, Assertions.GpuLocalRead.Scalar(optical, 3));
+            Assert.Equal(-1, Assertions.GpuLocalRead.Scalar(source, 3));
         }
     }
     /// <summary>Raw fields reproduce separately calibrated physical scattering, with no extra decoder or environment contribution.</summary>

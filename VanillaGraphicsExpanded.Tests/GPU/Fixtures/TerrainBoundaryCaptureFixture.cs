@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
@@ -21,8 +22,6 @@ internal static class TerrainBoundaryCaptureFixture
         using var shader = owner!;
         using var depth = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R16f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var material = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var occupancy = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 64), Depth = System.Math.Max(1, 64), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var palette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         int axis = face >> 1;
         var voxels = new uint[64 * 64 * 64];
         for (int z = 0; z < 64; z++)
@@ -32,16 +31,14 @@ internal static class TerrainBoundaryCaptureFixture
             int coordinate = axis == 0 ? x : axis == 1 ? y : z;
             voxels[(z * 64 + y) * 64 + x] = LumonSceneOccupancyPacking.Pack(0, 0, 0, coordinate < 32 ? 5u : 6u);
         }
-        occupancy.UploadDataImmediate(voxels, 0, 0, 0, 64, 64, 64, 0);
         uint[] entries = new uint[64 * 4];
         for (int i = 0; i < 3; i++)
         {
             entries[5 * 4 + i] = 9u | (9u << 16);
             entries[6 * 4 + i] = 17u | (17u << 16);
         }
-        palette.UploadDataImmediate(entries);
         int[] origin = [0, 0, 0]; origin[axis] = boundary - 32;
-        using var scene = new SharedSurfaceInputFixture(occupancy, palette, new(origin[0], origin[1], origin[2]));
+        using var scene = new SharedSurfaceInputFixture(64, voxels, entries, new(origin[0], origin[1], origin[2]));
         // Populate the same signed toroidal window that produced the terrain slot.
         var slots = new int[125 * 4];
         for (int y = -2; y <= 2; y++)
@@ -60,12 +57,9 @@ internal static class TerrainBoundaryCaptureFixture
         shader.SetAtlasLayout(4, 1, 1, 0);
         shader.Dispatch(1, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
-        byte[] pixels = new byte[4 * 4 * 4];
-        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, material.TextureId))
-            GL.GetTexImage(TextureTarget.Texture2DArray, 0, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
         int u = Math.Clamp((int)(BitConverter.UInt32BitsToSingle(mapping[4]) * 4), 0, 3);
         int v = Math.Clamp((int)(BitConverter.UInt32BitsToSingle(mapping[5]) * 4), 0, 3);
-        Assert.Equal(face % 2 == 0 ? (byte)9 : (byte)17, pixels[(v * 4 + u) * 4 + 2]);
+        Assert.Equal(face % 2 == 0 ? (byte)9 : (byte)17, GpuLocalRead.Rgba8(material, u, v)[2]);
     }
     #endregion
 

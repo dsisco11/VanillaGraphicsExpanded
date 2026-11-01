@@ -25,7 +25,7 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
         scene.Initialize();
         scene.Draw(false);
         scene.AssertRestored();
-        var expected = scene.Read();
+        using var expected = scene.CaptureOutput();
         scene.Initialize();
         var api = new Mock<ICoreClientAPI> { DefaultValue = DefaultValue.Mock };
         using var renderer = new SkyRenderer(api.Object, null!);
@@ -37,9 +37,9 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
         Assert.Single(scene.Boundaries);
         Assert.Equal(new[] { "CelestialGalaxyProgram", "CelestialStarProgram", "MoonProgram", "SunProgram", "AtmosphereSkyShaderProgram" }, scene.Draws);
         scene.AssertRestored();
-        var actual = scene.Read();
+        using var actual = scene.CaptureOutput();
         for (int image = 0; image < 2; image++)
-            Assert.True(MemoryMarshal.AsBytes(expected[image].AsSpan()).SequenceEqual(MemoryMarshal.AsBytes(actual[image].AsSpan())));
+            ImageAssertions.CompareHistory(actual[image].Texture, expected[image], bitwise: true).AssertEqual();
     }
 
     /// <summary>Actual simultaneous sky/glow results remain bit-exact while repeated native and fixed-state handoffs decrease.</summary>
@@ -55,10 +55,10 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
         scene.Draw(false);
         Assert.Equal(5, scene.PrefixImages.Count);
         // Independently demonstrate each executable changes its output before comparing the two scheduling paths.
-        Assert.Contains(scene.PrefixImages[0][0], value => value > 0);
+        Assert.True(ImageAssertions.Inspect(scene.PrefixImages[0][0].Texture).Positive > 0);
         for (int index = 1; index < 5; index++)
-            Assert.False(scene.PrefixImages[index - 1][0].SequenceEqual(scene.PrefixImages[index][0]), "Inactive program index " + index);
-        Assert.Contains(scene.PrefixImages[3][1].Where((_, index) => index % 4 == 1), value => value > 0);
+            Assert.True(ImageAssertions.CompareHistory(scene.PrefixImages[index][0].Texture, scene.PrefixImages[index - 1][0]).Mismatches > 0, "Inactive program index " + index);
+        Assert.True(ImageAssertions.Inspect(scene.PrefixImages[3][1].Texture, channelMask: 2).Positive > 0);
         scene.AssertRestored();
         scene.ReadPrefixes = false;
         scene.Initialize();
@@ -76,7 +76,7 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
 #endif
         Assert.Equal(4, scene.Boundaries.Count);
         scene.AssertRestored();
-        float[][] expected = scene.Read();
+        using var expected = scene.CaptureOutput();
         scene.Initialize();
 #if DEBUG
         start = OpenGlStateCache.Current.FixedFunctionCalls;
@@ -93,12 +93,11 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
         Assert.Single(scene.Boundaries);
         scene.AssertRestored();
         Assert.Equal(new[] { "CelestialGalaxyProgram", "CelestialStarProgram", "MoonProgram", "SunProgram", "AtmosphereSkyShaderProgram" }, scene.Draws);
-        float[][] actual = scene.Read();
+        using var actual = scene.CaptureOutput();
         for (int image = 0; image < 2; image++)
         {
-            Assert.Equal(expected[image], actual[image]);
-            Assert.True(MemoryMarshal.AsBytes(expected[image].AsSpan()).SequenceEqual(MemoryMarshal.AsBytes(actual[image].AsSpan())));
-            Assert.All(actual[image], value => Assert.True(float.IsFinite(value)));
+            ImageAssertions.CompareHistory(actual[image].Texture, expected[image], bitwise: true).AssertEqual();
+            ImageAssertions.Inspect(actual[image].Texture).AssertFiniteRange();
         }
 #if DEBUG
         Assert.True(sharedFixed < standaloneFixed, $"Fixed setters: {sharedFixed} vs {standaloneFixed}");
@@ -117,7 +116,7 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
 #endif
             standalone,
             shared,
-            colorPixels = actual[0].Length / 4,
+            colorPixels = actual[0].Texture.Width * actual[0].Texture.Height,
             bitExactMrt = true
         }));
     }

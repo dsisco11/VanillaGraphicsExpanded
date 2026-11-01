@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
+using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -24,12 +26,15 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
     private readonly GpuVbo positions=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(),uv=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
     private readonly ArrayGraphicsGeometry geometry;
     private readonly RHIGraphicsPipeline compositePipeline;
+    private readonly GpuImageTransform projections=new();
 
     #region Public API
     /// <summary>Evaluates actual solar BRDF output, then borrows it unchanged through all AO diagnostic compositions.</summary>
     internal AmbientOcclusionLightingFixture(ShaderTestFramework framework,ComponentShaderPrograms programs,AmbientOcclusionSceneFixture scene,
         bool lumon,float solarIrradiance,float availability)
     {
+        try
+        {
         this.scene=scene;
         positions.UploadData(new float[]{-1,-1,0,3,-1,0,-1,3,0});uv.UploadData(new float[]{0,0,2,0,0,2});
         geometry=new ArrayGraphicsGeometry(EngineFullscreenGeometry.Layout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>{[0]=positions,[1]=uv});
@@ -39,13 +44,9 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
         indirect=framework.CreateTexture(1,1,TextureFormat.Rgba32f,[availability,availability,availability,1f]);
         // A matched zero-visibility field isolates each lobe through the existing independent
         // AO controls without changing material roughness or its compensated energy budget.
-        float[] zeroVisibilityData = scene.Position.ReadPixels();
-        for (int offset = 0; offset < zeroVisibilityData.Length; offset += 4)
-        {
-            zeroVisibilityData[offset + 1] = -zeroVisibilityData[offset + 2];
-            zeroVisibilityData[offset] = zeroVisibilityData[offset + 2] = zeroVisibilityData[offset + 3] = 0;
-        }
-        zeroVisibility=framework.CreateTexture(scene.Width,scene.Height,TextureFormat.Rgba32f,zeroVisibilityData);
+        using(var projected=projections.Apply(scene.Position,"return vec4(0,-a.b,0,0);"))
+        using(var retained=new GpuImageSnapshot(projected))
+            zeroVisibility=retained.ToPlane();
         var direct=programs.Create<PBRDirectLightingShaderProgram>();
         direct.FrameInputs=scene.Camera;direct.LightsInputs=lights;direct.PrimaryScene=scene.Albedo;
         direct.PrimaryDepth=scene.Depth;direct.GBufferPosition=scene.Position;direct.GBufferSurface=scene.Surface;
@@ -63,43 +64,48 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
         composite.IndirectTint=new(1,1,1);composite.DiffuseAOStrength=composite.SpecularAOStrength=1;
         composite.SetAtmosphere(null);composite.SetWaterVolume(null);composite.SetUnderwater(false);
         compositePipeline=CreatePipeline(composite,outputTarget);
+        }
+        catch(Exception failure)
+        {
+            try { Dispose(); } catch(Exception cleanup) { throw new AggregateException(failure,cleanup); }
+            throw;
+        }
     }
 
     /// <summary>Separates direct, ambient diffuse and indirect specular from production draws without changing the retained direct-lighting buffers.</summary>
-    internal (float[] Direct,float[] Diffuse,float[] Specular,float[] Combined) Capture(GpuTexture? visibility)
+    internal AmbientOcclusionLightingObservation Capture(GpuTexture? visibility)
     {
         composite.SetAmbientOcclusion(null);
         scene.SetEnvironment(false);composite.IndirectIntensity=0;
-        float[] direct=Render();
+        using var direct=Render();
         scene.SetEnvironment(true);composite.IndirectIntensity=1;
         composite.SetAmbientOcclusion(zeroVisibility);
         composite.DiffuseAOStrength=0;composite.SpecularAOStrength=1;
-        float[] diffuseBaseline=Render();
+        using var diffuseBaseline=Render();
         composite.DiffuseAOStrength=1;composite.SpecularAOStrength=0;
-        float[] specularBaseline=Render();
+        using var specularBaseline=Render();
 
         // Keep the opposite unoccluded lobe constant, then subtract its independently captured
         // baseline. This measures visibility at the original material, rather than another BRDF.
         composite.SetAmbientOcclusion(visibility);
-        float[] diffuseCombined=Render();
+        using var diffuseCombined=Render();
         composite.DiffuseAOStrength=0;composite.SpecularAOStrength=1;
-        float[] specularCombined=Render();
+        using var specularCombined=Render();
         composite.DiffuseAOStrength=1;composite.SpecularAOStrength=1;
-        float[] combined=Render();
-        float[] diffuse=new float[combined.Length],specular=new float[combined.Length];
-        for(int i=0;i<combined.Length;i++) {
-            if(i%4==3)continue;
-            diffuse[i]=diffuseCombined[i]-specularBaseline[i];
-            specular[i]=specularCombined[i]-diffuseBaseline[i];
-        }
-        return(direct,diffuse,specular,combined);
+        using var combined=Render();
+        using var diffuse=projections.Apply(diffuseCombined.Texture,
+            "precise vec3 contribution=a.rgb-b.rgb;return vec4(contribution,0);",second:specularBaseline.Texture);
+        using var specular=projections.Apply(specularCombined.Texture,
+            "precise vec3 contribution=a.rgb-b.rgb;return vec4(contribution,0);",second:diffuseBaseline.Texture);
+        return new([direct.Texture,diffuse,specular,combined.Texture]);
     }
 
     /// <summary>Retires executable references, draw geometry and diagnostic resources without owning the borrowed scene or shaders.</summary>
     public void Dispose()
     {
-        compositePipeline.Dispose();geometry.Dispose();uv.Dispose();positions.Dispose();
-        directLighting.Dispose();outputTarget.Dispose();directTarget.Dispose();indirect.Dispose();zeroVisibility.Dispose();shadow.Dispose();lights.Dispose();
+        RenderingCleanup.Run(projections.Dispose,()=>compositePipeline?.Dispose(),()=>geometry?.Dispose(),
+            uv.Dispose,positions.Dispose,()=>directLighting?.Dispose(),()=>outputTarget?.Dispose(),
+            ()=>directTarget?.Dispose(),()=>indirect?.Dispose(),()=>zeroVisibility?.Dispose(),()=>shadow?.Dispose(),lights.Dispose);
     }
     #endregion
 
@@ -111,11 +117,11 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
         return RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader,EngineFullscreenGeometry.Layout,metadata,DynamicPipelineState.Viewport)).RequireResource();
     }
 
-    /// <summary>Submits typed fullscreen inputs inside a restoring graphics boundary, then reads only after completion.</summary>
-    private float[] Render()
+    /// <summary>Submits typed fullscreen inputs inside a restoring graphics boundary, then retains the complete completed image on the GPU.</summary>
+    private GpuImageSnapshot Render()
     {
         Draw(outputTarget,compositePipeline,composite);
-        return outputTarget[0].ReadPixels();
+        return new GpuImageSnapshot(outputTarget[0]);
     }
 
     /// <summary>Executes the actual shader and declared MRT pass with existing draw and state ownership.</summary>

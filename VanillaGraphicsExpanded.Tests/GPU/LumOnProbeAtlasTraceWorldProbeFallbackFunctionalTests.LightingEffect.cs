@@ -13,7 +13,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
     #region Diagnostic Output
     /// <summary>Renders gathered lighting directly at its native resolution to isolate the diagnostic from upsampling.</summary>
     private void AssertGatherLightingEffect(GpuTexture normalTexture, GpuTexture suppressedTexture, GpuFramebuffer output,
-        float[] normal, float[] suppressed, bool expectLighting)
+        bool expectLighting)
     {
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.WorldProbeLightingEffect));
         {
@@ -24,21 +24,15 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             program.IndirectDiffuseFull = normalTexture;
             program.WorldProbeSuppressedLighting = suppressedTexture;
             TestFramework.RenderQuadTo(program, output);
-            var pixels = output[0].ReadPixels();
-            for (int i = 0; i < pixels.Length; i += 4)
-            {
-                for (int channel = 0; channel < 3; channel++)
-                {
-                    float delta = (normal[i] - suppressed[i]) * 0.2126f + (normal[i + 1] - suppressed[i + 1]) * 0.7152f + (normal[i + 2] - suppressed[i + 2]) * 0.0722f;
-                    float brightness = Math.Abs(delta) / (1 + Math.Abs(delta));
-                    float expected = brightness * (channel == 1 ? 0.35f : (delta >= 0 ? channel == 0 : channel == 2) ? 1f : 0f);
-                    Assert.InRange(pixels[i + channel], expected - 0.002f, expected + 0.002f);
-                }
-                if (expectLighting)
-                    Assert.True(pixels[i] + pixels[i + 1] + pixels[i + 2] > 0.01f);
-                else
-                    for (int channel = 0; channel < 3; channel++) Assert.Equal(0f, pixels[i + channel]);
-            }
+            ImageAssertions.Predicate(output[0],"""
+                precise vec3 difference=b.rgb-c.rgb;
+                precise float delta=(difference.r*.2126+difference.g*.7152)+difference.b*.0722;
+                precise float brightness=abs(delta)/(1+abs(delta));
+                vec3 expected=brightness*vec3(delta>=0?1:0,.35,delta<0?1:0);
+                bool response=all(greaterThanEqual(a.rgb,expected-vec3(.002))) && all(lessThanEqual(a.rgb,expected+vec3(.002)));
+                precise float energy=(a.r+a.g)+a.b;
+                return bvec2(response && (multipliers.x==1?energy>.01:all(equal(a.rgb,vec3(0)))),false);
+                """,normalTexture,suppressedTexture,parameters:new(expectLighting?1:0,0,0,0)).AssertEqual();
         }
     }
     #endregion
