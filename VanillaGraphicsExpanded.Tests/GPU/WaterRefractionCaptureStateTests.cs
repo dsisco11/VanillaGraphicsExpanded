@@ -257,12 +257,13 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                     using var hostile = new HostileFullscreenState();
                     var captureFailure = Assert.Throws<System.Reflection.TargetInvocationException>(() =>
                         HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null));
-                    Assert.IsType<ArgumentException>(captureFailure.InnerException);
+                    // Structural preparation reports withdrawn readiness while preserving its input failure.
+                    Assert.IsType<ArgumentException>(Assert.IsType<InvalidOperationException>(captureFailure.InnerException).InnerException);
                     Assert.False(composite.PreOverlayScene.Published);
                     AssertCallbackState();
-                    Assert.Throws<ArgumentException>(() => direct.OnRenderFrame(.016f, EnumRenderStage.Opaque));
+                    Assert.IsType<ArgumentException>(Assert.Throws<InvalidOperationException>(() => direct.OnRenderFrame(.016f, EnumRenderStage.Opaque)).InnerException);
                     AssertCallbackState();
-                    Assert.Throws<ArgumentException>(() => composite.OnRenderFrame(.016f, EnumRenderStage.Opaque));
+                    Assert.IsType<ArgumentException>(Assert.Throws<InvalidOperationException>(() => composite.OnRenderFrame(.016f, EnumRenderStage.Opaque)).InnerException);
                     Assert.False(composite.RefractionScene.Published);
                     AssertCallbackState();
                     Assert.Equal(beforeInvalidInput, draws);

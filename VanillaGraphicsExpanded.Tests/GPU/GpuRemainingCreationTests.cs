@@ -90,19 +90,25 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
-        var original = GpuSupport.Graphics;
+        var context = RHICommandContext.Current;
+        var capabilities = context.Capabilities;
+        var capabilitySource = AccessTools.Field(typeof(RHICapabilities), "source");
+        var original = Assert.IsType<GraphicsCapabilities>(capabilitySource.GetValue(capabilities));
         try
         {
-            AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null,
+            // Fault the admitted projection used by creation, preserving global discovery facts.
+            // A newly admitted context legitimately captures the real device's capabilities again.
+            capabilitySource.SetValue(capabilities,
                 original with { SupportsExtSemaphore = false, SupportsExtMemoryObject = false });
-            var unsupported = new RHICommandContext(new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current));
-            Assert.Throws<NotSupportedException>(() => unsupported.CreateSemaphore(new()).RequireResource());
-            Assert.Throws<NotSupportedException>(() => unsupported.CreateMemoryObject(new()).RequireResource());
+            Assert.False(capabilities.ExternalSemaphores);
+            Assert.False(capabilities.ExternalMemory);
+            Assert.Throws<NotSupportedException>(() => context.CreateSemaphore(new()).RequireResource());
+            Assert.Throws<NotSupportedException>(() => context.CreateMemoryObject(new()).RequireResource());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
-            AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null, original);
+            capabilitySource.SetValue(capabilities, original);
             fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }

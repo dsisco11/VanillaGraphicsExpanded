@@ -2,7 +2,7 @@
 
 Planning companion to [the approved proposal](Rendering.GpuCommands.Proposal.md) and
 [implementation plan](Rendering.GpuCommands.todo). These define the implemented execution and ownership
-boundaries. [Owner-guaranteed lifetimes and change-driven preparation](Rendering.BindingAdmission.Proposal.md)
+boundaries. [Owner-guaranteed lifetimes and change-driven preparation](#submission-and-failure-rules)
 control consumer execution across all resource families: references remain non-owning, stable relationships
 prepare initially and on relevant changes, and ordinary Release does not universally detect lifetime misuse.
 Dynamic safety, actual operation intervals, native outcomes and GPU completion remain operational.

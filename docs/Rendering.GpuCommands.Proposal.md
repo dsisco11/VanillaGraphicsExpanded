@@ -1,9 +1,8 @@
 # RHI commands and command lists
 
 Status: approved and implemented. The execution and lifetime contracts below incorporate
-[owner-guaranteed lifetimes and change-driven execution](Rendering.BindingAdmission.Proposal.md).
-Qualification status belongs to [Rendering.GpuCommands.todo](Rendering.GpuCommands.todo) and
-[Rendering.BindingAdmission.todo](Rendering.BindingAdmission.todo).
+[owner-guaranteed lifetimes and change-driven execution](Rendering.GpuCommands.Contracts.md#submission-and-failure-rules).
+Qualification status belongs to [Rendering.GpuCommands.todo](Rendering.GpuCommands.todo).
 
 Use uppercase `RHI` in all interface-layer type, namespace and directory names. Existing GPU resource names remain unchanged; `OpenGlStateCache` names the backend-specific cache.
 Management services use `RHIResourceManager`, `RHIResourceManagerSystem` and

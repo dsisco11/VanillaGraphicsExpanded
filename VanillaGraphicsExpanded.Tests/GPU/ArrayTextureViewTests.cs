@@ -50,10 +50,10 @@ public sealed class ArrayTextureViewTests(HeadlessGLFixture fixture):RenderTestB
 }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
-    /// <summary>Different view object names cannot hide overlapping source images, while disjoint blocks remain legal.</summary>
+    /// <summary>Validates source-image overlap while the caller retains shared storage through pass end.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void ActivePassRejectsOverlappingViewsAndProtectsSourceOwner(bool nested)
+    public void ActivePassRejectsOverlappingViewsWhileOwnerRetainsSource(bool nested)
     {
         EnsureContextValid();using var owner=RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 9), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var target=RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = owner, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 3, LayerCount = 3, Label = null }).RequireResource();
@@ -66,19 +66,28 @@ public sealed class ArrayTextureViewTests(HeadlessGLFixture fixture):RenderTestB
         using var attachment=GpuFramebufferAttachment.FromTexture(nestedTarget ?? target,layer:1);
         using var framebuffer=DynamicGpuFramebuffer.Create([attachment])!;
         {
-    var commands=RHICommandContext.Current;
-    using var scope5=commands.EnterBoundary(new("Tests.ArrayView.Feedback",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
-    scope5.Run(()=>{
-            commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(framebuffer, [new(AttachmentIndex:0)]));
-            Assert.Throws<InvalidOperationException>(()=>RenderPass.ValidateSampledTexture(overlap));
-            if (nestedOverlap is not null) Assert.Throws<InvalidOperationException>(()=>RenderPass.ValidateSampledTexture(nestedOverlap));
-            RenderPass.ValidateSampledTexture(separate);
-            Assert.Throws<InvalidOperationException>(()=>owner.Resize(3,3,9));
-            Assert.Throws<InvalidOperationException>(()=>owner.Dispose());
-            Assert.True(owner.IsValid);Assert.True(target.IsValid);
-            commands.EndRenderPass();
-        });
-}
+            var commands = RHICommandContext.Current;
+            using var boundary = commands.EnterBoundary(new("Tests.ArrayView.Feedback", true,
+                operations: BoundaryOperations.RenderPasses));
+            boundary.Run(() =>
+            {
+                commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(framebuffer, [new(AttachmentIndex:0)]));
+                try
+                {
+                    Assert.Throws<InvalidOperationException>(()=>RenderPass.ValidateSampledTexture(overlap));
+                    if (nestedOverlap is not null) Assert.Throws<InvalidOperationException>(()=>RenderPass.ValidateSampledTexture(nestedOverlap));
+                    RenderPass.ValidateSampledTexture(separate);
+                    Assert.True(owner.IsValid);Assert.True(target.IsValid);
+                }
+                finally { commands.EndRenderPass(); }
+            });
+        }
+        // The owner replaces and retires storage after its borrowing interval.
+        owner.Resize(3,3,9);
+        Assert.True(owner.IsValid);
+        Assert.False(target.IsValid);
+        owner.Dispose();
+        Assert.False(owner.IsValid);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

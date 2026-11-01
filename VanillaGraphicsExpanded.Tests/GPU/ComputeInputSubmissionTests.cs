@@ -39,9 +39,9 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Native compute execution guards the original owner and rejects recursive dispatch before effects.</summary>
+    /// <summary>The caller retains the compute owner through execution while recursive dispatch is rejected.</summary>
     [Fact]
-    public unsafe void ExecutingComputeRejectsRetirementAndReentry()
+    public unsafe void ExecutingComputeRetainsOwnerAndRejectsReentry()
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
@@ -63,7 +63,7 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
             native.Observe(() =>
             {
                 observed++;
-                Assert.Throws<InvalidOperationException>(outer.Dispose);
+                Assert.True(outer.IsValid);
                 Assert.Throws<InvalidOperationException>(() => commands.Dispatch(new(0)));
             });
             ((delegate* unmanaged[Stdcall]<uint, uint, uint, void>)original)(x, y, z);
@@ -73,6 +73,9 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         boundary.Run(()=>{commands.SetPipeline(outer.Pipeline);commands.BindResources(outer.CaptureBindings());commands.Dispatch(new(0));});
         native.RequireSuccessfulObservation();
         Assert.Equal(1, observed); Assert.True(outer.IsValid);
+        // Retirement follows execution and boundary restoration, outside the native callback.
+        outer.Dispose();
+        Assert.False(outer.IsValid);
     }
 
     /// <summary>Explicit captured compute sets restore their retained inputs without resetting counters; boundary exit restores the native caller.</summary>
@@ -150,13 +153,13 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         Assert.Equal(32, length);
         var invalid=new RHIResourceBindings(captured.Shader,captured.Samplers,captured.Images,
             buffers.Select(value=>value.Identity==identity?value with{Length=128}:value),captured.Uniforms);
-        Assert.Throws<ArgumentOutOfRangeException>(()=>commands.BindResources(invalid));
+        Assert.IsType<ArgumentException>(Assert.Throws<InvalidOperationException>(()=>commands.BindResources(invalid)).InnerException);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion
 
     #region Private
-    /// <summary>Matches the native direct-dispatch ABI for guarded execution observation.</summary>
+    /// <summary>Matches the native direct-dispatch ABI for execution observation.</summary>
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate void DispatchCompute(uint x, uint y, uint z);
 

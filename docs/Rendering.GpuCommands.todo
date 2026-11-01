@@ -1785,8 +1785,9 @@ Phase 10: Streamline GPU integration tests and eliminate unnecessary test work
     shader-build-tool tests, are excluded. Necessary shared declarations or production filesystem seams
     must be identified and justified individually; this is not authorization for unrelated redesign.
   The existing-work boundary in 10.1, approved analysis in 10.2, classification/I/O isolation in 10.3 and
-    shared setup/compact assertion qualification in 10.4 are complete. Family-wide assertion migration
-    and combined qualification remain in 10.5–10.6; existing edits do not complete those obligations.
+    shared setup/compact assertion qualification in 10.4 and family-wide assertion migration in 10.5
+    are complete. Existing qualification corrections have a commit checkpoint in 10.6; redundant shader
+    recompilation is addressed in 10.7 before final combined qualification resumes in 10.8.
 
 Phase 10.1: Establish the commit boundary for existing test-cleanup work
   Status: complete by user acceptance as the existing-work commit boundary.
@@ -1868,10 +1869,11 @@ Phase 10.1: Establish the commit boundary for existing test-cleanup work
 
   Separated unfinished work:
     The new GpuImageChecks/GpuImageComparison helpers, kernels, regression file, catalog declarations and
-    summary/history-comparison caller edits are outside the candidate. Their complete source snapshots and
-    tracked diff are preserved locally in ../TestResults/GpuTests101/deferred-gpu-assertions/ and
-    tracked-candidate.patch inside that directory. This ignored recovery archive is not a completion report,
-    qualified implementation or part of the proposed commit. Existing assertion paths were restored directly;
+    summary/history-comparison caller edits were outside the candidate. Their complete source snapshots and
+    tracked diff were preserved locally in ../TestResults/GpuTests101/deferred-gpu-assertions/ and
+    tracked-candidate.patch inside that directory. That ignored recovery archive was removed during 10.6
+    after preserving its useful findings here and qualifying its replacement in 10.4/10.5. It was not a
+    completion report, qualified implementation or part of the proposed commit. Existing assertion paths were restored directly;
     there is no forwarding shim. Review found unsafe thread-local-cache versus physical-context ownership,
     base/ranged SSBO restoration and native failure-detection gaps; exact-float comparison also required care.
     Phase 10.2 must reconsider the approach before reusing it. Its eventual closeout must explicitly review
@@ -2015,9 +2017,11 @@ Phase 10.2: Analyze the complete test-cleanup scope before further implementatio
       Retain real serialization, atomic-replacement protocol, concurrent access, corruption/truncation,
       reload and failure assertions against providers. Do not recreate these subjects as physical I/O tests
       or describe provider tests as OS atomicity proof. No second mock filesystem abstraction is needed.
-      HeadlessGLFixture.EnsureContextValid sets DriverProgramCache.Bypass=true so ordinary real shader
-      preparation cannot fall through to physical cache storage; cache-subject tests opt into their own
-      provider-backed stores. Keep that isolation and restore scoped cache policy explicitly.
+      At analysis time HeadlessGLFixture.EnsureContextValid set DriverProgramCache.Bypass=true so ordinary
+      preparation could not fall through to physical cache storage. That blanket bypass is superseded by
+      the approved 10.7 design: enable the existing cache by default against an in-memory provider, with
+      explicit suite-level opt-outs and isolated stores for cache subjects. Preserve I/O isolation and
+      restore scoped cache policy explicitly; enabling the default must not reach physical cache storage.
     - Remaining direct source reads: GPU/ShaderDefineInjectionTests as above; GPU/Fixtures/
       CapturedAmbientOcclusionFixture reads manifest.json and payload bytes. Snapshot explicitly requested
       captures once through a provider, preserving manifest dimensions/formats/mips, digest and malformed-
@@ -2102,7 +2106,7 @@ Phase 10.2: Analyze the complete test-cleanup scope before further implementatio
       needs them. Reflection into scheduler/query state is eligible for removal only with an equivalent
       existing observable fixture seam; do not add broad production inspection APIs or weaken freshness.
 
-    Approved execution boundaries (implemented by 10.3–10.6 below):
+    Approved execution boundaries (10.3–10.5 and final qualification in 10.8 below):
     1. Finish execution classification and I/O isolation: Category=GpuIntegration remains the native test
        category and collection GPU stays serial. Keep UnitTests.runsettings's native exclusion and add
        Purpose=Diagnostic to diagnostic methods, excluded from routine unit/GPU correctness runs.
@@ -2125,9 +2129,11 @@ Phase 10.2: Analyze the complete test-cleanup scope before further implementatio
     Review: source census and mappings received a second review and independent completion audit;
       no build/test run was needed for this analysis. The user subsequently approved the design and
       execution boundaries, including independently expected full-domain GPU checks with compact results.
-      Subphases 10.3–10.6 carry that agreed work. The final second review and independent completion audit
-      passed after defining those subphases; 10.2 is complete. Only this planning document changed; no runtime/test
-      implementation, staging, commit or new performance evidence is part of this analysis boundary.
+      The original implementation boundaries map to 10.3–10.5 and 10.8; the user subsequently added the
+      existing-work checkpoint in 10.6 and default-enabled shader caching in 10.7. The second review and
+      independent completion audit of the original analysis passed; 10.2 is complete. Only this planning
+      document changed; no runtime/test implementation, staging, commit or new performance evidence is
+      part of this analysis boundary.
       Coverage not explicitly replaced above stays intact.
 
 Phase 10.3: Finish test classification and filesystem isolation
@@ -2149,7 +2155,7 @@ Phase 10.3: Finish test classification and filesystem isolation
     shader-demand/cache subjects. Retain existing cache/material providers, serialization, corruption,
     contention, replacement/reload and failure contracts; no physical filesystem verification claims.
     Keep manifest-owned bootstrap, assembly-loader inputs and runner receipts separate from test I/O.
-    Preserve DriverProgramCache.Bypass isolation and scoped policy restoration.
+    Preserve shader-cache policy isolation and scoped restoration; 10.7 replaces the blanket default bypass.
   ☑ Verify through delegated focused checks that routine unit selection cannot initialize a GPU fixture,
     neither correctness selection executes diagnostic exports/physical persistence, and missing/corrupt
     inputs still fail as intended. Verify filtered discovery as well as affected behavior; do not claim
@@ -2172,7 +2178,8 @@ Phase 10.3: Finish test classification and filesystem isolation
       checks and missing/corrupt failures. Captures/binary overrides snapshot explicitly selected inputs
       once. Existing CountingDiskCacheFileSystem owns cache/export payloads in memory; text reports and
       binary identities reach runner output. Only manifest/explicit-input bootstrap and assembly loading
-      retain physical reads. Scoped driver-cache overrides and ordinary shader-cache bypass are preserved.
+      retain physical reads. Scoped driver-cache overrides and ordinary shader-cache bypass were preserved
+      by this unit; the approved default-policy revision is explicitly assigned to 10.7.
     - Delegated Debug build: zero errors, 213 existing nullable/analyzer/offline-audit warnings. Focused
       evidence: 49 CPU cases, 54 retained native cases, 18 water cases and one final demand case passed;
       122 passing cases, no outstanding failures/skips. TestResults/GpuTests103 contains build-debug.log,
@@ -2187,7 +2194,8 @@ Phase 10.3: Finish test classification and filesystem isolation
       filters documented in README.md; builds retain the full shader producer and UseSharedCompilation=false.
     - Second review and independent completion audit passed. git diff --check passed. No full-suite,
       Release, expensive diagnostic or live-game qualification is claimed here; those later obligations
-      remain open. No staging or commits. Shared GPU setup and compact assertions remain in 10.4–10.6.
+      remain open. No staging or commits. Shared GPU setup and compact assertions belong to 10.4–10.5;
+      shader-cache reuse and final qualification belong to 10.7–10.8.
 
 Phase 10.4: Consolidate shared GPU setup and establish compact assertions
   Depends on 10.3. Governing design: 10.2's shared setup, readback and instrumentation sections;
@@ -2268,7 +2276,7 @@ Phase 10.4: Consolidate shared GPU setup and establish compact assertions
       allocation inputs); the final core receipt supersedes those cases. Audit fixes received focused
       requalification; unchanged shared receipts were retained without another broad run.
     - Second review, independent completion audit and git diff --check passed. No full-suite, Release,
-      diagnostic workload, timing improvement or live-game acceptance claim; 10.5–10.6 retain those
+      diagnostic workload, timing improvement or live-game acceptance claim; 10.5–10.8 retain those
       separate obligations. No archived implementation was adopted, and nothing was staged or committed.
 
 Phase 10.5: Migrate image assertions and runtime observations across all families
@@ -2301,7 +2309,7 @@ Phase 10.5: Migrate image assertions and runtime observations across all familie
     the combined migration, including unchanged local-read and readback-API exceptions.
   ☑ Completion: every 10.2 family has a retained/replaced coverage disposition and the approved assertion
     design is used end-to-end; no shims, weakened oracles, order-dependent megatests or shared mutable
-    subject caches remain. Integrated qualification is still required in 10.6.
+    subject caches remain. Integrated qualification is still required in 10.8.
 
   Qualification, coverage disposition and completion review:
     - Inherited sources: 10/10.2's coverage map; Rendering.GpuCommands.Proposal.md, Representative outcomes
@@ -2365,7 +2373,8 @@ Phase 10.5: Migrate image assertions and runtime observations across all familie
     - Water image reductions retain every original odd footprint and receiver/provenance case through
       independent authored expectations. Medium indices retain their full 4x4 domain; the single
       two-texel medium record and one-texel optical/MRT diagnostic tuples remain local. The water image
-      unit passed 103 cases; the six unrelated state/exception failures remain assigned to 10.6.
+      unit passed 103 cases; the six unrelated state/exception failures are reconciled at the 10.6
+      checkpoint, with final integrated qualification in 10.8.
     - Spatial upsample/filter and shared enclosure publication passed 24 cases. Scene/material atlas
       publication passed 47; voxel capture/relight/pipeline passed 11. Original sparse page corners,
       centers and explicit layers are dispatched as the assertion domain, with independent coverage
@@ -2414,7 +2423,7 @@ Phase 10.5: Migrate image assertions and runtime observations across all familie
     - Receipts under TestResults/GpuTests105 identify coherent candidates and superseded failures. Focused
       runtime, numerical and scene units have passing receipts; the six existing water-state/exception
       failures are retained unchanged for 10.6. Focused evidence qualifies these migration units; the
-      required combined Debug/Release suite remains in 10.6.
+      required combined Debug/Release suite remains in 10.8.
 
     - Final Debug build passed with zero errors. focused-final-review.trx passed 93/93; the final packed-
       stencil correction passed 21/21 in focused-stencil-review.trx, including an independent 65x3 final-
@@ -2425,28 +2434,190 @@ Phase 10.5: Migrate image assertions and runtime observations across all familie
       inherited documents, exact 10.2 domains/oracles, helper cleanup, local/API/diagnostic exceptions and
       focused receipts. Both reviews passed with no remaining required findings. git diff --check passed.
       No runtime/product changes, full-suite rerun, Release/package, performance or live-game claim.
-      Nothing was staged or committed. Phase 10.6 and pending user-run visual acceptance remain open.
+      Nothing was staged or committed. Subphases 10.6–10.8 and pending user-run visual acceptance remain open.
 
-Phase 10.6: Qualify the combined test cleanup and remove temporary support files
+Phase 10.6: Reconcile test contracts and fixture setup
   Depends on 10.3–10.5. Governing acceptance: Phase 10 and 10.2's complete coverage/design mapping;
     Rendering.ShaderBindingState.md (Verification boundary) and inherited resource/command contracts.
+  Outcome: the existing corrections are reviewable as one bounded change before shader-cache work begins.
+    This checkpoint does not claim final qualification or authorize staging or committing.
+
+  ✔ Inventory and review the existing diff, including user-staged content, without introducing shader-cache @done(26-10-31 21:15)
+    changes. Cover CI filters, terrain native-program selection/restoration, approved water/array/compute
+    owner/preparation assertions, canonical-versus-wrapper recovery facts, unsupported-capability injection,
+    corrected architecture links and temporary-archive removal. Preserve all inputs, rows and tolerances.
+  ✔ Complete only the bounded validation needed for this existing-work checkpoint: consult the linked @done(26-10-31 21:15)
+    contracts, build the current test source and run the affected correction selection through a validation
+    agent. Reuse valid terrain/discovery/source-review receipts; inspect the unbuilt five-file batch rather
+    than implying that it already passed. Fix checkpoint defects in bulk. No full-suite run is required here.
+  ✔ Reconcile the evidence and perform the second review and independent checkpoint audit. Record the @done(26-10-31 21:15)
+    interrupted run as partial evidence, with its failures/skips and no finalized total or passing verdict.
+    Preserve its logs, source/binary identities and useful stack receipt. Leave cache work and final
+    combined qualification explicitly pending in 10.7–10.8; do not add a separate completion-report file.
+  ✔ Completion: the existing-work boundary is ready for user review/commit, its validation limits are clear, @done(26-10-31 21:15)
+    and cache implementation remains outside it. Preserve existing staged changes; stage or commit only
+    after a separate explicit user request.
+
+  Existing-work inventory and evidence:
+    - Starting candidate: cbbf3d56, clean working tree. Required sources consulted: Phase 10/10.2's
+      family, filesystem, setup and compact-assertion mapping; Rendering.GpuCommands.Proposal.md
+      (Representative outcomes and verification); Rendering.GpuCommands.Contracts.md (Resource
+      completion; Submission and failure rules); Rendering.GpuResources.md (Wrappers and initialization;
+      Snapshot and change publication); Rendering.ShaderBindingState.md (Verification boundary).
+      Preserve independent oracles, complete selected domains, original identities, owner intervals,
+      completion and native restoration. Full correctness selects Purpose!=Diagnostic in both ordinary
+      Debug and Release. Diagnostic execution, tool projects and user-run acceptance are separate.
+    - The deferred-gpu-assertions recovery archive contains superseded exploratory checker sources and
+      tracked-candidate.patch, not unique qualification evidence. Its relevant defects and decisions
+      are preserved in 10.1/10.2; the replacement ownership, restoration, completion and float semantics
+      and their qualification are recorded in 10.4/10.5 and README.md. Those records supersede the
+      archived implementation. The archive was removed after verifying its resolved absolute path;
+      neighboring qualification TRX/logs remain. Earlier archive paths in this plan are historical references.
+    - Source reconciliation found no old native category/filter in current README/test sources.
+      CI command-line category filters overrode the settings' diagnostic exclusion; both jobs now
+      explicitly include Purpose!=Diagnostic and select the documented settings. Historical command
+      spellings in dated performance receipts are evidence of those older runs, not current commands.
+      Physical file operations remain limited to the manifest/explicit diagnostic input snapshot and
+      required assembly loading. Cache/export subjects use the existing in-memory providers; temporary
+      path strings are keys into those providers, not physical persistence.
+      Independent review also found dangling links to the removed BindingAdmission proposal/plan in
+      current architecture documents. Their owner/preparation links now target the current Submission
+      and failure rules in Rendering.GpuCommands.Contracts.md; qualification points to this plan. Relative links in README and
+      the four controlling architecture documents resolve without reconstructing retired documents.
+    - Initial delegated Debug build passed (zero errors, 244 warnings, 1m42s including regenerated
+      production/test shader inputs). Discovery: 2,182 unit + 6,156 GPU = 8,338 correctness display rows;
+      177 diagnostic display rows. Unit/GPU sets are disjoint, their union equals combined correctness,
+      and diagnostics are disjoint from correctness. Duplicate GPU display names mean these row counts
+      must not be described as unique fully qualified names. No diagnostics were executed.
+    - The initial 20-case water/terrain selection reproduced seven failures, with 13 passes and no skips.
+      Temporary local error assertions traced the terrain error to the preceding installation test:
+      it supplied a managed engine owner but no native program selection before a draw hook uploaded
+      ordinary uniforms. The fixture now binds the installed program and restores the incoming selector;
+      a post-hook native error assertion preserves the regression. The temporary checkpoints are removed.
+      Final focused Debug verification passed all 13 terrain cases with zero skips; the build passed
+      with zero errors (224 warnings). Receipts: build-debug-terrain-fixed.log and focused-terrain-fixed.trx.
+      The user explicitly approved reconciling the six water cases with the current owner/preparation
+      contracts. This narrowly supersedes 10.2's prohibition on changing those exception expectations:
+      binding-preparation failure must retain its ArgumentException cause inside InvalidOperationException;
+      attachment owners retain valid storage through pass end and resize only outside the boundary.
+      Both test families retain state/publication/output checks, parameter rows, inputs and tolerances.
+      Commands, build output, discovery and diagnostic receipts remain in TestResults/GpuTests106/.
+    - Second source review and independent source/document/cleanup review found no further required
+      implementation findings after repairing the dangling links. The independent reviewer verified the
+      discovery partition, retained readback/I/O exceptions, archive removal and final terrain receipt
+      directly. This is partial review, not completion: the resulting Debug/Release full correctness runs
+      and affected-source final review/audit remain required. The approved water expectations are now
+      implemented in the identified first Debug candidate. Its built assemblies and immutable inputs
+      stayed fixed during the interrupted selection; source-final.patch preserves that source identity.
+    - The attempted complete Debug selection supplied a partial failure inventory for one correction batch.
+      Additional contract mismatches reported in 13 rows: array-view and compute tests expect superseded owner
+      lifetime guards; compute buffer rejection expects the former unwrapped error type; a recovery test
+      reads withdrawn wrapper size instead of the entry's committed facts; unsupported-feature setup
+      modifies a global capability cache that context admission legitimately refreshes. Preserve overlap,
+      recursion, range rejection, canonical capacity and unsupported-feature checks when reconciling these
+      cases. The reviewed five-file test-source batch was applied while the selection ran on its fixed
+      binaries; no rebuild or input change affected that candidate. Canonical capacity
+      16 remains asserted on the entry, with wrapper snapshot absence/size zero asserted separately.
+      Unsupported-feature injection targets the actual admitted Current.Capabilities projection and
+      restores the exact original source in finally. No production seam or runtime change is introduced.
+      Second review and independent affected-source review pass; preflight and full qualification remain.
+      A bounded snapshot using installed ClrMD identified native linking in the retained 72-row water
+      receiver correctness family. Its name does not make it an optional diagnostic workload. Only the
+      stack receipt was produced; no diagnostic utility source, project, dump or capture scaffold remains.
+      The user paused the work and the run was cancelled. Owned test processes exited; the original DLL
+      hashes still matched. full-debug.log records 13 failures and seven skips, with no finalized TRX or
+      complete passed/total counts. No preflight build, focused batch run or Release run followed. The
+      checkpoint must validate that unbuilt batch before it claims readiness. These receipts establish
+      neither a complete correctness result nor a test-runtime improvement.
+      Changed disposal/resize timing and suppressed accidental allocation invalidate the first Debug
+      sequence proof. Final combined qualification moves to 10.8 after the 10.7 cache changes; do not resume
+      full qualification merely to close the existing-work checkpoint.
+      User-staged edits are preserved; no index changes or commits are made by the agent.
+
+Phase 10.7: Enable shader caching by default and eliminate redundant test compilation
+  Depends on the 10.6 checkpoint. Governing requirements: Phase 10's VGE-only scope and I/O isolation;
+    10.2's coverage/setup map, amended here by the user's default-enabled cache policy;
+    Rendering.GpuResources.md (Shader executable ownership), Rendering.ShaderBindingState.md
+    (Shader ownership and publication; Verification boundary) and Rendering.GpuCommands.Contracts.md
+    (Executable and pipeline contracts; Submission and failure rules).
+  Outcome: ordinary GPU tests reuse valid cached shader artifacts. Suites whose assertions require fresh
+    compilation/linking explicitly disable caching in their own fixture scope. Cache-policy isolation
+    replaces blanket bypass without weakening lifecycle, output or failure coverage.
+
+  ☐ Inventory shader preparation across every VGE test family and shared fixture before implementation.
+    Trace HeadlessGLFixture, RenderTestBase, LumOnShaderFunctionalTestBase, ComponentShaderPrograms,
+    RuntimeLightingPrograms, ShaderTestFramework, PrecompiledStageFixture, TerrainShaderTestFixture,
+    GPU assertion kernels and the ShaderAssetCandidate/CompileSpirv/CompileAndLink routes they consume.
+    Identify which routes already use DriverProgramCache, which bypass it, and which repeat identical
+    compilation/linking across cases. Map each suite to default cached execution, explicit fresh-link
+    execution or an isolated cache-subject store, with the assertion that requires each exception.
+    Include the 72 WaterRefractionDiagnosticTests receiver rows as retained correctness coverage.
+  ☐ Define and implement one fixture-owned cache policy: caching enabled by default, backed by the
+    existing ProgramBinaryStore and mocked/in-memory filesystem provider. Retain valid artifact bytes
+    across eligible cases instead of clearing or replacing the cache during every setup/EnsureContextValid
+    call. Install the provider before preparation can reach the production disk-backed default; all test
+    reads/writes/eviction remain in memory. Reuse existing facilities rather than add a parallel cache.
+  ☐ Provide explicit suite-owned cache opt-out and restoration. Creation, specialization, compile/link,
+    reload, native-call-count and failure subjects opt out where a cache hit would bypass the operation
+    under test. Mixed suites separate or explicitly scope their fresh-link cases; ordinary numerical
+    neighbors retain the default. Cache-subject suites keep their own controlled miss/hit/corrupt stores.
+    Resolve current precedence explicitly: an installed UseStoreForTesting override wins over Bypass,
+    so setting Bypass alone cannot disable an active provider. Nested fixture calls must retain the
+    selected suite policy; thread changes, exceptions and teardown must restore the previous scope.
+  ☐ Preserve existing cache identity, compatibility and rejection rules: shader/source/dependency digests,
+    defines, specialization/stage combinations, configuration and driver/profile identity select valid
+    artifacts. Cache rejection/corruption retains meaningful fallback and original failure assertions;
+    unsupported binary formats remain an explicit capability limit. A policy opt-out must bypass cached
+    artifacts without falling through to physical storage. Keep required SPIR-V/creation/reload matrices.
+  ☐ Migrate the complete inventory coherently. Ordinary numerical/renderer helpers consume the enabled
+    cache; remove redundant unconditional bypass resets and repeated identical preparation where existing
+    facilities can reuse valid artifacts. Address helper/kernel routes that bypass the asset cache when
+    they repeat equivalent work, documenting the minimal owner/reuse mechanism before changing them.
+    Keep native resources, bindings, uniforms, images and assertion results isolated per case. Any shared
+    executable/kernel needs an explicit original-context owner, deterministic state reset and retirement;
+    never retain raw native names globally or share mutable subjects across cases. Preserve all authored
+    scenarios, dimensions, oracles, tolerances, lifecycle transitions and observable native effects.
+  ☐ Delegate a bounded focused check of default cache reuse, explicit suite opt-outs, cache-subject
+    isolation, policy precedence, nested setup, thread/context changes and exceptional restoration.
+    Prove that an eligible repeated preparation uses the cached artifact and avoids redundant stage
+    compilation/linking; prove that a fresh-link suite still executes its required native operations.
+    Retain numerical/state assertions as independent correctness proof. Use native-call observations or
+    existing cache receipts, not a new benchmark framework or numerical speedup threshold. Do not run
+    the full suite to iterate on the cache implementation; final combined qualification belongs to 10.8.
+  ☐ Reconcile every mapped suite/helper and current test documentation, including README and fixture
+    comments, with the enabled default and explicit opt-outs. Record focused evidence and limitations,
+    perform the second review and independent completion audit, and hand one identified resulting
+    candidate to 10.8. Completion requires coverage of all inventoried preparation routes and no hidden
+    blanket bypass, physical cache fallback, leaked policy scope or unqualified native-owner cache.
+    Keep this refactor as a distinct review/commit boundary from the existing corrections and final
+    qualification receipts. Staging or committing still requires a separate explicit user request.
+
+Phase 10.8: Qualify the combined test cleanup and remove temporary support files
+  Depends on 10.3–10.7. Governing acceptance: Phase 10, 10.2's complete coverage/design mapping and
+    10.7's approved cache policy; Rendering.ShaderBindingState.md (Verification boundary) and inherited
+    resource/command contracts. Reuse the bounded checkpoint and cache receipts from 10.6–10.7.
   Outcome: the resulting VGE test suite, documented commands and retained evidence agree on coverage,
-    classification, I/O isolation and qualification limits.
+    classification, I/O isolation, cache policy and qualification limits. Resume final qualification only
+    after the existing-work checkpoint and redundant-compilation work are complete.
 
   ☐ Reconcile every retained/remapped family, helper, trait, filter, csproj/runsettings and permanent test
     documentation. Confirm no superseded source path, stale Category=GPU command, physical test-owned
-    persistence or bulk image assertion survives outside the explicitly classified exceptions. Required
-    immutable bootstrap/loader inputs and runner receipts retain their documented boundaries.
+    persistence, blanket shader-cache bypass or bulk image assertion survives outside the explicitly
+    classified exceptions. Required immutable bootstrap/loader inputs and runner receipts retain their
+    documented boundaries.
   ☐ Diagnose the outstanding water-state/exception failures recorded in 10.1 against the resulting source.
     Preserve expected contracts and tolerances; do not treat an unexplained failure as redundancy or
     change assertions to match incidental behavior. Reconcile any other failing retained correctness case.
     Include TerrainTessellationTests.DisabledDisplacementRasterMatchesTriangles's order-dependent
     framebuffer-routing setup error from TestResults/GpuTests105/focused-storage-terrain.trx; its
     isolated --no-build pass establishes the assertion path but does not explain the combined failure.
+    Reuse the 10.6 diagnoses and focused corrections; verify them in the resulting combined source rather
+    than repeating completed investigation. Preserve the explicitly approved owner/preparation contracts.
   ☐ Delegate final combined VGE correctness qualification on an identified resulting source, including
     required Debug/Release configuration checks. Record commands, filters, counts, failures/skips and
-    available runner durations; distinguish build/bootstrap costs and diagnostic selections. Run each
-    required complete selection once; repeat only where a change/failure invalidates its evidence.
+    available runner durations; distinguish build/bootstrap costs and diagnostic selections. Use per-case
+    progress logging so long runs identify completed work. Run each required complete selection once;
+    repeat only where a change/failure invalidates its evidence.
     No benchmark framework, repeated timing study or numerical speedup threshold. No unrelated tool
     test projects, agent-launched game or substitution for Phase 9 user-run visual/runtime acceptance.
   ☐ Review and remove temporary TestResults/GpuTests101/deferred-gpu-assertions/ (including its
@@ -2454,6 +2625,8 @@ Phase 10.6: Qualify the combined test cleanup and remove temporary support files
     during this work, after preserving required decisions and useful evidence here or in permanent docs.
     Update references first. Retain authoritative proposals/plans and qualification TRX/logs; do not
     confuse acceptance evidence or permanent test fixtures with disposable migration documents.
+    The archive was already removed at the 10.6 checkpoint; verify its absence and remove any new
+    temporary cache inventories or diagnostic utilities introduced in 10.7 after preserving useful evidence.
   ☐ Complete the final second review and independent completion audit against all Phase 10 requirements.
     Completion: full VGE correctness evidence and current docs support the preserved coverage and final
     execution boundaries; all implementation subphases are satisfied. Mark Phase 10 complete only then.

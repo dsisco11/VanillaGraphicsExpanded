@@ -18,7 +18,7 @@ Operation admission, deferred link submission and executable transfer check the 
 thread before dispatch or metadata withdrawal. Reusing an available snapshot does not bypass physical
 namespace safety. Original resource associations and stable compatibility are established during preparation
 and refreshed by relevant change delivery, rather than resolved for every draw. Explicit operation steps
-recheck affinity after callbacks. See the [owner lifetime contract](Rendering.BindingAdmission.Proposal.md#ownership-and-non-owning-references).
+recheck affinity after callbacks. See the [owner lifetime contract](Rendering.GpuCommands.Contracts.md#submission-and-failure-rules).
 
 ## Wrappers and initialization
 

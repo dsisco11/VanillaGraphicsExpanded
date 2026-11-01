@@ -206,6 +206,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
         var owner = new TerrainLinkedTestProgram { PassName = "chunkopaque", AssetDomain = "game", ProgramId = ordinary, VertexShader = vertexObject, FragmentShader = fragmentObject };
         var previousMode = ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode;
         var previousProgram = ShaderProgramBase.CurrentShaderProgram;
+        int previousNativeProgram = OpenGlStateCache.Current.GetCurrentProgram();
         bool previousHook = TerrainTessellationPrograms.DrawHookAvailable; bool previousMeshHook = TerrainTessellationPrograms.MeshDrawHookAvailable;
         var previousLog = TerrainTessellationPrograms.Log;
         try
@@ -224,6 +225,9 @@ public sealed class TerrainTessellationTests : RenderTestBase
             Assert.Equal("chunkopaque", owner.PassName);
             Assert.True(GL.IsShader(vertex)); Assert.True(GL.IsShader(fragment));
             ShaderProgramBase.CurrentShaderProgram = owner;
+            // The engine draw hook uploads ordinary uniforms into the already selected executable.
+            // Supply that native precondition as well as the managed engine shader owner.
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, owner.ProgramId);
             Assert.Equal(PrimitiveType.Patches, TerrainTessellationPrograms.Topology(PrimitiveType.Triangles));
             Assert.Equal(PrimitiveType.Lines, TerrainTessellationPrograms.Topology(PrimitiveType.Lines));
             var cache = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGlStateCache.Current;
@@ -233,6 +237,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
             Assert.Equal(3, GL.GetInteger(GetPName.PatchVertices));
             VanillaGraphicsExpanded.HarmonyPatches.TerrainTessellationDrawHook.Finalizer(saved);
             Assert.Equal(5, GL.GetInteger(GetPName.PatchVertices));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
             cache.SetPatchVertices(previousPatchSize);
             ShaderProgramBase.CurrentShaderProgram = new ShaderProgram { ProgramId = owner.ProgramId };
             Assert.Equal(PrimitiveType.Triangles, TerrainTessellationPrograms.Topology(PrimitiveType.Triangles));
@@ -247,6 +252,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
             ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = previousMode;
             TerrainTessellationPrograms.DrawHookAvailable = previousHook; TerrainTessellationPrograms.MeshDrawHookAvailable = previousMeshHook;
             TerrainTessellationPrograms.Log = previousLog;
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, previousNativeProgram);
             GpuProgramObject.Adopt(owner.ProgramId).Dispose();
         }
     }

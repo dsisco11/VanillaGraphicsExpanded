@@ -75,10 +75,15 @@ public sealed class WaterRefractionResolutionTests(HeadlessGLFixture fixture) : 
             boundary.Run(() =>
             {
                 context.BeginRenderPass(halfTarget!);
-                try { Assert.Throws<InvalidOperationException>(() => composite.Resize(7, 5)); }
+                try
+                {
+                    Assert.True(composite.IsValid);
+                    Assert.Equal(5, composite.Width);
+                    Assert.Equal(3, composite.Height);
+                }
                 finally { context.EndRenderPass(); }
             });
-        // Plain retained intentions do not keep an idle source storage-locked.
+        // Replace storage after the pass and its restoration boundary have completed.
         composite.Resize(7, 5);
         scene.BeginFrame(true, composite, 2);
         Assert.False(halfColor.IsValid); Assert.False(halfDepth!.IsValid);

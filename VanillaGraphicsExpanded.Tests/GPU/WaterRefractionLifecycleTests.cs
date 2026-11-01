@@ -89,14 +89,19 @@ public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : R
             Assert.Same(target, source.BeginFrame(true, composite));
             Assert.False(source.Published);
             var beforeResize = source.Color;
-            // An active pass protects its image; retaining plain intentions does not lock storage between frames.
+            // The owner keeps the attachment alive through pass end and resizes outside the boundary.
             var context = RHICommandContext.Current;
             using (var boundary = context.EnterBoundary(new("Tests.Water.ActiveSource", true,
                 operations: BoundaryOperations.RenderPasses)))
                 boundary.Run(() =>
                 {
                     context.BeginRenderPass(target);
-                    try { Assert.Throws<InvalidOperationException>(() => composite.Resize(4, 2)); }
+                    try
+                    {
+                        Assert.True(composite.IsValid);
+                        Assert.Equal(2, composite.Width);
+                        Assert.Equal(2, composite.Height);
+                    }
                     finally { context.EndRenderPass(); }
                 });
             composite.Resize(4, 2);

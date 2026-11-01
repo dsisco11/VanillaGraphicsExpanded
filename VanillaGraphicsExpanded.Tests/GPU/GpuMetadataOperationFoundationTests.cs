@@ -287,7 +287,10 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             Assert.IsType<InvalidOperationException>(reader.InnerFailure);
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(revision + 1, entry.MetadataRevision);
-            Assert.Equal(16, owner.SizeBytes);
+            // Canonical history retains the last commit; withdrawn consumers expose no usable snapshot.
+            Assert.Equal((nint)16, entry.Metadata.Capacity);
+            Assert.False(owner.HasMetadataSnapshot);
+            Assert.Equal(0, owner.SizeBytes);
             entry.Reader = original;
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
