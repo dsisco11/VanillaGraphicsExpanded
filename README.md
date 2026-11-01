@@ -220,6 +220,15 @@ program with fresh uniform state. Subject owners, binding tables and assertion r
 the GPU fixture retains production checker shader owners for repeated observations in its physical context.
 Explicit stage integration and native creation/mutation subjects still execute their authored native
 operations. The SPIR-V assignment and shader-define compile matrices explicitly bypass cached programs.
+Graphics assignments covered by the production runtime matrix do not repeat a separate positive native
+link test. Fixture-only or differing selections retain native link coverage. Coverage matching includes
+complete stage declarations, binary paths, entry points and typed specialization values; sharing a shader
+name is insufficient. Compute assignments, borrowed asset slices, failed replacements and representative
+reload/disposal checks retain their separate guarantees. Complete-program selections exercise every current
+packaged stage's default specialization; standalone positive stage creation does not repeat that coverage.
+Particle SSAO restoration checks all four authored
+receiver coordinates against one completed scene, while clear, resolve and retirement milestones remain
+separate tests.
 
 ### Compact GPU assertions
 

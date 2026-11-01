@@ -2809,7 +2809,7 @@ Phase 10.8: Reconcile qualification corrections and residual test cleanup
 Phase 10.9: Attribute remaining test costs and agree on the runtime-reduction design
   Status: complete as the original analysis/design boundary. Checkpoint 10.9.1 is complete by user
     acceptance; 10.9.2 design and coverage mapping is complete by user approval. Implementation subphases
-    10.9.3–10.9.7 remain open and await selection. Batching is
+    10.9.3 is complete by user acceptance; 10.9.4–10.9.7 remain open and await selection. Batching is
     deferred and Phase 10 remains open.
   Depends on 10.8. Governing constraints: Phase 10/10.2's coverage and isolation map, 10.7's cache policy,
     Rendering.ShaderBindingState.md (Verification boundary) and Rendering.GpuCommands.Contracts.md
@@ -3468,21 +3468,77 @@ Phase 10.9.2: Agree on focused observation boundaries and the coverage consolida
 Phase 10.9.3: Consolidate duplicate test execution while preserving distinct guarantees
   Depends on 10.9.2's agreed map. Separate implementation/commit boundary.
   Outcome: repeated execution is removed only where another identified check supplies the same guarantee.
+  Status: complete by explicit user metrics acceptance on 2026-11-01. Implementation, focused verification,
+    second review and independent completion audit passed. The user accepted the recorded metrics and limits;
+    no matched timing or whole-suite speedup is claimed. Other families and later units remain unchanged.
+  Task/document traceability:
+    - Graphics and stage consolidation -> 10.2's SPIR-V family and 10.9.2's first four coverage rows;
+      Rendering.GpuResources.md (Shader executable ownership), Rendering.GpuCommands.Contracts.md
+      (Executable and pipeline contracts) -> exact selected binary/stage/specialization and native loader,
+      compute, sliced-input, failure and replacement guarantees -> SpirvInventoryTests selectors plus
+      unchanged SpirvGraphicsLifecycleTests; delegated current catalog mapping and focused native runs.
+    - Particle consolidation -> 10.9.2's particle coverage rows -> unchanged four independent normal/position
+      tuples at the same post-restore milestone, with per-coordinate diagnostics -> one completed scene in
+      RestoreSelectsExpectedMetadataForUploadedSamples; other capture/resolve/clear/retirement tests stay.
+    - Verification/retained scope -> Rendering.ShaderBindingState.md (Shader ownership and publication;
+      Verification boundary), Rendering.GpuCommands.Contracts.md (Submission and failure rules), shared
+      10.9 completion/metrics contract -> fresh subject ownership, explicit cache opt-outs, no weakened
+      numeric/state/failure checks or whole-suite speedup claim -> delegated focused receipts, second review,
+      independent audit and explicit user metrics acceptance; README describes the resulting coverage.
+  Coverage and validation evidence (2026-11-01):
+    - TestResults/GpuTests1093/coverage-map.json maps all 506 original graphics identity/assignment rows
+      to 480 exact runtime replacements and 26 retained native rows. Every pair records stage kind,
+      entry point, binary path/SHA-256, structural key and typed specialization IDs/bits/defaults; original
+      and retained stages match. RuntimeCovers compares supplied declarations and effective inputs before
+      removing any native row. The runtime matrix and its representative reload branches remain unchanged.
+    - All 859 packaged default-stage selections have exact complete-program witnesses in that same map.
+      The earlier historical 842 count predates 17 checker variants. BuiltVariantSpecializes and its data
+      selector are removed; no empty/automatically skipped theory replaces them. The inexpensive CPU
+      SpirvSelectionCoverageTests.CompleteProgramsCoverEveryPackagedDefaultSpecialization guards this
+      invariant for future catalog edits, including numeric defaults rather than binary filenames alone.
+      SlicedAssetsSpecializeAndLinkWithoutMutation and the 26 native graphics rows retain explicit native
+      stage-loader integration; all 330 compute assignments and native/runtime failure subjects remain.
+    - Particle RestoreSelectsExpectedMetadataForUploadedSamples changes four parameter rows into one Fact,
+      preserving all eight original normal/position tuple comparisons, four named coordinates, material-depth
+      comparison and restore milestone. Its three other capture/resolve/clear/retirement methods are unchanged.
+    - Source-derived selected row accounting: 480 duplicate native graphics positives + 859 standalone
+      positives + three repeated particle rows are removed; one CPU coverage row is added, net 1,341 fewer
+      rows. The former source/catalog selection would contain 2,190 rows; the resulting focused run contains
+      849. This is exact scope accounting, not an executed old-candidate discovery or timing baseline.
+      eliminated-work.txt records 480 duplicate links, their 960 stage loads and 859 standalone stage loads;
+      the particle source comparison establishes three fewer scene executions. No other parameter axis or
+      failure row is pruned.
+    - Delegated final ordinary Debug build: zero errors, 224 warnings, 17.502s process wall. The first build
+      took 143.534s with 244 warnings/zero errors, including shader producer stages of 45.377s and 39.627s;
+      those build/regeneration costs are excluded from test runtime. The required incremental build reflects
+      removal of the now-empty standalone theory and addition of the CPU coverage guard.
+    - One focused AllTests.runsettings run, --no-build --no-restore, selected the three affected GPU families
+      and CPU guard: 849/849 passed, zero failures/skips, 103.815s process wall and 102.792s runner elapsed.
+      Per-method duration sums include runtime assignments 61.632s/480 rows, compute 21.071s/330 rows,
+      native graphics .492s/26 rows and the consolidated particle restore 12.066s. These sums do not isolate
+      first-use/bootstrap or native GPU time and must not be added to overlapping process/runner durations.
+      No matched before/after run, percentage gain or whole-suite improvement is claimed.
+    - Receipts in TestResults/GpuTests1093/: exact build/test commands/results and logs, focused-final.trx,
+      focused-methods.csv, final-source.csv and final-source-drift.txt. The three changed test sources match
+      their build/run identities. DLL SHA-256 before/after is unchanged:
+      200AE4CFA045629915BB6FCE628C40928761AEFBCF4C60E713A6A22B32F2C249.
+      The temporary coverage-probe/ reflection utility is implementation support for removal at 10.10;
+      preserve useful mapping/source evidence and normal qualification receipts before removing that utility.
 
-  ☐ Consolidate the overlapping 480 native/runtime graphics assignment rows into the agreed authoritative
+  ☑ Consolidate the overlapping 480 native/runtime graphics assignment rows into the agreed authoritative
     positive matrix. Retain the 26 unmatched native combinations, independent native failure/reference
     checks, explicit compute assignments, sliced-input immutability and representative replacement/disposal
     coverage. Verify exact stage/assignment/specialization selections rather than matching names alone.
-  ☐ Map standalone specialization selections to retained complete-program coverage. Remove only proven
+  ☑ Map standalone specialization selections to retained complete-program coverage. Remove only proven
     duplicate positives; preserve any uncovered defaults, numeric selections, stage families or loader
     contracts. Do not spend a large implementation effort merely to eliminate the historical 2.811s group.
-  ☐ Consolidate the four identical particle SSAO scene executions into one setup with all four coordinates
+  ☑ Consolidate the four identical particle SSAO scene executions into one setup with all four coordinates
     and independent expected tuples. Preserve scenario-specific diagnostics and checks at distinct mutation
     milestones. Apply the same evidence standard to other mapped repeated scenes or inactive parameter axes.
-  ☐ Retain valuable shader arithmetic, temporal, lifecycle and native integration tests even when their
+  ☑ Retain valuable shader arithmetic, temporal, lifecycle and native integration tests even when their
     setup resembles another case. Remove a test only with a named replacement guarantee and negative/boundary
     coverage; never relabel unexplained failures as redundancy. Explain every changed discovery/runtime row.
-  ☐ Delegate focused old-to-new coverage verification, record eliminated setup/link counts and available
+  ☑ Delegate focused old-to-new coverage verification, record eliminated setup/link counts and available
     timings, then satisfy the shared documentation/review/audit and user metrics-acceptance contract.
 
 Phase 10.9.4: Replace universal assertion dispatch with explicit observation services
@@ -3617,6 +3673,8 @@ Phase 10.10: Qualify combined correctness and review final metrics, then remove 
     replace-execution.cjs, calls.json and declarations.json; remove temporary mapping/scripts and executable
     diagnostic branches after updating references and preserving required traceability. Retain the original
     and any valid matched-result qualification receipts, source identities and normal logs/TRX.
+    Also remove TestResults/GpuTests1093/coverage-probe/ after preserving useful exact selection/asset mapping
+    and verification-source evidence; retain coverage-map.json and the focused qualification receipts.
   ☐ Complete the final second review and independent completion audit against all Phase 10 requirements.
     Completion: full VGE correctness evidence and current docs support the preserved coverage and final
     execution boundaries; all implementation subphases are satisfied and the user has accepted the work

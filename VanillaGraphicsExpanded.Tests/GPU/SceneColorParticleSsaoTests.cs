@@ -35,12 +35,8 @@ public sealed class SceneColorParticleSsaoTests(HeadlessGLFixture fixture) : Lum
     }
 
     /// <summary>SSAO restoration selects metadata by surviving depth, including zero-alpha writes and discard paths.</summary>
-    [Theory]
-    [InlineData(0, "surviving partial-alpha particle")]
-    [InlineData(1, "surviving zero-alpha depth write")]
-    [InlineData(2, "later foreground receiver")]
-    [InlineData(3, "untouched receiver")]
-    public void RestoreSelectsExpectedMetadataForUploadedSamples(int pixel, string scenario)
+    [Fact]
+    public void RestoreSelectsExpectedMetadataForUploadedSamples()
     {
         EnsureShaderTestAvailable();
         using var scene = new ParticleSsaoCaptureFixture();
@@ -51,21 +47,29 @@ public sealed class SceneColorParticleSsaoTests(HeadlessGLFixture fixture) : Lum
 
         scene.RestoreMetadata(Programs.Create<SceneColorParticleSsaoShaderProgram>(), TestFramework);
 
-        float[] expectedNormal = pixel switch
+        // All four observations share this completed scene; none changes its inputs or mutation milestone.
+        string[] scenarios = ["surviving partial-alpha particle", "surviving zero-alpha depth write",
+            "later foreground receiver", "untouched receiver"];
+        for (int pixel = 0; pixel < scenarios.Length; pixel++)
         {
-            0 => [.25f, .5f, .75f, .5f],
-            1 => [.25f, .5f, .75f, 0],
-            2 => [11, 12, 13, 14],
-            _ => [1, 2, 3, 4]
-        };
-        float[] expectedPosition = pixel switch
-        {
-            0 or 1 => [10, 20, 30, .125f],
-            2 => [15, 16, 17, 18],
-            _ => [5, 6, 7, 8]
-        };
-        Assert.True(expectedNormal.SequenceEqual(scene.Normal.ReadPixelsRegion(pixel, 0, 1, 1)), scenario);
-        Assert.True(expectedPosition.SequenceEqual(scene.Position.ReadPixelsRegion(pixel, 0, 1, 1)), scenario);
+            float[] expectedNormal = pixel switch
+            {
+                0 => [.25f, .5f, .75f, .5f],
+                1 => [.25f, .5f, .75f, 0],
+                2 => [11, 12, 13, 14],
+                _ => [1, 2, 3, 4]
+            };
+            float[] expectedPosition = pixel switch
+            {
+                0 or 1 => [10, 20, 30, .125f],
+                2 => [15, 16, 17, 18],
+                _ => [5, 6, 7, 8]
+            };
+            Assert.True(expectedNormal.SequenceEqual(scene.Normal.ReadPixelsRegion(pixel, 0, 1, 1)),
+                $"pixel {pixel}, {scenarios[pixel]}: normal");
+            Assert.True(expectedPosition.SequenceEqual(scene.Position.ReadPixelsRegion(pixel, 0, 1, 1)),
+                $"pixel {pixel}, {scenarios[pixel]}: position");
+        }
     }
 
     /// <summary>A new capture clears owned particle metadata without clearing the borrowed material receiver images.</summary>

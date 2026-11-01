@@ -22,6 +22,7 @@ public sealed class SpirvInventoryTests : IDisposable
     private static string Root => Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
     private static readonly ShaderVariantResolver Registry = ShaderBuildTool.Spirv.TestShaderPrograms.Create();
 
+    #region Public API
     /// <summary>Retains the shared context and preparation receipt output.</summary>
     public SpirvInventoryTests(HeadlessGLFixture fixture, ITestOutputHelper output) { this.fixture = fixture; this.output = output; }
 
@@ -51,10 +52,9 @@ public sealed class SpirvInventoryTests : IDisposable
     /// <summary>Enumerates graphics assignments including declared alternate stage pairings.</summary>
     public static IEnumerable<object[]> GraphicsPrograms() => Programs(ShaderStageKind.Fragment);
 
-    /// <summary>Creates serializable test rows from complete supported program assignments.</summary>
-    private static IEnumerable<object[]> Programs(ShaderStageKind requiredKind) => Registry.Programs.Values
-        .Where(p => p.Stages.Any(s => s.Kind == requiredKind))
-        .SelectMany(p => p.Assignments.Select(a => new object[] { p.Identity, ShaderAssignments.Key(a) }));
+    /// <summary>Retains native pairings not identically exercised by the production runtime matrix.</summary>
+    public static IEnumerable<object[]> NativeGraphicsPrograms() => GraphicsPrograms()
+        .Where(row => !RuntimeCovers((string)row[0], (string)row[1]));
 
     /// <summary>Links every compute assignment and retains repeated-disposal coverage on the resource-free compute representative.</summary>
     [Theory]
@@ -63,12 +63,12 @@ public sealed class SpirvInventoryTests : IDisposable
     {
         fixture.EnsureContextValid();
         using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
-        var selected = new ShaderLoadPlan(Settings(identity, key)).Stages.Single();
+        var selected = new ShaderLoadPlan(Settings(Registry.FindProgram(identity), key)).Stages.Single();
         ComputeShaderAsset? previous = null;
         try {
             for (int generation = 0; generation < (identity == "tests/GpuUniformRingBufferIntegrationTests_1" ? 3 : 1); generation++) {
                 var layout = new GpuProgramLayout(); layout.RegisterContract(selected.Stage.Bindings);
-                Assert.True(ComputeShaderAsset.TryLoadFromSpirv(Path.Combine(Root, selected.BinaryPath), Settings(identity, key), out var current, out string log, layout: layout, fileSystem: ShaderAssetFileSystem.Built), log);
+                Assert.True(ComputeShaderAsset.TryLoadFromSpirv(Path.Combine(Root, selected.BinaryPath), Settings(Registry.FindProgram(identity), key), out var current, out string log, layout: layout, fileSystem: ShaderAssetFileSystem.Built), log);
                 using (current) {
                     Assert.NotNull(current); previous?.Dispose(); Assert.True(GL.IsProgram(current.ProgramId));
                     current.Pipeline.RequirePipeline().RequireShader();
@@ -82,31 +82,16 @@ public sealed class SpirvInventoryTests : IDisposable
         finally { previous?.Dispose(); }
     }
 
-    /// <summary>Enumerates every deduplicated stage binary directly from the resolver.</summary>
-    public static IEnumerable<object[]> Variants() => Registry.Binaries.Select(b => new object[] { b.Stage.Identity, b.Key });
-
-    /// <summary>Specializes every compiled stage; explicit program rows separately verify all stage combinations.</summary>
+    /// <summary>Links fixture-only or differing graphics pairings not covered by runtime admission.</summary>
     [Theory]
-    [MemberData(nameof(Variants))]
-    public void BuiltVariantSpecializes(string identity, string key)
-    {
-        fixture.EnsureContextValid();
-        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
-        var selected = Assert.Single(Registry.Binaries, b => b.Stage.Identity == identity && b.Key == key);
-        using var shader = PrecompiledStageFixture.Load(selected, Read);
-        Assert.True(GL.IsShader(shader.ShaderId));
-    }
-
-    /// <summary>Links every explicit graphics pairing from one coherent settings snapshot.</summary>
-    [Theory]
-    [MemberData(nameof(GraphicsPrograms))]
+    [MemberData(nameof(NativeGraphicsPrograms))]
     public void DeclaredGraphicsCombinationLinks(string identity, string key)
     {
         fixture.EnsureContextValid();
         using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
         var handles = new List<GpuShaderModule>(); int program = 0;
         try {
-            foreach (var stage in new ShaderLoadPlan(Settings(identity, key)).Stages) handles.Add(PrecompiledStageFixture.Load(stage, Read));
+            foreach (var stage in new ShaderLoadPlan(Settings(Registry.FindProgram(identity), key)).Stages) handles.Add(PrecompiledStageFixture.Load(stage, Read));
             program = GL.CreateProgram(); foreach (var shader in handles) GL.AttachShader(program, shader.ShaderId);
             long started = Stopwatch.GetTimestamp(); GL.LinkProgram(program);
             output.WriteLine($"Link only: {Stopwatch.GetElapsedTime(started).TotalMilliseconds:F3} ms");
@@ -116,14 +101,36 @@ public sealed class SpirvInventoryTests : IDisposable
         finally { if (program != 0) GL.DeleteProgram(program); foreach (var shader in handles) shader.Dispose(); }
     }
 
+    #endregion
+
+    /// <summary>The shared collection owns the GL context.</summary>
+    public void Dispose() { }
+    #endregion
+
+    #region Private
+    /// <summary>Creates serializable test rows from complete supported program assignments.</summary>
+    private static IEnumerable<object[]> Programs(ShaderStageKind requiredKind) => Registry.Programs.Values
+        .Where(p => p.Stages.Any(s => s.Kind == requiredKind))
+        .SelectMany(p => p.Assignments.Select(a => new object[] { p.Identity, ShaderAssignments.Key(a) }));
+
     /// <summary>Restores a complete canonical test assignment through the production settings validator.</summary>
-    private static ShaderSettings Settings(string identity, string key) => new(Registry.FindProgram(identity), key.Split(';', StringSplitOptions.RemoveEmptyEntries)
+    private static ShaderSettings Settings(GpuShaderContract contract, string key) => new(contract, key.Split(';', StringSplitOptions.RemoveEmptyEntries)
         .Select(p => p.Split('=', 2)).ToDictionary(p => p[0], p => (string?)p[1], StringComparer.Ordinal));
+
+    /// <summary>Requires the same assignment, stage declarations, binary paths and typed specialization bits.</summary>
+    private static bool RuntimeCovers(string identity, string key)
+    {
+        if (!GpuShaderContracts.Registry.Programs.TryGetValue(identity, out var runtime) ||
+            !runtime.Assignments.Any(assignment => ShaderAssignments.Key(assignment) == key)) return false;
+        var nativeStages = new ShaderLoadPlan(Settings(Registry.FindProgram(identity), key)).Stages;
+        var runtimeStages = new ShaderLoadPlan(Settings(runtime, key)).Stages;
+        // SameInputs includes kind, entry point, structural declarations and active specialization IDs/types/bits.
+        return nativeStages.Count == runtimeStages.Count && nativeStages.Zip(runtimeStages)
+            .All(pair => pair.First.BinaryPath == pair.Second.BinaryPath && pair.First.SameInputs(pair.Second));
+    }
 
     /// <summary>Reads the copied build assets used by production-style tests.</summary>
     private static ReadOnlySpan<byte> Read(string path) => TestAssetSnapshot.Built.Read("shaders/" + path);
 
-    /// <summary>The shared collection owns the GL context.</summary>
-    public void Dispose() { }
     #endregion
 }
