@@ -156,7 +156,7 @@ internal sealed partial class GpuImageAssertions
             statisticExpression: absolute ? 2 : 0);
         if(!squareInFloat)return moments;
         // Round products into explicit float storage before the independent double reduction.
-        using var products=(projections??=new()).Apply(actual.Texture,"precise vec4 square=a*a; return square;");
+        using var products=(projections??=new()).Apply(actual.Texture, GpuImageProjection.GpuImageAssertionsComparisons_Statistics);
         return moments.WithSquaredSums(Statistics(products,channelMask:channelMask??(1u<<actual.Channels)-1));
     }
 
@@ -208,12 +208,7 @@ internal sealed partial class GpuImageAssertions
         if (vectorDistance && (actual.Kind != 0 || actual.Channels < 3)) throw new ArgumentException("Vector distance needs floating RGB.");
         if (layers is not null && vectorDistance) throw new ArgumentException("Select a scalar or vector comparison independently.");
         if(bitwise && (vectorDistance || layers is not null || tolerance!=0))throw new ArgumentException("Bitwise expectations do not have a numeric tolerance or derived expectation.");
-        if(bitwise && actual.Kind==0)return Run(actual,21,input,null,0,double.NegativeInfinity,double.PositiveInfinity,channelMask,predicate:"""
-            uvec4 actual=floatBitsToUint(a),expected=texelFetch(expectedImage,coordinate,0);
-            bool valid=true;
-            for(int channel=0;channel<4;channel++)if((channels&(1u<<channel))!=0u)valid=valid && actual[channel]==expected[channel];
-            return bvec2(valid,false);
-            """);
+        if(bitwise && actual.Kind==0)return Run(actual,21,input,null,0,double.NegativeInfinity,double.PositiveInfinity,channelMask, predicate: GpuAssertionPredicate.GpuImageAssertionsComparisons_CompareBits);
         return Run(actual, layers is not null ? 10 : vectorDistance ? 8 : 1, input, layers?.Texture,
             tolerance, double.NegativeInfinity, double.PositiveInfinity, channelMask);
     }

@@ -172,9 +172,9 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
     private float BrightnessVariance(GpuTexture image)
     {
         using var transform=new GpuImageTransform();
-        using var brightness=transform.Apply(image,"precise float value=((a.r+a.g)+a.b)/3;return vec4(value,0,0,0);");
-        float sum=ImageAssertions.OrderedFloatSum(brightness,"value.r");
-        float sumSq=ImageAssertions.OrderedFloatSum(brightness,"value.r*value.r");
+        using var brightness=transform.Apply(image, GpuImageProjection.LumOnUpsampleFunctionalTests_BrightnessVariance);
+        float sum=ImageAssertions.OrderedFloatSum(brightness, GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic);
+        float sumSq=ImageAssertions.OrderedFloatSum(brightness, GpuImageProjection.LumOnUpsampleFunctionalTests_BrightnessVariance_2);
         int count=image.Width*image.Height;
         float mean=sum/count;
         return sumSq/count-mean*mean;
@@ -242,7 +242,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        ImageAssertions.Predicate(outputGBuffer[0],"precise vec3 difference=abs(a.rgb-multipliers.rgb);return bvec2(all(lessThan(difference,vec3(multipliers.w))),false);",
+        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnCombineFunctionalTests_AssertRgb,
             parameters:new(inputColor.r,inputColor.g,inputColor.b,TestEpsilon)).AssertEqual();
     }
 
@@ -385,12 +385,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData=outputGBuffer[0];
-        ImageAssertions.Predicate(outputData,"""
-            precise float brightness=((a.r+a.g)+a.b)/3;
-            vec3 prior=texelFetch(actualImage,ivec3(max(coordinate.x-1,0),coordinate.y,coordinate.z),0).rgb;
-            precise float previous=coordinate.x==0?-1:((prior.r+prior.g)+prior.b)/3;
-            return bvec2(brightness>=previous-.05,false);
-            """).AssertEqual();
+        ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnUpsampleFunctionalTests_GradientInput_SmoothUpsample).AssertEqual();
         // DESIRED: Left edge should be darker than right edge
         var (leftR, _, _, _) = ReadPixelFullRes(outputData, 0, ScreenHeight / 2);
         var (rightR, _, _, _) = ReadPixelFullRes(outputData, ScreenWidth - 1, ScreenHeight / 2);
@@ -471,7 +466,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        ImageAssertions.Predicate(outputGBuffer[0],"bool left=coordinate.x==0;bool right=coordinate.x==extent.x-1;return bvec2((!left || a.r>a.b) && (!right || a.b>a.r),left || right);").AssertEqual();
+        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnUpsampleFunctionalTests_DepthEdge_PreservesSharpness).AssertEqual();
     }
 
     #endregion
@@ -525,7 +520,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        ImageAssertions.Predicate(outputGBuffer[0],"precise vec3 difference=abs(a.rgb-multipliers.rgb);return bvec2(all(lessThan(difference,vec3(multipliers.w))),false);",
+        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnCombineFunctionalTests_AssertRgb,
             parameters:new(inputColor.r,inputColor.g,inputColor.b,.05f)).AssertEqual();
     }
 
@@ -575,7 +570,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(all(lessThan(a.rgb,vec3(multipliers.x))),false);",
+        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAtlasGatherFunctionalTests_SkyPixels_ProduceZeroIrradiance,
             parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 

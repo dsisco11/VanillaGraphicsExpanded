@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
@@ -57,7 +58,7 @@ public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFu
             float brightness = magnitude / (1 + magnitude);
             float[] expected = !ready ? [0.5f, 0, 0.5f]
                 : luminance >= 0 ? [brightness, brightness * 0.35f, 0] : [0, brightness * 0.35f, brightness];
-            ImageAssertions.Predicate(output[0],"return bvec2(all(greaterThanEqual(a.rgb,multipliers.rgb-vec3(multipliers.w))) && all(lessThanEqual(a.rgb,multipliers.rgb+vec3(multipliers.w))),false);",
+            ImageAssertions.Predicate(output[0], GpuAssertionPredicate.LumOnWorldProbeLightingEffectFunctionalTests_LightingEffect_MapsSignedLuminance_AndIndicatesMissingPair,
                 parameters:new(expected[0],expected[1],expected[2],TestEpsilon)).AssertEqual();
         }
     }

@@ -16,6 +16,86 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    #region Production executable ownership
+    /// <summary>The production numeric block preserves both whole-buffer and ranged caller bindings.</summary>
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void ProductionCheckerPreservesUniformSelectors(bool range)
+    {
+        EnsureContextValid();
+        using var image = Create(TextureDimension.Two, TextureFormat.R32f, 1, 1);
+        Upload(image, [1f], PixelComponentType.Float);
+        int selected = GL.GenBuffer(), generic = GL.GenBuffer();
+        try
+        {
+            GL.BindBuffer(BufferTarget.UniformBuffer, selected);
+            GL.BufferData(BufferTarget.UniformBuffer, 256, IntPtr.Zero, BufferUsageHint.StaticDraw);
+            if (range) GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 28, selected, IntPtr.Zero, 16);
+            else GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 28, selected);
+            GL.BindBuffer(BufferTarget.UniformBuffer, generic);
+            using var check = new GpuImageAssertions();
+            check.CompareConstant(image, 1).AssertEqual();
+            Assert.Equal(generic, GL.GetInteger(GetPName.UniformBufferBinding));
+            GL.GetInteger((GetIndexedPName)All.UniformBufferBinding, 28, out int restored);
+            Assert.Equal(selected, restored);
+            var cache = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGlStateCache.Current;
+            Assert.True(cache.TryGetCachedIndexedBuffer(OpenTK.Graphics.OpenGL.BufferRangeTarget.UniformBuffer,
+                28, out int cached, out nint offset, out nint size));
+            Assert.Equal(selected, cached); Assert.Equal((nint)0, offset);
+            Assert.Equal(range ? (nint)16 : 0, size);
+        }
+        finally
+        {
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 28, 0);
+            GL.BindBuffer(BufferTarget.UniformBuffer, 0);
+            GL.DeleteBuffer(selected); GL.DeleteBuffer(generic);
+        }
+    }
+
+    /// <summary>Independent consumers reuse one production executable while inputs, results and cleanup remain isolated.</summary>
+    [Fact]
+    public void ProductionOwnerSurvivesConsumersAndPublishesFreshInputs()
+    {
+        EnsureContextValid();
+        var owner = fixture.AssertionProgram(0, 0);
+        int program = owner.ProgramId;
+        using var native = new NativeDriverCapture();
+        int creations = 0;
+        var original = Marshal.GetDelegateForFunctionPointer<CreateProgramNative>(native.Original("glCreateProgram"));
+        native.Add("glCreateProgram", new CreateProgramNative(() =>
+        {
+            native.Observe(() => creations++);
+            return original();
+        }));
+        native.Install();
+        using (var image = Create(TextureDimension.Two, TextureFormat.Rgba32f, 4, 2))
+        using (var first = new GpuImageAssertions())
+        {
+            Upload(image, Enumerable.Repeat(.25f, 32).ToArray(), PixelComponentType.Float);
+            first.CompareConstant(image, .25f).AssertEqual();
+        }
+        // Per-test resources drain without retiring the fixture manager or its checker ownership.
+        fixture.CleanupGpuResources();
+        fixture.EnsureContextValid();
+        Assert.True(GL.IsProgram(program));
+        Assert.True(owner.IsValid);
+        using var replacement = Create(TextureDimension.Two, TextureFormat.Rgba32f, 4, 2);
+        using (var second = new GpuImageAssertions())
+        {
+            Upload(replacement, Enumerable.Repeat(.25f, 32).ToArray(), PixelComponentType.Float);
+            second.CompareConstant(replacement, .25f).AssertEqual();
+            Upload(replacement, Enumerable.Repeat(.75f, 32).ToArray(), PixelComponentType.Float);
+            second.CompareConstant(replacement, .75f).AssertEqual();
+            Assert.Equal(32u, second.CompareConstant(replacement, .25f).Mismatches);
+            Assert.Throws<ArgumentOutOfRangeException>(() => second.Predicate(replacement, (GpuAssertionPredicate)int.MaxValue));
+        }
+        Assert.Same(owner, fixture.AssertionProgram(0, 0));
+        Assert.Equal(program, owner.ProgramId);
+        Assert.Equal(0, creations);
+        native.RequireSuccessfulObservation();
+    }
+    #endregion
+
     #region Numeric predicates
     /// <summary>Stencil comparison covers odd rows and the final tail texel without changing original depth sampling or payload.</summary>
     [Fact]
@@ -77,9 +157,9 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
             RHICommandContext.Current.GetTextureEncoding(image,PixelComponentType.Float),MemoryMarshal.AsBytes(values.AsSpan()));
         using var assertions=new GpuImageAssertions();
         (int X,int Y,int Layer)[] positions=[(0,0,0),(64,2,1)];
-        var proof=assertions.PredicateAt(image,positions,"return bvec2(value.r==1,true);");
+        var proof=assertions.PredicateAt(image,positions, GpuAssertionPredicate.GpuImageAssertionTests_SparsePredicatesRetainEveryNominatedPoint);
         Assert.Equal(2u,proof.MatchingTexels);Assert.Equal(1u,proof.Mismatches);
-        Assert.Throws<ArgumentException>(()=>assertions.PredicateAt(image,[],"return bvec2(true,false);"));
+        Assert.Throws<ArgumentException>(()=>assertions.PredicateAt(image,[], GpuAssertionPredicate.GpuImageAssertionTests_SparsePredicatesRetainEveryNominatedPoint_2));
     }
 
     /// <summary>Local byte tuples preserve normalized metadata bytes and the explicitly selected array layer.</summary>
@@ -108,8 +188,8 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
         using var assertions=new GpuImageAssertions();
         float red=0,rgb=0;
         for(int i=0;i<values.Length;i+=4){red+=values[i];rgb+=(values[i]+values[i+1])+values[i+2];}
-        Assert.Equal(red,assertions.OrderedFloatSum(image,"value.r"));
-        Assert.Equal(rgb,assertions.OrderedFloatSum(image,"(value.r+value.g)+value.b"));
+        Assert.Equal(red,assertions.OrderedFloatSum(image, GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic));
+        Assert.Equal(rgb,assertions.OrderedFloatSum(image, GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2));
     }
     /// <summary>Exact comparison preserves numeric zero, NaN/infinity and float subnormals without an arithmetic flush.</summary>
     [Fact]
@@ -252,28 +332,27 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
         Upload(image, values, PixelComponentType.Float);
         Upload(reference, values.SelectMany(value => new[] { value * 2, 1f }).ToArray(), PixelComponentType.Float);
         using var assertions = new GpuImageAssertions();
-        const string body = "return bvec2(b.r==a.r*2.0 && c.r==a.r && d.r==a.r && b.g==1.0, index%2u==0u);";
-        var result = assertions.Predicate(image, body, reference, image, image);
+
+        var result = assertions.Predicate(image, GpuAssertionPredicate.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses, reference, image, image);
         result.AssertEqual(); Assert.Equal(98u,result.MatchingTexels);
         // A fault in the final tail texel must be reported, even though earlier workgroups satisfy the contract.
         values[^1] = -1; Upload(image, values, PixelComponentType.Float);
-        result = assertions.Predicate(image, body, reference, image, image);
+        result = assertions.Predicate(image, GpuAssertionPredicate.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses, reference, image, image);
         Assert.Equal(1u,result.Mismatches); Assert.Equal(98u,result.MatchingTexels);
         using var mismatched = Create(TextureDimension.Two, TextureFormat.R32f, 1, 1);
-        Assert.Throws<ArgumentException>(() => assertions.Predicate(image, body, mismatched));
+        Assert.Throws<ArgumentException>(() => assertions.Predicate(image, GpuAssertionPredicate.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses, mismatched));
         Upload(mismatched,new float[]{7},PixelComponentType.Float);
-        result=assertions.Predicate(image,
-            "return bvec2(texelFetch(historyImage,ivec3(0),0).r==7.0,b.r==7.0);",mismatched,mappedSources:true);
+        result=assertions.Predicate(image, GpuAssertionPredicate.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_2,mismatched,mappedSources:true);
         result.AssertEqual();Assert.Equal(195u,result.MatchingTexels);
         Assert.Equal(0,result.FirstWitnessIndex);
-        var tail=assertions.Predicate(image,"return bvec2(true,index==194u);");
+        var tail=assertions.Predicate(image, GpuAssertionPredicate.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_3);
         Assert.Equal(194,tail.FirstWitnessIndex);
-        Assert.Throws<InvalidOperationException>(()=>{_=assertions.Predicate(image,"return bvec2(true,false);").FirstWitnessIndex;});
+        Assert.Throws<InvalidOperationException>(()=>{_=assertions.Predicate(image, GpuAssertionPredicate.GpuImageAssertionTests_SparsePredicatesRetainEveryNominatedPoint_2).FirstWitnessIndex;});
         using var flags=Create(TextureDimension.Two,TextureFormat.Rg32f,2,1);
         using var previousFlags=Create(TextureDimension.Two,TextureFormat.Rg32f,2,1);
         Upload(flags,new[]{0f,BitConverter.UInt32BitsToSingle(1),float.NaN,-0f},PixelComponentType.Float);
         Upload(previousFlags,new[]{0f,BitConverter.UInt32BitsToSingle(2),float.NaN,0f},PixelComponentType.Float);
-        result=assertions.Predicate(flags,"return bvec2(same(a,b,3u),false);",previousFlags);
+        result=assertions.Predicate(flags, GpuAssertionPredicate.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4,previousFlags);
         Assert.Equal(1u,result.Mismatches);
         assertions.CompareFloating(image,values,Enumerable.Repeat(0f,values.Length).ToArray()).AssertEqual();
         float[] wanted=(float[])values.Clone();wanted[^1]=0;
@@ -289,7 +368,7 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
         float[] values=Enumerable.Range(0,195).Select(index=>(float)index+.25f).ToArray();
         Upload(image,values,PixelComponentType.Float);
         using var projection=new GpuImageTransform();using var assertions=new GpuImageAssertions();
-        using var transformed=projection.Apply(image,"return vec4(a.r+parameters.x,float(coordinate.x),float(coordinate.y),1.0);",new(2,0,0,0));
+        using var transformed=projection.Apply(image, GpuImageProjection.GpuImageAssertionTests_HistoryProjectionsRetainCompleteIndependentImages,new(2,0,0,0));
         float[] expected=values.SelectMany((value,index)=>new[]{value+2,(float)(index%65),(float)(index/65),1f}).ToArray();
         assertions.Compare(transformed,expected).AssertEqual();
         Upload(image,new float[195],PixelComponentType.Float);
@@ -298,7 +377,7 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
         uint[] words=Enumerable.Range(0,195).Select(index=>(uint)index).ToArray();words[^1]=65535;
         RHICommandContext.Current.UploadTexture(integer,new(new(),0,0,0,65,3),
             RHICommandContext.Current.GetTextureEncoding(integer,PixelComponentType.UnsignedInt),MemoryMarshal.AsBytes(words.AsSpan()));
-        using var converted=projection.Apply(integer,"return a;");
+        using var converted=projection.Apply(integer, GpuImageProjection.AoMinimumChildProductionTests_ValidateMasks);
         assertions.Compare(converted,words.SelectMany(value=>new[]{(float)value,0f,0f,1f}).ToArray()).AssertEqual();
     }
 
@@ -488,11 +567,11 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
         try
         {
         int partial=0;
-        Assert.Throws<IOException>(()=>new GpuFixtureProgram("unused",shader=>{partial=shader;throw new IOException("injected construction fault");}));
+        Assert.Throws<IOException>(()=>new NativeComputeProgram("unused",shader=>{partial=shader;throw new IOException("injected construction fault");}));
         Assert.NotEqual(0,partial);Assert.False(GL.IsShader(partial));
-        Assert.Throws<InvalidOperationException>(() => new GpuFixtureProgram("#version 450\nnot a shader"));
+        Assert.Throws<InvalidOperationException>(() => new NativeComputeProgram("#version 450\nnot a shader"));
         // A fresh valid owner remains independently usable after the failed construction.
-        using var valid = new GpuFixtureProgram("#version 450\nlayout(local_size_x=1)in;void main(){}");
+        using var valid = new NativeComputeProgram("#version 450\nlayout(local_size_x=1)in;void main(){}");
         Assert.True(GL.IsProgram(valid.Id));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -511,7 +590,7 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
         using var image = Create(TextureDimension.Two, TextureFormat.R32f, 2, 1);
         Upload(image,new float[] {1,2},PixelComponentType.Float);
         using var arraySentinel=Create(TextureDimension.TwoArray,TextureFormat.R32f,1,1);
-        using var sentinel = new GpuFixtureProgram("#version 450\nlayout(local_size_x=1)in;void main(){}");
+        using var sentinel = new NativeComputeProgram("#version 450\nlayout(local_size_x=1)in;void main(){}");
         int buffer=GL.GenBuffer();
         try
         {
@@ -607,7 +686,7 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
             GLFW.MakeContextCurrent(window);RenderContextRegistry.RegisterCurrent(foreignOwner,static _=>true);
             foreignShader=GL.CreateShader(ShaderType.ComputeShader);fixture.MakeCurrent();
             var expected=new IOException("construction interrupted");
-            Assert.Same(expected,Assert.Throws<IOException>(()=>new GpuFixtureProgram("unused",shader=>
+            Assert.Same(expected,Assert.Throws<IOException>(()=>new NativeComputeProgram("unused",shader=>
             {
                 partial=shader;GLFW.MakeContextCurrent(window);throw expected;
             })));
@@ -632,14 +711,14 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
         GLFW.DefaultWindowHints();GLFW.WindowHint(WindowHintInt.ContextVersionMajor,4);GLFW.WindowHint(WindowHintInt.ContextVersionMinor,5);
         GLFW.WindowHint(WindowHintBool.Visible,false);
         Window* window=GLFW.CreateWindow(16,16,"Assertion retirement qualification",null,null);
-        Assert.True(window!=null);object owner=new();GpuFixtureProgram? retired=null;
+        Assert.True(window!=null);object owner=new();NativeComputeProgram? retired=null;
         try
         {
             GLFW.MakeContextCurrent(window);RenderContextRegistry.RegisterCurrent(owner,static _=>true);
-            retired=new GpuFixtureProgram("#version 450\nlayout(local_size_x=1)in;void main(){}");
+            retired=new NativeComputeProgram("#version 450\nlayout(local_size_x=1)in;void main(){}");
         }
         finally {RenderContextRegistry.Retire(owner);GLFW.DestroyWindow(window);fixture.MakeCurrent();}
-        using var surviving=new GpuFixtureProgram("#version 450\nlayout(local_size_x=1)in;void main(){}");
+        using var surviving=new NativeComputeProgram("#version 450\nlayout(local_size_x=1)in;void main(){}");
         retired!.Dispose();Assert.True(GL.IsProgram(surviving.Id));retired.Dispose();
     }
     #endregion
@@ -663,5 +742,8 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture) : RenderTe
     /// <summary>Matches the native dispatch ABI for deliberate no-execution fault injection.</summary>
     [UnmanagedFunctionPointer(CallingConvention.Winapi)]
     private delegate void Dispatch(uint x,uint y,uint z);
+    /// <summary>Matches native program creation for observing unexpected per-consumer executable construction.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.Winapi)]
+    private delegate uint CreateProgramNative();
     #endregion
 }

@@ -53,7 +53,7 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         float expected=.5f+.5f*strongest.Value;
         Assert.InRange(GpuLocalRead.Scalar(partialReceiver.Texture,receiver),expected-.002f,expected+.002f);
         // The nearer front-facing plane has no evidence in front of it, despite its darkened neighboring receiver.
-        ImageAssertions.Predicate(opaque.Texture,"return bvec2(coordinate.x!=30 || (a.r>=0.995 && a.r<=1.001),false);").AssertEqual();
+        ImageAssertions.Predicate(opaque.Texture, GpuAssertionPredicate.AmbientOcclusionPassTests_ContactTransmissionAndMotionRemainCurrentFrame).AssertEqual();
         using var movedAway = RenderAndCapture(owner, draw, 65, 37, quality, 0);
         ImageAssertions.Inspect(movedAway.Texture,.995f,1.001f,channelMask:1).AssertFiniteRange();
         declarations.AssertReusable(minimumTargets: 7);
@@ -71,7 +71,7 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         Assert.True(ImageAssertions.Inspect(corner.Texture,channelMask:1).Minimum<.97f,"Expected retained corner occlusion.");
         using var gaps = RenderAndCapture(owner, draw, 65, 37, 2, 6);
         AssertFinite(gaps);
-        ImageAssertions.Predicate(gaps.Texture,"return bvec2(coordinate.x%4>=2 || a.r==1.0,false);").AssertEqual();
+        ImageAssertions.Predicate(gaps.Texture, GpuAssertionPredicate.AmbientOcclusionPassTests_PerpendicularCornerAndCutoutGapsRespectGeometry).AssertEqual();
     }
 
     /// <summary>A narrow foreground strip releases occlusion beyond contact while a continuous foreground wall retains stronger evidence.</summary>

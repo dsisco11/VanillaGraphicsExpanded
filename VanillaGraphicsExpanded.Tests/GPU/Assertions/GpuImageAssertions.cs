@@ -10,18 +10,16 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Assertions;
 internal sealed partial class GpuImageAssertions : IDisposable
 {
     private readonly (nint Handle, long Generation) origin = RenderContextRegistry.Current();
-    private readonly Dictionary<(int Kind, int Expression, string Predicate), GpuFixtureProgram> programs = [];
     private bool disposed;
     private GpuImageTransform? projections;
 
     #region Public API
-    /// <summary>Retires all executable variants in their original context, without a global native-name cache.</summary>
+    /// <summary>Releases per-observation helper state while the fixture retains production executable owners.</summary>
     public void Dispose()
     {
         if (disposed) return;
         if (RenderContextRegistry.IsAlive(origin)) RequireContext();
-        foreach (var program in programs.Values) program.Dispose();
-        programs.Clear(); projections?.Dispose(); disposed = true;
+        projections?.Dispose(); disposed = true;
     }
     #endregion
 
@@ -32,7 +30,7 @@ internal sealed partial class GpuImageAssertions : IDisposable
         double tolerance, double minimum, double maximum, uint? channelMask, int rankSide = 1, int rankSlices = 1, uint constant = 0,
         System.Numerics.Vector4 multipliers = default, int referenceChannel = 0, int pixelStride = 1, int pixelOffset = 0,
         int statisticExpression = 0, System.Numerics.Vector4 channelMinimum = default, System.Numerics.Vector4 channelMaximum = default,
-        Texture3D? additional = null, Texture3D? fourth = null, string predicate = "")
+        Texture3D? additional = null, Texture3D? fourth = null, GpuAssertionPredicate predicate = GpuAssertionPredicate.None, System.Numerics.Vector4? evaluation = null)
     {
         RequireContext();
         if (!double.IsFinite(tolerance) || tolerance < 0) throw new ArgumentOutOfRangeException(nameof(tolerance));
@@ -44,12 +42,8 @@ internal sealed partial class GpuImageAssertions : IDisposable
         // Report an existing error instead of draining it and accepting zero-initialized results as success.
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         using var state = new GpuAssertionState();
-        var programKey = (actual.Kind, statisticExpression, predicate);
-        if (!programs.TryGetValue(programKey, out var kernel))
-        {
-            kernel = new(GpuAssertionKernel.Source(actual.Kind, statisticExpression, predicate));
-            programs.Add(programKey, kernel);
-        }
+        var fixture = Fixtures.HeadlessGLFixture.Current;
+        var kernel = mode == 21 ? fixture.PredicateProgram : fixture.AssertionProgram(actual.Kind, statisticExpression);
         using var output = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription
         { Dimension = TextureDimension.Two, Format = TextureFormat.R32ui, Width = 32, Height = 1, MipLevels = 1,
             Storage = ResourceStorageMode.Immutable, Filter = TextureFilterMode.Nearest, Label = "Tests.Assertion.Result" }).RequireResource();
@@ -61,46 +55,49 @@ internal sealed partial class GpuImageAssertions : IDisposable
             Filter = TextureFilterMode.Nearest, Label = "Tests.Assertion.Histogram" }).RequireResource();
         histogram.UploadDataImmediate(new uint[checked(histogram.Width * histogram.Height)]);
         using var unusedExpected = expected is null ? CreateArray(TextureFormat.Rgba32ui,1,1,1) : null;
-        int id = kernel.Id, width = actual.Texture.Width, height = actual.Texture.Height, depth = actual.Texture.Depth;
-        GL.ProgramUniform3(id, 0, width, height, depth); GL.ProgramUniform1(id, 1, mode == 11 ? 0 : mode);
-        // OpenTK's unsigned scalar overload requires an unsigned program ID; an int ID selects a floating overload.
-        GL.ProgramUniform1((uint)id, 2, mask); GL.ProgramUniform1(id, 3, tolerance);
-        GL.ProgramUniform2(id, 4, minimum, maximum); GL.ProgramUniform1(id, 5, rankSide); GL.ProgramUniform1(id, 6, rankSlices);
-        GL.ProgramUniform1((uint)id, 7, constant);
-        if (actual.Kind == 0)
+        int width = actual.Texture.Width, height = actual.Texture.Height, depth = actual.Texture.Depth;
+        byte[] bytes = new byte[160];
+        GpuAssertionInputs.Integer(bytes, 0, (uint)width); GpuAssertionInputs.Integer(bytes, 4, (uint)height);
+        GpuAssertionInputs.Integer(bytes, 8, (uint)depth);
+        GpuAssertionInputs.Integer(bytes, 16, mask); GpuAssertionInputs.Integer(bytes, 20, constant);
+        GpuAssertionInputs.Integer(bytes, 24, (uint)rankSide); GpuAssertionInputs.Integer(bytes, 28, (uint)rankSlices);
+        GpuAssertionInputs.Double(bytes, 32, tolerance); GpuAssertionInputs.Double(bytes, 40, minimum);
+        GpuAssertionInputs.Double(bytes, 48, maximum); GpuAssertionInputs.Vector(bytes, 64, multipliers);
+        GpuAssertionInputs.Integer(bytes, 80, (uint)referenceChannel); GpuAssertionInputs.Integer(bytes, 84, (uint)pixelStride);
+        GpuAssertionInputs.Integer(bytes, 88, (uint)pixelOffset); GpuAssertionInputs.Integer(bytes, 92, (uint)predicate);
+        for (int channel = 0; channel < 4; channel++)
         {
-            GL.ProgramUniform4(id, 8, multipliers.X, multipliers.Y, multipliers.Z, multipliers.W);
-            GL.ProgramUniform1(id, 9, referenceChannel);
-            GL.ProgramUniform4((uint)id, 13, BitConverter.SingleToUInt32Bits(channelMinimum.X), BitConverter.SingleToUInt32Bits(channelMinimum.Y),
-                BitConverter.SingleToUInt32Bits(channelMinimum.Z), BitConverter.SingleToUInt32Bits(channelMinimum.W));
-            GL.ProgramUniform4((uint)id, 14, BitConverter.SingleToUInt32Bits(channelMaximum.X), BitConverter.SingleToUInt32Bits(channelMaximum.Y),
-                BitConverter.SingleToUInt32Bits(channelMaximum.Z), BitConverter.SingleToUInt32Bits(channelMaximum.W));
+            GpuAssertionInputs.Integer(bytes, 96 + channel * 4, BitConverter.SingleToUInt32Bits(channelMinimum[channel]));
+            GpuAssertionInputs.Integer(bytes, 112 + channel * 4, BitConverter.SingleToUInt32Bits(channelMaximum[channel]));
         }
-        GL.ProgramUniform1(id, 10, pixelStride); GL.ProgramUniform1(id, 11, pixelOffset);
-        RequireNativeSuccess("checker uniforms");
-        BindSample(0, actual.Texture); BindSample(1, history ?? actual.Texture); BindSample(2, expected ?? unusedExpected!);
-        BindSample(3, additional ?? actual.Texture);
-        BindSample(4, fourth ?? actual.Texture);
-        GL.BindImageTexture(0, output.TextureId, 0, false, 0, TextureAccess.ReadWrite, SizedInternalFormat.R32ui);
-        GL.BindImageTexture(1, histogram.TextureId, 0, false, 0, TextureAccess.ReadWrite, SizedInternalFormat.R32ui);
-        GL.UseProgram(id);
-        RequireNativeSuccess("checker bindings");
+        GpuAssertionInputs.Vector(bytes, 128, evaluation ?? new(1, 1, 1, 0));
+        GpuTexture[] sources = [actual.Texture, history ?? actual.Texture, expected ?? unusedExpected!, additional ?? actual.Texture, fourth ?? actual.Texture];
+        GpuTexture[] destinations = [output, histogram];
         int texels = checked(width * height * depth);
-        Dispatch(texels);
+        // Every pass stages a new immutable block version; physical upload and dispatch use the production path.
+        /// <summary>Publishes the selected operation before one complete-domain dispatch.</summary>
+        void Submit(int operation, int groupsX, int groupsY = 1)
+        {
+            GpuAssertionInputs.Integer(bytes, 12, (uint)operation);
+            kernel.Execute(bytes, sources, destinations, groupsX, groupsY);
+        }
+        int groups = checked((texels + 63) / 64), x = Math.Min(groups, 65535);
+        Submit(mode == 11 ? 0 : mode, x, (groups + x - 1) / x);
         RequireNativeSuccess("checker dispatch");
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureUpdate));
         if (mode == 3)
         {
-            GL.ProgramUniform1(id, 1, 4);
-            Dispatch(checked(rankSide * rankSide * rankSlices));
-            GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
+            int rankGroups = checked((rankSide * rankSide * rankSlices + 63) / 64);
+            int rankX = Math.Min(rankGroups, 65535);
+            Submit(4, rankX, (rankGroups + rankX - 1) / rankX);
+            RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureUpdate));
         }
         if (mode == 11)
         {
-            GL.ProgramUniform1(id, 1, 11); GL.DispatchCompute(256, 1, 1);
-            GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
-            GL.ProgramUniform1(id, 1, 12); GL.DispatchCompute(1, 1, 1);
-            GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
+            Submit(11, 256);
+            RHICommandContext.Current.Barrier(new(ResourceAccess.Image));
+            Submit(12, 1);
+            RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureUpdate));
         }
         RequireContext();
         uint[] counters = new uint[32];
@@ -116,19 +113,6 @@ internal sealed partial class GpuImageAssertions : IDisposable
         if (mode == 11 && (counters[11] != 256 || counters[12] != 0x53554d53 || counters[14] != 1))
             throw new InvalidOperationException($"GPU statistics did not complete: partials={counters[11]}/256, magic={counters[12]:x}, final={counters[14]}/1.");
         return new(counters, width, height, depth, actual.Kind,mode);
-    }
-
-    /// <summary>Binds an array snapshot with independent nearest sampling, without touching its original image.</summary>
-    private static void BindSample(int unit, GpuTexture image)
-    {
-        GL.ActiveTexture(TextureUnit.Texture0 + unit); GL.BindTexture(TextureTarget.Texture2DArray, image.TextureId); GL.BindSampler(unit, 0);
-    }
-
-    /// <summary>Covers large original domains within the portable per-axis compute group minimum.</summary>
-    private static void Dispatch(int texels)
-    {
-        int groups=checked((texels+63)/64), x=Math.Min(groups,65535), y=(groups+x-1)/x;
-        GL.DispatchCompute(x,y,1);
     }
 
     /// <summary>Reports the original native failure at its fixture operation boundary without draining errors.</summary>

@@ -226,17 +226,13 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
                 Assert.True(r > 0.8f && g < 0.2f && b < 0.2f, $"Expected red first-probe radiance, got ({r:F3}, {g:F3}, {b:F3})");
             else
             {
-                var accepted=ImageAssertions.Predicate(radianceOut.Texture,"""
-                    bool color=all(greaterThanEqual(a.rgb,vec3(multipliers.x))) && all(lessThanEqual(a.rgb,vec3(multipliers.y)));
-                    bool confidence=b.r>=multipliers.z && (multipliers.z!=0 || b.r==0);
-                    return bvec2(color && confidence && (floatBitsToUint(b.g)&32u)!=0u,false);
-                    """,metaOut.Texture,parameters:new(expectedRadiance==-2?0:expectedRadiance-.002f,
+                var accepted=ImageAssertions.Predicate(radianceOut.Texture, GpuAssertionPredicate.LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests_RunWorldProbeTraceScenario,metaOut.Texture,parameters:new(expectedRadiance==-2?0:expectedRadiance-.002f,
                         expectedRadiance==-2?1.002f:expectedRadiance+.002f,minimumConfidence,0));
                 accepted.AssertEqual();
             }
             if(expectedRadiance==-2)
             {
-                var lit=ImageAssertions.Predicate(radianceOut.Texture,"return bvec2(true,a.r>.001);");
+                var lit=ImageAssertions.Predicate(radianceOut.Texture, GpuAssertionPredicate.LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests_RunWorldProbeTraceScenario_2);
                 lit.AssertEqual();Assert.True(lit.MatchingTexels>0);
             }
             // Suppressing accepted world radiance must preserve visibility and validity, rather

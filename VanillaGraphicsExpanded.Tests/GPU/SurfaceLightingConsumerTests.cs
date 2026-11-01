@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene;
@@ -112,13 +113,13 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
         var lit=Trace(placeholder,shared:room.Geometry.Scene,surfaceLighting:room.Snapshot,anchorPosition:new(4,36,4));
 
         float expected=32*GgxHemisphereReference.CapturedDiffuse(albedo)/MathF.PI;
-        var hitObservation=ObserveTrace(lit,"bool hit=(flags&1u)!=0u; return bvec2(!hit || (b.r==1.0 && a.r>=multipliers.x && a.r<=multipliers.y),hit);",
+        var hitObservation=ObserveTrace(lit, GpuAssertionPredicate.SurfaceLightingConsumerTests_ScreenProbesConsumePublishedCache,
             parameters:new(expected-.02f,expected+.02f,0,0));
         hitObservation.AssertEqual(); uint hits=hitObservation.MatchingTexels;
         Assert.True(hits>32);
         room.WithholdPages();
         var missing=Trace(placeholder,shared:room.Geometry.Scene,surfaceLighting:room.Snapshot,anchorPosition:new(4,36,4));
-        ObserveTrace(missing,"return bvec2(c.a==a.a && (floatBitsToUint(d.g)&63u)==(flags&63u) && ((flags>>16)&7u)==4u && b.r==0.0 && a.r==0.0,false);",lit).AssertEqual();
+        ObserveTrace(missing, GpuAssertionPredicate.SurfaceLightingConsumerTests_ScreenProbesConsumePublishedCache_2,lit).AssertEqual();
     }
     #endregion
 
@@ -136,7 +137,7 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
         var actual=Trace(placeholder,screenDepth:depth,screenEmission:8,emissionBoost:3,
             shared:room.Geometry.Scene,surfaceLighting:room.Snapshot,worldOffset:new(0,32,0),matrixRemainder:new(4,4,9));
 
-        var hitObservation=ObserveTrace(actual,"bool hit=(floatBitsToUint(d.g)&1u)!=0u; return bvec2(!hit || (b.r==1.0 && (flags&1u)==1u && a.r>=11.99 && a.r<=12.01),hit);",control);
+        var hitObservation=ObserveTrace(actual, GpuAssertionPredicate.SurfaceLightingConsumerTests_ScreenHitsPreserveCachedEmissionExactlyOnce,control);
         hitObservation.AssertEqual(); uint hits=hitObservation.MatchingTexels;
         Assert.True(hits>0);
     }

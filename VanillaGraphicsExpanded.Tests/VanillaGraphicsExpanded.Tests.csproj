@@ -25,6 +25,7 @@
   <ItemGroup>
     <ProjectReference Include="..\VanillaGraphicsExpanded\VanillaGraphicsExpanded.csproj" />
     <Compile Include="..\ShaderBuildCatalog\TestShaderPrograms.cs" Link="Fixtures\Shaders\TestShaderPrograms.cs" />
+    <Compile Include="..\ShaderBuildCatalog\TestShaderPrograms.Assertions.cs" Link="Fixtures\Shaders\TestShaderPrograms.Assertions.cs" />
     <!-- Dependencies of the linked production source emitter and preprocessor. -->
     <Compile Include="..\ShaderBuildTool\Spirv\Records\ShaderExpandedSource.cs;..\ShaderBuildTool\Spirv\Records\ShaderInputObservation.cs;..\ShaderBuildTool\Spirv\Records\ShaderDependencySnapshot.cs;..\ShaderBuildTool\Spirv\Records\ShaderRecordStore.cs;..\ShaderBuildTool\Spirv\Identity\ShaderCacheKey.cs" Link="ShaderBuildTool\%(Filename)%(Extension)" />
     <!-- Exercise the production source-layout emitter directly. -->

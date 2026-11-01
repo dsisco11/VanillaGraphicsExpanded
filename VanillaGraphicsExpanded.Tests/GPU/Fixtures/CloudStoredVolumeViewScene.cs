@@ -81,7 +81,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         CopyHistoryImage(observation.Metadata,completed.Images[2]);CopyHistoryImage(observation.Age,completed.Images[3]);
         if(completed.Diagnostics is {} diagnostics)
         {
-            using var age=(projections??=Own(new GpuImageTransform())).Apply(observation.Age,"return vec4(0,0,0,a.r);");
+            using var age=(projections??=Own(new GpuImageTransform())).Apply(observation.Age, GpuImageProjection.CloudStoredVolumeViewScene_SeedHistory);
             CopyHistoryImage(age,diagnostics);
         }
     }

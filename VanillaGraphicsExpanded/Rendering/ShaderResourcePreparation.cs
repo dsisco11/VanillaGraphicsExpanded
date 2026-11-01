@@ -15,7 +15,7 @@ internal static class ShaderResourcePreparation
         if (texture.IsEmpty) { Require(binding, false); return; }
         var metadata = texture.RequireMetadata();
         if (GpuPreparedBindings.CompatibleTextureTarget(binding.Type) != (int)metadata.Target ||
-            !ShaderResourceFormatCompatibility.Matches(binding.Type, SelectImage(metadata, 0).Format))
+            !ShaderResourceFormatCompatibility.MatchesSampler(binding.Type, SelectImage(metadata, 0).Format))
             throw new InvalidOperationException($"Incompatible texture target for {binding.Contract.Name}.");
     }
     /// <summary>Checks image view bounds before any resource in the input set is published.</summary>

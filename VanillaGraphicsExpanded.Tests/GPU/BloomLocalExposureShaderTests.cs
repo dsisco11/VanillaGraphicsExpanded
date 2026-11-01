@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
@@ -92,7 +93,7 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
     scope12.Run(()=>owner.Render(commands, draw, source, (null, 0), settings));
 }
             float expected = enabled ? MathF.Sqrt(.04f * .18f) : .04f;
-            ImageAssertions.Predicate(owner.Texture,"return bvec2(a.r>=multipliers.x && a.r<=multipliers.y,false);",
+            ImageAssertions.Predicate(owner.Texture, GpuAssertionPredicate.BloomLocalExposureShaderTests_OwnedPyramidAppliesSourceGainOnceAndDisablesCleanly,
                 parameters:new(expected-.0003f,expected+.0003f,0,0)).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());

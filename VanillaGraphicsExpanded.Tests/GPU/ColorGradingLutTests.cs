@@ -163,10 +163,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
             tolerances[pixel*4]=6.001f/255;
         }
         ImageAssertions.CompareFloating(actual.Texture,expected,tolerances,channelMask:1).AssertEqual();
-        ImageAssertions.Predicate(actual.Texture, """
-            bool monotonic=coordinate.x==0 || a.r+1.0/255.0>=texelFetch(actualImage,ivec3(coordinate.x-1,0,0),0).r;
-            return bvec2(monotonic && abs(a.g-a.r)<=multipliers.x && abs(a.b-a.r)<=multipliers.x,false);
-            """,parameters:new(1.001f/255,0,0,0)).AssertEqual();
+        ImageAssertions.Predicate(actual.Texture, GpuAssertionPredicate.ColorGradingLutTests_NeutralGradientHasBoundedInterpolationError,parameters:new(1.001f/255,0,0,0)).AssertEqual();
         output.WriteLine($"Neutral ramp remains monotonic within 6.001/255 reference and 1.001/255 chroma tolerances at contrast {contrast:R}.");
     }
     /// <summary>The actual generated galaxy survives saved positive contrast after filmic LUT sampling and RGBA8 output.</summary>
@@ -183,8 +180,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         Assert.NotNull(generated);
         using var resources = generated;
         using var projection=new GpuImageTransform();
-        using var decoded=projection.Apply(resources!.Galaxy,
-            "precise vec3 physical=a.rgb/parameters.x;return vec4(physical,0);",new(source.StorageScale,0,0,0));
+        using var decoded=projection.Apply(resources!.Galaxy, GpuImageProjection.ColorGradingLutTests_GeneratedGalaxySurvivesPositiveContrastInFinalOutput,new(source.StorageScale,0,0,0));
         Vector3 brightest=ImageAssertions.Brightest(decoded).Color;
         using var owner = new ColorGradingLut();
         Vector4 controls = new(1, 1, 1, .41573521f);
@@ -195,10 +191,10 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         output.WriteLine($"Generated peak galaxy nits {brightest}; independent encoded LUT {reference}; final RGBA8 maximum {ImageAssertions.Inspect(final.Texture,channelMask:7).Maximum:R}.");
         using var view=DrawGalaxyView(resources!);
         Vector3 visible=ImageAssertions.Brightest(view.Texture).Color;
-        using var withAlpha=projection.Apply(view.Texture,"return vec4(a.rgb,0.37);");
+        using var withAlpha=projection.Apply(view.Texture, GpuImageProjection.ColorGradingLutTests_GeneratedGalaxySurvivesPositiveContrastInFinalOutput_2);
         using var captured=new GpuImageSnapshot(withAlpha);using var scene=captured.ToPlane();
         using var attenuated=DrawFinal(scene,lookup,controls,4);
-        uint nonblack=ImageAssertions.Predicate(attenuated.Texture,"return bvec2(true,any(greaterThan(a.rgb,vec3(0))));").MatchingTexels;
+        uint nonblack=ImageAssertions.Predicate(attenuated.Texture, GpuAssertionPredicate.ColorGradingLutTests_GeneratedGalaxySurvivesPositiveContrastInFinalOutput_3).MatchingTexels;
         output.WriteLine($"Actual fullscreen galaxy draw, clear atmosphere, four orientations: peak nits {visible}; final RGBA8 maximum {ImageAssertions.Inspect(attenuated.Texture,channelMask:7).Maximum:R}, nonblack pixels {nonblack}/{scene.Width*scene.Height}.");
         using var neutralOwner = new ColorGradingLut();
         var neutralLookup = neutralOwner.Prepare(Programs.Api,new(1,1,1,0));
@@ -206,7 +202,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         {
             var settings = new Vector4(1,1,1,savedContrast?.41573521f:0);
             using var image=DrawFinal(scene,savedContrast?lookup:neutralLookup,settings,ev);
-            uint count=ImageAssertions.Predicate(image.Texture,"return bvec2(true,any(greaterThan(a.rgb,vec3(0))));").MatchingTexels;
+            uint count=ImageAssertions.Predicate(image.Texture, GpuAssertionPredicate.ColorGradingLutTests_GeneratedGalaxySurvivesPositiveContrastInFinalOutput_3).MatchingTexels;
             output.WriteLine($"Actual galaxy-only final EV {ev}, contrast {settings.W:R}: maximum {ImageAssertions.Inspect(image.Texture,channelMask:7).Maximum*255:R}/255; nonblack {count}/{scene.Width*scene.Height}.");
         }
         Assert.True(nonblack > 0);

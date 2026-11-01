@@ -2,6 +2,8 @@ using OpenTK.Graphics.OpenGL4;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Assertions;
@@ -45,7 +47,7 @@ public sealed class ShaderCachePolicyTests(HeadlessGLFixture fixture)
         finally { fixture.CleanupGpuResources(); }
     }
 
-    /// <summary>Generated kernels and declared numerical helpers avoid repeated compile/link without sharing native objects.</summary>
+    /// <summary>Fresh precompiled checker assets and declared numerical helpers reuse bytes without sharing native input state.</summary>
     [Fact]
     public void KernelAndDeclaredHelperCacheHitsHaveFreshUniformState()
     {
@@ -54,14 +56,19 @@ public sealed class ShaderCachePolicyTests(HeadlessGLFixture fixture)
             new ProgramBinaryStore("policy-kernels", fileSystem: new CountingDiskCacheFileSystem()));
         try
         {
-            const string source = "#version 450\nlayout(local_size_x=1)in;layout(location=0)uniform int value;layout(r32ui,binding=0)uniform uimage2D result;void main(){imageStore(result,ivec2(0),uvec4(value));}";
-            using var first = new GpuFixtureProgram(source);
-            GL.ProgramUniform1(first.Id, 0, 37);
+            using var assets = new BinaryShaderApiFixture();
+            using var first = PrepareChecker(assets);
+            int firstLocation = first.ProgramLayout.GetUniformLocation(first.ProgramId, "sourceImage");
+            Assert.True(firstLocation >= 0);
+            // Sampler assignments are native per-program state. An independent cached-binary owner
+            // must retain its declared unit rather than inherit the first owner's deliberate mutation.
+            GL.ProgramUniform1(first.ProgramId, firstLocation, 37);
             using (var capture = new NativeShaderAllocationCapture())
             {
-                using var second = new GpuFixtureProgram(source);
-                Assert.NotEqual(first.Id, second.Id);
-                GL.GetUniform(second.Id, 0, out int value);
+                using var second = PrepareChecker(assets);
+                Assert.NotEqual(first.ProgramId, second.ProgramId);
+                int secondLocation = second.ProgramLayout.GetUniformLocation(second.ProgramId, "sourceImage");
+                GL.GetUniform(second.ProgramId, secondLocation, out int value);
                 Assert.Equal(0, value);
                 Assert.Empty(capture.Stages);
                 Assert.Equal(0, capture.Links);
@@ -106,7 +113,7 @@ public sealed class ShaderCachePolicyTests(HeadlessGLFixture fixture)
         Assert.Same(secondStore, DriverProgramCache.CaptureStore().Store);
         // Manager metadata belongs to its original thread. Only the physical context and byte-store
         // policy move here; no live resource manager or native resource owner is transferred.
-        fixture.UseContextLocalResources();
+        fixture.RetireResourceServices();
         var inheritedPolicy = disable ? DriverProgramCache.UseStoreForTesting(null) : null;
         Exception? failure = null;
         GLFW.MakeContextCurrent(null);
@@ -114,11 +121,11 @@ public sealed class ShaderCachePolicyTests(HeadlessGLFixture fixture)
         {
             try
             {
-                fixture.EnsureContextValid();
+                fixture.EnsureContextValid(prepareAssertions: false);
                 Assert.Same(disable ? null : secondStore, DriverProgramCache.CaptureStore().Store);
                 using (DriverProgramCache.UseStoreForTesting(null))
                 {
-                    fixture.EnsureContextValid();
+                    fixture.EnsureContextValid(prepareAssertions: false);
                     Assert.Null(DriverProgramCache.CaptureStore().Store);
                 }
                 Assert.Same(disable ? null : secondStore, DriverProgramCache.CaptureStore().Store);
@@ -128,7 +135,7 @@ public sealed class ShaderCachePolicyTests(HeadlessGLFixture fixture)
             catch (Exception error) { failure = error; }
             finally
             {
-                try { fixture.CleanupGpuResources(); }
+                try { fixture.RetireResourceServices(); }
                 finally { GLFW.MakeContextCurrent(null); }
             }
         });
@@ -140,6 +147,16 @@ public sealed class ShaderCachePolicyTests(HeadlessGLFixture fixture)
     #endregion
 
     #region Private
+    /// <summary>Creates an independent production checker asset for explicit binary-cache ownership assertions.</summary>
+    private static ComputeShaderAsset PrepareChecker(BinaryShaderApiFixture assets)
+    {
+        var contract = ShaderBuildTool.Spirv.TestShaderPrograms.Create().Programs["tests/assertion-layer-0-0"];
+        bool created = ComputeShaderAsset.TryCreateFromAssets(assets.Api, new ShaderSettings(contract),
+            out var program, out string error);
+        Assert.True(created, error); Assert.NotNull(program);
+        return program;
+    }
+
     /// <summary>Initializes the shared context and explicitly requires the cache capability being exercised.</summary>
     private void Start()
     {

@@ -19,7 +19,7 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
     public void AvailableInputsStillRequireOwningContextAndThread(bool worker)
     {
         fixture.EnsureContextValid();
-        fixture.UseContextLocalResources();
+        fixture.RetireResourceServices();
         var origin = RenderContextRegistry.Current();
         var current = origin;
         using var manager = new RHIResourceManager(() => current, static _ => true);

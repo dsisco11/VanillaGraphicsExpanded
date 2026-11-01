@@ -31,7 +31,7 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
     public void OwningDisposalRetiresNativeNameAndCanonicalEntry(GpuResourceKind kind)
     {
         fixture.EnsureContextValid();
-        fixture.CleanupGpuResources();
+        fixture.RetireResourceServices();
         OpenGlStateCache.Current.InvalidateAll();
         using var manager = new RHIResourceManager();
         RHIResourceManagerSystem.Initialize(manager);

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -28,14 +29,9 @@ public sealed partial class LumOnNearFieldFunctionalTests
         var offScreen = Trace(fixture);
         var onScreen = Trace(fixture, screenDepth: depth);
         var suppressed = Trace(fixture, screenDepth: depth, suppress: true);
-        ImageAssertions.Predicate(onScreen.Radiance, "return bvec2(same(a,b,15u),false);", suppressed.Radiance).AssertEqual();
-        ImageAssertions.Predicate(onScreen.Meta, "return bvec2(same(a,b,3u),false);", suppressed.Meta).AssertEqual();
-        var checkedDirections = ObserveScreenTrace(onScreen, screenOnly, """
-            bool hit=(floatBitsToUint(c.g)&1u)!=0u;
-            bool valid=b.r==0.0 && (flags&1u)==1u && (flags&32u)==0u
-                && all(equal(d.rgb,vec3(0))) && all(lessThanEqual(abs(a.rgb-d.rgb),vec3(0.002)));
-            return bvec2(!hit || valid,hit);
-            """, offScreen);
+        ImageAssertions.Predicate(onScreen.Radiance, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, suppressed.Radiance).AssertEqual();
+        ImageAssertions.Predicate(onScreen.Meta, GpuAssertionPredicate.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4, suppressed.Meta).AssertEqual();
+        var checkedDirections = ObserveScreenTrace(onScreen, screenOnly, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsScreenHits_ScreenHits_AndOffscreenHitsRequireCachePublication, offScreen);
         checkedDirections.AssertEqual(); uint checkedHits=checkedDirections.MatchingTexels;
         Assert.True(checkedHits > 0, "The visible plane must produce accepted screen hits.");
     }
@@ -49,10 +45,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         float depth = ScreenDepthAt(-7);
         var screenOnly = Trace(fixture, screenDepth: depth, nearFieldTracing: false);
         var result = Trace(fixture, screenDepth: depth);
-        var checkedDirections = ObserveScreenTrace(result, screenOnly, """
-            bool hit=(floatBitsToUint(c.g)&1u)!=0u;
-            return bvec2(!hit || (b.r==0.0 && all(equal(a.rgb,vec3(0)))),hit);
-            """);
+        var checkedDirections = ObserveScreenTrace(result, screenOnly, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsScreenHits_ScreenHits_UnavailableLighting_RemainsUnresolved);
         checkedDirections.AssertEqual(); uint checkedHits=checkedDirections.MatchingTexels;
         Assert.True(checkedHits > 0);
     }
@@ -72,14 +65,9 @@ public sealed partial class LumOnNearFieldFunctionalTests
         var screenOnly = Trace(fixture, screenDepth: depth, nearFieldTracing: false, screenEmission: 0.25f, emissionBoost: 2);
         var result = Trace(fixture, screenDepth: depth, screenEmission: 0.25f, emissionBoost: 2);
         var suppressed = Trace(fixture, screenDepth: depth, screenEmission: 0.25f, emissionBoost: 2, suppress: true);
-        ImageAssertions.Predicate(result.Radiance, "return bvec2(same(a,b,15u),false);", suppressed.Radiance).AssertEqual();
-        ImageAssertions.Predicate(result.Meta, "return bvec2(same(a,b,3u),false);", suppressed.Meta).AssertEqual();
-        var checkedDirections = ObserveScreenTrace(result, screenOnly, """
-            bool hit=(floatBitsToUint(c.g)&1u)!=0u;
-            bool valid=b.r==multipliers.x && all(greaterThanEqual(a.rgb,vec3(multipliers.y)))
-                && all(lessThanEqual(a.rgb,vec3(multipliers.z)));
-            return bvec2(!hit || valid,hit);
-            """, parameters:new(publish?0:1,publish?0:.495f,publish?0:.505f,0));
+        ImageAssertions.Predicate(result.Radiance, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, suppressed.Radiance).AssertEqual();
+        ImageAssertions.Predicate(result.Meta, GpuAssertionPredicate.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4, suppressed.Meta).AssertEqual();
+        var checkedDirections = ObserveScreenTrace(result, screenOnly, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsScreenHits_ScreenHits_EmissionIsNotDoubled_AndSurvivesUnavailableLocalData, parameters:new(publish?0:1,publish?0:.495f,publish?0:.505f,0));
         checkedDirections.AssertEqual(); uint checkedHits=checkedDirections.MatchingTexels;
         Assert.True(checkedHits > 0);
     }
@@ -96,10 +84,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         float depth = ScreenDepthAt(-7);
         var screenOnly = Trace(fixture, screenDepth: depth, nearFieldTracing: false, screenEmission: 1);
         var result = Trace(fixture, screenDepth: depth, screenEmission: 1);
-        var checkedDirections = ObserveScreenTrace(result, screenOnly, """
-            bool hit=(floatBitsToUint(c.g)&1u)!=0u;
-            return bvec2(!hit || (b.r==0.0 && all(equal(a.rgb,vec3(0)))),hit);
-            """);
+        var checkedDirections = ObserveScreenTrace(result, screenOnly, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsScreenHits_ScreenHits_UnavailableLighting_RemainsUnresolved);
         checkedDirections.AssertEqual(); uint checkedHits=checkedDirections.MatchingTexels;
         Assert.True(checkedHits > 0);
     }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.PBR.Clouds.Volume;
@@ -52,18 +53,13 @@ public sealed class CloudTemporalFreshnessTests(HeadlessGLFixture fixture):LumOn
         var result=scene.FilterAuthored(rays,rayBins,rays,previousYaw:yaw);
         try
         {
-            const string selection="bool selected=coordinate.x>=1 && coordinate.x<7 && coordinate.y>=1 && coordinate.y<7 && a.g==2.0 && a.b==0.0; ";
+
             // Age and numerical oracle occupy distinct images; keep each original condition explicit.
-            ImageAssertions.Predicate(result.Diagnostics!,selection+
-                "return bvec2(!selected || (b.r==2.0 && b.a==0.5 && c.r==0.5),false);",
+            ImageAssertions.Predicate(result.Diagnostics!, GpuAssertionPredicate.CloudTemporalFreshnessTests_ResampledFreshnessUsesPhysicalWeightsAndExpiresWithoutObservations,
                 result.Cloud,result.Bins).AssertEqual();
-            var age=ImageAssertions.Predicate(result.Diagnostics!,selection+
-                "return bvec2(!selected || abs(b.r-c.r)<=0.004,selected);",result.Age,oracle);
+            var age=ImageAssertions.Predicate(result.Diagnostics!, GpuAssertionPredicate.CloudTemporalFreshnessTests_ResampledFreshnessUsesPhysicalWeightsAndExpiresWithoutObservations_2,result.Age,oracle);
             age.AssertEqual();Assert.True(age.MatchingTexels>0);
-            ImageAssertions.Predicate(result.Diagnostics!,selection+"""
-                return bvec2(!selected || (roundEven(double(b.a)*1e4)==roundEven(double(c.g)*1e4)
-                    && b.a>=1.0 && b.a<=4.0),false);
-                """,result.Metadata,oracle).AssertEqual();
+            ImageAssertions.Predicate(result.Diagnostics!, GpuAssertionPredicate.CloudTemporalFreshnessTests_ResampledFreshnessUsesPhysicalWeightsAndExpiresWithoutObservations_3,result.Metadata,oracle).AssertEqual();
             // Reuse completed physical history; the required age image is copied without resetting its clocks.
             for(int frame=1;frame<8;frame++)
             {
@@ -71,7 +67,7 @@ public sealed class CloudTemporalFreshnessTests(HeadlessGLFixture fixture):LumOn
                 var next=scene.FilterAuthored(rays,rayBins,rays,previousYaw:yaw);
                 result.Dispose();result=next;
             }
-            Assert.Equal(0u,ImageAssertions.Predicate(result.Diagnostics!,"return bvec2(true,a.g==2.0);").MatchingTexels);
+            Assert.Equal(0u,ImageAssertions.Predicate(result.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_10).MatchingTexels);
         }
         finally { result.Dispose(); }
     }

@@ -402,7 +402,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         // A blended radiance retains the current trace classification; combining encoded
         // outcomes with bitwise OR would manufacture invalid outcome 7 from 2 and 5.
-        ImageAssertions.Predicate(outputAtlas[1],"return bvec2(((floatBitsToUint(a.g)>>16)&7u)==2u,false);").AssertEqual();
+        ImageAssertions.Predicate(outputAtlas[1], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_Temporal_MetaReducesHistoryWeight).AssertEqual();
     }
 
     /// <summary>
@@ -539,7 +539,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        ImageAssertions.Predicate(outputAtlas[0],"return bvec2(all(lessThan(abs(a),vec4(multipliers.x))),false);",parameters:new(TestEpsilon,0,0,0)).AssertEqual();
+        ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_InvalidProbe_OutputsZero,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
@@ -609,7 +609,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             if(!WasTracedThisFrame(x,y,0,0,8)){mask[y*AtlasWidth+x]=1;nonTracedTotal++;}
         Assert.Equal(56,nonTracedTotal);
         using var selection=TestFramework.CreateTexture(AtlasWidth,AtlasHeight,TextureFormat.R32f,mask);
-        var preserved=ImageAssertions.Predicate(outputAtlas[0],"bool selected=b.r==1;return bvec2(!selected || (a.r>.9 && a.g<.1 && a.b<.1),selected);",selection);
+        var preserved=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_NonTracedTexels_PreserveCurrentOutput,selection);
         preserved.AssertEqual();Assert.Equal((uint)nonTracedTotal,preserved.MatchingTexels);
     }
 
@@ -769,7 +769,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        ImageAssertions.Predicate(outputAtlas[0],"return bvec2(a.r>.9 && a.g<.1 && a.b<.1,false);",parameters:new(TestEpsilon,0,0,0)).AssertEqual();
+        ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_Disocclusion_ResetsToCurrentFrame,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
@@ -963,7 +963,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         if(budget==1)
         {
-            var rejected=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,b.r==0 && a.b>.1);",outputAtlas[1]);
+            var rejected=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_VelocityInvalid_RejectsHistory,outputAtlas[1]);
             rejected.AssertEqual();Assert.True(rejected.MatchingTexels>0);
             return;
         }
@@ -1075,7 +1075,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             frame1Output = new(outputAtlas[0]);
         }
 
-        var differences=ImageAssertions.Predicate(frame0Output!.Texture,"precise vec3 delta=abs(a.rgb-b.rgb);return bvec2(true,any(greaterThan(delta,vec3(.1))));",frame1Output!.Texture);
+        var differences=ImageAssertions.Predicate(frame0Output!.Texture, GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_FrameIndex_AffectsTracedTexels,frame1Output!.Texture);
         differences.AssertEqual();Assert.True(differences.MatchingTexels>0);
         }
         finally { frame1Output?.Dispose();frame0Output?.Dispose(); }
@@ -1257,7 +1257,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        ImageAssertions.Predicate(outputAtlas[0],"return bvec2(a.r>.9 && a.g<.1 && a.b<.1,false);",parameters:new(TestEpsilon,0,0,0)).AssertEqual();
+        ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_Disocclusion_ResetsToCurrentFrame,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
@@ -1496,7 +1496,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         programId.ProbeAnchors = anchorInputs118;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        ImageAssertions.Predicate(outputAtlas[0],"return bvec2(all(lessThan(abs(a.rgb),vec3(multipliers.x))),false);",parameters:new(TestEpsilon,0,0,0)).AssertEqual();
+        ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_InvalidProbe_OutputsCurrentWithoutBlending,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
@@ -80,7 +81,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
             (int)Math.Ceiling(center.Z / 32d) * 32);
         // Keep the clear segment inside this deliberately small ring; coverage policy is tested separately.
         var result = Trace(fixture, worldOffset: traceOffset, cacheSpacing: 2);
-        ObserveTrace(result, "return bvec2(a.r>=9.99 && a.r<=10.01 && b.r==1.0,false);").AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsCache_ParallaxNeighborhood_PreservesConstantRadiance).AssertEqual();
     }
 
     /// <summary>Compact 3D uploads preserve non-four-byte row data and the caller's unpack alignment.</summary>

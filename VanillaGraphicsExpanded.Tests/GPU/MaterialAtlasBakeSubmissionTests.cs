@@ -97,18 +97,11 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             }
             using var rectangle = new GpuImageSnapshot(destination);
             // The complete rectangle is finite; every exterior texel retains the independently authored sentinel.
-            ImageAssertions.Predicate(rectangle.Texture, """
-                bool inside=coordinate.x>=16 && coordinate.x<48 && coordinate.y>=16 && coordinate.y<48;
-                bool valid=inside ? (!any(isnan(a)) && !any(isinf(a))) : all(equal(a,multipliers));
-                return bvec2(valid,false);
-                """,parameters:new(sentinel[0],sentinel[1],sentinel[2],sentinel[3])).AssertEqual();
+            ImageAssertions.Predicate(rectangle.Texture, GpuAssertionPredicate.MaterialAtlasBakeSubmissionTests_IndependentAtlasEntriesPreserveStateAndRectangles,parameters:new(sentinel[0],sentinel[1],sentinel[2],sentinel[3])).AssertEqual();
             var heights=ImageAssertions.Inspect(rectangle.Texture,
                 selection:new(new(),origin,origin,0,size,size),channelMask:8);
             Assert.True(heights.Maximum-heights.Minimum>.001f,"The production solver must produce nonflat checkerboard relief.");
-            Assert.True(ImageAssertions.Predicate(rectangle.Texture, """
-                bool inside=coordinate.x>=16 && coordinate.x<48 && coordinate.y>=16 && coordinate.y<48;
-                return bvec2(true,inside && a.a>0.01 && a.a<0.99);
-                """).MatchingTexels>0);
+            Assert.True(ImageAssertions.Predicate(rectangle.Texture, GpuAssertionPredicate.MaterialAtlasBakeSubmissionTests_IndependentAtlasEntriesPreserveStateAndRectangles_2).MatchingTexels>0);
             using (var hostile = new HostileFullscreenState())
             {
                 // An absent input is rejected before admission without touching caller state.
@@ -138,11 +131,7 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
                     [new TextureAtlasPosition { atlasTextureId = source.TextureId, x1 = .25f, y1 = .25f, x2 = .75f, y2 = .75f }]);
                 hostile.AssertRestored(); AssertBindings();
             }
-            ImageAssertions.Predicate(destination, """
-                bool inside=coordinate.x>=16 && coordinate.x<48 && coordinate.y>=16 && coordinate.y<48;
-                vec4 expected=inside?b:vec4(0.5,0.5,1.0,0.5);
-                return bvec2(all(lessThanEqual(abs(a-expected),vec4(0.001))),false);
-                """,rectangle.Texture).AssertEqual();
+            ImageAssertions.Predicate(destination, GpuAssertionPredicate.MaterialAtlasBakeSubmissionTests_IndependentAtlasEntriesPreserveStateAndRectangles_3,rectangle.Texture).AssertEqual();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { OpenGlStateCache.Current.InvalidateAll(); }

@@ -293,7 +293,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
     {
         fixture.EnsureContextValid();
         var context = RHICommandContext.Current;
-        fixture.UseContextLocalResources();
+        fixture.RetireResourceServices();
         using var query = context.CreateQuery(new(QueryKind.Timestamp)).RequireResource();
         using var fence = context.InsertFence();
         Assert.Null(RHIResourceManagerSystem.CurrentManager);
@@ -377,7 +377,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
             GL.QueryCounter(query, QueryCounterTarget.Timestamp);
             Assert.Same(queryEntry, manager.FindResource(GpuResourceKind.Query, query));
             Assert.Equal(1ul, queryEntry.MetadataRevision); Assert.Equal(1ul, syncEntry.MetadataRevision);
-            fixture.CleanupGpuResources();
+            fixture.RetireResourceServices();
             Assert.Equal(GpuResourceRegistrationState.ContextRetired, queryEntry.State);
             Assert.Equal(GpuResourceRegistrationState.ContextRetired, syncEntry.State);
             GL.DeleteQuery(query); GL.DeleteSync(sync);

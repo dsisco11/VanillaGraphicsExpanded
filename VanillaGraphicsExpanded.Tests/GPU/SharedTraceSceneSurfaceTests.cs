@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
@@ -50,10 +51,10 @@ public sealed class SharedTraceSceneSurfaceTests : RenderTestBase
         scene.Publish();
         using var page = new SharedSurfacePageFixture(anchor);
         Assert.True(page.Capture(scene.Scene));
-        ImageAssertions.Predicate(page.MaterialAtlas,"return bvec2(a.b!=0,false);").AssertEqual();
+        ImageAssertions.Predicate(page.MaterialAtlas, GpuAssertionPredicate.SharedTraceSceneSurfaceTests_ValidSharedSurfaceCapturesAndAccumulates).AssertEqual();
         Assert.True(page.Relight(scene.Scene)); Assert.True(page.Relight(scene.Scene));
         float expected=32*GgxHemisphereReference.CapturedDiffuse(1);
-        ImageAssertions.Predicate(page.IrradianceAtlas,"return bvec2(a.r>=multipliers.x && a.r<=multipliers.y && a.a==2,false);",
+        ImageAssertions.Predicate(page.IrradianceAtlas, GpuAssertionPredicate.SharedTraceSceneSurfaceTests_ValidSharedSurfaceCapturesAndAccumulates_2,
             parameters:new(expected-.1f,expected+.1f,0,0)).AssertEqual();
         page.ResetLighting();
         ImageAssertions.CompareConstant(page.IrradianceAtlas,0).AssertEqual();

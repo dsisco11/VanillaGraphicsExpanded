@@ -158,7 +158,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         {
             this.fixture = fixture; fixture.MakeCurrent();
             GpuSamplers.Dispose();
-            fixture.CleanupGpuResources();
+            fixture.RetireResourceServices();
             GLFW.DefaultWindowHints();
             GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4); GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5);
             GLFW.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Compat);
@@ -235,7 +235,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             GL.DrawArrays(lines ? PrimitiveType.Lines : PrimitiveType.Triangles, 0, lines ? 2 : 3);
             lastImage?.Dispose();lastImage=null;
             lastImage=NativeFramebufferImage.Capture(framebuffer,0,32,32,TextureFormat.Rgba8);
-            var result=assertions.Predicate(lastImage.Texture,"return bvec2(true,a.r!=0);");
+            var result=assertions.Predicate(lastImage.Texture, GpuAssertionPredicate.ConfigurableRasterizerGpuTests_Count);
             result.AssertEqual();return checked((int)result.MatchingTexels);
         }
         /// <summary>Deletes native fixture resources before their context is destroyed.</summary>

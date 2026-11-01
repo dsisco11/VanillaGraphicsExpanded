@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
@@ -202,7 +203,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
             pool.PagePool.DecodePhysicalId(captureOut[i].PhysicalPageId,out ushort atlasIdx,out ushort tileX,out ushort tileY);
             positions.Add((tileX*tileSize+tileSize/2,tileY*tileSize+tileSize/2,atlasIdx));
         }
-        var proof=ImageAssertions.PredicateAt(materialAtlas,positions,"return bvec2((value.r!=0 || value.g!=0) && roundEven(value.b*255)==9 && value.a==0,true);");
+        var proof=ImageAssertions.PredicateAt(materialAtlas,positions, GpuAssertionPredicate.LumonSceneRuntimeCaptureWiringTests_RuntimeWiring_FeedbackToCpuToCapture_WritesExpectedMaterialNormals);
         proof.AssertEqual();Assert.Equal((uint)captureCount,proof.MatchingTexels);
     }
 

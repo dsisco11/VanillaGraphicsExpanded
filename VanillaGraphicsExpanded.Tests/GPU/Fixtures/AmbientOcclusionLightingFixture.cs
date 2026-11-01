@@ -44,7 +44,7 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
         indirect=framework.CreateTexture(1,1,TextureFormat.Rgba32f,[availability,availability,availability,1f]);
         // A matched zero-visibility field isolates each lobe through the existing independent
         // AO controls without changing material roughness or its compensated energy budget.
-        using(var projected=projections.Apply(scene.Position,"return vec4(0,-a.b,0,0);"))
+        using(var projected=projections.Apply(scene.Position, GpuImageProjection.AmbientOcclusionLightingFixture_AmbientOcclusionLightingFixture))
         using(var retained=new GpuImageSnapshot(projected))
             zeroVisibility=retained.ToPlane();
         var direct=programs.Create<PBRDirectLightingShaderProgram>();
@@ -93,10 +93,8 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
         using var specularCombined=Render();
         composite.DiffuseAOStrength=1;composite.SpecularAOStrength=1;
         using var combined=Render();
-        using var diffuse=projections.Apply(diffuseCombined.Texture,
-            "precise vec3 contribution=a.rgb-b.rgb;return vec4(contribution,0);",second:specularBaseline.Texture);
-        using var specular=projections.Apply(specularCombined.Texture,
-            "precise vec3 contribution=a.rgb-b.rgb;return vec4(contribution,0);",second:diffuseBaseline.Texture);
+        using var diffuse=projections.Apply(diffuseCombined.Texture, GpuImageProjection.AmbientOcclusionLightingFixture_Capture,second:specularBaseline.Texture);
+        using var specular=projections.Apply(specularCombined.Texture, GpuImageProjection.AmbientOcclusionLightingFixture_Capture,second:diffuseBaseline.Texture);
         return new([direct.Texture,diffuse,specular,combined.Texture]);
     }
 

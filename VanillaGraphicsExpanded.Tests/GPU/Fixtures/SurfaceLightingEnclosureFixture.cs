@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
@@ -268,11 +269,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
             try { selected.UploadDataImmediate(mask);publicationSelection=selected; }
             catch { selected.Dispose();throw; }
         }
-        var proof=publicationAssertions.Predicate(Snapshot.OutgoingRadiance,"""
-            bool selected=b.r==1;
-            bool color=all(greaterThanEqual(a.rgb,vec3(0))) && all(lessThanEqual(a.rgb,vec3(65504)));
-            return bvec2(!selected || (a.a==1 && color),selected);
-            """,publicationSelection);
+        var proof=publicationAssertions.Predicate(Snapshot.OutgoingRadiance, GpuAssertionPredicate.SurfaceLightingEnclosureFixture_Predicate,publicationSelection);
         proof.AssertEqual();
         Assert.Equal((uint)(lightingItems.Select(item=>item.PhysicalPageId).Distinct().Count()*Edge*Edge),proof.MatchingTexels);
     }

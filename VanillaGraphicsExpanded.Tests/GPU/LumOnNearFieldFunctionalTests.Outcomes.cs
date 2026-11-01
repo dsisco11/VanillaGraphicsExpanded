@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -38,14 +39,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         if (scenario != "unpublished") fixture.Publish(world);
         var result = Trace(fixture, budget: scenario == "budget" ? 1 : 256,
             nearFieldTracing: scenario != "sky", worldCache: scenario != "sky");
-        ObserveTrace(result, """
-            float expectedConfidence=multipliers.w!=0.0 && (flags&4u)!=0u ? 0.05 : multipliers.y;
-            bool valid=((flags>>16)&7u)==uint(multipliers.x) && b.r==expectedConfidence
-                && ((flags&1u)!=0u)==(multipliers.z!=0.0)
-                && ((flags&32u)!=0u)==(uint(multipliers.x)==5u);
-            if(uint(multipliers.x)!=5u && uint(multipliers.x)!=6u)valid=valid && a.r==0.0;
-            return bvec2(valid,false);
-            """, parameters:new(expectedOutcome,confidence,scenario is "solid" or "lit" or "dark" ? 1 : 0,scenario=="sky" ? 1 : 0)).AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsOutcomes_TraceOutcome_RecordsActualSourceAndAvailability, parameters:new(expectedOutcome,confidence,scenario is "solid" or "lit" or "dark" ? 1 : 0,scenario=="sky" ? 1 : 0)).AssertEqual();
     }
     #endregion
 }

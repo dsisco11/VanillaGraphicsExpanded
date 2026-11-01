@@ -128,7 +128,7 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
     private void PrepareContext(bool retiredManager)
     {
         fixture.EnsureContextValid();
-        fixture.UseContextLocalResources();
+        fixture.RetireResourceServices();
         Assert.Null(RHIResourceManagerSystem.CurrentManager);
         if (!retiredManager) return;
         fixture.InitializeResourceDisposal();

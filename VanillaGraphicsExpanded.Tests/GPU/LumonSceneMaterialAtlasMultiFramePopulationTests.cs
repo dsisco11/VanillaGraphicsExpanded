@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
@@ -206,7 +207,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
             DecodePhysicalId(physicalPageId,tilesPerAtlas,tilesPerAxis,out int atlasIndex,out int tileX,out int tileY);
             positions.Add((tileX*tileSize,tileY*tileSize,atlasIndex));
         }
-        var proof=ImageAssertions.PredicateAt(materialAtlas,positions,"return bvec2(value.r!=0 || value.g!=0,true);");
+        var proof=ImageAssertions.PredicateAt(materialAtlas,positions, GpuAssertionPredicate.LumonSceneMaterialAtlasMultiFramePopulationTests_MaterialAtlas_MultiFrame_SingleChunk_EventuallyPopulatesAllAllocatedTiles);
         proof.AssertEqual();Assert.Equal((uint)desiredPages,proof.MatchingTexels);
     }
 

@@ -185,7 +185,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
     public void LocalOwnerProjectionRejectsWithdrawnFacts(bool dsa)
     {
         fixture.EnsureContextValid();
-        fixture.UseContextLocalResources();
+        fixture.RetireResourceServices();
         try
         {
             using var capability = new DirectStateAccessCapabilityScope(dsa);

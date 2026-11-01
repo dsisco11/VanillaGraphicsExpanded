@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -29,7 +30,7 @@ public sealed class PmjJitterTextureUploadTests(HeadlessGLFixture fixture):Rende
             Storage=ResourceStorageMode.Immutable,Filter=TextureFilterMode.Nearest,Label="Tests.Pmj.Expected"
         }).RequireResource();
         oracle.UploadDataImmediate(expected.Select(value=>(float)value).ToArray());
-        ImageAssertions.Predicate(texture,"precise vec2 recovered=a.rg*65535;return bvec2(all(equal(roundEven(recovered),b.rg)),false);",oracle).AssertEqual();
+        ImageAssertions.Predicate(texture, GpuAssertionPredicate.PmjJitterTextureUploadTests_UploadMatchesPackedSequenceAndRetainsIndependentStorage,oracle).AssertEqual();
         using var original=new Assertions.GpuImageSnapshot(texture);
         int id=texture.TextureId;texture.EnsureCreated();Assert.Equal(id,texture.TextureId);
         using var independent=PmjJitterTexture.Create(count,seed);

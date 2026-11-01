@@ -179,12 +179,7 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
         using var smoothImage=new GpuImageSnapshot(textures.Sky,new(new(),0,0,0,width,height));
         using var solarImage=new GpuImageSnapshot(textures.Sky,new(new(),0,height,0,width,height));
         using var lunarImage=new GpuImageSnapshot(textures.Sky,new(new(),0,height*2,0,width,height));
-        ImageAssertions.Predicate(smoothImage.Texture, """
-            precise float reconstructed=a.r+b.r*d.g;
-            reconstructed=reconstructed+c.r*d.b;
-            reconstructed=reconstructed/multipliers.x;
-            return bvec2(a.r>0.0 && abs(reconstructed-d.r)<=2e-6,false);
-            """,solarImage.Texture,lunarImage.Texture,oracle,new(LightingStorage.PersistentScale,0,0,0)).AssertEqual();
+        ImageAssertions.Predicate(smoothImage.Texture, GpuAssertionPredicate.AtmosphereCelestialPublicationTests_ThreeBandsReconstructIndependentDirectionsAndFaintBackground,solarImage.Texture,lunarImage.Texture,oracle,new(LightingStorage.PersistentScale,0,0,0)).AssertEqual();
         Assert.Throws<ArgumentException>(() => textures.Upload(snapshot with { HasNightSources = false }));
         Assert.Throws<ArgumentException>(() => textures.Upload(snapshot with { MoonAngularRadius = AtmosphereSolarDisk.AngularRadius * .5f }));
         AssertAerialDecoder(textures, smooth, solarMie, lunarMie);

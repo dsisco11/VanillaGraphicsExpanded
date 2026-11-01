@@ -14,7 +14,7 @@ public sealed class ResourceOwnerSequencingTests(HeadlessGLFixture fixture)
     [Fact]
     public void PreStartupDeclarationQueuesWholeRetirementAfterRealization()
     {
-        fixture.EnsureContextValid(); fixture.UseContextLocalResources();
+        fixture.EnsureContextValid(); fixture.RetireResourceServices();
         using var buffer = new GpuVbo(BufferRole.Vertex, BufferUsage.StaticDraw, null);
         Assert.Null(buffer.ResourceManager);
         fixture.InitializeResourceDisposal();

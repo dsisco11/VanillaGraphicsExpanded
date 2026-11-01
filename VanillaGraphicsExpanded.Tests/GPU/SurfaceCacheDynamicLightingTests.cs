@@ -70,7 +70,7 @@ public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
         Assert.True(fixture.Page.Capture(scene));
         for (int update = 0; update < 4; update++) Assert.True(fixture.Page.Relight(scene, steps: 256));
         using var open = new GpuImageSnapshot(fixture.Page.IrradianceAtlas);
-        var observation = ImageAssertions.Predicate(open.Texture,"return bvec2(a.a==4,a.r>.5);");
+        var observation = ImageAssertions.Predicate(open.Texture, GpuAssertionPredicate.SurfaceCacheDynamicLightingTests_DoorwayClosureAndReopeningRetainStaleIllumination);
         observation.AssertEqual(); Assert.True(observation.MatchingTexels>0);
 
         foreach (bool isOpen in new[] { false, true })
@@ -99,7 +99,7 @@ public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
     private void AssertLighting(VanillaGraphicsExpanded.Rendering.GpuTexture image, float radiance, float weight)
     {
         Assert.Equal(8,image.Width);Assert.Equal(8,image.Height);
-        ImageAssertions.Predicate(image,"return bvec2(all(greaterThanEqual(a.rgb,vec3(multipliers.x))) && all(lessThanEqual(a.rgb,vec3(multipliers.y))) && a.a==multipliers.z,false);",
+        ImageAssertions.Predicate(image, GpuAssertionPredicate.SurfaceCacheDynamicLightingTests_AssertLighting,
             parameters:new(radiance-.01f,radiance+.01f,weight,0)).AssertEqual();
     }
     #endregion

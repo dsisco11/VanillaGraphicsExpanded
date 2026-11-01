@@ -37,8 +37,7 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
         Assert.True(fixture.Page.Capture(fixture.Geometry.Scene));
         Assert.True(fixture.Page.Relight(fixture.Geometry.Scene));
         float expected=32f*GgxHemisphereReference.CapturedDiffuse(reflectance);
-        ImageAssertions.Predicate(fixture.Page.IrradianceAtlas,
-            "return bvec2(all(greaterThanEqual(a.rgb,vec3(multipliers.x))) && all(lessThanEqual(a.rgb,vec3(multipliers.y))) && a.a==1,false);",
+        ImageAssertions.Predicate(fixture.Page.IrradianceAtlas, GpuAssertionPredicate.SurfaceCacheLightingTermsTests_UniformEnclosurePreservesIrradianceAcrossTravelDistances,
             parameters:new(expected-.1f,expected+.1f,0,0)).AssertEqual();
     }
 
@@ -56,8 +55,7 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
         fixture.Page.ResetLighting();
         Assert.False(fixture.Page.Relight(fixture.Geometry.Scene, steps: 2, rays: 16));
         // The first ray is identical; require at least one texel whose complete batch is rejected.
-        var mixed=ImageAssertions.Predicate(fixture.Page.IrradianceAtlas,
-            "bool selected=b.a==1 && a.a==0;return bvec2(!selected || all(equal(a.rgb,vec3(0))),selected);",second:firstDirections.Texture);
+        var mixed=ImageAssertions.Predicate(fixture.Page.IrradianceAtlas, GpuAssertionPredicate.SurfaceCacheLightingTermsTests_IncompleteHemisphereBatchPreservesHistory,second:firstDirections.Texture);
         mixed.AssertEqual();Assert.True(mixed.MatchingTexels>0,"Fixture must exercise a mixed resolved/unresolved hemisphere batch.");
     }
 
@@ -73,7 +71,7 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
         ImageAssertions.CompareConstant(expected.Texture,1,channelMask:8).AssertEqual();
         // Preserve the completed representable sample; only the authored temporal weight changes.
         using var transform=new GpuImageTransform();
-        using var history=transform.Apply(expected.Texture,"return vec4(a.rgb,1024);");
+        using var history=transform.Apply(expected.Texture, GpuImageProjection.SurfaceCacheLightingTermsTests_CappedHistoryPreservesConstantIrradiance);
         var area=new VanillaGraphicsExpanded.Rendering.RHI.RenderArea(0,0,8,8);
         VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BlitImages(new(
             VanillaGraphicsExpanded.Rendering.RHI.RHIAttachment.FromTexture(history),area,

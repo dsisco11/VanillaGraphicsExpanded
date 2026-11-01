@@ -93,7 +93,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
             if(mode is 2 or 3)shader.CaptureGaussian(4,mode==3);
             else shader.Capture(new(4,0,mode,mode==4?1:0),mode==4?new(.25f,.25f,.25f,0):Vector4.Zero);
             Draw(shader,target);
-            ImageAssertions.Predicate(target[0],"return bvec2(a.r>=3.99999 && a.r<=4.00001 && a.g>=1.99999 && a.g<=2.00001 && a.b>=.99999 && a.b<=1.00001,false);").AssertEqual();
+            ImageAssertions.Predicate(target[0], GpuAssertionPredicate.OwnedPostprocessShaderTests_BloomThresholdAndConstantEnergyAreDefined).AssertEqual();
         }
     }
 
@@ -187,7 +187,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
             ImageAssertions.CompareIntervals(target[0],lower,upper,row,1).AssertEqual();
             var massProof=ImageAssertions.Statistics(target[0],row,1);massProof.AssertFiniteRange();
             using var transform=new GpuImageTransform();
-            using var weighted=transform.Apply(target[0],"precise float moment=a.r*float(coordinate.x);return vec4(moment,0,0,0);");
+            using var weighted=transform.Apply(target[0], GpuImageProjection.OwnedPostprocessShaderTests_BloomGaussianFootprintHasNoSparseTapTroughs);
             var momentProof=ImageAssertions.Statistics(weighted,row,1);momentProof.AssertFiniteRange();
             double mass=massProof.Sum(0),moment=momentProof.Sum(0);
             Assert.InRange(mass,.9999,1.0001);Assert.InRange(moment/mass,16+phase-.0001,16+phase+.0001);
@@ -200,11 +200,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
                 Assert.InRange(actualRatio,Math.Max(0,expectedRatio-ratioTolerance),expectedRatio+ratioTolerance);
                 output.WriteLine($"Gaussian radius={radius} boundary/center={actualRatio:G9}, ideal={expectedRatio:G9}, absolute bound={ratioTolerance:G9}");
             }
-            var monotone=ImageAssertions.Predicate(target[0],"""
-                bool selected=coordinate.y==8 && coordinate.x>=int(multipliers.x)+17 && coordinate.x<=26;
-                float previous=texelFetch(actualImage,ivec3(max(coordinate.x-1,0),coordinate.y,0),0).r;
-                return bvec2(!selected || a.r<=previous+.00001,selected);
-                """,parameters:new(phase==0?0:1,0,0,0));
+            var monotone=ImageAssertions.Predicate(target[0], GpuAssertionPredicate.OwnedPostprocessShaderTests_BloomGaussianFootprintHasNoSparseTapTroughs_2,parameters:new(phase==0?0:1,0,0,0));
             monotone.AssertEqual();Assert.Equal(phase==0?10u:9u,monotone.MatchingTexels);
         }
     }
@@ -236,7 +232,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     using var scope64=commands.EnterBoundary(new("Tests.BloomOwner",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope64.Run(()=>owner.Render(commands,submission,source,(null,-20),settings));
 }
-        ImageAssertions.Predicate(first,"return bvec2(a.r>=1.99 && a.r<=2.01 && a.g>=.995 && a.g<=1.005 && a.b>=.4975 && a.b<=.5025,false);").AssertEqual();
+        ImageAssertions.Predicate(first, GpuAssertionPredicate.OwnedPostprocessShaderTests_BloomOwnerPreservesConstantGainAndLifetime).AssertEqual();
         owner.Prepare(assets.Api,submission,width,height,levels);
         Assert.Same(first,owner.Texture);
         {
@@ -279,12 +275,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     scope66.Run(()=>owner.Render(commands,submission,source,(null,0),settings));
 }
             Assert.Equal(129,owner.Texture.Width);Assert.Equal(65,owner.Texture.Height);
-            var halo=ImageAssertions.Predicate(owner.Texture,"""
-                float horizontal=texelFetch(actualImage,ivec3(128-coordinate.x,coordinate.y,0),0).r;
-                float vertical=texelFetch(actualImage,ivec3(coordinate.x,64-coordinate.y,0),0).r;
-                bool valid=!isnan(a.r) && !isinf(a.r) && a.r>=0 && horizontal>=a.r-.0002 && horizontal<=a.r+.0002 && vertical>=a.r-.0002 && vertical<=a.r+.0002;
-                return bvec2(valid,a.r>.00001);
-                """);
+            var halo=ImageAssertions.Predicate(owner.Texture, GpuAssertionPredicate.OwnedPostprocessShaderTests_BloomOwnerReconstructsSymmetricMultiscaleImpulse);
             halo.AssertEqual();int support=checked((int)halo.MatchingTexels);
             if(levels==3)narrowSupport=support;else Assert.True(support>narrowSupport);
         }

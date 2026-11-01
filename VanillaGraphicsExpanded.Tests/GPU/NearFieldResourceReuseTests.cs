@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -29,14 +30,11 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
         var restored = Trace(geometry, resources: first);
         Assert.NotSame(first.EnsureScreen(4, 4, 2).ScreenProbeAtlasTraceTex,
             second.EnsureScreen(4, 4, 2).ScreenProbeAtlasTraceTex);
-        ImageAssertions.Predicate(bright.Radiance, "return bvec2(same(a,b,15u),false);", restored.Radiance).AssertEqual();
-        ImageAssertions.Predicate(bright.Meta, "return bvec2(same(a,b,15u),false);", restored.Meta).AssertEqual();
-        ImageAssertions.Predicate(bright.Meta, "return bvec2(same(a,b,15u),false);", suppressed.Meta).AssertEqual();
-        ObserveTrace(restored, """
-            return bvec2(all(greaterThanEqual(a.rgb,vec3(9.9))) && all(lessThanEqual(a.rgb,vec3(10.1)))
-                && all(equal(c.rgb,vec3(0))) && b.r==1.0 && (flags&32u)!=0u,false);
-            """, suppressed).AssertEqual();
-        ObserveTrace(disabled, "return bvec2((flags&32u)==0u,false);").AssertEqual();
+        ImageAssertions.Predicate(bright.Radiance, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, restored.Radiance).AssertEqual();
+        ImageAssertions.Predicate(bright.Meta, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, restored.Meta).AssertEqual();
+        ImageAssertions.Predicate(bright.Meta, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, suppressed.Meta).AssertEqual();
+        ObserveTrace(restored, GpuAssertionPredicate.NearFieldResourceReuseTests_TraceRebindsInputsAfterBranchAndVariantChanges, suppressed).AssertEqual();
+        ObserveTrace(disabled, GpuAssertionPredicate.NearFieldResourceReuseTests_TraceRebindsInputsAfterBranchAndVariantChanges_2).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -70,7 +68,7 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
             Assert.Same(depth, first.Scene.Engine.Depth);
             Assert.True(radiance.IsValid);
             ImageAssertions.CompareConstant(other.ScreenProbeAtlasTraceTex, .75f).AssertEqual();
-            if (prior != null) ImageAssertions.Predicate(prior.Radiance, "return bvec2(same(a,b,15u),false);", result.Radiance).AssertEqual();
+            if (prior != null) ImageAssertions.Predicate(prior.Radiance, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, result.Radiance).AssertEqual();
             prior = result;
         }
         first.Dispose();

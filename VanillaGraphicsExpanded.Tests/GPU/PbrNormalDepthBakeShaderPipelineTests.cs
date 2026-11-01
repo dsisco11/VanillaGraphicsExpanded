@@ -431,8 +431,8 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         var alpha=ImageAssertions.Inspect(outFbo[0],channelMask:8);
         float minA=(float)alpha.Minimum,maxA=(float)alpha.Maximum;
-        uint ones=ImageAssertions.Predicate(outFbo[0],"return bvec2(true,a.a>0.999);").MatchingTexels;
-        uint zeros=ImageAssertions.Predicate(outFbo[0],"return bvec2(true,a.a<0.001);").MatchingTexels;
+        uint ones=ImageAssertions.Predicate(outFbo[0], GpuAssertionPredicate.PbrNormalDepthBakeShaderPipelineTests_NormalizeThenPack_ProducesNonFlatAlpha_ForBipolarInput).MatchingTexels;
+        uint zeros=ImageAssertions.Predicate(outFbo[0], GpuAssertionPredicate.PbrNormalDepthBakeShaderPipelineTests_NormalizeThenPack_ProducesNonFlatAlpha_ForBipolarInput_2).MatchingTexels;
 
         Assert.True(maxA - minA > 0.10f, $"Alpha too flat; min={minA}, max={maxA}");
         Assert.True(ones < (w * h * 0.95), $"Alpha appears saturated to 1.0; ones={ones}/{w*h}");
@@ -519,7 +519,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GpuFramebuffer.Unbind();
         GL.Disable(EnableCap.Blend);
 
-        uint ones=ImageAssertions.Predicate(target[0],"return bvec2(true,a.a>0.999);").MatchingTexels;
+        uint ones=ImageAssertions.Predicate(target[0], GpuAssertionPredicate.PbrNormalDepthBakeShaderPipelineTests_NormalizeThenPack_ProducesNonFlatAlpha_ForBipolarInput).MatchingTexels;
 
         Assert.True(ones < (w * h * 0.98), $"Alpha appears solid white under blending; ones={ones}/{w*h}");
     }

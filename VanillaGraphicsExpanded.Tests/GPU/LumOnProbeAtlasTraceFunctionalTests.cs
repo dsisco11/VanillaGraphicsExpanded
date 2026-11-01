@@ -347,7 +347,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         // Render to atlas
         TestFramework.RenderQuadTo(programId, outputAtlas);
 
-        ImageAssertions.Predicate(outputAtlas[0],"return bvec2(any(greaterThan(a.rgb,vec3(.01))),false);").AssertEqual();
+        ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_ValidProbe_TracesRaysToAtlas).AssertEqual();
     }
 
     #endregion
@@ -514,11 +514,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var distance=ImageAssertions.Predicate(outputAtlas[0],"""
-            bool selected=(coordinate.x%8==2 || coordinate.x%8==6) && (coordinate.y%8==2 || coordinate.y%8==6);
-            precise float decoded=exp(a.a)-1;
-            return bvec2(!selected || abs(decoded-multipliers.x)<multipliers.y,selected);
-            """,parameters:new(RayMaxDistance,RayMaxDistance*.1f,0,0));
+        var distance=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_HitDistance_EncodedCorrectly,parameters:new(RayMaxDistance,RayMaxDistance*.1f,0,0));
         distance.AssertEqual();Assert.Equal(16u,distance.MatchingTexels);
     }
 
@@ -579,7 +575,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        ImageAssertions.Predicate(outputAtlas[0],"return bvec2(all(lessThan(abs(a),vec4(multipliers.x))),false);",
+        ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_InvalidProbe_OutputsZero,
             parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
@@ -653,7 +649,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var classified=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,a.r<.1 && a.g>.9 && a.b>.9);");
+        var classified=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_TemporalDistribution_OnlyTracesSubset);
         classified.AssertEqual();
         int historyTexels=checked((int)classified.MatchingTexels);
         int tracedTexels=AtlasWidth*AtlasHeight-historyTexels;
@@ -740,7 +736,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var cyan=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,a.g>.01 && a.b>.01);");
+        var cyan=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_RayHit_ReturnsSceneColor);
         cyan.AssertEqual();Assert.True(cyan.MatchingTexels>0);
     }
 
@@ -805,7 +801,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var count=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,any(greaterThan(a.rgb,vec3(.001))));");
+            var count=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_RaySteps_AffectsTraceQuality);
             count.AssertEqual();lowNonZero=checked((int)count.MatchingTexels);
         }
 
@@ -843,7 +839,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var count=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,any(greaterThan(a.rgb,vec3(.001))));");
+            var count=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_RaySteps_AffectsTraceQuality);
             count.AssertEqual();highNonZero=checked((int)count.MatchingTexels);
         }
 
@@ -909,9 +905,9 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
 
-        var hit=ImageAssertions.Predicate(outputAtlas[0],"precise float distance=exp(a.a)-1;return bvec2(true,distance<multipliers.x);",
+        var hit=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_Meta_HitHigherThanSky,
             parameters:new(RayMaxDistance-.5f,0,0,0));
-        var sky=ImageAssertions.Predicate(outputAtlas[0],"precise float distance=exp(a.a)-1;return bvec2(true,distance>multipliers.x);",
+        var sky=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_Meta_HitHigherThanSky_2,
             parameters:new(RayMaxDistance-.05f,0,0,0));
         hit.AssertEqual();sky.AssertEqual();
         Assert.True(hit.MatchingTexels>0,"Expected at least one hit texel in the atlas");
@@ -1096,7 +1092,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            withSunRed = ImageAssertions.OrderedFloatSum(outputAtlas[0],"value.r");
+            withSunRed = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic);
         }
 
         // Without sun
@@ -1136,7 +1132,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            withoutSunRed = ImageAssertions.OrderedFloatSum(outputAtlas[0],"value.r");
+            withoutSunRed = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic);
         }
 
         // docs/PBR.Atmosphere.md: hemispherical sky replaces the former fabricated solar halo.
@@ -1209,7 +1205,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            fullTintBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0],"(value.r+value.g)+value.b");
+            fullTintBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
         }
 
         // Half tint
@@ -1249,7 +1245,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            halfTintBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0],"(value.r+value.g)+value.b");
+            halfTintBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
         }
 
         Assert.True(halfTintBrightness < fullTintBrightness * 0.8f,
@@ -1320,7 +1316,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            nearHitBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0],"(value.r+value.g)+value.b");
+            nearHitBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
         }
 
         // Far geometry (depth 0.99 - farther)
@@ -1361,7 +1357,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            farHitBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0],"(value.r+value.g)+value.b");
+            farHitBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
         }
 
         // Near hits should produce different radiance than far hits due to distance encoding
@@ -1476,7 +1472,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             frame1Output = new(outputAtlas[0]);
         }
 
-        var differences=ImageAssertions.Predicate(frame0Output!.Texture,"return bvec2(true,any(greaterThan(a.rgb,vec3(.01)))!=any(greaterThan(b.rgb,vec3(.01))));",
+        var differences=ImageAssertions.Predicate(frame0Output!.Texture, GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_FrameIndex_JittersTexelSelection,
             frame1Output!.Texture);
         differences.AssertEqual();Assert.True(differences.MatchingTexels>0);
         }
@@ -1544,7 +1540,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var count=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,any(greaterThan(a.rgb,vec3(.01))));");
+            var count=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_TexelsPerFrame_AffectsTemporalDistribution);
             count.AssertEqual();lowTexelsNonZero=checked((int)count.MatchingTexels);
         }
 
@@ -1581,7 +1577,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var count=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,any(greaterThan(a.rgb,vec3(.01))));");
+            var count=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_TexelsPerFrame_AffectsTemporalDistribution);
             count.AssertEqual();highTexelsNonZero=checked((int)count.MatchingTexels);
         }
 
@@ -1650,7 +1646,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
         ImageAssertions.Inspect(outputAtlas[0],channelMask:7).AssertFiniteRange();
-        var lit=ImageAssertions.Predicate(outputAtlas[0],"return bvec2(true,any(greaterThan(a.rgb,vec3(.001))));");
+        var lit=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_RaySteps_AffectsTraceQuality);
         lit.AssertEqual();Assert.True(lit.MatchingTexels>0);
     }
 
@@ -1717,7 +1713,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            identityBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0],"(value.r+value.g)+value.b");
+            identityBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
         }
 
         // Rotated view (90 degrees around Y)
@@ -1767,7 +1763,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            rotatedBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0],"(value.r+value.g)+value.b");
+            rotatedBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
         }
 
         // Both should produce valid output

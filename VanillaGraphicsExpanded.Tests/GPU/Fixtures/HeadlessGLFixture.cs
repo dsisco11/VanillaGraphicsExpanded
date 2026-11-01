@@ -24,7 +24,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// public class MyGpuTests : IClassFixture&lt;HeadlessGLFixture&gt;
 /// {
 ///     private readonly HeadlessGLFixture _fixture;
-///     
+///
 ///     public MyGpuTests(HeadlessGLFixture fixture)
 ///     {
 ///         _fixture = fixture;
@@ -32,7 +32,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// }
 /// </code>
 /// </remarks>
-public sealed class HeadlessGLFixture : IAsyncLifetime
+public sealed partial class HeadlessGLFixture : IAsyncLifetime
 {
     private unsafe Window* _glfwWindow;
     private bool _contextValid;
@@ -75,7 +75,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     /// Ensures the GL context is valid; throws skip exception if not.
     /// Call this at the start of tests that require GPU.
     /// </summary>
-    public void EnsureContextValid()
+    public void EnsureContextValid(bool prepareAssertions = true)
     {
         Assert.SkipWhen(!_contextValid, $"OpenGL context not available: {_initializationError ?? "Unknown error"}");
         _ = bindingHooks.Value;
@@ -101,6 +101,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
         // Capability discovery is fixture initialization, never part of an intercepted native operation.
         GpuSupport.EnsureCurrentContext();
         OpenGLBindingInterception.Install();
+        if (prepareAssertions) PrepareAssertionPrograms();
     }
 
     /// <summary>
@@ -121,31 +122,33 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     public void InitializeResourceDisposal()
     {
         EnsureContextValid();
-        if (_resourceManager is not null) return;
-
-        // Opt in per test lifetime, leaving manager lifecycle tests free to install their own manager.
+        // Reuse the context service; explicit lifecycle tests can retire it before installing their own.
         var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         _resourceManager = manager;
     }
 
-    /// <summary>Tests context-local RHI initialization without an installed manager or fabricated discovery permission.</summary>
-    public void UseContextLocalResources()
+    /// <summary>Ends an explicitly tested resource-service lifetime while keeping the native fixture context available.</summary>
+    public void RetireResourceServices()
     {
+        var failures = new System.Collections.Generic.List<Exception>();
+        AttemptCleanup(DisposeAssertionPrograms, failures);
         // Upload buffers and fences must retire while their original deletion service is available.
-        TextureStreamingSystem.Dispose();
-        TestUniformRing.Dispose();
+        AttemptCleanup(TextureStreamingSystem.Dispose, failures);
+        AttemptCleanup(TestUniformRing.Dispose, failures);
         var current = RHIResourceManagerSystem.CurrentManager;
-        RHIResourceManagerSystem.Shutdown();
-        current?.Dispose();
-        if (!ReferenceEquals(current, _resourceManager)) _resourceManager?.Dispose();
+        AttemptCleanup(RHIResourceManagerSystem.Shutdown, failures);
+        if (current is not null) AttemptCleanup(current.Dispose, failures);
+        if (_resourceManager is not null && !ReferenceEquals(current, _resourceManager))
+            AttemptCleanup(_resourceManager.Dispose, failures);
         _resourceManager = null;
+        if (failures.Count != 0) throw new AggregateException("GPU service retirement failed.", failures);
     }
 
-    /// <summary>Drains queued resources on this context and retires the fixture-owned disposal lifetime.</summary>
+    /// <summary>Drains per-test resources while retaining the fixture's manager and production shader owners.</summary>
     public void CleanupGpuResources()
     {
         if (!_contextValid) return;
-        EnsureContextValid();
+        EnsureContextValid(prepareAssertions: false);
 
         // The fixture manager is intentionally unticked: disposal uses the current context without
         // registering an engine renderer or capturing a thread that xUnit may subsequently change.
@@ -153,10 +156,6 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
         TestUniformRing.Dispose();
         var current = RHIResourceManagerSystem.CurrentManager;
         current?.ResourceDisposals?.DrainPending();
-        RHIResourceManagerSystem.Shutdown();
-        current?.Dispose();
-        if (!ReferenceEquals(current, _resourceManager)) _resourceManager?.Dispose();
-        _resourceManager = null;
     }
 
     #endregion
@@ -235,29 +234,56 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     /// <inheritdoc />
     public unsafe ValueTask DisposeAsync()
     {
+        retiringContext = true;
+        var failures = new System.Collections.Generic.List<Exception>();
         try
         {
             if (_glfwWindow != null)
             {
                 // Collections own separate, unshared contexts. Retire the test ring's
                 // buffer names and persistent mapping before another context can reuse them.
-                GLFW.MakeContextCurrent(_glfwWindow);
-                GL.LoadBindings(new GLFWBindingsContext());
-                OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
-                TestUniformRing.Dispose();
-                VanillaGraphicsExpanded.PBR.Materials.Energy.MicrofacetEnergyLookup.Retire();
-                VanillaGraphicsExpanded.Rendering.GpuSamplers.Dispose();
-                CleanupGpuResources();
-                Rendering.Integration.RenderContextRegistry.Retire(this);
-                GLFW.DestroyWindow(_glfwWindow);
+                try
+                {
+                    GLFW.MakeContextCurrent(_glfwWindow);
+                    if (GLFW.GetCurrentContext() != _glfwWindow)
+                        throw new InvalidOperationException("Could not select the fixture context for native retirement.");
+                    GL.LoadBindings(new GLFWBindingsContext());
+                    OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
+                    // A failed release must not prevent the remaining original owners from retiring.
+                    AttemptCleanup(DisposeAssertionPrograms, failures);
+                    AttemptCleanup(TestUniformRing.Dispose, failures);
+                    AttemptCleanup(VanillaGraphicsExpanded.PBR.Materials.Energy.MicrofacetEnergyLookup.Retire, failures);
+                    AttemptCleanup(GpuSamplers.Dispose, failures);
+                    AttemptCleanup(RetireResourceServices, failures);
+                }
+                catch (Exception error) { failures.Add(error); }
+                // Context setup can itself fail. Retire its namespace and destroy its window regardless;
+                // never run native owner cleanup against whichever foreign context remained selected.
+                AttemptCleanup(() => Rendering.Integration.RenderContextRegistry.Retire(this), failures);
+                // Retired-context owners discard their original names without native calls. This also
+                // clears service authority if selecting the window failed before ordinary cleanup.
+                AttemptCleanup(RetireResourceServices, failures);
+                AttemptCleanup(() => GLFW.DestroyWindow(_glfwWindow), failures);
                 _glfwWindow = null;
             }
 
-            GLFW.Terminate();
+            AttemptCleanup(GLFW.Terminate, failures);
             _contextValid = false;
-            return ValueTask.CompletedTask;
         }
-        finally { shaderCache.Dispose(); }
+        finally
+        {
+            if (ReferenceEquals(currentFixture, this)) currentFixture = null;
+            AttemptCleanup(shaderCache.Dispose, failures);
+        }
+        if (failures.Count != 0) throw new AggregateException("GPU fixture retirement failed.", failures);
+        return ValueTask.CompletedTask;
+    }
+
+    /// <summary>Preserves cleanup failures while allowing remaining ordered owners and native context stages to retire.</summary>
+    private static void AttemptCleanup(Action cleanup, System.Collections.Generic.List<Exception> failures)
+    {
+        try { cleanup(); }
+        catch (Exception error) { failures.Add(error); }
     }
 
 #if DEBUG

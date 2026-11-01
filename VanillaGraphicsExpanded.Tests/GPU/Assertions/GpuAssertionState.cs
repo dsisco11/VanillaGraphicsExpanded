@@ -1,5 +1,6 @@
 using OpenTK.Graphics.OpenGL4;
 using VanillaGraphicsExpanded.Rendering.Integration;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Assertions;
 
@@ -9,6 +10,9 @@ internal sealed class GpuAssertionState : IDisposable
     private readonly (nint Handle, long Generation) origin = RenderContextRegistry.Current();
     private readonly int program = GL.GetInteger(GetPName.CurrentProgram);
     private readonly int active = GL.GetInteger(GetPName.ActiveTexture);
+    private readonly int uniformGeneric = GL.GetInteger(GetPName.UniformBufferBinding);
+    private readonly int uniformName;
+    private readonly long uniformStart, uniformSize;
     private readonly (int Array, int Sampler)[] textures = new (int, int)[5];
     private readonly (int Name, int Level, int Layered, int Layer, int Access, int Format)[] images = new (int, int, int, int, int, int)[2];
 
@@ -19,6 +23,10 @@ internal sealed class GpuAssertionState : IDisposable
         if (!RenderContextRegistry.IsCurrentResourceContext(origin))
             throw new InvalidOperationException("Cannot restore checker state in a foreign context.");
         GL.UseProgram(program);
+        if (uniformName != 0 && uniformSize > 0)
+            GL.BindBufferRange(BufferRangeTarget.UniformBuffer, 28, uniformName, (nint)uniformStart, (nint)uniformSize);
+        else GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 28, uniformName);
+        GL.BindBuffer(BufferTarget.UniformBuffer, uniformGeneric);
         for (int unit = 0; unit < textures.Length; unit++)
         {
             GL.ActiveTexture(TextureUnit.Texture0 + unit);
@@ -43,6 +51,18 @@ internal sealed class GpuAssertionState : IDisposable
         // Querying texture units changes the active selector temporarily, including on partial construction failure.
         try
         {
+            // Interception retains base versus range semantics, which native getters cannot distinguish.
+            if (OpenGlStateCache.Current.TryGetCachedIndexedBuffer(OpenTK.Graphics.OpenGL.BufferRangeTarget.UniformBuffer,
+                28, out uniformName, out nint start, out nint size))
+            {
+                uniformStart = start; uniformSize = size;
+            }
+            else
+            {
+                GL.GetInteger((GetIndexedPName)All.UniformBufferBinding, 28, out uniformName);
+                GL.GetInteger64((GetIndexedPName)All.UniformBufferStart, 28, out uniformStart);
+                GL.GetInteger64((GetIndexedPName)All.UniformBufferSize, 28, out uniformSize);
+            }
             for (int unit = 0; unit < textures.Length; unit++)
             {
                 GL.ActiveTexture(TextureUnit.Texture0 + unit);

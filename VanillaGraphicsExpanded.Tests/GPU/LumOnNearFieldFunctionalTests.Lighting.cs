@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -21,7 +22,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(world, new Vector4(0.5f, 0.25f, 0.125f, 2));
         var result = Trace(fixture, suppress: true, emissionBoost: 3);
-        ObserveTrace(result, "return bvec2(all(equal(a.rgb,vec3(0))) && b.r==0.0,false);").AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsLighting_RawEmission_RemainsUnavailableWithoutSurfaceCache).AssertEqual();
     }
 
     /// <summary>A known wall with missing lighting must remain an opaque hit, never a cache lookup.</summary>
@@ -35,7 +36,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         fixture.Publish(world, materialIdentity: 0);
         var result = Trace(fixture);
         AssertUnresolved(result);
-        ObserveTrace(result, "return bvec2((flags&1u)!=0u && (flags&32u)==0u,false);").AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsLighting_MissingMaterial_PreservesOpaqueHit).AssertEqual();
     }
 
     /// <summary>Raw sunlight cannot bypass surface-cache publication, even on an upward face.</summary>
@@ -51,7 +52,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         fixture.Publish(world);
         var result = Trace(fixture);
 
-        var observation = ObserveTrace(result, "bool hit=(flags&1u)!=0u; return bvec2(!hit || (a.r==0.0 && b.r==0.0),hit);");
+        var observation = ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsLighting_UpwardSurface_RequiresPublishedSurfaceLighting);
         observation.AssertEqual();
         uint hitCount = observation.MatchingTexels;
         Assert.True(hitCount > 32, "The production rays must exercise the plane's hit-lighting path.");
@@ -74,7 +75,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         fixture.Publish(world);
         var result = Trace(fixture);
 
-        ObserveTrace(result, "return bvec2(all(equal(a.rgb,vec3(0))) && b.r==0.0,false);").AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsLighting_RawEmission_RemainsUnavailableWithoutSurfaceCache).AssertEqual();
     }
 
     #endregion

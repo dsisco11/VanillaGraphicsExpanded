@@ -118,7 +118,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         EnsureContextValid();
         // Other owning-image fixtures may retain their shared disposal service.
         // This case installs its own manager to exercise its actual queue drain.
-        fixture.CleanupGpuResources();
+        fixture.RetireResourceServices();
         using var manager = new RHIResourceManager();
         RHIResourceManagerSystem.Initialize(manager);
         try

@@ -42,7 +42,7 @@ public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
         {
             Allocate(id, 4);
             var first = BorrowedTexture.GetOrReplace(ref selected, id);
-            fixture.CleanupGpuResources();
+            fixture.RetireResourceServices();
             Assert.False(first.IsValid); Assert.True(GL.IsTexture(id));
             fixture.InitializeResourceDisposal();
             // An observed identity from a retired manager cannot be rediscovered

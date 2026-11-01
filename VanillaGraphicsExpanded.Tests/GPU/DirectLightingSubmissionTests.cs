@@ -50,7 +50,7 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
                 scene.Uniforms.DropShadowIntensity = 0;
                 Assert.True(scene.Candidate.RenderLighting(scene.Actual));
                 using var unshadowed=new GpuImageSnapshot(scene.Actual.Radiance,selection);
-                var brighter=ImageAssertions.Predicate(unshadowed.Texture,"return bvec2(true,any(greaterThan(a,b+vec4(.001))));",shadowed.Texture);
+                var brighter=ImageAssertions.Predicate(unshadowed.Texture, GpuAssertionPredicate.DirectLightingSubmissionTests_ProductionMatchesReferenceAcrossFrozenReceivers,shadowed.Texture);
                 brighter.AssertEqual();Assert.True(brighter.MatchingTexels>0);
                 scene.Uniforms.DropShadowIntensity = 1;
                 Assert.True(scene.Candidate.RenderLighting(scene.Actual));
@@ -119,12 +119,7 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
             var selection=new RHITextureRegion(new(0,attachment),0,0,0,scene.Actual.Radiance.Width,scene.Actual.Radiance.Height,1);
             using var expected=new GpuImageSnapshot(scene.Expected.Radiance,selection);
             using var actual=new GpuImageSnapshot(scene.Actual.Radiance,selection);
-            var proof=ImageAssertions.Predicate(actual.Texture,"""
-                precise vec4 difference=abs(a-b);
-                precise vec4 allowed=vec4(.001)+.002*abs(b);
-                bool finite=!any(isnan(a)) && !any(isinf(a)) && !any(isnan(b)) && !any(isinf(b));
-                return bvec2(finite && all(lessThanEqual(difference,allowed)) && (multipliers.x==0 || (all(equal(a,vec4(0))) && all(equal(b,vec4(0))))),false);
-                """,expected.Texture,parameters:new(zero?1:0,0,0,0));
+            var proof=ImageAssertions.Predicate(actual.Texture, GpuAssertionPredicate.DirectLightingSubmissionTests_Compare,expected.Texture,parameters:new(zero?1:0,0,0,0));
             proof.AssertEqual();output.WriteLine($"attachment {attachment}: {proof}");
         }
     }

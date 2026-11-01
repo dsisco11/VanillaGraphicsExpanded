@@ -137,7 +137,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
     [Fact]
     public void ForeignContextPreventsObservation()
     {
-        fixture.EnsureContextValid(); fixture.UseContextLocalResources(); var origin=VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Current(); var current=origin;
+        fixture.EnsureContextValid(); fixture.RetireResourceServices(); var origin=VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Current(); var current=origin;
         using var manager=new RHIResourceManager(()=>current,static _=>true); RHIResourceManagerSystem.Initialize(manager);
         try
         {

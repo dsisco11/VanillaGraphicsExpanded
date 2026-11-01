@@ -19,7 +19,7 @@ internal sealed unsafe class PsoWorkloadContext : IDisposable
     {
         this.fixture = fixture; fixture.MakeCurrent();
         // Shared test allocators and sampler names belong to their current, unshared context.
-        GpuSamplers.Dispose(); fixture.CleanupGpuResources();
+        GpuSamplers.Dispose(); fixture.RetireResourceServices();
         GLFW.DefaultWindowHints(); GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4);
         GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5); GLFW.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Compat);
         GLFW.WindowHint(WindowHintBool.Visible, false); GLFW.WindowHint(WindowHintBool.OpenGLForwardCompat, false);

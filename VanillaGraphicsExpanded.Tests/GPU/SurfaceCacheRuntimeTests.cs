@@ -143,7 +143,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
         }
         using var before=CaptureTile(first,firstId);
         Assert.True(GpuLocalRead.Scalar(before.Texture,0)>0);
-        var initialized=ImageAssertions.Predicate(before.Texture,"return bvec2((a.a==0 || a.a==1) && (a.a!=0 || all(equal(a,vec4(0)))),a.a==1);");
+        var initialized=ImageAssertions.Predicate(before.Texture, GpuAssertionPredicate.SurfaceCacheRuntimeTests_PartialPagePublicationCarriesForwardUnchangedTiles);
         initialized.AssertEqual();Assert.Equal(4u,initialized.MatchingTexels);
         runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var second));

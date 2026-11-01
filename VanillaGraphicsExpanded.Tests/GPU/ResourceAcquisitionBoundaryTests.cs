@@ -21,7 +21,7 @@ public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
     public void ResizePublishesSelectedImageExactlyOnce(bool tracked)
     {
         fixture.EnsureContextValid();
-        if (tracked) fixture.InitializeResourceDisposal(); else fixture.UseContextLocalResources();
+        if (tracked) fixture.InitializeResourceDisposal(); else fixture.RetireResourceServices();
         try
         {
             using var owner = tracked
@@ -144,7 +144,7 @@ public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
     [Fact]
     public void LocalValidationDoesNotRecoverWithdrawnImage()
     {
-        fixture.EnsureContextValid(); fixture.UseContextLocalResources();
+        fixture.EnsureContextValid(); fixture.RetireResourceServices();
         try
         {
             using var owner = ContextLocalTexture.Create(4, 4, TextureFormat.Rgba8);

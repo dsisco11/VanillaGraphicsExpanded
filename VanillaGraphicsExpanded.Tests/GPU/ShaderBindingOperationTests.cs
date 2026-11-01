@@ -242,7 +242,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
     public void PreparationRefreshIsLocalAndFailedResultsStayWithdrawn(bool managed)
     {
         EnsureContextValid();
-        if (managed) fixture.InitializeResourceDisposal(); else fixture.UseContextLocalResources();
+        if (managed) fixture.InitializeResourceDisposal(); else fixture.RetireResourceServices();
         try
         {
             using var pipeline = Load("prepared_binding", PreparedBindingComputeShader.Contract);

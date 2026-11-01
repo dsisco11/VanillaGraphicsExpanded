@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -29,7 +30,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(new ControlledVoxelWorld());
         var result = Trace(fixture, cacheResolution: 2);
-        ObserveTrace(result, "return bvec2(a.r>=9.99 && a.r<=10.01 && b.r==1.0,false);").AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsCache_ParallaxNeighborhood_PreservesConstantRadiance).AssertEqual();
     }
 
     /// <summary>Moving away from a cache center must change a directional lookup while leaving a constant field unchanged.</summary>
@@ -42,7 +43,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         var centered = Trace(fixture, directionalCache: true);
         var displaced = Trace(fixture, directionalCache: true, anchorX: 3);
 
-        var comparison = ObserveTrace(displaced, "return bvec2(b.r==1.0 && a.g>=9.99 && a.g<=10.01,abs(c.r-a.r)>0.03);", centered);
+        var comparison = ObserveTrace(displaced, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsCache_Parallax_ChangesDirectionalLookup, centered);
         comparison.AssertEqual();
         uint changed = comparison.MatchingTexels;
         Assert.True(changed > 16, "The parallax correction must address different directional cache texels.");

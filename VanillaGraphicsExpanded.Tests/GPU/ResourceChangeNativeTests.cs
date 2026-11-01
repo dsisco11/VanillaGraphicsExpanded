@@ -76,7 +76,7 @@ public sealed class ResourceChangeNativeTests(HeadlessGLFixture fixture)
     [Fact]
     public void LocalRetirementPublishesImageUnavailabilityOnce()
     {
-        fixture.EnsureContextValid(); fixture.UseContextLocalResources();
+        fixture.EnsureContextValid(); fixture.RetireResourceServices();
         try
         {
             using var depth = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription
@@ -123,7 +123,7 @@ public sealed class ResourceChangeNativeTests(HeadlessGLFixture fixture)
     [Fact]
     public void LocalEqualInterfaceReplacementInvalidatesFixedShader()
     {
-        fixture.EnsureContextValid(); fixture.UseContextLocalResources();
+        fixture.EnsureContextValid(); fixture.RetireResourceServices();
         try
         {
             var source = RHIShaderInputs.ComputeDescription();

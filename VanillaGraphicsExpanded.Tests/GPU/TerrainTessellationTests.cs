@@ -320,7 +320,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
             GL.DrawArrays(PrimitiveType.Patches, 0, 3);
             using var assertions=new GpuImageAssertions();
             foreach(var pair in new[]{(Image:target[0],Expected:expected),(Image:target[1],Expected:expectedCoordinates)})
-                assertions.Predicate(pair.Image,"return bvec2(all(greaterThanEqual(a,b-vec4(.0001))) && all(lessThanEqual(a,b+vec4(.0001))),false);",pair.Expected.Texture).AssertEqual();
+                assertions.Predicate(pair.Image, GpuAssertionPredicate.TerrainTessellationEngineDrawTests_PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw,pair.Expected.Texture).AssertEqual();
             Assert.Equal(3f,GpuLocalRead.Scalar(target[0],3));
         }
         finally

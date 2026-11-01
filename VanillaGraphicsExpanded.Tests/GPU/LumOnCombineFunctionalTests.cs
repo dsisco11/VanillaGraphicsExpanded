@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -138,7 +139,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>Checks every original output RGB against the authored constant with the original strict float tolerance.</summary>
     private void AssertRgb(GpuTexture image,Vector3 expected)
     {
-        ImageAssertions.Predicate(image,"precise vec3 difference=abs(a.rgb-multipliers.rgb);return bvec2(all(lessThan(difference,vec3(multipliers.w))),false);",
+        ImageAssertions.Predicate(image, GpuAssertionPredicate.LumOnCombineFunctionalTests_AssertRgb,
             parameters:new(expected,TestEpsilon)).AssertEqual();
     }
     #endregion

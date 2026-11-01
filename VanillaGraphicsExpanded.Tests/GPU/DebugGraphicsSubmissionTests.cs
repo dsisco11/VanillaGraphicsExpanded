@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -175,7 +176,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
                 depthTest: true, pointSize: 6, programPointSize: true, depthWrite: true, blending: blending));
             hostile.AssertRestored();
         }
-        var accumulation=ImageAssertions.Predicate(target[3],"return bvec2(true,a.b>.1);");
+        var accumulation=ImageAssertions.Predicate(target[3], GpuAssertionPredicate.DebugGraphicsSubmissionTests_OrbSubmissionUsesSixRoutesProgramPointSizeAndDepthWrites);
         accumulation.AssertEqual();Assert.True(accumulation.MatchingTexels>4);
         int center = (4 * 8 + 4) * 4;
         Assert.InRange(Assertions.GpuLocalRead.Scalar(target[1], 4 * 8 + 4), 0, .001f);

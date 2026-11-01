@@ -279,7 +279,7 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
     /// <summary>Retains the original non-NaN extrema bounds and requires at least one represented depth over the full capture tile.</summary>
     private void AssertDepthBounds(GpuTexture depth,float minimum,float maximum)
     {
-        var proof=ImageAssertions.Predicate(depth,"bool represented=!isnan(a.r);return bvec2(!represented || (a.r>=multipliers.x && a.r<=multipliers.y),represented);",
+        var proof=ImageAssertions.Predicate(depth, GpuAssertionPredicate.LumonSceneMeshCardCaptureComputeTests_AssertDepthBounds,
             parameters:new(minimum,maximum,0,0));
         proof.AssertEqual();Assert.True(proof.MatchingTexels>0);
     }

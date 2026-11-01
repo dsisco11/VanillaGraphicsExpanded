@@ -346,7 +346,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     private Lifetime StartLifetime(bool managed)
     {
         fixture.EnsureContextValid();
-        fixture.CleanupGpuResources();
+        fixture.RetireResourceServices();
         return new Lifetime(managed);
     }
 

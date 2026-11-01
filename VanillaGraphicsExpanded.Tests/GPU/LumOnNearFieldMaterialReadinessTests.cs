@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -100,13 +101,7 @@ public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBa
     /// <summary>Checks actual trace lighting, hit classification, confidence, and the green versus magenta diagnostic code.</summary>
     private void AssertLighting(TraceImages result, bool lit, bool opaque)
     {
-        ObserveTrace(result, """
-            bool lit=multipliers.x!=0.0,opaque=multipliers.y!=0.0;
-            return bvec2(((flags&1u)!=0u)==opaque && (flags&32u)==0u
-                && ((flags>>16)&7u)==(lit?2u:4u) && b.r==(lit?1.0:0.0)
-                && all(greaterThanEqual(a.rgb,vec3(lit?0.249:0.0)))
-                && all(lessThanEqual(a.rgb,vec3(lit?0.253:0.0))),false);
-            """, parameters:new(lit?1:0,opaque?1:0,0,0)).AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldMaterialReadinessTests_AssertLighting, parameters:new(lit?1:0,opaque?1:0,0,0)).AssertEqual();
     }
 
     /// <summary>Proves all captured regions remain GPU-ready even when their material identities are unresolved.</summary>

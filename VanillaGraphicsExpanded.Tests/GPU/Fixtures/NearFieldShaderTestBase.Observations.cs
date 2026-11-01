@@ -41,15 +41,12 @@ public abstract partial class NearFieldShaderTestBase
     }
 
     /// <summary>Checks correlated physical radiance and metadata, retaining the original exact power-of-two storage decode.</summary>
-    private protected GpuImageResult ObserveTrace(TraceImages result, string predicate, TraceImages? other = null,
+    private protected GpuImageResult ObserveTrace(TraceImages result, GpuAssertionPredicate predicate, TraceImages? other = null,
         Vector4 parameters = default)
     {
         // Only radiance RGB is decoded. Distances and metadata retain their original represented bits.
-        string scale = result.RgbDecode.ToString("R",System.Globalization.CultureInfo.InvariantCulture);
-        string otherScale = (other ?? result).RgbDecode.ToString("R",System.Globalization.CultureInfo.InvariantCulture);
-        string body = $"a.rgb *= {scale}; c.rgb *= {otherScale}; uint flags=floatBitsToUint(b.g); " + predicate;
-        return ImageAssertions.Predicate(result.Radiance, body, result.Meta, other?.Radiance ?? result.Radiance,
-            other?.Meta ?? result.Meta, parameters);
+        return ImageAssertions.Predicate(result.Radiance, predicate, result.Meta, other?.Radiance ?? result.Radiance,
+            other?.Meta ?? result.Meta, parameters, evaluation:new(result.RgbDecode,(other??result).RgbDecode,1,2));
     }
 
     /// <summary>Preserves a deliberately local first-texel physical radiance probe with one bounded read.</summary>
@@ -57,14 +54,11 @@ public abstract partial class NearFieldShaderTestBase
         GpuLocalRead.Scalar(result.Radiance, 0) * result.RgbDecode;
 
     /// <summary>Correlates screen-control metadata with actual radiance/metadata and an optional offscreen radiance control.</summary>
-    private protected GpuImageResult ObserveScreenTrace(TraceImages result, TraceImages screenControl, string predicate,
+    private protected GpuImageResult ObserveScreenTrace(TraceImages result, TraceImages screenControl, GpuAssertionPredicate predicate,
         TraceImages? offscreen = null, Vector4 parameters = default)
     {
-        string scale = result.RgbDecode.ToString("R",System.Globalization.CultureInfo.InvariantCulture);
-        string otherScale = (offscreen ?? result).RgbDecode.ToString("R",System.Globalization.CultureInfo.InvariantCulture);
-        string body = $"a.rgb *= {scale}; d.rgb *= {otherScale}; uint flags=floatBitsToUint(b.g); " + predicate;
-        return ImageAssertions.Predicate(result.Radiance, body, result.Meta, screenControl.Meta,
-            offscreen?.Radiance ?? result.Radiance, parameters);
+        return ImageAssertions.Predicate(result.Radiance, predicate, result.Meta, screenControl.Meta,
+            offscreen?.Radiance ?? result.Radiance, parameters, evaluation:new(result.RgbDecode,1,(offscreen??result).RgbDecode,3));
     }
     #endregion
 }

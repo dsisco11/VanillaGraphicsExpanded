@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -20,11 +21,11 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
         var bright=RenderHits(room);AssertHits(bright,true);
         room.BlockLight=0;room.Geometry.Dirty();room.Geometry.Publish();room.Seed();
         var dark=RenderHits(room);AssertHits(dark,false);
-        var hits=ObserveTrace(dark,"bool hit=(flags&1u)!=0u; return bvec2(!hit || b.r==1.0,hit);");
+        var hits=ObserveTrace(dark, GpuAssertionPredicate.SurfaceLightingHitComponentTests_OffscreenLightRemovalAndRestorationReachHitRadiance);
         hits.AssertEqual(); Assert.True(hits.MatchingTexels>32);
         room.BlockLight=32;room.Geometry.Dirty();room.Geometry.Publish();room.Seed();
         var restored=RenderHits(room);AssertHits(restored,true);
-        ImageAssertions.Predicate(bright.Radiance,"return bvec2(same(a,b,15u),false);",restored.Radiance).AssertEqual();
+        ImageAssertions.Predicate(bright.Radiance, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5,restored.Radiance).AssertEqual();
     }
 
     /// <summary>Bright exterior fields cannot illuminate a sealed dark enclosure at the hit boundary.</summary>
@@ -35,7 +36,7 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
         using var room=new SurfaceLightingEnclosureFixture(blockLight:0){ExteriorBlockLight=32};
         room.Geometry.Dirty();room.Geometry.Publish();room.Seed();room.Bounce();
         var dark=RenderHits(room);AssertHits(dark,false);
-        var hits=ObserveTrace(dark,"bool hit=(flags&1u)!=0u; return bvec2(!hit || b.r==1.0,hit);");
+        var hits=ObserveTrace(dark, GpuAssertionPredicate.SurfaceLightingHitComponentTests_OffscreenLightRemovalAndRestorationReachHitRadiance);
         hits.AssertEqual(); Assert.True(hits.MatchingTexels>32);
     }
 

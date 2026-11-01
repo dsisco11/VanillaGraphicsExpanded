@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Numerics;
@@ -39,14 +40,7 @@ public sealed class SharedTraceSceneScreenTests : NearFieldShaderTestBase
         var unavailable = Trace(compatibility, worldOffset: new(anchor, 32, 0), shared: shared.Scene);
         Assert.True(cache.CaptureAndSeed());
         var result = Trace(compatibility, worldOffset: new(anchor, 32, 0), shared: shared.Scene, surfaceLighting: cache.Snapshot);
-        ObserveTrace(result, """
-            uint unavailableFlags=floatBitsToUint(d.g);
-            bool valid=all(equal(c.rgb,vec3(0))) && all(greaterThanEqual(a.rgb,vec3(multipliers.x)))
-                && all(lessThanEqual(a.rgb,vec3(multipliers.y))) && d.r==0.0 && (unavailableFlags&1u)==1u
-                && ((unavailableFlags>>16)&7u)==4u && (flags&1u)==1u
-                && ((flags>>16)&7u)==uint(multipliers.z) && c.a==a.a && b.r==1.0 && (flags&32u)==0u;
-            return bvec2(valid,false);
-            """, unavailable,new(light-.002f,light+.002f,light==0?3:2,0)).AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.SharedTraceSceneScreenTests_SealedRoomUsesSharedHitLighting, unavailable,new(light-.002f,light+.002f,light==0?3:2,0)).AssertEqual();
     }
 
     /// <summary>Unsupported, unpublished, exhausted and out-of-domain traces cannot become cache handoff.</summary>
@@ -61,7 +55,7 @@ public sealed class SharedTraceSceneScreenTests : NearFieldShaderTestBase
         using var compatibility = new NearFieldVoxelFixture();
         var result = Trace(compatibility, budget: scenario == "budget" ? 1 : 256,
             worldOffset: new(0, scenario == "outside" ? 96 : 32, 0), shared: shared.Scene);
-        ObserveTrace(result, "return bvec2(a.r==0.0 && b.r==0.0 && (flags&34u)==0u,false);").AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTests_UnresolvedScene_RemainsDark).AssertEqual();
     }
     #endregion
 }

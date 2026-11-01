@@ -89,10 +89,7 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
         float peak=(float)ImageAssertions.Inspect(result.Color,channelMask:1).Maximum;
         Assert.InRange(peak, radiance.X * .999f, radiance.X * 1.001f);
         Assert.InRange(peak, 15999f, 16000f);
-        ImageAssertions.Predicate(result.Color, """
-            precise float green=a.r*0.8,blue=a.r*0.6;
-            return bvec2(a.g>=green-0.02 && a.g<=green+0.02 && a.b>=blue-0.02 && a.b<=blue+0.02,false);
-            """).AssertEqual();
+        ImageAssertions.Predicate(result.Color, GpuAssertionPredicate.SunDiskDrawTests_VisibleDiskStorageLimitIsFiniteAndChromatic).AssertEqual();
         AssertMetadataChannels(result);
     }
 
@@ -107,10 +104,7 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
         for (int channel = 0; channel < 3; channel++)
             Assert.InRange(Math.Abs(moved.Power[channel] / baseline.Power[channel] - 1), 0, .001f);
         float peak=(float)ImageAssertions.Inspect(baseline.Color).Maximum;
-        ImageAssertions.Predicate(baseline.Color, """
-            precise vec4 difference=abs(a-b);
-            return bvec2(all(lessThanEqual(difference,vec4(multipliers.x))),false);
-            """,moved.Color,parameters:new(peak*.002f,0,0,0)).AssertEqual();
+        ImageAssertions.Predicate(baseline.Color, GpuAssertionPredicate.SunDiskDrawTests_SolarDiskIgnoresCameraTranslation,moved.Color,parameters:new(peak*.002f,0,0,0)).AssertEqual();
     }
     #endregion
 
@@ -187,7 +181,7 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
             cosines[y*size+x]=1/Math.Sqrt(1+Math.Pow((a+b)/2,2)+Math.Pow((c+d)/2,2));
         }
         using var imageProjection=new GpuImageTransform();
-        using var physical=imageProjection.Apply(color,"precise vec3 radiance=a.rgb/parameters.x;return vec4(radiance,0);",new(scale,0,0,0));
+        using var physical=imageProjection.Apply(color, GpuImageProjection.MoonDiskDrawTests_Draw,new(scale,0,0,0));
         var power=ImageAssertions.WeightedStatistics(physical,areas,channelMask:7,secondaryWeights:cosines);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
         return new(new GpuImageSet([color,glow]),new((float)power.Sum(0),(float)power.Sum(1),(float)power.Sum(2)));

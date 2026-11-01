@@ -48,18 +48,9 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         using var mip0=new GpuImageSnapshot(hzb,GpuImageSnapshot.Mip(hzb,0));
         using var mip1=new GpuImageSnapshot(hzb,GpuImageSnapshot.Mip(hzb,1));
         using var mip2=new GpuImageSnapshot(hzb,GpuImageSnapshot.Mip(hzb,2));
-        const string reduction="""
-            ivec2 origin=coordinate.xy*2;
-            vec4 block=vec4(texelFetch(historyImage,ivec3(origin,0),0).r,
-                texelFetch(historyImage,ivec3(origin+ivec2(1,0),0),0).r,
-                texelFetch(historyImage,ivec3(origin+ivec2(0,1),0),0).r,
-                texelFetch(historyImage,ivec3(origin+ivec2(1,1),0),0).r);
-            float expected=min(min(block.x,block.y),min(block.z,block.w));
-            precise float difference=abs(a.r-expected);
-            return bvec2(!any(isnan(block)) && difference<multipliers.x,false);
-            """;
-        ImageAssertions.Predicate(mip1.Texture,reduction,mip0.Texture,parameters:new(Epsilon,0,0,0),mappedSources:true).AssertEqual();
-        ImageAssertions.Predicate(mip2.Texture,reduction,mip1.Texture,parameters:new(Epsilon,0,0,0),mappedSources:true).AssertEqual();
+
+        ImageAssertions.Predicate(mip1.Texture, GpuAssertionPredicate.LumOnHzbFunctionalTests_HZB_BuildProducesMonotonicDepthMips,mip0.Texture,parameters:new(Epsilon,0,0,0),mappedSources:true).AssertEqual();
+        ImageAssertions.Predicate(mip2.Texture, GpuAssertionPredicate.LumOnHzbFunctionalTests_HZB_BuildProducesMonotonicDepthMips,mip1.Texture,parameters:new(Epsilon,0,0,0),mappedSources:true).AssertEqual();
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
@@ -275,8 +276,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             pool.PagePool.DecodePhysicalId(pid,out ushort atlasIdx,out ushort tileX,out ushort tileY);
             positions.Add((tileX*tileSize+tileSize/2,tileY*tileSize+tileSize/2,atlasIdx));
         }
-        var weight=ImageAssertions.PredicateAt(irradianceAtlas,positions,"return bvec2(true,value.a>.5);");
-        var rgb=ImageAssertions.PredicateAt(irradianceAtlas,positions,"return bvec2(true,any(greaterThan(value.rgb,vec3(.001))));");
+        var weight=ImageAssertions.PredicateAt(irradianceAtlas,positions, GpuAssertionPredicate.LumonScenePipelineSmokeTests_PipelineSmoke_FeedbackToCaptureToRelight_PopulatesManyPages);
+        var rgb=ImageAssertions.PredicateAt(irradianceAtlas,positions, GpuAssertionPredicate.LumonScenePipelineSmokeTests_PipelineSmoke_FeedbackToCaptureToRelight_PopulatesManyPages_2);
         weight.AssertEqual();rgb.AssertEqual();
         Assert.True(weight.MatchingTexels>=desiredPages-1,"Expected most pages to have weight.");
         Assert.True(rgb.MatchingTexels>=(desiredPages*3)/4,"Expected most pages to have RGB.");

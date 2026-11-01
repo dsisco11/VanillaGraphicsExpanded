@@ -241,7 +241,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
     [Fact]
     public void FailedPreinstallDiscoveryPreservesUnknownOriginalStorage()
     {
-        fixture.EnsureContextValid(); fixture.UseContextLocalResources();
+        fixture.EnsureContextValid(); fixture.RetireResourceServices();
         OpenGLBindingInterception.Uninstall();
         GL.CreateBuffers(1, out int id);
         GL.NamedBufferData(id, 32, IntPtr.Zero, BufferUsageHint.DynamicDraw);

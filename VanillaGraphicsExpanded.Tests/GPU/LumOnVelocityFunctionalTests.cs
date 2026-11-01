@@ -115,7 +115,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         int identityLocation=program.ProgramLayout.GetUniformLocation(program.ProgramId,"gBufferPatchId");
         GL.GetUniform(program.ProgramId,identityLocation,out int identityUnit);Assert.Equal(1,identityUnit);
         TestFramework.RenderQuadTo(program,target);
-        ImageAssertions.Predicate(target[0],"return bvec2(floatBitsToUint(a.a)==64u,false);").AssertEqual();
+        ImageAssertions.Predicate(target[0], GpuAssertionPredicate.LumOnVelocityFunctionalTests_DisplacedSurfaceRejectsVelocityHistory).AssertEqual();
     }
     #endregion
 
@@ -162,7 +162,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         var region=new RHITextureRegion(new(0,0),1,1,0,interiorWidth,interiorHeight,1);
         ImageAssertions.CompareIntervals(target[0],lower,upper,region,3).AssertEqual();
         using var interior=new GpuImageSnapshot(target[0],region);
-        ImageAssertions.Predicate(interior.Texture,"return bvec2(floatBitsToUint(a.a)==uint(multipliers.x),false);",
+        ImageAssertions.Predicate(interior.Texture, GpuAssertionPredicate.LumOnVelocityFunctionalTests_Velocity_RenderOriginMovementPreservesWorldReprojection,
             parameters:new(historyValid?1:2,0,0,0)).AssertEqual();
     }
     #endregion
@@ -189,7 +189,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         programId.PrimaryDepth = depthTex;
         TestFramework.RenderQuadTo(programId, outRt);
 
-        ImageAssertions.Predicate(outRt[0],"return bvec2(abs(a.r)<=multipliers.x && abs(a.g)<=multipliers.x && (floatBitsToUint(a.a)&1u)!=0u,false);",
+        ImageAssertions.Predicate(outRt[0], GpuAssertionPredicate.LumOnVelocityFunctionalTests_Velocity_StaticCamera_IsZero,
             parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
@@ -220,7 +220,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outRt);
 
         // Preserve the CPU-rounded interval endpoints of the independent translation oracle.
-        ImageAssertions.Predicate(outRt[0],"return bvec2(a.r>=multipliers.x && a.r<=multipliers.y && abs(a.g)<=multipliers.z && (floatBitsToUint(a.a)&1u)!=0u,false);",
+        ImageAssertions.Predicate(outRt[0], GpuAssertionPredicate.LumOnVelocityFunctionalTests_Velocity_PureTranslation_ProducesExpectedDirection,
             parameters:new(expectedVx-TestEpsilon,expectedVx+TestEpsilon,TestEpsilon,0)).AssertEqual();
     }
 

@@ -211,12 +211,13 @@ override the fixture default, follow awaited thread changes, and restore it on d
 while a headless fixture is alive, including during teardown and context changes.
 
 Production/component/compute shader helpers reuse digest-validated asset binaries. Combined
-`ShaderTestHelper` and declared fixture-program loading use that same asset route. Generated checker
-kernels, resource-free state shaders and source-authored numerical raster helpers use `TestShaderCache`
+`ShaderTestHelper`, declared fixture-program loading and assertion compute programs use that same asset route.
+Resource-free state shaders and source-authored numerical raster helpers use `TestShaderCache`
 with exact expanded source, stage kind and driver/profile identity, storing bytes in the existing store.
 The vertex-only particle color-feedback helper also includes its varying name and interleaved mode.
 A hit creates a new native
-program with fresh uniform state; native owners, binding tables and assertion results remain per case.
+program with fresh uniform state. Subject owners, binding tables and assertion results remain per case;
+the GPU fixture retains production checker shader owners for repeated observations in its physical context.
 Explicit stage integration and native creation/mutation subjects still execute their authored native
 operations. The SPIR-V assignment and shader-define compile matrices explicitly bypass cached programs.
 
@@ -230,9 +231,15 @@ cube faces. Packed stencil comparisons change the sampling mode only on an owned
 the source depth aspect and selector. The checker returns thirty-two words containing counters, moments and failure coordinates/rank identities; it does not download
 image pixels. Keep existing local tuple reads and tests of readback APIs independent from this checker.
 
-Checker executables and snapshots belong to their original registered physical context; callers dispose them within
-that lifetime. There is no global native-name cache. Integer image outputs leave SSBO base/range bindings
-untouched, preserve program/texture/sampler/image selectors and restore pixel-pack state. A completion
+Generic/statistics, authored-predicate, projection and layer-conversion programs are declared test shader assets compiled by the normal
+shader build. Authored predicates and projections select finite declared operations; changing numeric inputs
+are data, rather than runtime shader source. The fixture retains production compute shader owners and
+disposes them before their originating manager/context retires. Each observation explicitly supplies its
+own resources, uniform bytes and initialized results; snapshots remain caller-owned within that context.
+There is no additional test executable cache or global native-name cache. Explicit native compiler failure
+subjects remain fresh native operations outside this ordinary checker preparation path.
+Integer image outputs leave SSBO base/range bindings untouched, preserve program/texture/sampler/image
+selectors, restore the checker uniform-buffer binding and restore pixel-pack state. A completion
 marker and exact processed-texel count reject absent or partial dispatch; histogram validation and both
 statistics reduction stages have independent completion evidence. Synchronous result transfer supplies
 completion without a blanket `Finish`. Exact float comparisons equate signed zero and NaNs deliberately;

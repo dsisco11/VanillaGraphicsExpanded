@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -70,7 +71,7 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
         Assert.Equal(initialDispatches+1,resources.InvalidationDispatchCount);
 #endif
         Assert.Equal(0,resources.PendingInvalidationCount);
-        var cleared=ImageAssertions.Predicate(resources.ProbeRadianceAtlas,"return bvec2(true,a.a==0);");
+        var cleared=ImageAssertions.Predicate(resources.ProbeRadianceAtlas, GpuAssertionPredicate.WorldProbeDirectionalHistoryTests_QueuedOverlapAndEmptyFlushPreserveNewHistoryUntilFullReset);
         cleared.AssertEqual();Assert.Equal((uint)(16<<4),cleared.MatchingTexels);
         Fill(resources);
         resources.FlushHistoryInvalidation();

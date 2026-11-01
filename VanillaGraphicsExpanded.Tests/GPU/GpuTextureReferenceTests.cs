@@ -31,7 +31,7 @@ public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
             using var borrower = new BorrowedTexture(detached);
             GpuTextureRef borrowedReference = borrower;
             Assert.True(borrowedReference.IsValid);
-            fixture.CleanupGpuResources();
+            fixture.RetireResourceServices();
             Assert.False(borrowedReference.IsValid);
             Assert.Throws<InvalidOperationException>(() => borrowedReference.TextureId);
             Assert.True(GL.IsTexture(detached));

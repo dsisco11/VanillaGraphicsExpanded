@@ -21,7 +21,7 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
     public void TextureInputsRejectUnavailableMetadata(bool managed)
     {
         fixture.EnsureContextValid();
-        if (managed) fixture.InitializeResourceDisposal(); else fixture.UseContextLocalResources();
+        if (managed) fixture.InitializeResourceDisposal(); else fixture.RetireResourceServices();
         try
         {
             using var texture = !managed ? ContextLocalTexture.Create(4, 4, TextureFormat.Rgba32f) : RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();

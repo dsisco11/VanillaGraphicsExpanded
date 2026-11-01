@@ -22,7 +22,7 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
     public void LocalSemaphoreReservationCannotWaitOrSignal()
     {
         fixture.EnsureContextValid();
-        fixture.UseContextLocalResources();
+        fixture.RetireResourceServices();
         var context = RHICommandContext.Current;
         if (!context.Capabilities.ExternalSemaphores)
         {

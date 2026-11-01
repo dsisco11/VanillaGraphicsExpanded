@@ -187,18 +187,8 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
             Assert.Equal((cw,ch),(children.Texture.Width,children.Texture.Height));
             using var projection=new GpuImageTransform();
             // R16UI converts exactly to float32, so the following numeric view retains all original mask bits.
-            using var numeric=projection.Apply(mask.Texture,"return a;");
-            ImageAssertions.Predicate(numeric, """
-                ivec2 childSize=ivec2(multipliers.xy),parentSize=ivec2(multipliers.zw);
-                ivec2 first=coordinate.xy*childSize/parentSize;
-                ivec2 end=((coordinate.xy+1)*childSize+parentSize-1)/parentSize;
-                uint expected=0u;
-                for(int dy=0;dy<3;dy++)for(int dx=0;dx<3;dx++)
-                    if(first.x+dx<end.x && first.y+dy<end.y &&
-                        texelFetch(additionalImage,ivec3(first+ivec2(dx,dy),0),0).r==b.r)
-                        expected|=1u<<uint(dy*3+dx);
-                return bvec2(uint(a.r)==expected,false);
-                """,parent.Texture,children.Texture,parameters:new(cw,ch,w,h),mappedSources:true).AssertEqual();
+            using var numeric=projection.Apply(mask.Texture, GpuImageProjection.AoMinimumChildProductionTests_ValidateMasks);
+            ImageAssertions.Predicate(numeric, GpuAssertionPredicate.AoMinimumChildProductionTests_ValidateMasks_2,parent.Texture,children.Texture,parameters:new(cw,ch,w,h),mappedSources:true).AssertEqual();
         }
     }
 

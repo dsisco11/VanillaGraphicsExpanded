@@ -25,7 +25,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
     public void PreparationHandsResolvedIntentToExecution(bool registered)
     {
         fixture.EnsureContextValid();
-        if (registered) fixture.InitializeResourceDisposal(); else fixture.UseContextLocalResources();
+        if (registered) fixture.InitializeResourceDisposal(); else fixture.RetireResourceServices();
         try
         {
             using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
@@ -95,7 +95,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
     public void CreationCommitsIdentityAndSnapshot(bool registered)
     {
         fixture.EnsureContextValid();
-        if (registered) fixture.InitializeResourceDisposal(); else fixture.UseContextLocalResources();
+        if (registered) fixture.InitializeResourceDisposal(); else fixture.RetireResourceServices();
         try
         {
             using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
@@ -139,7 +139,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
     public void FailedCreationClearsIdentityAndCleansNewObject(bool registered, int failure)
     {
         fixture.EnsureContextValid();
-        if (registered) fixture.InitializeResourceDisposal(); else fixture.UseContextLocalResources();
+        if (registered) fixture.InitializeResourceDisposal(); else fixture.RetireResourceServices();
         try
         {
             // Use the same private handoff so the local case does not install a manager

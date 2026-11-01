@@ -3,7 +3,7 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace ShaderBuildTool.Spirv;
 
 /// <summary>Declares test-only shader inputs for the shared variant compiler without expanding the production catalog.</summary>
-internal static class TestShaderPrograms
+internal static partial class TestShaderPrograms
 {
     #region Public API
     /// <summary>Groups fixture stages into valid program declarations while sharing their compiled binaries.</summary>
@@ -52,6 +52,7 @@ internal static class TestShaderPrograms
             string name = adaptation ? "raster-camera-adapt" : "raster-camera-histogram";
             programs.Add(new("tests/" + name, [new("tests/raster-camera.vsh", "tests/raster-camera.vsh", ShaderStageKind.Vertex, new()), new("tests/" + name + ".fsh", "tests/" + name + ".fsh", ShaderStageKind.Fragment, bindings)], 1));
         }
+        AddAssertions(programs);
         return new(programs);
     }
     #endregion

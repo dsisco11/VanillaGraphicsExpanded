@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -23,13 +24,13 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(world);
         var open = Trace(fixture);
-        Assert.True(ObserveTrace(open, "return bvec2(true,a.r>9.0);").MatchingTexels>0);
-        Assert.True(ObserveTrace(open, "return bvec2(true,a.r==0.0);").MatchingTexels>0);
+        Assert.True(ObserveTrace(open, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsGeometry_Doorway_OpenThenClosed_ChangesOnlyUnoccludedDirections).MatchingTexels>0);
+        Assert.True(ObserveTrace(open, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsGeometry_Doorway_OpenThenClosed_ChangesOnlyUnoccludedDirections_2).MatchingTexels>0);
         world.AddRoom((-3, -3, -8), (3, 3, -2));
         fixture.InvalidateAll();
         fixture.Publish(world);
         var closed = Trace(fixture);
-        ObserveTrace(closed, "return bvec2(a.r==0.0 && b.r==0.0 && (flags&1u)==1u,false);").AssertEqual();
+        ObserveTrace(closed, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsGeometry_Doorway_OpenThenClosed_ChangesOnlyUnoccludedDirections_3).AssertEqual();
     }
 
     /// <summary>Integer world-cell mapping retains local occlusion beyond exact single-precision world coordinates.</summary>
@@ -46,7 +47,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture(origin);
         fixture.Publish(world);
         var result = Trace(fixture, worldOffset: origin);
-        ObserveTrace(result, "return bvec2(a.r==0.0 && b.r==0.0 && (flags&1u)==1u,false);").AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsGeometry_Doorway_OpenThenClosed_ChangesOnlyUnoccludedDirections_3).AssertEqual();
     }
 
     /// <summary>An initial solid is an immediate near-field hit rather than a clear ray into the cache.</summary>
@@ -62,7 +63,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(world);
         var result = Trace(fixture);
-        ObserveTrace(result, "return bvec2(a.r==0.0 && a.a==0.0 && b.r==0.0 && (flags&1u)==1u,false);").AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsGeometry_InitialSolid_IsNotSkipped).AssertEqual();
     }
 
     /// <summary>Premature near-field-window exit cannot shorten the required segment and authorize cached light.</summary>

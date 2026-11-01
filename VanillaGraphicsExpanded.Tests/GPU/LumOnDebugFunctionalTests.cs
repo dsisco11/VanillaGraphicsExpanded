@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
@@ -299,12 +300,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Verify that some pixels have green (valid), yellow (edge), or red (invalid) colors
-        bool hasColor=ImageAssertions.Predicate(outputData, """
-            bool green=a.g>0.8 && a.r<0.2 && a.b<0.2;
-            bool yellow=a.r>0.8 && a.g>0.8 && a.b<0.2;
-            bool red=a.r>0.8 && a.g<0.2 && a.b<0.2;
-            return bvec2(true,green || yellow || red);
-            """).MatchingTexels>0;
+        bool hasColor=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode1_ProbeGrid_ShowsValidityColors).MatchingTexels>0;
         // With mixed validity, we should see at least valid (green) and invalid (red)
         Assert.True(hasColor,
             "Mode 1 should show colored probe dots based on validity");
@@ -374,8 +370,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // All pixels should have non-black color (heatmap)
-        uint coloredCount=ImageAssertions.Predicate(outputData,
-            "precise float brightness=a.r+a.g;brightness=brightness+a.b;return bvec2(true,brightness>0.1);").MatchingTexels;
+        uint coloredCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode4_SceneDepth_ShowsHeatmap).MatchingTexels;
         Assert.True(coloredCount == ScreenWidth * ScreenHeight,
             $"Mode 4 should show heatmap for all non-sky pixels, got {coloredCount}/{ScreenWidth * ScreenHeight}");
     }
@@ -454,7 +449,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Reinhard tone map: 1/(1+1) = 0.5
-        ImageAssertions.Predicate(outputData,"precise vec3 difference=abs(a.rgb-vec3(0.5));return bvec2(all(lessThan(difference,vec3(0.2))),false);").AssertEqual();
+        ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode10_RadianceOverlay_ShowsIndirectDiffuse).AssertEqual();
     }
 
     #endregion
@@ -517,7 +512,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // All pixels should be black
-        uint blackCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r<0.01 && a.g<0.01 && a.b<0.01);").MatchingTexels;
+        uint blackCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode4_SceneDepth_SkyIsBlack).MatchingTexels;
         Assert.True(blackCount == ScreenWidth * ScreenHeight,
             $"Mode 4 should show black for sky, got {blackCount}/{ScreenWidth * ScreenHeight}");
     }
@@ -654,7 +649,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Should have some non-zero output from SH visualization
-        uint nonZeroCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r>0.01 || a.g>0.01 || a.b>0.01);").MatchingTexels;
+        uint nonZeroCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
         Assert.True(nonZeroCount > 0,
             "Mode 8 should show non-zero SH visualization for valid probes");
     }
@@ -718,7 +713,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // All pixels should be black
-        uint blackCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r<0.01 && a.g<0.01 && a.b<0.01);").MatchingTexels;
+        uint blackCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode4_SceneDepth_SkyIsBlack).MatchingTexels;
         Assert.True(blackCount == ScreenWidth * ScreenHeight,
             $"Mode 2 should show black for invalid probes, got {blackCount}/{ScreenWidth * ScreenHeight}");
     }
@@ -786,7 +781,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Check that we get non-black output for valid probes
-        uint nonBlackCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r>0.01 || a.g>0.01 || a.b>0.01);").MatchingTexels;
+        uint nonBlackCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
         Assert.True(nonBlackCount > 0,
             "Mode 3 should show normal colors for valid probes");
     }
@@ -850,7 +845,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Check for non-black output
-        uint nonBlackCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r>0.01 || a.g>0.01 || a.b>0.01);").MatchingTexels;
+        uint nonBlackCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
         Assert.True(nonBlackCount > 0,
             "Mode 6 should visualize temporal weights");
     }
@@ -914,7 +909,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Check for output (rejection visualization)
-        uint nonBlackCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r>0.01 || a.g>0.01 || a.b>0.01);").MatchingTexels;
+        uint nonBlackCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
         Assert.True(nonBlackCount > 0,
             "Mode 7 should visualize temporal rejection mask");
     }
@@ -978,7 +973,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Check for output (weight visualization)
-        uint nonBlackCount=ImageAssertions.Predicate(outputData,"return bvec2(true,a.r>0.01 || a.g>0.01 || a.b>0.01);").MatchingTexels;
+        uint nonBlackCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
         Assert.True(nonBlackCount > 0,
             "Mode 9 should visualize interpolation weights");
     }

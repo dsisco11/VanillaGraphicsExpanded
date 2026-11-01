@@ -46,7 +46,7 @@ public abstract class RenderTestBase : IDisposable
     private readonly TestFrameLightingPublication frameLighting = new();
     private Assertions.GpuImageAssertions? imageAssertions;
 
-    /// <summary>Retains independently owned checker programs for this test's current physical context.</summary>
+    /// <summary>Retains per-test assertion resources while borrowing the fixture's production checker owners.</summary>
     private protected Assertions.GpuImageAssertions ImageAssertions => imageAssertions ??= new();
 
     /// <summary>

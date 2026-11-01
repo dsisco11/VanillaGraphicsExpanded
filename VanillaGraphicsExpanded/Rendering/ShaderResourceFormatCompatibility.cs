@@ -10,6 +10,15 @@ internal static class ShaderResourceFormatCompatibility
     private enum ScalarClass { Floating, Signed, Unsigned }
 
     #region Public API
+    /// <summary>Checks supported sampled interpretations; the owner selects the depth/stencil sampling aspect.</summary>
+    internal static bool MatchesSampler(ShaderValueType type, TextureFormat format)
+    {
+        // Packed storage exposes floating depth or unsigned stencil without changing its image format.
+        // Filtering, comparison mode and aspect selection remain owner-controlled sampling policy.
+        return Matches(type, format) || format is TextureFormat.Depth24Stencil8 or TextureFormat.Depth32fStencil8
+            && Classify(type) == ScalarClass.Unsigned;
+    }
+
     /// <summary>Checks the resource's format interpretation without reflecting its executable or allocation.</summary>
     internal static bool Matches(ShaderValueType type, TextureFormat format)
     {
@@ -83,7 +92,7 @@ internal static class ShaderResourceFormatCompatibility
             TextureFormat.Rg8ui or TextureFormat.Rg16ui or TextureFormat.Rg32ui or
             TextureFormat.Rgb8ui or TextureFormat.Rgb16ui or TextureFormat.Rgb32ui or
             TextureFormat.Rgba8ui or TextureFormat.Rgba16ui or TextureFormat.Rgba32ui or
-            TextureFormat.Rgb10A2ui => ScalarClass.Unsigned,
+            TextureFormat.Rgb10A2ui or TextureFormat.StencilIndex8 => ScalarClass.Unsigned,
         _ => ScalarClass.Floating
     };
     #endregion

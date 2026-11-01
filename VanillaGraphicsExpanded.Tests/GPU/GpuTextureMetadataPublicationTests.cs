@@ -62,7 +62,7 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
     public void ContextLocalViewTracksAllocationRatherThanSnapshot(bool retire)
     {
         fixture.EnsureContextValid();
-        fixture.UseContextLocalResources();
+        fixture.RetireResourceServices();
         Assert.Null(RHIResourceManagerSystem.CurrentManager);
         using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 4), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();

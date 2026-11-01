@@ -49,7 +49,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
-        else fixture.UseContextLocalResources();
+        else fixture.RetireResourceServices();
         try
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
@@ -89,7 +89,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
-        else fixture.UseContextLocalResources();
+        else fixture.RetireResourceServices();
         try
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
@@ -131,7 +131,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
-        else fixture.UseContextLocalResources();
+        else fixture.RetireResourceServices();
         try
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
@@ -161,7 +161,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
-        else fixture.UseContextLocalResources();
+        else fixture.RetireResourceServices();
         try
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription
@@ -211,7 +211,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
-        else fixture.UseContextLocalResources();
+        else fixture.RetireResourceServices();
         try
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
@@ -302,7 +302,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
     public void LocalInterruptedStorageRetiresTextureViewCertificate()
     {
         fixture.EnsureContextValid();
-        fixture.UseContextLocalResources();
+        fixture.RetireResourceServices();
         try
         {
             using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
@@ -331,7 +331,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
     public void LocalImageAcquisitionWithdrawsBeforeRejectingBusyStorage()
     {
         fixture.EnsureContextValid();
-        fixture.UseContextLocalResources();
+        fixture.RetireResourceServices();
         try
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();

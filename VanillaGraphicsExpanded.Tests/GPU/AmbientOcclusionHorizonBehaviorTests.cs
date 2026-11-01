@@ -36,21 +36,10 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
             // Distant corner contact is not reliably retained in this fixture; check its bounds without claiming surviving contact or a proven cause.
             if(scene==4) {
                 float reconstructionHalo=6*(2*distance*MathF.Tan(fov*MathF.PI/360)/360);
-                ImageAssertions.Predicate(stages.Reconstructed, """
-                    bool selected=b.r>multipliers.x;
-                    return bvec2(!selected || (a.r>=0.995 && a.r<=1.001),false);
-                    """,inputs.Position,parameters:new(1.25f+reconstructionHalo,0,0,0)).AssertEqual();
+                ImageAssertions.Predicate(stages.Reconstructed, GpuAssertionPredicate.AmbientOcclusionHorizonBehaviorTests_ProjectionAndDistancePreserveReceiverEvidence,inputs.Position,parameters:new(1.25f+reconstructionHalo,0,0,0)).AssertEqual();
             }
             // Invert the independent authored perspective relation only at the original sparse receiver grid.
-            var depthAgreement=ImageAssertions.Predicate(stages.Reconstructed, """
-                bool selected=coordinate.x%37==0 && coordinate.y%31==0;
-                precise float hardware=b.r*2.0-1.0;
-                precise float scaled=hardware*99.9;
-                precise float denominator=100.1-scaled;
-                precise float expected=20.0/denominator;
-                precise float lower=expected-0.04,upper=expected+0.04;
-                return bvec2(!selected || (a.g>=lower && a.g<=upper),selected);
-                """,inputs.Depth);
+            var depthAgreement=ImageAssertions.Predicate(stages.Reconstructed, GpuAssertionPredicate.AmbientOcclusionHorizonBehaviorTests_ProjectionAndDistancePreserveReceiverEvidence_2,inputs.Depth);
             depthAgreement.AssertEqual();Assert.Equal(216u,depthAgreement.MatchingTexels);
         }
     }
@@ -72,7 +61,7 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
                 Assert.True(final<.995f,$"Visible edge contact disappeared at {edgeFraction}, quality{quality}: {final:R}");
                 // The foreground is a flat surface with no geometry in front of it, including the clipped image boundary.
                 int edge=(int)(width*edgeFraction);
-                ImageAssertions.Predicate(stages.Reconstructed,"return bvec2(coordinate.x>=int(multipliers.x) || (a.r>=0.995 && a.r<=1.001),false);",
+                ImageAssertions.Predicate(stages.Reconstructed, GpuAssertionPredicate.AmbientOcclusionHorizonBehaviorTests_ScreenEdgesUseOnlyVisibleGeometry,
                     parameters:new(Math.Max(0,edge-2),0,0,0)).AssertEqual();
             }
             log.WriteLine($"Screen edge fraction={edgeFraction} quality={quality}: rawMin={Minimum(stages.Raw):R}, finalMin={final:R}");

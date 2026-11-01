@@ -148,7 +148,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
                 Assert.True(GpuLocalRead.Scalar(target[0],(8*16+3)*4) > .005f);
                 Assert.True(GpuLocalRead.Scalar(target[0],(8*16+12)*4) < -.005f);
             }
-            ImageAssertions.Predicate(target[0],"return bvec2(a.r>=-.04001 && a.r<=.04001 && !any(isnan(a.gba)) && !any(isinf(a.gba)) && a.a>=.5 && a.a<=1.001,false);").AssertEqual();
+            ImageAssertions.Predicate(target[0], GpuAssertionPredicate.TerrainDisplacementRasterTests_AdaptiveStagesPublishBoundedPositionAndNormal).AssertEqual();
             if(mode<10) Assert.InRange(actual[center+3],.999f,1.001f);
         }
         finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0); OpenGlStateCache.Current.SetPatchVertices(oldPatch);  if(program!=0)GpuProgramObject.Adopt(program).Dispose();   }

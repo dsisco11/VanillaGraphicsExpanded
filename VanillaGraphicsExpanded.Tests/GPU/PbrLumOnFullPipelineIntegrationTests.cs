@@ -273,7 +273,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             AssertAllFinite(anchorPosPixels, "Stage: Probe Anchor (pos)");
             AssertAllFinite(anchorNormalPixels, "Stage: Probe Anchor (normal)");
 
-            var valid=ImageAssertions.Predicate(anchorPosPixels,"return bvec2(true,a.a>.5);");
+            var valid=ImageAssertions.Predicate(anchorPosPixels, GpuAssertionPredicate.PbrLumOnFullPipelineIntegrationTests_Integration_OneFrame_FullPipeline_PropagatesIndirectIntoComposite);
             valid.AssertEqual();Assert.True(valid.MatchingTexels>0,"Stage: Probe Anchor -> no valid probes");
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Trace
@@ -548,7 +548,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             Assert.True(injectedLuma > baselineLuma + 1e-4f,
                 $"Composite did not brighten with injected indirect (baselineLuma={baselineLuma}, injectedLuma={injectedLuma})");
 
-            var changed=ImageAssertions.Predicate(compositeFull,"precise vec4 delta=abs(a-b);return bvec2(true,any(greaterThan(delta,vec4(.0001))));",compositeBaselinePixels);
+            var changed=ImageAssertions.Predicate(compositeFull, GpuAssertionPredicate.PbrLumOnFullPipelineIntegrationTests_Integration_OneFrame_FullPipeline_PropagatesIndirectIntoComposite_2,compositeBaselinePixels);
             changed.AssertEqual();Assert.True(changed.MatchingTexels>0,"Composite did not change with indirect enabled.");
             // Final hygiene checkpoint: no GL errors should remain queued for subsequent tests.
             AssertNoGLError("PbrLumOnFullPipelineIntegrationTests end");
@@ -566,7 +566,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
     /// <summary>Requires a positive RGB witness anywhere in the complete original stage output.</summary>
     private void AssertStageHasRgbEnergy(GpuTexture image,float threshold,string stage)
     {
-        var proof=ImageAssertions.Predicate(image,"return bvec2(true,any(greaterThan(a.rgb,vec3(multipliers.x))));",
+        var proof=ImageAssertions.Predicate(image, GpuAssertionPredicate.PbrLumOnFullPipelineIntegrationTests_AssertStageHasRgbEnergy,
             parameters:new(threshold,0,0,0));
         proof.AssertEqual();Assert.True(proof.MatchingTexels>0,$"{stage}: no RGB energy above {threshold}; {proof}");
     }
@@ -574,14 +574,14 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
     /// <summary>Checks every direct-only RGB component against the independent ordered float sum.</summary>
     private void AssertCompositeMatchesDirectOnly(GpuTexture composite,GpuTexture diffuse,GpuTexture specular,GpuTexture emissive,float epsilon)
     {
-        ImageAssertions.Predicate(composite,"precise vec3 expected=(b.rgb+c.rgb)+d.rgb;precise vec3 delta=abs(a.rgb-expected);return bvec2(all(lessThanEqual(delta,vec3(multipliers.x))),false);",
+        ImageAssertions.Predicate(composite, GpuAssertionPredicate.PbrLumOnFullPipelineIntegrationTests_AssertCompositeMatchesDirectOnly,
             diffuse,specular,emissive,parameters:new(epsilon,0,0,0)).AssertEqual();
     }
 
     /// <summary>Preserves the original scalar float Rec.709 expression and ordered accumulation over every pixel.</summary>
     private float ComputeAverageLuminance(GpuTexture image)
     {
-        float sum=ImageAssertions.OrderedFloatSum(image,"(value.r*.2126+value.g*.7152)+value.b*.0722");
+        float sum=ImageAssertions.OrderedFloatSum(image, GpuImageProjection.PbrLumOnFullPipelineIntegrationTests_ComputeAverageLuminance);
         return sum/(image.Width*image.Height);
     }
     /// <summary>Submits the retained inputs before observing the actual driver sampler binding.</summary>

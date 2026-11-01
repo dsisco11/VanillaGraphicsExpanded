@@ -161,8 +161,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         shader.GradingLookup=grading.Prepare(Programs.Api,controls.Grading);
         shader.Capture(false,controls,Vector4.Zero);Draw(shader,target);
         // Preserve every RGB witness and every finite/range/alpha assertion over the full 17x9 domain.
-        Assert.True(ImageAssertions.Predicate(target[0],
-            "return bvec2(true,any(greaterThan(abs(a.rgb-b.rgb),vec3(.02))));",baseline.Texture).MatchingTexels>0);
+        Assert.True(ImageAssertions.Predicate(target[0], GpuAssertionPredicate.FinalDisplayShaderTests_DisplayControlsAffectOutputWithoutChangingScene,baseline.Texture).MatchingTexels>0);
         ImageAssertions.Inspect(target[0],0,1).AssertFiniteRange();
         ImageAssertions.CompareConstant(target[0],1,channelMask:8).AssertEqual();
         if(treatment==0)Assert.True(GpuLocalRead.Scalar(target[0],0)>GpuLocalRead.Scalar(baseline.Texture,0));

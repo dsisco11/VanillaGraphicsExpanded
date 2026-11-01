@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -92,8 +93,8 @@ public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFun
             ImageAssertions.CompareIntervals(target[0],lower[first..last],upper[first..last],
                 new(new(0,0),0,region.Row,0,5,region.Rows,1),region.Mask).AssertEqual();
         }
-        ImageAssertions.Predicate(target[0],"bool valid=coordinate.y!=0||coordinate.x==0||all(lessThanEqual(a.rgb,texelFetch(actualImage,coordinate-ivec3(1,0,0),0).rgb));return bvec2(valid,false);").AssertEqual();
-        ImageAssertions.Predicate(target[0],"bool selected=(coordinate.y==13||coordinate.y==14)&&(coordinate.x==0||coordinate.x==4);return bvec2(!selected||a.r!=multipliers.x,false);",
+        ImageAssertions.Predicate(target[0], GpuAssertionPredicate.WaterMediumTests_HomogeneousTransportMatchesAnalyticReference).AssertEqual();
+        ImageAssertions.Predicate(target[0], GpuAssertionPredicate.WaterMediumTests_HomogeneousTransportMatchesAnalyticReference_2,
             parameters:new(1f/12.56637061436f,0,0,0)).AssertEqual();
 
         /// <summary>Intersects every original expected interval at its authored component.</summary>

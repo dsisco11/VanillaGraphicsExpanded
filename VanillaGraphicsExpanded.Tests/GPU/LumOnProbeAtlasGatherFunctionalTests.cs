@@ -355,7 +355,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 TestFramework.RenderQuadTo(programId, output);
                 ImageAssertions.Inspect(reference.Texture,.995f,1.005f,channelMask:7).AssertFiniteRange();
                 ImageAssertions.Inspect(output[0],.995f,1.005f,channelMask:7).AssertFiniteRange();
-                ImageAssertions.Predicate(output[0],"return bvec2(all(greaterThanEqual(a.rgb,b.rgb-vec3(.005))) && all(lessThanEqual(a.rgb,b.rgb+vec3(.005))),false);",reference.Texture).AssertEqual();
+                ImageAssertions.Predicate(output[0], GpuAssertionPredicate.LumOnProbeAtlasGatherFunctionalTests_WorldProbeSuppression_PreservesFallbackSelection,reference.Texture).AssertEqual();
                 return;
             }
 
@@ -850,12 +850,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         programId.GBufferSurface = surfaceInput8;
 
         TestFramework.RenderQuadTo(programId, tintedOutput);
-        ImageAssertions.Predicate(tintedOutput[0],"""
-            bool valid=true;
-            // Match the original strict channel gates; absent baseline channels are not asserted.
-            for(int c=0;c<3;c++)if(b[c]>.01){precise float ratio=a[c]/b[c];precise float delta=ratio-multipliers[c];valid=valid && abs(delta)<.2;}
-            return bvec2(valid,false);
-            """,baselineData,parameters:new(tint.r,tint.g,tint.b,0)).AssertEqual();
+        ImageAssertions.Predicate(tintedOutput[0], GpuAssertionPredicate.LumOnProbeAtlasGatherFunctionalTests_IndirectTint_AppliedToOutput,baselineData,parameters:new(tint.r,tint.g,tint.b,0)).AssertEqual();
     }
 
     #endregion
@@ -916,7 +911,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(all(lessThan(a.rgb,vec3(multipliers.x))),false);",
+        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAtlasGatherFunctionalTests_SkyPixels_ProduceZeroIrradiance,
             parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
@@ -972,7 +967,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         programId.GBufferSurface = surfaceInput10;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
-        ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(all(lessThan(a.rgb,vec3(multipliers.x))),false);",
+        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAtlasGatherFunctionalTests_SkyPixels_ProduceZeroIrradiance,
             parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 

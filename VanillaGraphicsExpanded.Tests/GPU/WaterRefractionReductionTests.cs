@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -114,12 +115,7 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
     {
         using var colorOracle=TestFramework.CreateTexture(color.Width,color.Height,TextureFormat.Rgba32f,expectedColors);
         using var depthOracle=TestFramework.CreateTexture(depth.Width,depth.Height,TextureFormat.Rgba32f,expectedDepths);
-        ImageAssertions.Predicate(color,"""
-            bool complete=d.a==1 || multipliers.x==1;
-            precise vec2 difference=abs(c.gb-d.gb);
-            bool valid=complete?(same(a,b,15u) && same(c,d,9u) && all(lessThanEqual(difference,vec2(.000001)))):(a.a==0 && c.a==0);
-            return bvec2(valid,false);
-            """,colorOracle,depth,depthOracle,parameters:new(completeInvalid?1:0,0,0,0)).AssertEqual();
+        ImageAssertions.Predicate(color, GpuAssertionPredicate.WaterRefractionReductionTests_AssertAssociatedReceivers,colorOracle,depth,depthOracle,parameters:new(completeInvalid?1:0,0,0,0)).AssertEqual();
     }
     /// <summary>Verifies receiver selection and isolates the optional large draw-only workload.</summary>
     private void CheckReceivers(bool measure)

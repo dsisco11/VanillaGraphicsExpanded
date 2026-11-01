@@ -64,7 +64,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         // Round each quotient to float before the original independent double-reference comparison.
         using var divisors=TestFramework.CreateTexture(16,8,TextureFormat.Rgba32f,colors.SelectMany(c=>new[]{c.X,c.Y,c.Z,1f}).ToArray());
         using var transform=new GpuImageTransform();
-        using var gains=transform.Apply(result[2].Texture,"return a/b;",second:divisors);
+        using var gains=transform.Apply(result[2].Texture, GpuImageProjection.LocalExposurePrototypeTests_FilterMatchesPhysicalReferenceAcrossStorageScales,second:divisors);
         ImageAssertions.CompareDouble(gains,expectedGain,.00002,channelMask:7).AssertEqual();
     }
 
@@ -145,7 +145,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         using var coordinates = TestFramework.CreateTexture(6, 1, TextureFormat.R32f, [-1, .5f, 2, 1e30f, float.NaN, float.PositiveInfinity]);
         using var valid = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, [-16, 1]);
         using var result = DrawImage("float q=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;float b;bool v=VgeSampleLocalBase(baseImage,vec2(q),-16.0,1.0,b);outColor=vec4(b,v?1:0,0,1);", 6, 1, coordinates, valid);
-        ImageAssertions.Predicate(result.Texture,"return bvec2(a.r==-16 && a.g==(coordinate.x==1?1:0),false);").AssertEqual();
+        ImageAssertions.Predicate(result.Texture, GpuAssertionPredicate.LocalExposurePrototypeTests_InvalidCoordinatesAreRejectedBeforeIntegerConversion).AssertEqual();
     }
 
     /// <summary>Corrupted globalStops or base metadata cannot produce nonfinite correction under identity compression.</summary>
@@ -201,7 +201,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
             expectedStops[i*4]=Stops(samples[i],0,new(.5f,.25f),new(3,2));
         ImageAssertions.Inspect(result.Texture,-2,3,channelMask:1).AssertFiniteRange();
         ImageAssertions.CompareDouble(result.Texture,expectedStops,.00001,channelMask:1).AssertEqual();
-        ImageAssertions.Predicate(result.Texture,"precise float detail=a.b-a.g;return bvec2(abs(double(detail)-.25lf)<=.00001lf,false);").AssertEqual();
+        ImageAssertions.Predicate(result.Texture, GpuAssertionPredicate.LocalExposurePrototypeTests_BoundsAndSmoothJoinPreserveBaseDetail).AssertEqual();
         Assert.InRange(Math.Abs(GpuLocalRead.Scalar(result.Texture,3*4)-GpuLocalRead.Scalar(result.Texture,5*4)),0,.0002);
         using var identity = DrawImage("float b=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(b,0.0,0.0,vec2(1),vec2(8)),0,0,1);", 9, 1, values);
         ImageAssertions.CompareConstant(identity.Texture,0,channelMask:1).AssertEqual();

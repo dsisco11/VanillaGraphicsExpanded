@@ -564,7 +564,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     private ManagerLifetime StartManager()
     {
         fixture.EnsureContextValid();
-        fixture.CleanupGpuResources();
+        fixture.RetireResourceServices();
         OpenGlStateCache.Current.InvalidateAll();
         return new ManagerLifetime();
     }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
@@ -108,12 +109,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         shader.Capture(new(0,0,1,32),new(.75f,0,0,0),new(.5f,.5f,1,(float)width/height));Draw(shader,target);
         Assert.True(target[0].ReadPixelsRegion(38,16,1,1)[0]>0);
         Assert.True(target[0].ReadPixelsRegion(32,22,1,1)[0]>0);
-        ImageAssertions.Predicate(target[0],"""
-            float horizontal=texelFetch(actualImage,ivec3(64-coordinate.x,coordinate.y,0),0).r;
-            float vertical=texelFetch(actualImage,ivec3(coordinate.x,32-coordinate.y,0),0).r;
-            return bvec2(a.r>=0 && a.r<=8 && horizontal>=a.r-.0001 && horizontal<=a.r+.0001
-                && vertical>=a.r-.0001 && vertical<=a.r+.0001,false);
-            """).AssertEqual();
+        ImageAssertions.Predicate(target[0], GpuAssertionPredicate.LightShaftShaderTests_RadialFilterProducesBoundedSpatialHalo).AssertEqual();
     }
     /// <summary>Reports the active fragment sampler requirement and verifies the executing device supports it.</summary>
     [Fact]

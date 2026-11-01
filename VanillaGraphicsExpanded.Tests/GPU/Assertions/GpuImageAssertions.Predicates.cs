@@ -14,20 +14,14 @@ internal sealed partial class GpuImageAssertions
     {
         RequireContext();
         if(image.InternalFormat!=TextureFormat.Rgba8)throw new ArgumentException("Byte metadata comparison requires RGBA8 storage.",nameof(image));
-        using var decoded=(projections??=new()).Apply(image,"return roundEven(a*255);");
+        using var decoded=(projections??=new()).Apply(image, GpuImageProjection.GpuImageAssertionsPredicates_CompareRgba8);
         return Compare(decoded,expected.Select(value=>(float)value).ToArray());
     }
 
     /// <summary>Retains scalar float addition order for legacy numerical oracles instead of silently substituting a double reduction.</summary>
-    internal float OrderedFloatSum(GpuTexture image,string term)
+    internal float OrderedFloatSum(GpuTexture image,GpuImageProjection term)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(term);
-        // Only one invocation accumulates; every other output is zero. The ordinary reduction
-        // independently proves the full output domain and returns the one rounded float sum.
-        string body="if(index!=0u)return vec4(0);precise float sum=0;"+
-            "for(int z=0;z<extent.z;z++)for(int y=0;y<extent.y;y++)for(int x=0;x<extent.x;x++){"+
-            "vec4 value=vec4(texelFetch(sourceImage,ivec3(x,y,z),0));sum=sum+("+term+");}return vec4(sum,0,0,0);";
-        using var projected=(projections??=new()).Apply(image,body);
+        using var projected=(projections??=new()).Apply(image,term);
         var result=Statistics(projected,channelMask:1);
         result.AssertFiniteRange();return (float)result.Sum(0);
     }
@@ -75,24 +69,16 @@ internal sealed partial class GpuImageAssertions
         }
         using var input=CreateArray(TextureFormat.Rgba32ui,actual.Texture.Width,actual.Texture.Height,actual.Texture.Depth*2);
         input.UploadDataImmediate(bits,0,0,0,input.Width,input.Height,input.Depth);
-        return Run(actual,21,input,null,0,double.NegativeInfinity,double.PositiveInfinity,channelMask,predicate:"""
-            vec4 expected=uintBitsToFloat(texelFetch(expectedImage,ivec3(coordinate.xy,coordinate.z*2),0));
-            vec4 allowed=uintBitsToFloat(texelFetch(expectedImage,ivec3(coordinate.xy,coordinate.z*2+1),0));
-            precise vec4 difference=abs(a-expected);
-            bool valid=true;
-            for(int channel=0;channel<4;channel++)if((channels&(1u<<channel))!=0u)
-                valid=valid && difference[channel]<=allowed[channel];
-            return bvec2(valid,false);
-            """);
+        return Run(actual,21,input,null,0,double.NegativeInfinity,double.PositiveInfinity,channelMask, predicate: GpuAssertionPredicate.GpuImageAssertionsPredicates_CompareFloating);
     }
 
     #endregion
 
     #region Authored domains
     /// <summary>Checks every independently nominated texel, including explicit array layers, without downloading the enclosing image.</summary>
-    internal GpuImageResult PredicateAt(GpuTexture image,IReadOnlyList<(int X,int Y,int Layer)> positions,string body)
+    internal GpuImageResult PredicateAt(GpuTexture image,IReadOnlyList<(int X,int Y,int Layer)> positions,GpuAssertionPredicate body)
     {
-        RequireContext();ArgumentNullException.ThrowIfNull(positions);ArgumentException.ThrowIfNullOrWhiteSpace(body);
+        RequireContext();ArgumentNullException.ThrowIfNull(positions);
         if(positions.Count==0)throw new ArgumentException("A sparse assertion requires an explicit nonempty domain.",nameof(positions));
         var coordinates=new float[checked(positions.Count*4)];
         for(int index=0;index<positions.Count;index++)
@@ -106,8 +92,8 @@ internal sealed partial class GpuImageAssertions
         // remains the sampled source; no source extent, selected layer or nominated point is dropped.
         using var domain=CreateArray(TextureFormat.Rgba32f,positions.Count,1,1);
         domain.UploadDataImmediate(coordinates,0,0,0,positions.Count,1,1);
-        return Predicate(domain,"ivec3 selected=ivec3(a.xyz);vec4 value=texelFetch(historyImage,selected,0);"+body,
-            image,mappedSources:true);
+        return Predicate(domain,body,
+            image,mappedSources:true,evaluation:new(1,1,1,1));
     }
 
     /// <summary>
@@ -117,11 +103,12 @@ internal sealed partial class GpuImageAssertions
     /// Explicit mappedSources permits different source dimensions: b/c/d clamp to their final texel,
     /// while the authored body can select independent coordinates through the named sampler uniforms.
     /// </summary>
-    internal GpuImageResult Predicate(GpuTexture image, string body, GpuTexture? second = null,
-        GpuTexture? third = null, GpuTexture? fourth = null, Vector4 parameters = default,bool mappedSources=false)
+    internal GpuImageResult Predicate(GpuTexture image, GpuAssertionPredicate body, GpuTexture? second = null,
+        GpuTexture? third = null, GpuTexture? fourth = null, Vector4 parameters = default,bool mappedSources=false, Vector4? evaluation=null)
     {
         RequireContext();
-        ArgumentException.ThrowIfNullOrWhiteSpace(body);
+        if (body == GpuAssertionPredicate.None || !Enum.IsDefined(body))
+            throw new ArgumentOutOfRangeException(nameof(body), "Select a declared independently authored predicate.");
         using var actual = new GpuImageSnapshot(image);
         using var reference = second is null ? null : new GpuImageSnapshot(second);
         using var additional = third is null ? null : new GpuImageSnapshot(third);
@@ -135,7 +122,7 @@ internal sealed partial class GpuImageAssertions
                 throw new ArgumentException("Authored predicates require corresponding floating image domains.");
         }
         return Run(actual, 21, null, reference?.Texture, 0, double.NegativeInfinity, double.PositiveInfinity,
-            1, multipliers: parameters, additional: additional?.Texture, fourth: last?.Texture, predicate: body);
+            1, multipliers: parameters, additional: additional?.Texture, fourth: last?.Texture, predicate: body, evaluation: evaluation);
     }
     #endregion
     #endregion

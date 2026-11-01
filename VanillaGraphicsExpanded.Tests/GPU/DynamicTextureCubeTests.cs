@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -41,7 +42,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         {
             int size=Math.Max(1,3>>mip);
             using var selected=new Assertions.GpuImageSnapshot(cube,new(new(mip,face),0,0,0,size,size,1));
-            ImageAssertions.Predicate(selected.Texture,"precise float difference=abs(a.r-multipliers.x);return bvec2(difference<=.004,false);",
+            ImageAssertions.Predicate(selected.Texture, GpuAssertionPredicate.DynamicTextureCubeTests_ColorFacesAndMipsAreIndependent,
                 parameters:new((face+1)/8f,0,0,0)).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());

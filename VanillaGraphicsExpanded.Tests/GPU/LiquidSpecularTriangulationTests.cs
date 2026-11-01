@@ -109,12 +109,12 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         using var capture = string.IsNullOrWhiteSpace(capturePath) ? null : new FramebufferBmpCapture(size, size, new VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem(DiagnosticReports.Publish));
         using var diagonalA = Draw([0, 1, 2, 0, 2, 3], "A");
         using var diagonalB = Draw([0, 1, 3, 1, 2, 3], "B");
-        const string shared="bool eligible=all(greaterThanEqual(coordinate.xy,ivec2(64)))&&all(lessThan(coordinate.xy,ivec2(192)))&&!(a.a<=0||b.a<=0);";
-        var common=ImageAssertions.Predicate(diagonalA.Texture,shared+"return bvec2(!eligible||!isnan(abs(a.r/a.a-b.r/b.a)),eligible);",diagonalB.Texture);
+
+        var common=ImageAssertions.Predicate(diagonalA.Texture, GpuAssertionPredicate.LiquidSpecularTriangulationTests_CompareFolds,diagonalB.Texture);
         common.AssertEqual();
         var compared=common.MatchingTexels;
         Assert.True(compared > 100, $"Expected a shared water interior, compared {compared} pixels.");
-        var different=ImageAssertions.Predicate(diagonalA.Texture,shared+"return bvec2(true,eligible&&abs(a.r/a.a-b.r/b.a)>.01);",diagonalB.Texture).MatchingTexels;
+        var different=ImageAssertions.Predicate(diagonalA.Texture, GpuAssertionPredicate.LiquidSpecularTriangulationTests_CompareFolds_2,diagonalB.Texture).MatchingTexels;
         TestContext.Current.TestOutputHelper!.WriteLine($"Interior highlight-change witnesses: {different} of {compared} shared pixels.");
         // The two diagonals form different surfaces when the quad is nonplanar.
         // Their difference is diagnostic only; it cannot establish a shading defect.

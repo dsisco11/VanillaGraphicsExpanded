@@ -37,13 +37,7 @@ public sealed class AmbientOcclusionLightingContributionTests(HeadlessGLFixture 
         float visibility=selected.Value;Assert.InRange(visibility,0,.995f);
         using var lighting=new AmbientOcclusionLightingFixture(TestFramework,Programs,scene,lumon,sunlit?8:0,.5f);
         using var neutral=lighting.Capture(null);using var occluded=lighting.Capture(owner.Texture);
-        ImageAssertions.Predicate(occluded.Direct, """
-            precise vec3 lower=b.rgb-vec3(0.00001),upper=b.rgb+vec3(0.00001),combinedUpper=d.rgb+vec3(0.0001);
-            bool valid=all(greaterThanEqual(a.rgb,lower)) && all(lessThanEqual(a.rgb,upper))
-                && !any(isnan(c.rgb)) && !any(isinf(c.rgb))
-                && all(greaterThanEqual(c.rgb,vec3(-0.00001))) && all(lessThanEqual(c.rgb,combinedUpper));
-            return bvec2(valid,false);
-            """,neutral.Direct,occluded.Combined,neutral.Combined).AssertEqual();
+        ImageAssertions.Predicate(occluded.Direct, GpuAssertionPredicate.AmbientOcclusionLightingContributionTests_GeneratedVisibilityChangesOnlyAvailableIndirectLighting,neutral.Direct,occluded.Combined,neutral.Combined).AssertEqual();
         var neutralPixel=(Direct:Receiver(neutral.Direct),Diffuse:Receiver(neutral.Diffuse),Specular:Receiver(neutral.Specular),Combined:Receiver(neutral.Combined));
         var occludedPixel=(Direct:Receiver(occluded.Direct),Diffuse:Receiver(occluded.Diffuse),Specular:Receiver(occluded.Specular),Combined:Receiver(occluded.Combined));
         Assert.True(neutralPixel.Diffuse.X>.1f);Assert.True(neutralPixel.Specular.X>.001f);
@@ -66,7 +60,7 @@ public sealed class AmbientOcclusionLightingContributionTests(HeadlessGLFixture 
         Assert.InRange(weakOccludedPixel.Diffuse.X/weakNeutralPixel.Diffuse.X,visibility-.001f,visibility+.001f);
 
         using var projection=new GpuImageTransform();
-        using var wrongDepth=projection.Apply(stages.Reconstructed,"a.g+=20.0;return a;");
+        using var wrongDepth=projection.Apply(stages.Reconstructed, GpuImageProjection.AmbientOcclusionLightingContributionTests_GeneratedVisibilityChangesOnlyAvailableIndirectLighting_2);
         using var retained=new GpuImageSnapshot(wrongDepth);using var rejected=retained.ToPlane();
         using var unmatched=lighting.Capture(rejected);
         var unmatchedPixel=Receiver(unmatched.Combined);

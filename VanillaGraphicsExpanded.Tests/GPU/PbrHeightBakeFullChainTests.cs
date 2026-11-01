@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -440,10 +441,9 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             });
 
             // The original maxima exceed their thresholds exactly when at least one corresponding component does.
-            Assert.True(ImageAssertions.Predicate(outAtlas1,"return bvec2(true,abs(a.a-b.a)>0.01);",
+            Assert.True(ImageAssertions.Predicate(outAtlas1, GpuAssertionPredicate.PbrHeightBakeFullChainTests_FullChain_ScaleUniforms_ChangeFinalPackedOutput,
                 outAtlas2).MatchingTexels>0,"Expected alpha to change with depthScale.");
-            Assert.True(ImageAssertions.Predicate(outAtlas1,
-                "return bvec2(true,any(greaterThan(abs(a.rgb-b.rgb),vec3(0.001))));",
+            Assert.True(ImageAssertions.Predicate(outAtlas1, GpuAssertionPredicate.PbrHeightBakeFullChainTests_FullChain_ScaleUniforms_ChangeFinalPackedOutput_2,
                 outAtlas2).MatchingTexels>0,"Expected RGB to change with normalScale.");
         }
     }
@@ -612,10 +612,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 });
             });
 
-            ImageAssertions.Predicate(outAtlasFlat,
-                "return bvec2(all(lessThan(abs(a.rgb-vec3(0.5,0.5,1.0)),vec3(0.02))),false);").AssertEqual();
-            Assert.True(ImageAssertions.Predicate(outAtlasFlat,
-                "return bvec2(true,any(greaterThan(abs(a.rgb-b.rgb),vec3(0.001))));",
+            ImageAssertions.Predicate(outAtlasFlat, GpuAssertionPredicate.PbrHeightBakeFullChainTests_FullChain_NormalScaleZero_FlattensPackedNormalsRgb).AssertEqual();
+            Assert.True(ImageAssertions.Predicate(outAtlasFlat, GpuAssertionPredicate.PbrHeightBakeFullChainTests_FullChain_ScaleUniforms_ChangeFinalPackedOutput_2,
                 outAtlasScaled).MatchingTexels>0,"Expected normalScale=0 vs 1 to change RGB.");
         }
     }
@@ -803,7 +801,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
     private (float minA, float maxA, int nanA, int ones) AlphaStats(GpuTexture image)
     {
         var observation=ImageAssertions.Inspect(image,channelMask:8);
-        uint ones=ImageAssertions.Predicate(image,"return bvec2(true,!isnan(a.a) && !isinf(a.a) && a.a>0.999);").MatchingTexels;
+        uint ones=ImageAssertions.Predicate(image, GpuAssertionPredicate.PbrHeightBakeFullChainTests_AlphaStats).MatchingTexels;
         return ((float)observation.Minimum,(float)observation.Maximum,(int)observation.NonFinite,(int)ones);
     }
 }

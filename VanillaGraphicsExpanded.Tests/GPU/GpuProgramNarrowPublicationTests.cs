@@ -127,7 +127,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     public void LocalComputeRealizationReusesCanonicalInterface(bool binary)
     {
         fixture.EnsureContextValid();
-        fixture.UseContextLocalResources();
+        fixture.RetireResourceServices();
         Assert.Null(RHIResourceManagerSystem.CurrentManager);
         var context = RHICommandContext.Current;
         var input = RHIShaderInputs.ComputeDescription();

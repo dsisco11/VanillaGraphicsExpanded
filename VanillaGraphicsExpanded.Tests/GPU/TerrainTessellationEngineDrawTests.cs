@@ -96,7 +96,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             else platform.RenderMesh(mesh, offsets, counts, 1, false);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             using var assertions=new GpuImageAssertions();
-            assertions.Predicate(target[0],"return bvec2(all(greaterThanEqual(a,b-vec4(.0001))) && all(lessThanEqual(a,b+vec4(.0001))),false);",expected.Texture).AssertEqual();
+            assertions.Predicate(target[0], GpuAssertionPredicate.TerrainTessellationEngineDrawTests_PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw,expected.Texture).AssertEqual();
             Assert.Equal(new[] { 12, 0 }, offsets); Assert.Equal(new[] { 3 }, counts);
             Assert.Equal(PrimitiveType.Triangles, mesh.drawMode);
             Assert.Equal(5, GL.GetInteger(GetPName.PatchVertices));

@@ -114,7 +114,7 @@ public sealed class MoonDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFu
             cosines[y*size+x]=1/Math.Sqrt(1+Math.Pow((a+b)/2,2)+Math.Pow((c+d)/2,2));
         }
         using var imageProjection=new GpuImageTransform();
-        using var physical=imageProjection.Apply(color,"precise vec3 radiance=a.rgb/parameters.x;return vec4(radiance,0);",new(scale,0,0,0));
+        using var physical=imageProjection.Apply(color, GpuImageProjection.MoonDiskDrawTests_Draw,new(scale,0,0,0));
         var power=ImageAssertions.WeightedStatistics(physical,areas,channelMask:7,secondaryWeights:cosines);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
         return new((float)power.Sum(0),(float)power.Sum(1),(float)power.Sum(2));

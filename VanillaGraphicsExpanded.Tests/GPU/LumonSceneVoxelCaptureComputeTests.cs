@@ -84,7 +84,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         GpuTestFence.WaitForGpuOrSkip("VoxelCapture dispatch (single)");
 
-        var bounds=ImageAssertions.Predicate(depthAtlas,"bool represented=!isnan(a.r);return bvec2(!represented || (a.r>=-.02 && a.r<=.02),represented);");
+        var bounds=ImageAssertions.Predicate(depthAtlas, GpuAssertionPredicate.LumonSceneVoxelCaptureComputeTests_CaptureVoxel_SingleWorkItem_WritesDepthZero_AndExpectedMaterial);
         bounds.AssertEqual();Assert.True(bounds.MatchingTexels>0);
 
         var material=materialAtlas;

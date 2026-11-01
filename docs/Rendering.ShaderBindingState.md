@@ -213,6 +213,9 @@ pipeline references or recorded resource tables. See [GPU resources](Rendering.G
 `RHICommandContext` selects pipelines, admits pass/boundary usage and executes resource publication.
 Typed binding structures establish supplied compatibility behind that boundary; the backend executes their
 native realization under owner-guaranteed resource lifetimes.
+Sampler admission checks compatible storage interpretations. Packed depth/stencil permits floating
+depth or unsigned stencil sampling; its owner selects the sampling aspect. Image load/store admission
+retains its separate format rules.
 Physical uniform storage and successful history are committed only when publication executes.
 
 ## Retained compatibility boundaries

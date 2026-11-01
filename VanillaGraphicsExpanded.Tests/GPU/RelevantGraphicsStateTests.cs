@@ -333,7 +333,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
         public WideLineContext(HeadlessGLFixture fixture)
         {
             this.fixture = fixture; fixture.MakeCurrent();
-            GpuSamplers.Dispose(); fixture.CleanupGpuResources();
+            GpuSamplers.Dispose(); fixture.RetireResourceServices();
             // Forward-compatible core contexts reject non-unit widths even when the driver reports a wider range.
             GLFW.DefaultWindowHints(); GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4);
             GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5); GLFW.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Compat);

@@ -240,13 +240,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
     private void AssertDecodedNormals(GpuTexture image,float[] expected)
     {
         using var oracle=TestFramework.CreateTexture(ProbeGridWidth,ProbeGridHeight,TextureFormat.Rgba32f,expected);
-        ImageAssertions.Predicate(image,"""
-            precise vec3 normal=a.rgb*2-1;
-            precise float length=sqrt((normal.x*normal.x+normal.y*normal.y)+normal.z*normal.z);
-            if(length>.001)normal=normal/length;
-            precise vec3 difference=abs(normal-b.rgb);
-            return bvec2(all(lessThan(difference,vec3(multipliers.x))),false);
-            """,oracle,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
+        ImageAssertions.Predicate(image, GpuAssertionPredicate.LumOnProbeAnchorFunctionalTests_AssertDecodedNormals,oracle,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
     /// <summary>
     /// Encodes a normal to G-buffer format [-1,1] to [0,1].
@@ -376,7 +370,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             expected[i]=position.X;expected[i+1]=position.Y;expected[i+2]=position.Z;
         }
         using var oracle=TestFramework.CreateTexture(ProbeGridWidth,ProbeGridHeight,TextureFormat.Rgba32f,expected);
-        ImageAssertions.Predicate(outputGBuffer[0],"precise vec3 difference=abs(a.rgb-b.rgb);return bvec2(all(lessThan(difference,vec3(multipliers.x))) && a.a>=.9,false);",
+        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAnchorFunctionalTests_UniformDepth_ProducesCorrectWorldPositions,
             oracle,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
@@ -475,7 +469,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
-        var valid=ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(a.a>=.5,a.a>.5);");
+        var valid=ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAnchorFunctionalTests_ValidProbes_HaveValidityFlagSet);
         valid.AssertEqual();Assert.True(valid.MatchingTexels>0);
     }
 
@@ -526,7 +520,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
-        ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(a.a<.1 && all(lessThan(abs(a.rgb),vec3(multipliers.x))),false);",
+        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAnchorFunctionalTests_SkyPixels_ProduceInvalidProbes,
             parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
@@ -582,7 +576,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
-        ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(a.a>.4 && a.a<.6,false);").AssertEqual();
+        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAnchorFunctionalTests_DepthDiscontinuity_ProducesPartialValidity).AssertEqual();
     }
 
     #endregion
@@ -651,7 +645,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
-        ImageAssertions.Predicate(outputGBuffer[0],"return bvec2(!any(isnan(a)) && a.a<.5,false);").AssertEqual();
+        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAnchorFunctionalTests_InvalidNormals_ProduceInvalidProbes).AssertEqual();
     }
 
     #endregion

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
@@ -71,7 +72,7 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
         AssertColor(Render(scene.Scene, 70, 0, .5f), 0, 0, 0);
         // The same ray must hit that wall when using the larger surface domain.
         var surface = Render(scene.Scene, 67, 0, .5f);
-        ImageAssertions.Predicate(surface,"return bvec2(a.r>.1,false);").AssertEqual();
+        ImageAssertions.Predicate(surface, GpuAssertionPredicate.SharedGeometryDebugTests_NearViewerClipsToLogicalWindow).AssertEqual();
     }
     #endregion
 
@@ -109,7 +110,7 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
     /// <summary>Checks every rendered pixel, including opaque alpha, against the diagnostic legend.</summary>
     private void AssertColor(GpuTexture image,float r,float g,float b)
     {
-        ImageAssertions.Predicate(image,"return bvec2(all(greaterThanEqual(a,multipliers-vec4(.001))) && all(lessThanEqual(a,multipliers+vec4(.001))),false);",
+        ImageAssertions.Predicate(image, GpuAssertionPredicate.SharedGeometryDebugTests_AssertColor,
             parameters:new(r,g,b,1)).AssertEqual();
     }
     #endregion

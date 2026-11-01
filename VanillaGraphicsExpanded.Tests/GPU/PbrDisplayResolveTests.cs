@@ -159,22 +159,22 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
             15,47,7,39,13,45,5,37, 63,31,55,23,61,29,53,21];
         using var projection=new GpuImageTransform();
         // Preserve the original float multiply/subtract and row-major float summation order.
-        using var offsets=projection.Apply(precise.Texture,"precise float scaled=a.r*255;precise float delta=scaled-(100+(float(coordinate.x/8)+.5)/8);return vec4(delta,0,0,0);");
-        using var codes=projection.Apply(first.Texture,"return roundEven(a*255);");
+        using var offsets=projection.Apply(precise.Texture, GpuImageProjection.PbrDisplayResolveTests_QuantizedRampIsBalancedNeutralAndDeterministic);
+        using var codes=projection.Apply(first.Texture, GpuImageProjection.GpuImageAssertionsPredicates_CompareRgba8);
         var expectedOffsets=new float[width*height*4];
         for(int y=0;y<height;y++)for(int x=0;x<width;x++)
             expectedOffsets[(y*width+x)*4]=(ranks[y*8+x%8]+.5f)/64f-.5f;
         ImageAssertions.Compare(offsets,expectedOffsets,.0001f,channelMask:1).AssertEqual();
         ImageAssertions.Inspect(offsets,-.493f,.493f,channelMask:1).AssertFiniteRange();
         ImageAssertions.Inspect(codes,100,101,channelMask:1).AssertFiniteRange();
-        ImageAssertions.Predicate(first.Texture,"return bvec2(a.r==a.g&&a.r==a.b&&roundEven(a.a*255)==73,false);").AssertEqual();
+        ImageAssertions.Predicate(first.Texture, GpuAssertionPredicate.PbrDisplayResolveTests_QuantizedRampIsBalancedNeutralAndDeterministic_2).AssertEqual();
         int previousUpperCodes=-1;
         for(int tile=0;tile<8;tile++)
         {
             var region=new RHITextureRegion(new(0,0),tile*8,0,0,8,height,1);
             int upperCodes=checked((int)ImageAssertions.Statistics(codes,region,1).Sum(0))-100*64;
             using var selectedOffsets=new GpuImageSnapshot(offsets,region);
-            float offsetSum=ImageAssertions.OrderedFloatSum(selectedOffsets.Texture,"value.r");
+            float offsetSum=ImageAssertions.OrderedFloatSum(selectedOffsets.Texture, GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic);
             Assert.InRange(MathF.Abs(offsetSum/64f),0f,.0001f);
             Assert.True(upperCodes>previousUpperCodes);previousUpperCodes=upperCodes;
             Assert.InRange(MathF.Abs(upperCodes/64f-(tile+.5f)/8f),0f,1f/16f);

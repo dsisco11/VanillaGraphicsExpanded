@@ -101,13 +101,7 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
                 reference+=expected*CelestialCubeGeometry.SolidAngle(x,y,64);
             }
             using var oracle=TestFramework.CreateTexture(64,64,TextureFormat.Rgba32f,expectedPixels);
-            ImageAssertions.Predicate(actual.Texture, """
-                precise vec3 value=a.rgb/multipliers.x;
-                precise vec3 error=abs(value/b.rgb-vec3(1));
-                bool valid=!any(isnan(value)) && !any(isinf(value)) && all(greaterThanEqual(value,vec3(0)))
-                    && all(lessThanEqual(value,vec3(multipliers.y))) && error.r<=0.0101 && error.g<=0.0101 && error.b<=0.0201;
-                return bvec2(valid,false);
-                """,oracle,parameters:new(source.StorageScale,source.MaximumNits,0,0)).AssertEqual();
+            ImageAssertions.Predicate(actual.Texture, GpuAssertionPredicate.CelestialGalaxyGenerationTests_PackedCubePreservesSourceAndMipEnergy,oracle,parameters:new(source.StorageScale,source.MaximumNits,0,0)).AssertEqual();
             stored+=IntegrateFace(actual.Texture,weights,projection,source.StorageScale);
             maximum=Math.Max(maximum,(float)ImageAssertions.Inspect(actual.Texture,channelMask:7).Maximum/source.StorageScale);
         }
@@ -234,11 +228,7 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
     /// <summary>Rounds each physical RGB quadrature product to float, then uses double GPU sums for stable full-face integration.</summary>
     private Vector3 IntegrateFace(GpuTexture image,GpuTexture weights,GpuImageTransform projection,float scale)
     {
-        using var products=projection.Apply(image, """
-            precise vec3 physical=a.rgb/parameters.x;
-            precise vec3 weighted=physical*b.r;
-            return vec4(weighted,0);
-            """,new(scale,0,0,0),weights);
+        using var products=projection.Apply(image, GpuImageProjection.CelestialGalaxyGenerationTests_IntegrateFace,new(scale,0,0,0),weights);
         var integrated=ImageAssertions.Statistics(products,channelMask:7);
         return new((float)integrated.Sum(0),(float)integrated.Sum(1),(float)integrated.Sum(2));
     }

@@ -53,7 +53,7 @@ public sealed class PbrLumOnPipelineTargetsLifetimeTests : IDisposable
         Assert.All(textures, id => Assert.False(GL.IsTexture(id)));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
 
-        // Cleanup closes the previous lifetime; the next test must be able to allocate again.
+        // Draining retired targets leaves the fixture service available for a fresh allocation.
         fixture.InitializeResourceDisposal();
         using var nextTargets = new PbrLumOnPipelineTargets();
         Assert.True(nextTargets.Composite.IsValid);

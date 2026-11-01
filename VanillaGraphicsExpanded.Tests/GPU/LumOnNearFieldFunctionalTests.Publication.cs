@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using System.Numerics;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -54,13 +55,13 @@ public sealed partial class LumOnNearFieldFunctionalTests
         fixture.Pump();
         Assert.Equal(revision, fixture.Scene.Revision);
         var result = Trace(fixture);
-        ObserveTrace(result, "return bvec2(a.r>=9.99 && a.r<=10.01,false);").AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsPublication_StaleArtifact_CannotReplaceCurrentRegion).AssertEqual();
     }
 
     /// <summary>Requires darkness and unavailable confidence, not merely a zero-valued RGB buffer.</summary>
     private void AssertUnresolved(TraceImages result)
     {
-        ObserveTrace(result, "return bvec2(all(equal(a.rgb,vec3(0))) && b.r==0.0,false);").AssertEqual();
+        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsLighting_RawEmission_RemainsUnavailableWithoutSurfaceCache).AssertEqual();
     }
     #endregion
 }
