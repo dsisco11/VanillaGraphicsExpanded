@@ -6,5 +6,8 @@
     "nsightGraphics.path": "C:\\Program Files\\NVIDIA Corporation\\Nsight Graphics 2026.3.1",
     "vsmod.projectFolder": "${workspaceFolder}/VanillaGraphicsExpanded",
     // Development game data directory used by launch profiles and log automation.
-    "vsmod.debugGame.dataPath": "D:/CODE/VintageStory/VintagestoryAutomation/Data"
+    "vsmod.debugGame.dataPath": "D:/CODE/VintageStory/VintagestoryAutomation/Data",
+    "search.exclude": {
+        "**/artifacts": true
+    }
 }
