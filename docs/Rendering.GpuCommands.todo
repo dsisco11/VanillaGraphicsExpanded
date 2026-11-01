@@ -68,7 +68,8 @@ Scope and implementation boundaries
   - No new game launch or visual acceptance by the agent. Delegate all build/test execution to subagents.
     DEBUG-only diagnostics; no instrumented Release product. Production rendering performance baselines,
     benchmarks and timing studies are not required. The test-runtime work in 10.9–10.10 instead requires
-    the separately reviewed runtime evidence and acceptance target. Preserve efficient execution through
+    the separately reviewed runtime evidence and user closeout discussion, without a numerical performance
+    requirement. Preserve efficient execution through
     storage reuse, binding suppression and avoidance of redundant queries or unnecessary allocations.
   - No architectural decisions remain open. Concrete API spelling, typed-page sizing and pooling are
     implementation details subject to the approved contracts, not measurement gates or scope expansion.
@@ -2806,13 +2807,15 @@ Phase 10.8: Reconcile qualification corrections and residual test cleanup
       remaining cleanup and applicable receipt reuse remain in 10.10. Phase 10 and Phase 11 stay open.
 
 Phase 10.9: Attribute remaining test costs and agree on the runtime-reduction design
+  Status: complete as the analysis/design boundary. Implementation subphases 10.9.1–10.9.3 remain open
+    and unimplemented until separately selected; batching is deferred and Phase 10 remains open.
   Depends on 10.8. Governing constraints: Phase 10/10.2's coverage and isolation map, 10.7's cache policy,
     Rendering.ShaderBindingState.md (Verification boundary) and Rendering.GpuCommands.Contracts.md
     (Submission and failure rules). This is analysis and design before further implementation.
-  Outcome: an evidence-backed cost model, complete proposed changes and an agreed test-runtime target.
+  Outcome: an evidence-backed cost model, agreed changes and a metrics-reporting/user-acceptance process.
     Create dependency-ordered implementation subphases under 10.9 only after design discussion/approval.
 
-  ☐ Start with existing TestResults/GpuTests108/ TRX, detailed logs, discovery partitions and identified
+  ☑ Start with existing TestResults/GpuTests108/ TRX, detailed logs, discovery partitions and identified
     source/build receipts. Separate build/shader generation, discovery, fixture setup, per-case execution
     and teardown. Distinguish wall time from summed case durations, parallel CPU overlap from serial GPU
     execution, display rows from runtime-expanded cases, and unique work from repeated setup.
@@ -2820,32 +2823,32 @@ Phase 10.9: Attribute remaining test costs and agree on the runtime-reduction de
     Prefer the already-started corrected Debug candidate's complete receipt as the baseline if it is
     successful and applicable. Partial/failing runs and selections containing different diagnostic work
     cannot establish a matched whole-suite improvement.
-  ☐ Attribute the costly families and shared paths using source and bounded focused profiling only where
+  ☑ Attribute the costly families and shared paths using source and bounded focused profiling only where
     current evidence cannot explain the cost. Cover shader specialization/linking/binary installation,
     native resource/context setup, repeated renderer/worker updates, CPU scheduling, GPU execution,
     completion waits, readbacks and checker snapshot/copy/dispatch overhead. Report measured attribution
     separately from hypotheses; cached artifact reuse and reduced downloaded bytes are not runtime proof.
-  ☐ Evaluate complete strategies for removing repeated work at its owning fixture/operation boundary.
+  ☑ Evaluate complete strategies for removing repeated work at its owning fixture/operation boundary.
     Include batching compatible observations/completion, sharing genuinely immutable preparation,
     reducing redundant setup and native operations, and removing duplicate coverage only with an exact
     retained mapping. Preserve named case diagnostics, independent resets, native-operation subjects,
     CPU numerical oracles, all selected spatial domains, negative paths and owner/context lifetimes.
     No order-dependent megatests, arbitrary parameter pruning, weaker tolerances or reclassifying real
     correctness coverage as Diagnostic to make the default selection look faster.
-  ☐ Reevaluate the compact assertion implementation's net cost. Determine whether repeated snapshots,
+  ☑ Reevaluate the compact assertion implementation's net cost. Determine whether repeated snapshots,
     checker executable creation, per-assertion dispatches or waits outweigh avoided transfers, and design
     shared/batched use through the existing infrastructure where evidence supports it. Preserve complete
     domain/sentinel proof and independent expectations; do not restore bulk CPU pixel assertions or
     introduce another test framework/cache. Coordinate with Phase 11's production-shader migration
     without silently implementing that separate architectural work.
-  ☐ Inventory expected-data construction and transfers for every assertion route and its callers.
+  ☑ Inventory expected-data construction and transfers for every assertion route and its callers.
     Include CPU reference generation, array allocations/copies, float-bit/double-band encoding,
     reference uploads, output snapshots, dispatches and completion/result transfer. Compare total work
     and both transfer directions; a bounded result download alone does not establish an improvement.
     Current Compare paths upload full encoded references; CompareIntervals packs two double bands
     into 64 bytes per selected texel, before snapshot and dispatch costs. Treat these as costs to
     evaluate, not as the required steady-state representation.
-  ☐ Design assertion selection around the information actually needed. Prefer compact constants,
+  ☑ Design assertion selection around the information actually needed. Prefer compact constants,
     parameters and independently authored GPU predicates for regular analytic/spatial patterns;
     compare retained histories on the GPU. Retain CPU reference arrays where they supply necessary
     independent numerical evidence, with explicit justification and evaluated construction/upload cost.
@@ -2853,25 +2856,380 @@ Phase 10.9: Attribute remaining test costs and agree on the runtime-reduction de
     and completion proof. Do not reuse the production algorithm as its own oracle or replace independent
     CPU evidence indiscriminately. Include the selected routes and caller migrations in the design
     discussion and subsequent implementation subphases before changing this assertion architecture.
-  ☐ Present the complete findings and proposed changes for discussion, including coverage tradeoffs,
-    predicted benefit with confidence/uncertainty, and a concrete runtime acceptance target for user
-    agreement. Define a minimal matched comparison using the same selection, source identities,
+  ☑ Present the complete findings and proposed changes for discussion, including coverage tradeoffs,
+    predicted benefit with confidence/uncertainty, and the metrics-reporting/user-acceptance process.
+    No numerical performance requirement applies. Define a minimal comparable observation using selection, source identities,
     hardware/configuration, cache policy and build/bootstrap boundary. No new benchmark framework;
     prefer focused evidence during iteration and one necessary final combined comparison.
-  ☐ After approval, define reviewable implementation subphases under 10.9 around the actual dependency
+  ☑ After approval, define reviewable implementation subphases under 10.9 around the actual dependency
     closure, with explicit commit checkpoints, removals and focused verification. Leave them unimplemented
     until selected. Second-review and independently audit the analysis/plan; preserve decisions here
     rather than creating disposable profiling reports. Inventory temporary instrumentation for cleanup.
 
-Phase 10.10: Qualify runtime reduction and combined correctness, then remove temporary support files
-  Depends on 10.3–10.9 and the approved implementation subphases defined under 10.9.
+  Analysis and agreed design (implementation is separately selected):
+    Current user decisions:
+    - Assertion programs should use the actual production precompile/shader-asset and default binary-cache
+      pipeline. Replace checker-specific source compilation/cache plumbing through that existing system;
+      do not add a special test executable cache. Inventory generated predicate/transform bodies and move
+      their finite authored variants into declared build inputs, with scenario values supplied as data.
+      Production binary caching and native-owner retention are distinct: cached bytes alone do not prove
+      that repeated native program construction has been eliminated. The approved ownership arrangement
+      prepares each declared checker through the production shader system, retains its production shader
+      owner for the GPU fixture's physical context lifetime, explicitly initializes each assertion's
+      inputs/bindings/uniforms/results, and disposes those owners before context destruction. Use the
+      existing production lifecycle; no additional test-specific cache or retention service. Preserve
+      explicit fresh-creation/fault-injection subjects.
+    - Compact expectations are approved, preserving independent numerical evidence and exact domains.
+    - Workgroup reductions are approved, preserving full-domain checks, exact counters, earliest failures,
+      negative witnesses and the required numerical precision/addition order.
+    - Batched observations/results are deferred as a later decision. The batching opportunities below
+      remain analysis candidates, not approved implementation or prerequisites for the selected changes.
+    - No numerical performance requirement applies for now. Discuss the actual resulting metrics with
+      the user at each implementation subphase's closeout; the user accepts or rejects that work then.
+      Report the final combined metrics in 10.10 as well. Do not substitute a predetermined percentage,
+      time limit or automatic speedup verdict for that review, or run full suites for each checkpoint.
+    Evidence and traceability:
+    - All attribution below uses the existing corrected Debug receipt, not a new execution:
+      ../TestResults/GpuTests108/full-debug-qualified.trx, full-debug-qualified.log,
+      full-debug-qualified-result.txt, command-debug-qualified.txt, source-final.patch,
+      source-final-changed-files.csv and dll-debug-qualified-before/after.txt. The checkpoint is now
+      committed at c7a306f0; all twenty changed C# source hashes still match that qualified candidate.
+      These identify the candidate, not a controlled comparison with an earlier implementation.
+    - Cost/coverage tasks -> Phase 10/10.2's complete family partition and retained numerical/native
+      contracts; 10.7's preparation inventory/cache exceptions -> current source and per-case TRX below.
+      Assertion tasks -> GPU/Assertions/GpuImageAssertions*.cs, GpuAssertionKernel*.cs,
+      GpuImageSnapshot.cs, GpuImageTransform.cs and their callers -> route/cost inventory below.
+      Lifetime/completion constraints -> Rendering.GpuCommands.Contracts.md, Submission and failure
+      rules; Rendering.GpuResources.md, Snapshot and change publication and Shader executable ownership;
+      Rendering.ShaderBindingState.md, Verification boundary; Rendering.GpuCommands.Proposal.md,
+      Representative outcomes and verification -> preserve independent oracles, real effects, original
+      contexts, owner intervals and completion. The parent Rendering.GpuResourceHandles.todo Phase 8
+      delegates execution to this plan; this analysis changes no production RHI contract.
+
+    Baseline and measured attribution:
+    - Corrected Debug: process wall 23m37.400s; TRX start-to-finish 23m35.850s; 8,345 runtime-expanded
+      rows, 8,338 passed, zero failed, seven skipped. Discovery has 8,339 display rows (2,182 unit,
+      6,157 GPU), with 197 separately excluded diagnostic rows. Do not conflate those row models.
+      The existing AllTests.runsettings plus Purpose!=Diagnostic command excludes diagnostic workloads.
+    - Build is separate: Debug qualified build 14.958s process / 14.66s reported, zero errors.
+      No separate shader-generation timing exists. xUnit discovery is logged at 0.14–2.71s, execution
+      starts at 3.58s and finishes at 23:35.34. Fixture setup/teardown are not separately timed;
+      they cannot be reconstructed by subtracting summed case durations from wall time.
+    - Per-family case-duration sums below are attribution leads, not exclusive wall-time slices.
+      GPU-namespace rows sum to 1,379.33s and other namespaces to 212.48s, exceeding wall time because
+      CPU work overlaps. Namespace is not classification: root atmosphere and pipeline cases may use
+      native setup. Collection/context scheduling and CPU overlap must remain explicit.
+
+    | Family | Runtime rows | Sum of case seconds | Source-supported work and disposition |
+    | --- | ---: | ---: | --- |
+    | WaterRefractionDiagnosticTests | 72 | 154.96 | Correctness, despite name. Every row creates a production diagnostic program, 128x128 seven-MRT target, depth/color inputs, optional half-resolution reduction, then four local attachment reads per column. Keep all 12 scenarios x 3 budgets x 2 resolutions and six columns for edge-motion. Batch the nominated tuple observations and reuse immutable input preparation; do not replace rows with one ordered scenario loop. |
+    | SpirvInventoryTests | 1,662 | 67.76 | Deliberately fresh specialization/linking. 506 emitted Link only samples sum to 51.447s, included in the family total. Retain fresh linking and full declared combinations; immutable catalog/asset preparation is the eligible sharing boundary. |
+    | WaterRefractionBudgetTests | 32 | 64.77 | Real traversal/read-budget checks plus setup and observations. Keep budgets and native shader workload; consolidate repeated fixture observations, not the tested search. |
+    | WaterShallowContinuityTests | 24 | 58.00 | Real shoreline/half-resolution continuity scenarios; retain motion samples, rejection and tolerances. |
+    | WaterRefractionTests | 95 | 57.76 | Separate optical cases and output/state checks; preserve all parameter rows and independent expectations. |
+    | SpirvGraphicsLifecycleTests | 487 | 55.65 | Production assignment/interface and representative reload/failure/retirement. Fresh executable generations are subjects, not accidental cache misses. |
+    | AtmosphereScatteringQualityTests | 15 | 43.39 | CPU transport rebuilds, including two quality/publication cases at 18.90s and 18.45s. Numerical transport is independent evidence; lifecycle-only orchestration may use a deterministic computation seam only after preserving separate real numerical coverage. No blanket low-quality substitution. |
+    | LumOnNearFieldFunctionalTests | 57 | 37.98 | Real traces, geometry and selected output assertions; preserve per-case mutable scenes and branch coverage. |
+    | LumOnDirectWorldProbeVisibilityTests | 82 | 37.51 | Visibility/mode scenarios; share only immutable preparation and combine observations of the same completed output. |
+    | SurfaceLightingSpatialRuntimeTests / RuntimeScenariosTests / ConsumerRuntimeTests | 10 / 12 / 13 | 36.87 / 33.10 / 24.83 | Real startup/worker/publication chains; shared Frame/RunUntil/Energy paths repeatedly construct terrain arrays and synchronously observe outputs. Batch observations within each frame; never memoize across a publication or remove a required intermediate-state assertion. |
+    | GpuResourceAssociationStressTests | 1 | 26.10 | 12 lifetimes x 32 cycles with explicit full GC/finalizer observations. Retain repeated-lifetime/name-reuse stress and weak-reference proof. Separate deterministic disposal assertions from the minimum required GC checkpoints only with an exact coverage mapping; no arbitrary iteration cut. |
+    | CloudStoredVolumeViewTests | 6 | 24.60 | Large target coverage and temporal updates; retain original extents and real observations, optimize checker work instead. |
+
+    - These times do not measure binary-install, allocation, CPU reference preparation, native submission,
+      GPU execution or synchronization separately. Per-row water time is not proof that the water shader
+      itself consumes that duration. The link-only samples above are the sole directly timed native-stage
+      subdivision reused here. No cache-hit rate, assertion speedup or component percentage is inferred.
+    - HeadlessGLFixture creates a collection context, not a window per case. EnsureContextValid may
+      rebind/reload on thread changes; default shader artifact bytes survive eligible cases. ComponentShaderPrograms
+      and GpuFixtureProgram still create fresh native executables (including binary installation) and
+      dispose them with their test owners. Proposed checker-only sharing must not silently share subject programs.
+    - SurfaceLightingConsumerRuntimeFixture.Frame reconstructs/uploads terrain arrays and checks final/world
+      energy; RunUntil/WaitObservations/refresh helpers add observations. RuntimeLightingCompletionWait
+      waits for an actual fence or worker milestone, rather than an arbitrary sleep. TestUniformRing's
+      completion-before-reuse remains required. Remove duplicate observations only within the same unchanged
+      output epoch; do not remove these completion/producer contracts.
+
+    Complete assertion-route cost inventory (source sites, not runtime frequencies):
+    - The comparison/predicate/reduction routes reach GpuImageAssertions.Run: fresh result image (128 bytes), initialized histogram
+      (4 bytes ordinary, 16,384 bytes statistics, rank-domain size for CheckRanks), optional dummy expected
+      image, uniform/binding/state setup, dispatch/barriers and synchronous 128-byte result read. All ordinary
+      source observations allocate/copy a full selected GpuImageSnapshot first; correlated routes copy each
+      source. Cached executable bytes do not eliminate a new program installation in each new checker owner.
+    - The ordinary kernel globally atomically increments visit/component/positive/nonzero counters and
+      extrema for successful texels/components. This creates shared-counter contention even without failures.
+      Statistics adds fixed 256-group and final reductions after the ordinary pass; ranks add a histogram
+      validation pass. Individual stage costs are not isolated; bounded whole-helper timings are measured
+      below. Net benefit over the former complete CPU assertions remains unknown, especially for tiny domains.
+
+    | Route | CPU preparation / upload beyond the common work | Selected disposition |
+    | --- | --- | --- |
+    | Compare / CompareBits | Caller array; Compare adds a full float-to-uint copy, then RGBA-padded uint packing; 16 bytes/texel uploaded even for scalar sources. Additive-layer mode also snapshots its reference. | Replace regular constants/patterns with compact expectations; retain independent numerical/native bit arrays where justified. |
+    | CompareDouble | Finite scan plus low/high packing; 32 bytes/texel uploaded, apart from caller doubles. | Keep necessary CPU numerical oracles; compact row/scenario tables where values repeat. |
+    | CompareIntervals | Lower/upper validation and packing; 64 bytes/texel uploaded, apart from two caller double arrays and sliced copies. | Prefer independently authored bounds per scenario/row/region, preserving exact double values and intersections. |
+    | CompareFloating | Expected/tolerance validation plus two RGBA uint layers; 32 bytes/texel uploaded. | Preserve float subtraction/tolerance semantics; compact per-scenario data where regular. |
+    | CompareRgba8 | Full GPU decode projection plus extra snapshots; byte-to-float CPU copy then Compare's packing/upload. | Compare normalized metadata bytes directly in the existing checker, retaining rounding semantics. |
+    | CompareSelected | Sparse dictionary expanded to full RGBA uint image, 16 bytes/texel uploaded. | Upload only nominated coordinate/value records; retain exact authored points and compared-component proof. |
+    | WeightedStatistics | Independent CPU quadrature arrays, finite scan and double-pair packing; 16 bytes/texel uploaded. | Retain independent quadrature; cache immutable authored weights per exact domain or compact parameters only if independence/precision is preserved. |
+    | PeriodicLaplacianResidual | CPU RHS padded to RGBA uint, 16 bytes/texel uploaded, plus three statistics dispatches. | Retain independent equation/RHS; avoid padding/reupload for unchanged authored RHS within its owner. |
+    | PredicateAt | 16 bytes/nominated point coordinate upload; predicate snapshots domain and source. | Keep sparse authored-domain semantics; reuse the compact coordinate data within an explicit owner. |
+    | Inspect, CompareConstant, CompareStencil, CountMatching, InspectCoverage, CompareChannelRatios, CountFlags | Compact scalar/vector parameters, no image-sized expected upload. | Retain generic operations, combine compatible checks and remove unrequested reduction work. |
+    | Predicate | Authored source string/parameters, up to four source snapshots, kernel variant per distinct body. | Keep independent predicates; parameterize repeated bodies rather than specialize every value into source. |
+    | CompareRelation, CountExcess, CompareHistory | Compact parameters; two/three snapshots or actual plus retained history. | Retain GPU histories; reuse each observation snapshot once within its valid interval. |
+    | Statistics, OrderedFloatSum, Extremum, Brightest | Statistics may project squared values; ordered sum projects then reduces; extrema/brightest run multiple snapshots/checkers and finally a nominated tuple. | Preserve summation precision/order and selected witness; avoid duplicate passes/copies where the same result supplies multiple facts. |
+    | CheckRanks | No CPU expected image; rank histogram and second complete rank-validation dispatch, including slice-difference witnesses. | Retain permutation/missing/duplicate/range proof and all slices; aggregate ordinary counters without removing the independent histogram check. |
+    | GpuImageTransform / GpuLayerCopy / GpuImageSet / NativeFramebufferImage | Additional source snapshots, projection/copy storage and dispatches; histories intentionally retain immutable results. | Share observation captures within a completed epoch, preserve active-pass/format/aspect/restoration boundaries and history ownership. |
+    | GpuLocalRead / direct nominated tuples | Small CPU result allocation/read; some paths first snapshot the selection. No full expected image or checker reduction. | Preserve local numerical/native observations; batch independent nominated tuples where compatible without turning them into whole-image readbacks. |
+
+    Caller disposition inventory (basenames under VanillaGraphicsExpanded.Tests; partials/helpers included):
+    - Regular authored expectations, migrate to compact constants/row/region/scenario records or independent
+      predicates after checking each original expression: CompleteGraphicsDrawTests, LumOnHistorySubmissionTests,
+      LumOnTraceOutcomeDebugFunctionalTests, MaterialDisplacementAtlasTests, OitStorageArithmeticTests,
+      OwnedPostprocessShaderTests, PbrCompositeHdrTests, PbrDisplayResolveTests, PbrBlockFieldRasterTests,
+      RenderPassClearTests, SceneColorParticleSsaoTests, SceneColorPatchTests, SparseStateCoverageTests,
+      WaterBoundaryTests, WaterMediumTests, WaterTransportTests, WorldProbeResidentPublicationTests,
+      WorldProbeDirectionalHistoryTests, WaterMediumAtlasTests, AtmosphereSkyIntegrationTests and
+      LumOnVelocityFunctionalTests. Mixed files retain their nonregular independent arrays.
+    - Independent numerical/input evidence, retain CPU authorship and optimize representation/upload instead
+      of copying the production algorithm into a GPU oracle: DepthHierarchyPassTests, PbrPoissonJacobiConvergenceTests,
+      PbrPoissonMultigridVCycleTests, LocalExposurePrototypeTests, LocalExposureQualificationTests,
+      LocalExposureRuntimeTests, AtmosphereAerialLookupTests, AtmosphereOwnedSkyTests, AtmospherePublicationTests,
+      ColorGradingLutTests, CelestialDrawTests, SunDiskDrawTests, MoonDiskDrawTests, PhotometricMaterialAtlasTests,
+      MaterialAtlasBakeSubmissionTests, SurfaceLightingNumericalRuntimeTests, SurfaceLightingSpatialRuntimeTests,
+      Fixtures/SurfaceLightingRefreshSynchronization, LumOnNearFieldFunctionalTests.Ring and TraceGeometryPublicationTests.
+      Compact sparse celestial/LUT points and spatial scenario tables may migrate without discarding this evidence.
+    - Input unchanged/native/captured evidence: CameraExposureShaderTests, LightShaftShaderTests,
+      Fixtures/CapturedAmbientOcclusionFixture, AmbientOcclusionPerformanceTests and AoMinimumChildProductionTests;
+      keep arbitrary captured/input arrays where bitwise independence is required, or retain an independent
+      GPU history before mutation when that proves the same contract. Diagnostic capture remains separate.
+    - Explicit coordinate callers: LumonSceneMaterialAtlasMultiFramePopulationTests,
+      LumonSceneMultiSlotMaterialCaptureConvergenceTests, LumonScenePipelineSmokeTests and
+      LumonSceneRuntimeCaptureWiringTests retain every authored position/layer. GpuImageAssertionTests
+      independently exercises all helper routes and must retain full reference-array/error/precision cases.
+      All remaining callers use the compact/history/statistics routes above and inherit the shared-core change;
+      their complete domain/case mapping remains the exhaustive family partition in 10.2.
+
+    Owning-boundary design, subject to the current user decisions above:
+    1. Deferred batching candidate: explicit within-test observation batches would own
+       one capture per selected source/version, independent result slots and reusable initialized scratch.
+       Enqueue compatible checks on the owning GL thread, then perform one bounded combined result read.
+       Finish the batch before the caller needs its CPU result, mutates/retires its source or crosses a
+       required lifecycle boundary. Retained history still owns its copy. No cross-case mutable targets.
+       Keep the synchronous convenience route through that same implementation, not duplicate dispatchers.
+    2. Approved workgroup reductions: reduce inside each workgroup and publish partial/aggregate counters instead of globally contending
+       per successful component. Compute only requested facts while retaining full-domain visited counts,
+       completion magic, earliest failure and negative witnesses. Preserve exact integer/bit/nonfinite
+       semantics and required ordered-float/double reductions; do not change tolerances or numeric grouping.
+    3. Approved shader integration and retention: use the production precompiled shader asset, default binary-cache and shader-owner systems for
+       checker programs. Replace GpuFixtureProgram's hand-built source compilation and checker-specific
+       TestShaderCache path coherently with declared assets and consuming helpers. Retain the production
+       shader owners for the GPU fixture's physical context lifetime; no additional test cache or retention
+       service. Initialize inputs/uniforms/bindings/results for each assertion and dispose those owners
+       before context destruction. Fault-injection/creation/cache subjects retain their required fresh operations and
+       policy scopes; no raw-name globals, subject-program sharing or implicit cross-thread access.
+    4. Approved compact expectations: add constant-vector and authored row/region/coordinate tables to the same checker; select
+       independent predicates for regular patterns and keep necessary CPU numerical arrays. Upload retained
+       references once per unchanged authored owner/domain, preserve exact selected masks and double bounds.
+       Avoid per-value shader-source variants, full sparse-image expansion and byte decode round trips.
+    5. Deferred batching-dependent caller migration: water/local observation consumers and surface Frame/Energy/WaitObservations could migrate together so
+       repeated facts from one unchanged output share a capture/result. Share immutable catalogs and
+       authored input bytes; each case still owns/reset its native subjects. Keep worker/frame milestones,
+       cache opt-outs, shader-operation matrices and representative full runtime chains. No test deletion
+       is justified by present evidence. CPU atmosphere orchestration seams and fewer GC checkpoints are
+       separate candidates requiring exact real-coverage mappings, not assumed implementation savings.
+    - Expected benefit: high confidence in fewer allocations/copies, uploads, atomic operations and CPU/GPU
+      rendezvous; low confidence in an absolute suite-time prediction before focused measurement. There
+      is no measured claim that any proposed change saves a specific number of seconds. The native-link
+      matrix establishes an intentional remaining cost; deleting it is not the optimization strategy.
+      Phase 11's legacy-to-production submission migration remains separate and unimplemented.
+
+    Bounded assertion evidence and resulting priority:
+    - Delegated temporary probe: ../TestResults/GpuTests109/assertion-cost.trx and assertion-cost.log,
+      command-probe.txt, probe-source.cs.txt/patch/hash and dll-probe-before/after.txt. One diagnostic
+      case passed; process wall 7.904s, runner 7.137s. Existing fixture, unchanged checker implementations,
+      completed RGBA32f inputs, domains 4x13 and 512x512, three interleaved warm observations per route.
+      RTX 4090, OpenGL 4.5 NVIDIA 610.88. No full correctness suite or new benchmark framework ran.
+    - Warm median CPU wall, including submission/synchronous completion (not isolated GPU execution):
+
+    | Route | 4x13 | 512x512 |
+    | --- | ---: | ---: |
+    | Constant checker | 1.620 ms | 4.261 ms |
+    | Float-reference checker, existing CPU values | 0.845 ms | 8.284 ms |
+    | Interval checker, existing CPU bounds | 0.557 ms | 30.720 ms |
+    | Construct both CPU double-bound arrays | 0.003 ms | 3.301 ms |
+    | Raw full output transfer, without CPU assertions | 0.275 ms | 2.328 ms |
+    | Snapshot enqueue/dispose only | 0.089 ms | 0.655 ms |
+    | Four local ticket/wait/map tuples | 0.715 ms | 0.904 ms |
+    | Four water-style direct local reads | 0.654 ms | 0.454 ms |
+
+    - Fresh checker-owner calls on the cache-eligible path took 196.873ms (tiny) and 182.174ms (large),
+      including owner construction/disposal; first-ever tiny check took 760.218ms. Warm routes exclude
+      checker-owner disposal. This demonstrates a large repeated-owner cost on these inputs, not an
+      isolated program-binary installation time or confirmed per-case cache-hit rate. Prioritize the
+      production shader preparation and appropriate existing original-context shader ownership, rather
+      than another test cache. Batching remains deferred. Reset all mutable observation state and retain
+      fresh subject owners.
+    - At 512x512 the float reference uploads 4MiB; intervals upload 16MiB plus construct 16MiB of CPU
+      double arrays, while the measured raw RGBA32f transfer returns 4MiB. Checker/result paths on these
+      samples cost more than the avoided transfer alone. This does not measure the former complete CPU
+      comparison/assertion cost or prove that every GPU assertion is slower. Tiny-route ordering and
+      three-sample variation forbid ranking all algorithms from these medians.
+    - Snapshot timing measures enqueue/disposal, not completed device copy. The following raw read may
+      include its pending completion. Four tuples come from one synthetic image, not the actual water
+      seven-MRT draw. No attribution of the water family's 154.96s, live frame time or whole-suite savings
+      follows from this probe. Remaining stage splits and CPU/GPU scheduling effects remain unmeasured.
+    - Measurement build: zero errors, 94.262s, including two shader-regeneration stages at 25.529s and
+      27.530s. These are build costs, excluded from probe and test-runtime figures. Temporary source was
+      removed; only this planning document remains modified. Source/patch and normal logs/TRX are retained
+      evidence, not pending source cleanup. Debug test binaries still contain the removed diagnostic probe
+      and are explicitly measurement artifacts, not a clean rebuilt qualification candidate.
+    - Second source/document review and independent read-only review verified baseline arithmetic,
+      source-supported costs and route/coverage boundaries. The affected independent receipt recheck
+      passed, including medians, counts, source/DLL hashes, cleanup and measurement limitations. User
+      design discussion approved production preparation/context-lifetime ownership, compact expectations
+      and reductions; batching is deferred. The user replaced the proposed numerical target with actual
+      metrics discussion and explicit user acceptance at implementation closeout. The numbered units below
+      passed the final second review and independent completion audit against this analysis contract,
+      linked source requirements and user decisions. No new build/test execution was needed for the
+      planning-only closeout; the bounded probe and retained baseline receipts remain the evidence.
+
+    Agreed metrics discussion and minimum evidence:
+    - No numerical performance requirement applies for now. Preserve selection, rows/domains/oracles
+      and skip reasons, record actual resulting metrics and discuss them with the user at each selected
+      implementation subphase's closeout. The user accepts or rejects that work after this discussion;
+      keep it open pending that decision. Build/bootstrap time is separate and cannot be hidden in a
+      cache warmup. Full Debug/Release correctness remains in 10.10, with final metrics discussed there
+      too. Do not invent Release improvements from a Debug receipt or an automatic acceptance threshold.
+    - The existing receipt is a passing candidate reference, not yet a controlled matched baseline:
+      historical hardware/driver/load and cache-order conditions were not recorded sufficiently for that
+      claim. Reuse it where comparability can be established; otherwise disclose the limit and report
+      current observations without a speedup claim. No additional complete baseline run is required
+      solely to establish a percentage. Any necessary comparison uses the same machine/driver/configuration/settings/filter,
+      process-level cold in-memory artifact store, built asset identity and recorded order/seed, identical
+      opt-outs and no diagnostic work. Record concurrent load/driver-cache limitations rather than claiming
+      control over them. Compare test command wall including discovery/setup/teardown, excluding builds.
+      Preserve per-case evidence and explain every changed display/runtime row; no parameter pruning.
+    - Use the bounded probe above as the initial helper-cost evidence. Compare original/new helper on
+      identical completed inputs during focused implementation checks; add scoped stage timings only
+      where needed to explain a remaining result. Cover affected tiny OIT/transport patterns, large
+      cloud/history domains, water's local tuple route and a surface runtime chain in focused correctness
+      verification. Do not sum overlapping CPU/GPU timings or infer unmeasured native-stage costs.
+      Exclude profiler setup and retain normal noninstrumented correctness. No full suite to iterate;
+      no new profiler/benchmark framework. Remove any additional scoped instrumentation after preserving
+      useful observations here and ordinary receipts.
+    - Production shader integration and fixture-context owner retention, compact expectations and
+      workgroup reductions are approved; batching remains a later decision. The implementation units
+      below preserve those boundaries and the user's metrics-review acceptance. Leave them unimplemented
+      until selected; defining them does not authorize staging, commits or starting their implementation.
+
+Phase 10.9.1: Use production shader assets and retain checker owners through the fixture context
+  Depends on 10.9's completed analysis/design discussion. This is a separate implementation/commit boundary.
+  Inherit 10.9's complete route/caller inventory, 10.7's cache policy and Phase 10/10.2's coverage map.
+  Controlling documents: Rendering.GpuResources.md (Shader executable ownership),
+    Rendering.ShaderBindingState.md (Shader ownership and publication; Verification boundary), and
+    Rendering.GpuCommands.Contracts.md (Executable and pipeline contracts; Submission and failure rules).
+  Outcome: assertion programs use production precompilation, shader assets, caching and owned execution;
+    their production shader owners survive individual checks/tests within the fixture's physical context.
+
+  ☐ Map all checker, statistics, authored-predicate, projection and layer-copy executable variants to
+    declared build inputs and existing production shader contracts. Cover GpuFixtureProgram,
+    GpuAssertionKernel/Statistics, GpuImageTransform, GpuLayerCopy and every consuming helper/caller.
+    Move finite authored bodies into precompiled declarations; pass changing values as data. Preserve
+    independent test math, typed integer/depth interpretations and all existing scenario expressions.
+    Use the existing asset/build declaration system, not another compiler, generator framework or cache.
+  ☐ Migrate preparation, ownership, bindings and dispatch together through production shader/RHI paths.
+    Retain production shader owners in the existing GPU fixture for its original physical context;
+    initialize each assertion's inputs, uniforms, bindings and result storage explicitly. Retire owners
+    before context destruction, including partial construction and exceptional teardown. Keep images,
+    expected data, histories and results isolated per case. No raw-name globals or test-specific
+    executable-retention service; no mutable subject-program sharing or implicit cross-thread access.
+  ☐ Preserve native creation, source/compiler fault injection, cache rejection and lifecycle tests as
+    explicit subjects with their required fresh operations. Separate those intentional native subjects
+    from ordinary assertion preparation without weakening original failures or context-cleanup proof.
+    Ordinary checker paths must not fall back to custom source compilation. Remove superseded checker
+    constructors/source assembly/cache calls and obsolete helper APIs in the same migration unit;
+    retain unrelated TestShaderCache consumers only where their native subjects still justify them.
+  ☐ Delegate focused verification for repeated checker use, default cache/opt-out policy, fresh native
+    subjects, changed inputs/results, full domain/precision/error assertions, state restoration and
+    original-context retirement. Verify the normal build's declared asset closure as well as behavior;
+    profiling-only Debug binaries containing the removed probe are not a clean qualification candidate.
+    Record actual preparation/owner creation and resulting focused timings with source/configuration
+    identity; reuse the existing 10.9 probe only where comparable. No full-suite iteration or numeric
+    performance gate. Remove temporary instrumentation after retaining useful evidence.
+  ☐ Reconcile affected permanent docs, review removals/callers, perform second review and independent
+    completion audit. Discuss resulting metrics and limitations with the user; leave this subphase open
+    until the user accepts or rejects the work. No automatic staging or commit at this boundary.
+
+Phase 10.9.2: Replace regular expected images with compact independent expectations
+  Depends on 10.9.1; this is a separate implementation/commit boundary. Inherit the same controlling
+    documents and the complete 10.9 route/caller dispositions. Batching remains deferred.
+  Outcome: regular expected images become compact data supplied to the production checker programs;
+    necessary independent CPU numerical references remain intact.
+
+  ☐ Migrate the complete regular-pattern caller group in 10.9 using constant vectors and independently
+    authored row/region/scenario tables or declared predicates. Include masks, selected mips/layers,
+    exact float/double bounds and intersecting expectations. Remove full-image repetition, sliced
+    double-band copies and per-value source variants where compact data expresses the same contract.
+    Keep all case rows, dimensions, full selected domains, negative witnesses and tolerances unchanged.
+  ☐ Replace CompareSelected's full-image expansion with compact nominated coordinate/value records;
+    retain every original point/layer and compared-component/completion proof. Remove CompareRgba8's
+    decode/projection/float-reference round trip through an exact independently specified byte comparison.
+    Preserve normalized rounding, nonfinite/signed-zero/subnormal and bitwise-equality semantics.
+  ☐ Retain CPU authorship for the independent numerical/input/captured groups listed in 10.9, including
+    depth reductions, Poisson/local-exposure references, quadrature and native bit patterns. Minimize
+    padding/copies and permit unchanged authored input reuse only within its explicit owner/domain.
+    Do not replace those oracles with production algorithms, a few samples or GPU-generated answers.
+    Retained histories remain GPU-owned. This unit does not introduce observation batching.
+  ☐ Remove superseded representations and helper/caller paths coherently. Delegate affected helper and
+    family checks for exact domains, masks, precision, failures and retained numerical/native evidence.
+    Report actual construction/upload sizes and focused route timings, distinguishing them from suite
+    runtime. No full-suite iteration, new framework or numerical performance requirement.
+  ☐ Reconcile docs and coverage mappings, remove temporary instrumentation after preserving evidence,
+    perform second review and independent completion audit. Discuss final metrics/limits with the user
+    and await explicit acceptance/rejection before closing this implementation boundary. No automatic commit.
+
+Phase 10.9.3: Reduce checker counters within workgroups
+  Depends on 10.9.1–10.9.2; this is a separate implementation/commit boundary. Inherit their controlling
+    documents and 10.9's complete assertion-route requirements. Batching remains deferred.
+  Outcome: complete-domain checks aggregate within workgroups before publishing shared results, reducing
+    global contention while preserving every required observation and its numerical semantics.
+
+  ☐ Implement local aggregation in the production checker assets for ordinary visit/component counts,
+    failures, range/nonfinite/positive/nonzero counts, extrema and earliest failure/witness coordinates.
+    Publish group results rather than global updates for every successful component. Preserve explicit
+    requested-fact selection; never omit a fact later consumed by the result API. No new CPU scans.
+  ☐ Preserve partial workgroups, channel masks, selected regions/layers and all integer/bit semantics.
+    Tail invocations must participate safely in workgroup barriers without counting nonexistent texels.
+    Retain initialized sentinels, expected visit/component totals and independent completion validation;
+    a missing/failed dispatch cannot look like a successful all-zero result. Maintain rank permutation,
+    duplicate/missing-rank and slice-difference proofs, including histogram validation.
+  ☐ Preserve ordered-float sums and existing double-precision statistics contracts. Do not reassociate
+    numerical sums, change tolerances or alter NaN/infinity/signed-zero/subnormal policies merely to
+    share a reduction implementation. Keep separate operations where their numerical contracts require it.
+  ☐ Remove superseded per-component global-counter paths. Delegate focused checks for tiny and odd/tail
+    domains, large domains, all numeric kinds, exact counters, earliest failures, negative witnesses,
+    rank/statistics completion, overflow/domain limits and context/state restoration. Record actual
+    resulting route timings and limits on comparable inputs; no full-suite iteration or fixed speed gate.
+  ☐ Reconcile docs, clean temporary instrumentation after preserving evidence, perform second review and
+    independent completion audit. Discuss the resulting metrics with the user and await their explicit
+    acceptance/rejection before closing this implementation boundary. No staging or commit without request.
+
+  Deferred decisions outside the approved implementation units:
+    Observation/result batching, cross-check snapshot reuse and the batching-dependent water/surface
+    caller redesign remain for a later explicit discussion. CPU atmosphere orchestration seams and
+    stress-test GC checkpoint changes remain evaluated candidates, without implementation approval.
+    Do not implement these as incidental cleanup or make their acceptance a hidden prerequisite for
+    10.9.1–10.9.3. Phase 11's legacy test migration stays separate.
+
+Phase 10.10: Qualify combined correctness and review final metrics, then remove temporary support files
+  Depends on 10.3–10.9 and approved implementation subphases 10.9.1–10.9.3.
   Governing acceptance: Phase 10, 10.2's complete coverage/design mapping and
     10.7's approved cache policy; Rendering.ShaderBindingState.md (Verification boundary) and inherited
     resource/command contracts. Reuse valid checkpoint, cache and corrected-candidate receipts from
     10.6–10.8; repeat a complete selection only when the resulting changes invalidate that evidence.
   Outcome: the resulting VGE test suite, documented commands and retained evidence agree on coverage,
-    classification, I/O isolation, cache policy and qualification limits. The agreed runtime target is
-    demonstrated on the resulting suite. Resume final qualification only after the existing checkpoints
+    classification, I/O isolation, cache policy and qualification limits. Actual resulting metrics are
+    discussed with the user for acceptance/rejection, without a numerical performance requirement.
+    Resume final qualification only after the existing checkpoints
     and approved runtime-reduction implementation are complete.
 
   ☐ Reconcile every retained/remapped family, helper, trait, filter, csproj/runsettings and permanent test
@@ -2892,8 +3250,9 @@ Phase 10.10: Qualify runtime reduction and combined correctness, then remove tem
     available runner durations; distinguish build/bootstrap costs and diagnostic selections. Use per-case
     progress logging so long runs identify completed work. Run each required complete selection once;
     repeat only where a change/failure invalidates its evidence.
-    Use 10.9's approved matched comparison and runtime target; record regressions and unmet targets
-    explicitly instead of claiming success from fewer bytes, compilation counts or a changed selection.
+    Use 10.9's agreed metrics-reporting boundaries, discuss final resulting metrics with the user and
+    await their acceptance/rejection. Report regressions and comparability limits explicitly instead
+    of claiming success from fewer bytes, compilation counts or a changed selection. No numeric speed gate.
     No benchmark framework or repeated full-suite timing study. No unrelated tool
     test projects, agent-launched game or substitution for Phase 9 user-run visual/runtime acceptance.
   ☐ Review and remove temporary TestResults/GpuTests101/deferred-gpu-assertions/ (including its
@@ -2906,8 +3265,9 @@ Phase 10.10: Qualify runtime reduction and combined correctness, then remove tem
     10.7–10.9 after preserving useful evidence. Retain the original and matched-result qualification receipts.
   ☐ Complete the final second review and independent completion audit against all Phase 10 requirements.
     Completion: full VGE correctness evidence and current docs support the preserved coverage and final
-    execution boundaries; all implementation subphases and the agreed runtime acceptance are satisfied.
-    Mark Phase 10 complete only then. Failed runtime acceptance remains open even when correctness passes.
+    execution boundaries; all implementation subphases are satisfied and the user has accepted the work
+    after discussion of final resulting metrics. Mark Phase 10 complete only then; pending or rejected
+    user acceptance remains open even when correctness passes. No numerical performance requirement applies.
 
 Phase 11: Migrate legacy GPU tests to production shader and submission abstractions
   Depends on Phase 10, including 10.10. Governing contracts: Rendering.GpuResources.md (Shader executable
