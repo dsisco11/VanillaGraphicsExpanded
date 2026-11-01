@@ -418,18 +418,13 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
     /// <summary>Evaluates the current production includes using the real shared frame block layout.</summary>
     private float[] Render(string fragment, byte[]? frozenStorage = null, LightingCalibration? calibration = null)
     {
-        int vertex = Compile(ShaderType.VertexShader, "#version 430 core\nlayout(location=0) in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
-        int pixel = Compile(ShaderType.FragmentShader, fragment);
-        int program = GL.CreateProgram();
+        int program = TestShaderCache.CreateGraphics("#version 430 core\nlayout(location=0) in vec2 position;void main(){gl_Position=vec4(position,0,1);}", fragment);
         int buffer = GL.GenBuffer();
         int storageBuffer = GL.GenBuffer();
         GL.GetInteger(GetIndexedPName.UniformBufferBinding, 12, out int previous);
         GL.GetInteger((GetIndexedPName)All.ShaderStorageBufferBinding, GpuBindingRegistry.Ssbo.FrameLighting, out int previousStorage);
         try
         {
-            GL.AttachShader(program, vertex); GL.AttachShader(program, pixel); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             using var frame = new VgeFrameUniformBuffer();
             if (calibration.HasValue) frame.SetLightingCalibration(calibration.Value);
             byte[] bytes = frame.Bytes.ToArray();
@@ -453,7 +448,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
         {
             GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 12, previous);
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, GpuBindingRegistry.Ssbo.FrameLighting, previousStorage);
-            GL.DeleteBuffer(storageBuffer); GL.DeleteBuffer(buffer); GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(pixel);
+            GL.DeleteBuffer(storageBuffer); GL.DeleteBuffer(buffer); GL.DeleteProgram(program);
             OpenGlStateCache.Current.InvalidateAll();
         }
     }
@@ -462,14 +457,6 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
     private static string Expand(string path) => Regex.Replace(TestAssetSnapshot.ReadSourceText(path), "@import \\\"([^\\\"]+)\\\"",
         match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
 
-    /// <summary>Compiles a diagnostic stage and includes the driver's explanation on failure.</summary>
-    private static int Compile(ShaderType type, string source)
-    {
-        int shader = GL.CreateShader(type); GL.ShaderSource(shader, source); GL.CompileShader(shader);
-        GL.GetShader(shader, ShaderParameter.CompileStatus, out int compiled);
-        Assert.True(compiled != 0, GL.GetShaderInfoLog(shader));
-        return shader;
-    }
 
     /// <summary>Bounds arithmetic error without accepting nonfinite physical quantities.</summary>
     private static void Close(double expected, float actual)

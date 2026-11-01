@@ -32,10 +32,9 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         byte[] inputBytes = new byte[176];
         using var camera = TestFrameCamera.CreateIdentity(128,128);
         Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
-        using var shaders=new TerrainShaderTestFixture();
-        int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
-        int fragment=shaders.Load(ShaderType.FragmentShader,"tests/displacement-metric.fsh");
-        using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
+        string vertex="tests/complete-state.vsh";
+        string fragment="tests/displacement-metric.fsh";
+        using var program=GpuProgramObject.Adopt(BuiltShaderFixture.LoadFixtureProgram(vertex,fragment));
         using var vao=NativeResourceSetup.CreateVertexArray();using var framework=new ShaderTestFramework();
         using var target=framework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         int id=program.ProgramId;var layout=BuiltShaderFixture.Layout(id,"tests/displacement-metric.fsh");
@@ -63,19 +62,18 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
     public void ShadowWithoutAngularMetricUsesConservativeCap(float focalPixels)
     {
         EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Compile(ShaderType.VertexShader,"#version 430 core\nlayout(location=0) in vec2 position; void main(){gl_Position=vec4(position,0,1);}");
+        string vertex = "#version 430 core\nlayout(location=0) in vec2 position; void main(){gl_Position=vec4(position,0,1);}";
         string directory = Path.Combine(AppContext.BaseDirectory,"assets","shaders","includes");
         string contract = TestAssetSnapshot.ReadSourceText(Path.Combine(directory,"tests","displacement_inputs.glsl"));
         string kernel = TerrainEyeRelativeShadingTests.Expand(Path.Combine(directory,"tessellation","terrain_displacement.glsl"));
-        int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\n#define VGE_TESS_SHADOW 1\n" + contract + kernel + """
+        string fragment = "#version 430 core\n#define VGE_TESS_SHADOW 1\n" + contract + kernel + """
             out vec4 result;
             void main() {
                 vec3 a=vec3(-.5,0,-2),b=vec3(.5,0,-2);
                 result=vec4(VgeEdgeLevel(a,b),VgeEdgeLevel(b,a),VgeEdgeLevel(vec3(0,0,-30),vec3(1,0,-30)),1);
             }
-            """);
-        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
+            """;
+        using var program = GpuProgramObject.Adopt(TestShaderCache.CreateGraphics(vertex,fragment));
         using var inputs = new PackedUniformBuffer(176);
         byte[] bytes = new byte[176];
         UboPacking.WriteFloat(bytes,128,focalPixels);
@@ -114,10 +112,9 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         byte[] inputBytes = new byte[176];
         using var camera = TestFrameCamera.CreateIdentity(128,128);
         Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
-        using var shaders = new TerrainShaderTestFixture();
-        int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
-        int fragment=shaders.Load(ShaderType.FragmentShader,"tests/displacement-height.fsh");
-        int program=TerrainShaderTestFixture.Link(vertex,fragment);
+        string vertex="tests/complete-state.vsh";
+        string fragment="tests/displacement-height.fsh";
+        int program=BuiltShaderFixture.LoadFixtureProgram(vertex,fragment);
         using var vertexArray = NativeResourceSetup.CreateVertexArray();
         int vao = vertexArray.VertexArrayId;
         try

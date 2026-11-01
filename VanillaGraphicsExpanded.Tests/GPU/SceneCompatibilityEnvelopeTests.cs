@@ -28,8 +28,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
             .Replace("texture(liquidDepth, gl_FragCoord.xy/frameSize.xy).r", ".25", StringComparison.Ordinal);
         string fog = TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/fogandlight.fsh"));
         string water = TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh"));
-        using var shaders = new TerrainShaderTestFixture();
-        using var program = Link(shaders, """
+        using var program = Link( """
             #define BLOOM 1
             const float Epsilon=.00001;
             uniform float cloudsLength;uniform float positionRadius;uniform float noiseValue;uniform float cloudBrightness;uniform float globalCloudBrightness;uniform float undulatingModeness;
@@ -69,8 +68,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
         string include = TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/fogandlight.vsh"));
         string fragment = TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/fogandlight.fsh"));
         string underwater = TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh"));
-        using var shaders = new TerrainShaderTestFixture();
-        using var program = Link(shaders, "#define DYNLIGHTS " + (staticBranch ? 0 : 2) + "\n" + """
+        using var program = Link( "#define DYNLIGHTS " + (staticBranch ? 0 : 2) + "\n" + """
             #define SHADOWQUALITY 1
             #define MINBRIGHT 4.0
             const int GlowLevelBitMask=255;
@@ -125,8 +123,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
         string fog = TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/fogandlight.fsh"));
         string perception = Slice(fog, "vec3 palette(", "vec4 applyRustEffect(");
         string underwater = Slice(TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh")), "vec3 applyUnderwaterEffects", "\n}") + "\n}";
-        using var shaders = new TerrainShaderTestFixture();
-        using var program = Link(shaders, """
+        using var program = Link( """
             #define BLOOM 1
             const float Epsilon=.00001;
             uniform float psychedelicStrength;uniform float windWaveCounter;uniform float fixtureMurk;uniform float fogAmountf;uniform float glowAlpha;
@@ -165,8 +162,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
         float[] colors = [200, 400, 100, 2, 9, 3, .02f, .05f, .01f];
         var bounds = SceneColorPointLightBounds.FromEngine(3, colors);
         Assert.True(bounds.Supported);
-        using var shaders = new TerrainShaderTestFixture();
-        using var program = Link(shaders, "#define DYNLIGHTS 1\n" +
+        using var program = Link( "#define DYNLIGHTS 1\n" +
             "uniform vec3 pointLights[3];uniform vec3 pointLightColors[3];uniform int pointLightQuantity;uniform vec3 samplePosition;float glitchStrengthFL=0;\n" +
             function + "\nvoid main(){outColor=getPointLightRgbvl(samplePosition);}");
         using var framework = new ShaderTestFramework();
@@ -192,8 +188,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
         string native = Native("cloudmap.fsh");
         string grey = Slice(native, "float greyscale =", "float height =");
         string color = Slice(native, "colour = vec4(vec3(greyscale)", "tile.r = opaque;");
-        using var shaders = new TerrainShaderTestFixture();
-        using var program = Link(shaders, """
+        using var program = Link( """
             uniform float cloudBrightness;uniform float undulatingModeness;uniform float noiseValue;uniform float globalCloudBrightness;
             uniform float fogValue;uniform float glowAlpha;uniform float nightVisionStrength;
             vec3 tilePosition=vec3(0),viewSpace=vec3(0),sunPosition=vec3(0);float fogMinIn=0,fogDensityIn=0;
@@ -233,8 +228,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
         EnsureContextValid();
         string body = Slice(Native("celestialobject.fsh"), "texColor = applyFog(texColor, fogAmount);", "#if SSAOLEVEL > 0");
         string underwater = Slice(TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh")), "vec3 applyUnderwaterEffects", "\n}") + "\n}";
-        using var shaders = new TerrainShaderTestFixture();
-        using var program = Link(shaders, "uniform float fixtureMurk;vec4 waterMurkColor=vec4(7,2,3,1);float getSkyMurkiness(){return fixtureMurk;}\n" + underwater + "\n" +
+        using var program = Link( "uniform float fixtureMurk;vec4 waterMurkColor=vec4(7,2,3,1);float getSkyMurkiness(){return fixtureMurk;}\n" + underwater + "\n" +
             "vec4 applyFog(vec4 c,float f){return vec4(mix(c.rgb,vec3(6,4,2),f),c.a);}" +
             "void main(){vec4 texColor=vec4(0,0,0,1),texGlow=vec4(0),skyColor=vec4(3,2,1,1),skyGlow=vec4(0),outGlow;float fogAmount=1,dayLight=0;int weirdMathToMakeMoonLookNicer=" + nonlinear + ";" + body + "outColor.rgb=VgeCompatibilityLuminance(outColor.rgb);}");
         using var framework = new ShaderTestFramework();
@@ -273,12 +267,12 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
         Assert.True(first >= 0 && last > first); return source[first..last];
     }
     /// <summary>Links exact native expression regions to production authored-color decoding.</summary>
-    private static GpuProgramObject Link(TerrainShaderTestFixture shaders, string body)
+    private static GpuProgramObject Link(string body)
     {
         string helper = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"));
-        int vertex = shaders.Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
-        int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 330 core\nlayout(location=0)out vec4 outColor;\n" + helper + "\n" + body);
-        return GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        string vertex = "#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}";
+        string fragment = "#version 330 core\nlayout(location=0)out vec4 outColor;\n" + helper + "\n" + body;
+        return GpuProgramObject.Adopt(TestShaderCache.CreateGraphics(vertex, fragment));
     }
     /// <summary>Changes one controlled native expression input without replacing its arithmetic.</summary>
     private static void Set(GpuProgramObject program, string name, float value) => GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, name), value);

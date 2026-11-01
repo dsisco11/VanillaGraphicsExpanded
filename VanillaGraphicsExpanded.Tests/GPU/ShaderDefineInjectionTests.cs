@@ -23,6 +23,7 @@ public class ShaderDefineInjectionTests
     public void Shaders_CompileAndLink_WithInjectedDefines()
     {
         _fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
 
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
@@ -49,6 +50,7 @@ public class ShaderDefineInjectionTests
     public void GlobalDefinesInclude_Defaults_CompileWithoutInjection()
     {
         _fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
 
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
@@ -72,6 +74,7 @@ public class ShaderDefineInjectionTests
     public void LumOnDebugWorldProbe_Compiles_WithWorldProbeEnabledVariant(string enabledValue)
     {
         _fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
 
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
@@ -100,6 +103,7 @@ public class ShaderDefineInjectionTests
     public void LumOnCombine_Compiles_WithVGE_LUMON_ENABLED_Variant(string enabledValue)
     {
         _fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
 
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
@@ -127,6 +131,7 @@ public class ShaderDefineInjectionTests
         string pbrComposite, string enableAO, string enableShortRangeAo)
     {
         _fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
 
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
@@ -157,6 +162,7 @@ public class ShaderDefineInjectionTests
         string lumOnEnabled, string pbrComposite, string enableShortRangeAo)
     {
         _fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
 
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
@@ -186,6 +192,7 @@ public class ShaderDefineInjectionTests
         string denoiseEnabled, string holeFillEnabled)
     {
         _fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
 
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
@@ -215,6 +222,7 @@ public class ShaderDefineInjectionTests
     public void LumOnProbeAtlasTrace_Compiles_WithLoopBoundVariants(string texelsPerFrame, string raySteps)
     {
         _fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
 
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
@@ -240,6 +248,7 @@ public class ShaderDefineInjectionTests
     public void LumOnProbeAtlasTemporal_Compiles_WithTexelDistributionVariants(string texelsPerFrame)
     {
         _fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
 
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");

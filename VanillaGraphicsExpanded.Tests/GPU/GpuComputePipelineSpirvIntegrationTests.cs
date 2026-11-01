@@ -27,6 +27,7 @@ public sealed class GpuComputePipelineSpirvIntegrationTests : RenderTestBase
     public void DirectFileUsesExplicitContractDespiteArbitraryFilename()
     {
         EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
 
         bool supportsSpirv = GpuSupport.Graphics.SupportsArbGlSpirv;
         Assert.True(supportsSpirv, "GPU shader tests require GL_ARB_gl_spirv support.");

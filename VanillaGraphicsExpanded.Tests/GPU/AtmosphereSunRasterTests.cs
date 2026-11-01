@@ -19,10 +19,9 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
     public void GrazingSegmentMathMatchesCpu()
     {
         EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
-        int fragment = shaders.Load(ShaderType.FragmentShader, "tests/sun-segment.fsh");
-        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        string vertex = "tests/complete-state.vsh";
+        string fragment = "tests/sun-segment.fsh";
+        using var program = GpuProgramObject.Adopt(BuiltShaderFixture.LoadFixtureProgram(vertex, fragment));
         using var vao = NativeResourceSetup.CreateVertexArray();
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
@@ -59,11 +58,10 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
     public void DiskIgnoresCameraTranslationAndClipsAtHorizon(bool displayTransfer)
     {
         EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Load(ShaderType.VertexShader, "tests/sun-raster.vsh");
+        string vertex = "tests/sun-raster.vsh";
         string fragmentPath = displayTransfer ? "tests/sun-raster-display.fsh" : "tests/sun-raster-linear.fsh";
-        int fragment = shaders.Load(ShaderType.FragmentShader, fragmentPath);
-        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        string fragment = fragmentPath;
+        using var program = GpuProgramObject.Adopt(BuiltShaderFixture.LoadFixtureProgram(vertex, fragment));
         using var vao = NativeResourceSetup.CreateVertexArray();
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 64), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var depth = new DepthTexture(64, 64, TextureFormat.DepthComponent32f);

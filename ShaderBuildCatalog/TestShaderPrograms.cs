@@ -69,6 +69,9 @@ internal static class TestShaderPrograms
         string? block = name switch { "rasterizer" => "RasterizerInputs", "particle-draw" => "ParticleDrawInputs", "terrain-capture-opaque" or "terrain-capture-topsoil" => "TerrainCaptureInputs", "normal-input" or "foliage-transmission" or "liquid-interface" => "TestInputs", _ => null };
         if (block != null) bindings.RegisterUniformBlockBinding(block, 28);
         if (name == "sampler-handoff") bindings.RegisterSamplerUnit("ordinaryTexture", 5);
+        // The transmission include consumes the fixed energy lookup even when only its diffuse
+        // result is asserted. Whole-program preparation must declare that active sampler too.
+        if (name == "foliage-transmission") bindings.RegisterSamplerUnit("vge_microfacetEnergy", 32);
         return new("tests/" + name + "." + suffix, "tests/" + name + "." + suffix, kind, bindings);
     }
     /// <summary>Assigns numeric input blocks and opaque resource interfaces to numerical fixtures.</summary>

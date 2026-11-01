@@ -2544,7 +2544,7 @@ Phase 10.7: Enable shader caching by default and eliminate redundant test compil
     compilation/linking explicitly disable caching in their own fixture scope. Cache-policy isolation
     replaces blanket bypass without weakening lifecycle, output or failure coverage.
 
-  ☐ Inventory shader preparation across every VGE test family and shared fixture before implementation.
+  ☑ Inventory shader preparation across every VGE test family and shared fixture before implementation.
     Trace HeadlessGLFixture, RenderTestBase, LumOnShaderFunctionalTestBase, ComponentShaderPrograms,
     RuntimeLightingPrograms, ShaderTestFramework, PrecompiledStageFixture, TerrainShaderTestFixture,
     GPU assertion kernels and the ShaderAssetCandidate/CompileSpirv/CompileAndLink routes they consume.
@@ -2552,24 +2552,24 @@ Phase 10.7: Enable shader caching by default and eliminate redundant test compil
     compilation/linking across cases. Map each suite to default cached execution, explicit fresh-link
     execution or an isolated cache-subject store, with the assertion that requires each exception.
     Include the 72 WaterRefractionDiagnosticTests receiver rows as retained correctness coverage.
-  ☐ Define and implement one fixture-owned cache policy: caching enabled by default, backed by the
+  ☑ Define and implement one fixture-owned cache policy: caching enabled by default, backed by the
     existing ProgramBinaryStore and mocked/in-memory filesystem provider. Retain valid artifact bytes
     across eligible cases instead of clearing or replacing the cache during every setup/EnsureContextValid
     call. Install the provider before preparation can reach the production disk-backed default; all test
     reads/writes/eviction remain in memory. Reuse existing facilities rather than add a parallel cache.
-  ☐ Provide explicit suite-owned cache opt-out and restoration. Creation, specialization, compile/link,
+  ☑ Provide explicit suite-owned cache opt-out and restoration. Creation, specialization, compile/link,
     reload, native-call-count and failure subjects opt out where a cache hit would bypass the operation
     under test. Mixed suites separate or explicitly scope their fresh-link cases; ordinary numerical
     neighbors retain the default. Cache-subject suites keep their own controlled miss/hit/corrupt stores.
     Resolve current precedence explicitly: an installed UseStoreForTesting override wins over Bypass,
     so setting Bypass alone cannot disable an active provider. Nested fixture calls must retain the
     selected suite policy; thread changes, exceptions and teardown must restore the previous scope.
-  ☐ Preserve existing cache identity, compatibility and rejection rules: shader/source/dependency digests,
+  ☑ Preserve existing cache identity, compatibility and rejection rules: shader/source/dependency digests,
     defines, specialization/stage combinations, configuration and driver/profile identity select valid
     artifacts. Cache rejection/corruption retains meaningful fallback and original failure assertions;
     unsupported binary formats remain an explicit capability limit. A policy opt-out must bypass cached
     artifacts without falling through to physical storage. Keep required SPIR-V/creation/reload matrices.
-  ☐ Migrate the complete inventory coherently. Ordinary numerical/renderer helpers consume the enabled
+  ☑ Migrate the complete inventory coherently. Ordinary numerical/renderer helpers consume the enabled
     cache; remove redundant unconditional bypass resets and repeated identical preparation where existing
     facilities can reuse valid artifacts. Address helper/kernel routes that bypass the asset cache when
     they repeat equivalent work, documenting the minimal owner/reuse mechanism before changing them.
@@ -2577,20 +2577,134 @@ Phase 10.7: Enable shader caching by default and eliminate redundant test compil
     executable/kernel needs an explicit original-context owner, deterministic state reset and retirement;
     never retain raw native names globally or share mutable subjects across cases. Preserve all authored
     scenarios, dimensions, oracles, tolerances, lifecycle transitions and observable native effects.
-  ☐ Delegate a bounded focused check of default cache reuse, explicit suite opt-outs, cache-subject
+  ☑ Delegate a bounded focused check of default cache reuse, explicit suite opt-outs, cache-subject
     isolation, policy precedence, nested setup, thread/context changes and exceptional restoration.
     Prove that an eligible repeated preparation uses the cached artifact and avoids redundant stage
     compilation/linking; prove that a fresh-link suite still executes its required native operations.
     Retain numerical/state assertions as independent correctness proof. Use native-call observations or
     existing cache receipts, not a new benchmark framework or numerical speedup threshold. Do not run
     the full suite to iterate on the cache implementation; final combined qualification belongs to 10.8.
-  ☐ Reconcile every mapped suite/helper and current test documentation, including README and fixture
+  ☑ Reconcile every mapped suite/helper and current test documentation, including README and fixture
     comments, with the enabled default and explicit opt-outs. Record focused evidence and limitations,
     perform the second review and independent completion audit, and hand one identified resulting
     candidate to 10.8. Completion requires coverage of all inventoried preparation routes and no hidden
     blanket bypass, physical cache fallback, leaked policy scope or unqualified native-owner cache.
     Keep this refactor as a distinct review/commit boundary from the existing corrections and final
     qualification receipts. Staging or committing still requires a separate explicit user request.
+
+  Preparation inventory and implementation traceability:
+    - Scope: the complete 10.2 family partition (including native-dependent root classes) consumes the
+      routes below. CPU source/preprocessor tests do not prepare native programs. There is no runtime
+      CompileSpirv route: the test csproj's CompileSpirvShaders target supplies immutable build inputs.
+    - Default cached assets: HeadlessGLFixture -> fixture-owned in-memory ProgramBinaryStore default;
+      RenderTestBase/LumOnShaderFunctionalTestBase -> ComponentShaderPrograms/GpuProgram.CompileAndLink
+      and ComputeProgram/GpuComputeProgram/RuntimeLightingPrograms -> ShaderAssetCandidate ->
+      DriverProgramCache. Numerical atmosphere/cloud/liquid/LumOn/material/postprocess and real renderer
+      families keep fresh owners and existing inputs. All 72 WaterRefractionDiagnosticTests receiver
+      rows remain correctness cases. No per-case cache clear or unconditional bypass remains.
+    - Combined ShaderTestHelper.CompileProgram/CompileAndLink and FirstPersonMarkerDraw now select
+      whole declared programs through BuiltShaderFixture.LoadProgram -> ShaderAssetCandidate. They
+      transfer independent native ownership to the existing raw-handle fixtures and preserve numeric
+      interfaces/release callbacks. ShaderTestFramework owns targets/draws, not an additional compiler.
+    - Generated assertions: GpuFixtureProgram -> TestShaderCache -> the effective existing store;
+      exact GLSL/stage/driver identity, fresh program on a binary hit, original-context owner/retirement.
+      Fault-injected construction deliberately bypasses reuse so its stage callback still executes.
+      Source-authored numerical raster helpers in LocalExposurePrototype, PbrForwardSurfaceNumerical,
+      PbrSolarBrdf, PhotometricLightingShader and EngineOitAccumulationFormat use the same byte-store
+      adapter. No shared native executable, cached uniform state or new persistence implementation.
+      Independent review identified mixed numerical callers of the terrain stage helper; that helper's
+      name does not justify fresh compilation. MicrofacetEnergyShader, OitStorageArithmetic,
+      PbrInstalledCoverage/Depth, FrameLightingStorage and SceneCompatibilityEnvelope now cache exact
+      expanded source pairs. AtmosphereSunRaster, TerrainEyeRelativeShading, TerrainReliefNumerical,
+      TerrainDisplacementNumerical and the three numerical PbrTerrainCapture methods use combined
+      cached programs (expanded source or declared pair as appropriate). CompleteGraphicsDraw and
+      ConfigurableRasterizer shared draw prerequisites likewise use declared programs. UniformLifetime's
+      repeated Observe reuses the declared compute binary, with independent local layout/resources.
+      GraphicsStateShaders caches its resource-free GLSL stage combinations as bytes, creates a fresh
+      RHI owner/interface per test and retains no native objects beyond its existing context lifetime.
+      Raw program transfer does not add global interface tracking: ShaderTestHelper alone retains its
+      required tracked layout and existing release callback; other owners use their local layouts.
+      SceneColorParticle's repeated capture/resolve and installed cube-particle numerical prerequisites
+      also use combined cached programs, preserving all nine authored rows and their draw/resolve checks.
+      InstalledShaderFixture caches its exact patched source pairs for repeated SceneColorRuntime
+      scenarios while preserving per-owner engine reflection/capability publication. Its separate
+      InstalledShaderFixtureTests linking matrix explicitly selects a fresh scope.
+    - Explicit fresh matrices: SpirvInventory, SpirvGraphicsLifecycle, ShaderDefineInjection and the
+      direct-file GpuComputePipelineSpirvIntegration subject select UseStoreForTesting(null). Every
+      packaged specialization/stage-combination/runtime-interface row remains. Cache and digest subjects
+      (DriverProgramCache, ShaderAssetCandidate, ShaderDigestIndexCache, ShaderLinkBatch, FinalDisplay,
+      LumOnDebugShaderDemandTiming) retain their own isolated stores and miss/hit/rejection rules.
+      ShaderDemandPreparation, ShaderLinkProduction, ShaderRegistryLifetime, LumOnDebugShaderDemand
+      and ProductionShaderAccessor already select explicit fresh scopes for observed preparation work.
+    - PrecompiledStageFixture, BuiltShaderFixture.Load/LoadFixture, TerrainShaderTestFixture,
+      ShaderTestHelper.CompileShader/LinkProgram, TestShaderInterfaces.LinkProgram and NativeProgramFixture
+      are explicit stage/native integration operations, not hidden alternate asset-cache policies.
+      Their remaining callers include real stage attachment, borrowed engine replacement/tessellation,
+      native metadata/interception, ownership/name reuse and original-context cleanup. Fresh stages are
+      required for those actual operations, not universally for every caller of these mixed helpers.
+      Explicit fresh stage subjects include EngineShaderDebugLabels, ShaderContractBinding,
+      TerrainTessellation/EngineDraw/DisplacementRaster/DetailWorkload, the installed-relief link matrix
+      and SceneColorPatch's installed-fragment compilation matrix. One-shot engine/native prerequisites
+      (binding envelopes, sampler handoff and native boundary setup) retain independent
+      setup; they introduce no additional fixture cache or native-owner sharing. SceneColorParticleLighting
+      uses a narrow cached vertex-only color-feedback preparation: its exact expanded vertex source,
+      varying name and interleaved feedback mode are part of cache identity. Cache misses perform that
+      original prelink operation; hits create fresh native programs and preserve the same feedback output.
+      Explicit diagnostic measurement
+      workloads retain authored compilation/measurement boundaries and remain outside ordinary correctness.
+      Direct RHI CreateShader/BeginCreateShader creation subjects execute their supplied descriptions;
+      caching stays at asset/test preparation rather than suppressing native commands in the backend.
+    - Remaining direct source compilation is in AtmosphereCelestialPublication, CloudNativeAdapter,
+      GpuExecutableLifecycle, GpuProgramBindless/Derived/DesktopExt/MetadataInterception/NarrowPublication/
+      UniformMetadata, GpuResourceRetirementRegression, OpenTKFeedbackObservation, PbrSurfaceCaptureBoundary,
+      PbrSurfaceInstalledShader, PbrTerrainCapture's transformed-source compilation subject,
+      ResourceChangeNative, RHIAuxiliary and TerrainChunkSlotBinding.
+      These assemble/mutate explicitly retained engine/native stages or exercise native publication,
+      rejection, deletion and replacement boundaries; changing them into cached executable installation
+      would replace the authored operation. Fresh native calls remain visible; no global stage sharing.
+    - Policy precedence replaces the old Bypass flag: explicit execution-flow suite override (including
+      null) wins over fixture default; the fixture's lease spans runner threads and removes only its
+      own default even on exceptional/out-of-order teardown. Existing digest/format/rejection logic
+      remains unchanged. Tasks -> Resources shader ownership, ShaderBindingState ownership/verification,
+      Contracts executable/submission sections -> keep owner intervals, metadata, native effects and
+      original numerical/state oracles -> bounded native-call and numerical checks, then source review
+      and independent completion audit. Final combined qualification stays in 10.8.
+
+  Verification and closeout:
+    - Qualified candidate: HEAD 662758bb6396af4e4376b3494fe24015108077be plus the changes identified
+      by TestResults/GpuTests107/source-final.patch and source-final-files.csv. The CSV includes both
+      new, untracked C# files as well as tracked changes. Final DLL identities and post-run matches are
+      retained with the source, filters, build output, TRX and asset comparisons in that receipt directory.
+      These closeout notes/check markers are subsequent documentation-only edits.
+    - Final delegated Debug build passed with zero errors and 224 warnings (34.98 seconds). Policy
+      checks passed 4/4 with zero skips: cold/warm/fresh native allocation/link observations, independently
+      owned executable/uniform state, nested setup, isolated stores, exceptional restoration, runner-thread
+      changes and out-of-order default-lease teardown. Backend admission reloads core bindings, so it
+      completes before installing the native observer. Each thread retires its own resource manager
+      before returning the physical context; no manager-thread or owner contract was weakened.
+    - The bounded affected selection completed 403 rows: 398 passed, five foliage-transmission rows
+      failed and zero skipped (4.2854 minutes). All 72 water receiver rows passed. Whole-program
+      preparation exposed a missing test-catalog declaration for the imported energy sampler at unit 32.
+      ShaderBuildCatalog/TestShaderPrograms.cs now declares that already-authored resource; the shared
+      frame fixture already binds it. This necessary shared test declaration changes no shader equation,
+      numerical oracle, authored row or tolerance.
+    - The final targeted selection passed 14/14 with zero skips (14.2823 seconds): the five corrected
+      rows plus six SceneColorRuntime and three explicitly fresh InstalledShaderFixture rows. Across
+      842 before/after SPIR-V payloads and parsed manifest entries, only foliage-transmission changed;
+      the other 841 payloads/entries are identical. Together with the bounded caller-source delta this
+      retains the 398 unaffected passing receipts. The original 403-row receipt remains partially failing;
+      it is not relabeled as a new passing run. Applicable passing coverage is four policy rows plus
+      412 affected rows. Earlier 12-row DriverProgramCache verification overlaps the affected selection
+      and is not added again.
+    - Second source/document review and the independent audit-stage-completion review passed with no
+      required findings. The audit directly verified source/DLL hashes, payload/metadata comparisons,
+      native/correctness receipts, owner/cache-policy isolation and preserved numerical coverage.
+      git diff --check passed. The temporary numerical-source conversion script was removed; no new
+      completion-report file or native-owner cache remains. Runner identity/log/TRX evidence is retained.
+    - No full-suite or Release selection, unrelated tool-project tests, game launch or measured runtime
+      improvement is claimed. Final combined qualification stays open in 10.8; Phase 9 visual acceptance
+      remains user-run. The resulting cache change is ready for a separate user review/commit boundary.
+      No staging or commit was performed.
 
 Phase 10.8: Qualify the combined test cleanup and remove temporary support files
   Depends on 10.3–10.7. Governing acceptance: Phase 10, 10.2's complete coverage/design mapping and
@@ -2631,8 +2745,66 @@ Phase 10.8: Qualify the combined test cleanup and remove temporary support files
     Completion: full VGE correctness evidence and current docs support the preserved coverage and final
     execution boundaries; all implementation subphases are satisfied. Mark Phase 10 complete only then.
 
+Phase 11: Migrate legacy GPU tests to production shader and submission abstractions
+  Depends on Phase 10, including 10.8. Governing contracts: Rendering.GpuResources.md (Shader executable
+    ownership; Recorded command ownership), Rendering.ShaderBindingState.md (Shader ownership and
+    publication; Verification boundary) and Rendering.GpuCommands.Contracts.md (Executable and pipeline
+    contracts; Submission and failure rules). Retain Phase 10's VGE-only scope, cache policy, I/O isolation
+    and compact assertion requirements. This follow-up does not expand or reopen the 10.7 commit boundary.
+  Outcome: ordinary numerical and renderer tests exercise production shader owners, typed inputs,
+    pipelines and RHI submission. Direct native operations remain where they establish an independent
+    native oracle or test an actual OpenGL/engine integration boundary.
+
+  ☐ Inventory all direct and transitive raw-program preparation and execution before implementation.
+    Cover BuiltShaderFixture.LoadProgram/LoadFixtureProgram and Detach ownership transfers,
+    ShaderTestHelper, TestShaderInterfaces, TerrainShaderTestFixture, TestShaderCache, component and
+    installed-engine fixtures, and callers outside the GPU directory. Include raw program selection,
+    location lookup, uniform/resource uploads, draw/dispatch and cleanup, not only integer-returning
+    factories. Classify each test method/helper by its actual subject and assertion requirements.
+  ☐ Present the complete classification and proposed design for discussion before migration. Separate
+    ordinary numerical/renderer subjects, intentional native interception/state/lifecycle/engine subjects,
+    independent native reference draws and checker/fixture infrastructure. For each retained raw path,
+    record the specific native behavior or independent evidence it supplies; legacy infrastructure or
+    directory placement alone is not justification. Define reviewable implementation subphases from
+    the reviewed inventory, with source/coverage mappings and explicit commit boundaries.
+  ☐ Migrate ordinary test setup to existing production shader abstractions and asset preparation.
+    Prefer existing GpuProgram/GpuComputeProgram declarations and their RHIShader/pipeline ownership;
+    use minimal test declarations through the same production contracts where fixture code is unique.
+    Retain ready owners through use instead of detaching native handles and later reconstructing wrappers
+    or layouts. Do not add a parallel test shader framework, duplicated cache, compatibility facade or
+    one bespoke shader class per case where a shared declaration already represents the fixture.
+  ☐ Migrate ordinary execution together with its preparation: typed shader input capture, resource and
+    uniform publication, pipeline/pass setup, and RHI draws/dispatches. Replace legacy raw-handle setters
+    and direct GL execution coherently for each migrated family. Preserve owners through immediate use,
+    pass end or recorded execution/discard; consumer references remain non-owning. Keep engine-owned
+    programs and required native reference operations behind their explicit integration boundaries.
+    Do not make both the production result and its independent reference use the same implementation.
+  ☐ Preserve every authored scenario, parameter row, target extent, numerical oracle, tolerance, negative
+    case, lifecycle transition and state/restoration assertion. Retain exact native effects for native
+    subjects rather than replacing them with higher-level success checks. Keep checker kernels and
+    compact observations independent from the renderer under test. Continue default in-memory executable
+    reuse, explicit fresh-compilation scopes for affected subjects and isolated stores for cache tests;
+    retain fresh native owners and mutable state per case without reintroducing repeated compilation,
+    physical test-owned I/O, bulk pixel readbacks or per-frame fixture discovery.
+  ☐ Retire superseded raw-handle helpers, interface dictionaries, detach/adopt plumbing and duplicated
+    layout/cleanup paths as their last legitimate consumers migrate. Narrow shared helpers still needed
+    by native subjects to that explicit responsibility. Remove temporary migration inventories/scripts
+    after preserving necessary decisions and evidence in this plan or appropriate permanent docs;
+    retain authoritative plans/proposals, permanent test fixtures and qualification receipts.
+  ☐ Delegate focused verification for each coherent migration unit, then qualify the resulting combined
+    VGE correctness source in Debug and Release. Reuse valid receipts where source/input identity supports
+    them; repeat only affected checks after changes and do not run full selections to iterate on helpers.
+    Verify output/state coverage, production submission, native exceptions, owner/context cleanup and
+    retained cache reuse. Record commands, filters, counts, failures/skips and candidate identity without
+    a new benchmark framework, numerical speedup threshold or agent-launched game.
+  ☐ Reconcile current test documentation and any affected architecture contracts, perform a second review
+    and independent completion audit, then mark this phase complete only when all mapped migrations,
+    justified native paths, cleanup and verification are accounted for. Earlier 10.8 evidence does not
+    qualify this later source. Staging or committing requires a separate explicit user request; headless
+    qualification does not replace the pending user-run visual/runtime acceptance.
+
 Final acceptance
-  ☐ All ten phases, their subphases and mandatory migration receipts are satisfied; later cleanup never substitutes for
+  ☐ All eleven phases, their subphases and mandatory migration receipts are satisfied; later cleanup never substitutes for
     removing superseded APIs within their owning migration unit.
   ☐ Final APIs are backend-neutral, managed OpenGL execution requires 4.5, and every native operation has
     one execution owner with existing manager metadata/lifetime authority and preserved cache behavior.
@@ -2661,6 +2833,7 @@ Proposal coverage map
   Representative outcomes, efficient-execution checks, package and user-run qualification: Phase 9, supported
     by focused verification and current-state documentation in every owning migration unit.
   GPU integration-test classification, I/O isolation, coverage consolidation and compact assertions: Phase 10.
+  Legacy test shader ownership and production submission, with justified native/oracle boundaries: Phase 11.
 
 ## Retained migration evidence
 

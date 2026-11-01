@@ -35,13 +35,9 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
         using var records = drawing.CreateTexture(2,1,TextureFormat.Rgba32f,[0,0,1,1,.04f,0,0,0]);
         using var inputs = new PackedUniformBuffer(32);
         byte[] inputBytes = new byte[32];
-        int vs = BuiltShaderFixture.LoadFixture("tests/eye-relative.vsh", ShaderType.VertexShader), fs = BuiltShaderFixture.LoadFixture("tests/eye-relative.fsh", ShaderType.FragmentShader);
-        int program = GL.CreateProgram(), vao = GL.GenVertexArray();
+        int program = BuiltShaderFixture.LoadFixtureProgram("tests/eye-relative.vsh", "tests/eye-relative.fsh"), vao = GL.GenVertexArray();
         try
         {
-            GL.AttachShader(program, vs); GL.AttachShader(program, fs); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             var layout = BuiltShaderFixture.Layout(program, "tests/eye-relative.vsh", "tests/eye-relative.fsh");
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, program); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao);
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texture).Target)))]);
@@ -88,7 +84,7 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
         }
         finally
         {
-            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); GL.DeleteVertexArray(vao); GL.DeleteProgram(program); GL.DeleteShader(vs); GL.DeleteShader(fs);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); GL.DeleteVertexArray(vao); GL.DeleteProgram(program);
             OpenGlStateCache.Current.InvalidateAll();
         }
     }

@@ -55,19 +55,12 @@ public sealed class SceneColorParticleLightingTests(HeadlessGLFixture fixture) :
     /// <summary>Runs the complete installed vertex stage and reads its color through a one-vertex transform-feedback buffer.</summary>
     private static float[] Capture(float ambient, int source, int scene, string family = "particlescube.vsh")
     {
-        using var shaders = new TerrainShaderTestFixture();
         string code = PbrSurfaceInstalledShaderTests.Build(family, 0, 0, 0, 0, 0);
         if (source == 0) code = code.Replace("#define DYNLIGHTS 4", "#define DYNLIGHTS 0");
         Assert.Contains($"#define DYNLIGHTS {(source == 0 ? 0 : 4)}", code);
-        int vertex = shaders.Compile(ShaderType.VertexShader, code);
-        int program = GL.CreateProgram(), buffer = GL.GenBuffer(), vao = GL.GenVertexArray();
+        int program = TestShaderCache.CreateColorFeedback(code), buffer = GL.GenBuffer(), vao = GL.GenVertexArray();
         try
         {
-            GL.AttachShader(program, vertex);
-            GL.TransformFeedbackVaryings(program, 1, ["color"], TransformFeedbackMode.InterleavedAttribs);
-            GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.UseProgram(program); GL.BindVertexArray(vao);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_sceneLinear"), scene);
             GL.Uniform3(GL.GetUniformLocation(program, "rgbaAmbientIn"), ambient, ambient * .5f, ambient * .25f);

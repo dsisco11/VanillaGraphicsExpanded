@@ -19,11 +19,10 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
     public void OwnedWriterRejectsExceptionalInputs()
     {
         EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
         string includes = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
         string owned = TestAssetSnapshot.ReadSourceText(Path.Combine(includes, "oit.glsl"))
             .Replace("@import \"./pbr_oit_safety.glsl\"", TestAssetSnapshot.ReadSourceText(Path.Combine(includes, "pbr_oit_safety.glsl")));
-        using var program = Link(shaders, "#version 330 core\n" + owned + "\nuniform vec4 testColor;uniform float testGlow;void main(){writeOit(testColor,testGlow);}");
+        using var program = Link( "#version 330 core\n" + owned + "\nuniform vec4 testColor;uniform float testGlow;void main(){writeOit(testColor,testGlow);}");
         using var framework = new ShaderTestFramework();
         using var output = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
         int color = GL.GetUniformLocation(program.ProgramId, "testColor"), glow = GL.GetUniformLocation(program.ProgramId, "testGlow");
@@ -54,7 +53,6 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
     public void PatchedDepthGuardUsesActualRoundedLogInput()
     {
         EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
         var tree = SyntaxTree.Parse(PbrSurfaceInstalledShaderTests.Build("particlesquad.fsh", 1, 1, 0, 0, 0), GlslSchema.Instance);
         var main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single();
         tree.CreateEditor().Replace(main, """
@@ -65,7 +63,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
                 outGlow=vec4((depth/30.0)+1.0,0,0,1);
             }
             """).Commit();
-        using var program = Link(shaders, tree.ToText());
+        using var program = Link( tree.ToText());
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), 1);
         using var framework = new ShaderTestFramework();
         using var output = CreateMRTRenderTarget(5, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
@@ -78,12 +76,11 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
     public void PatchedNativeBucketsBlendAndRejectInvalidSubmissions()
     {
         EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
         var tree = SyntaxTree.Parse(PbrSurfaceInstalledShaderTests.Build("particlesquad.fsh", 1, 1, 0, 0, 0), GlslSchema.Instance);
         var main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single();
         tree.CreateEditor().InsertBefore(main, "uniform vec4 testColor; uniform float testDepth;")
             .Replace(main, "void main(){OIT(testColor,0.0,testDepth);}").Commit();
-        using var program = Link(shaders, tree.ToText());
+        using var program = Link( tree.ToText());
         using var framework = new ShaderTestFramework();
         using var output = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), 1);
@@ -136,8 +133,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
     public void PatchedResolveRetainsCutoffAndProtectsHalfDestination()
     {
         EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
-        using var program = Link(shaders, PbrSurfaceInstalledShaderTests.Build("transparentcompose.fsh", 1, 1, 0, 0, 0));
+        using var program = Link( PbrSurfaceInstalledShaderTests.Build("transparentcompose.fsh", 1, 1, 0, 0, 0));
         using var framework = new ShaderTestFramework();
         const int width = 9;
         float[] records = new float[width * 4];
@@ -180,7 +176,6 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
     public void InstalledResolveRetainsStrictCutoffAndFiniteLargeRatio()
     {
         EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
         string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
         var tree = SyntaxTree.Parse(TestAssetSnapshot.ReadSourceText(Path.Combine(root, "assets/game/shaders/transparentcompose.fsh")), GlslSchema.Instance);
         var main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single();
@@ -192,7 +187,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
                 outColor=vec4(unproject(vec4(numerator,denominator)),.375);
             }
             """).Commit();
-        using var program = Link(shaders, tree.ToText());
+        using var program = Link( tree.ToText());
         using var framework = new ShaderTestFramework();
         using var output = CreateRenderTarget(4, 1, TextureFormat.Rgba32f);
         framework.RenderQuadTo(program.ProgramId, output);
@@ -216,7 +211,6 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
     public void InstalledBucketsPreserveStraightColorAcrossRepeatedSubmissions()
     {
         EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
         string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
         string bucket = TestAssetSnapshot.ReadSourceText(Path.Combine(root, "assets/game/shaderincludes/oit.fsh"));
         string fragment = "#version 430 core\n#define USEOIT 1\n" + bucket + "\n" + """
@@ -229,7 +223,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
                 OITaccumulation0=sums[0];OITaccumulation1=sums[1];OITaccumulation2=sums[2];
             }
             """;
-        using var program = Link(shaders, fragment);
+        using var program = Link( fragment);
         using var framework = new ShaderTestFramework();
         using var output = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
         framework.RenderQuadTo(program.ProgramId, output);
@@ -252,15 +246,15 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
 
     #region Private
     /// <summary>Links a minimal full-screen interface while keeping installed fragment arithmetic intact.</summary>
-    private static GpuProgramObject Link(TerrainShaderTestFixture shaders, string fragment)
+    private static GpuProgramObject Link(string fragment)
     {
-        int vertex = shaders.Compile(ShaderType.VertexShader, """
+        string vertex = """
             #version 430 core
             layout(location=0) in vec2 position;
             out vec2 v_texcoord;
             void main(){gl_Position=vec4(position,0,1);v_texcoord=vec2(.5);}
-            """);
-        return GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, shaders.Compile(ShaderType.FragmentShader, fragment)));
+            """;
+        return GpuProgramObject.Adopt(TestShaderCache.CreateGraphics(vertex, fragment));
     }
     #endregion
 }

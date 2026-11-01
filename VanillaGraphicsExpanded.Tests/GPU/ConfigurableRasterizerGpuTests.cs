@@ -207,11 +207,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         /// <summary>Creates a 32-square target and vertex-ID geometry for compatibility raster checks.</summary>
         public RasterDraw()
         {
-            int vertex = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/rasterizer.vsh", ShaderType.VertexShader);
-            int fragment = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/rasterizer.fsh", ShaderType.FragmentShader);
-            program = GL.CreateProgram(); GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked); Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            GL.DeleteShader(vertex); GL.DeleteShader(fragment);
+            program = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixtureProgram("tests/rasterizer.vsh", "tests/rasterizer.fsh");
             vao = GL.GenVertexArray(); framebuffer = GL.GenFramebuffer(); color = GL.GenRenderbuffer();
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer); GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, color);
             GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.Rgba8, 32, 32);

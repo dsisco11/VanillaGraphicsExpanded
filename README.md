@@ -195,6 +195,24 @@ fail validation. Diagnostic reports and BMP/raw exports use memory sinks, not fi
 paths. Text reports and binary payload identities are emitted through test output. Required assembly loading and build/test-runner receipts retain their normal bootstrap I/O. These tests
 verify serialization and replacement protocols, not operating-system filesystem atomicity.
 
+`HeadlessGLFixture` enables the existing driver executable cache against one bounded in-memory
+`ProgramBinaryStore` retained across cases. Its default follows the fixture across runner threads;
+nested context setup does not reset it. A suite/case that must observe fresh specialization,
+linking, reload or allocation uses `DriverProgramCache.UseStoreForTesting(null)` for that interval.
+Cache-subject tests instead supply their own isolated store through the same scoped API. Explicit scopes
+override the fixture default, follow awaited thread changes, and restore it on disposal. No policy reaches the production disk store
+while a headless fixture is alive, including during teardown and context changes.
+
+Production/component/compute shader helpers reuse digest-validated asset binaries. Combined
+`ShaderTestHelper` and declared fixture-program loading use that same asset route. Generated checker
+kernels, resource-free state shaders and source-authored numerical raster helpers use `TestShaderCache`
+with exact expanded source, stage kind and driver/profile identity, storing bytes in the existing store.
+The vertex-only particle color-feedback helper also includes its varying name and interleaved mode.
+A hit creates a new native
+program with fresh uniform state; native owners, binding tables and assertion results remain per case.
+Explicit stage integration and native creation/mutation subjects still execute their authored native
+operations. The SPIR-V assignment and shader-define compile matrices explicitly bypass cached programs.
+
 ### Compact GPU assertions
 
 `GPU/Assertions/GpuImageAssertions` compares complete selected image domains against independent CPU

@@ -275,13 +275,9 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         string fragment = "#version 330 core\nuniform sampler2D sourceImage;uniform sampler2D baseImage;uniform sampler3D gradingLookup;uniform float storage,globalStops,guidance;uniform vec2 strengths,bounds;out vec4 outColor;\n"
             + Expand(Path.Combine(root, "post_local_exposure.glsl")) + Expand(Path.Combine(root, "pbr_color.glsl"))
             + Expand(Path.Combine(root, "post_filmic.glsl")) + "\nvoid main(){" + body + "}";
-        int vertex = Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
-        int shader = Compile(ShaderType.FragmentShader, fragment), program = GL.CreateProgram();
+        int program = TestShaderCache.CreateGraphics("#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}", fragment);
         try
         {
-            GL.AttachShader(program, vertex); GL.AttachShader(program, shader); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             using var sourceScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, input.TextureId);
             using var baseScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, baseImage?.TextureId ?? input.TextureId);
             using var gradeScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 2, grading?.TextureId ?? 0);
@@ -301,7 +297,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             return new(target[0]);
         }
-        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(shader); }
+        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); GL.DeleteProgram(program); }
     }
 
     #endregion
@@ -309,16 +305,6 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     /// <summary>Expands source-authored guarded imports for the diagnostic compiler.</summary>
     private static string Expand(string path) => Regex.Replace(TestAssetSnapshot.ReadSourceText(path), "@import \"([^\"]+)\"",
         match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
-
-    /// <summary>Checks compilation at the draw baseline rather than silently enabling newer language features.</summary>
-    private static int Compile(ShaderType type, string source)
-    {
-        int shader = GL.CreateShader(type); GL.ShaderSource(shader, source); GL.CompileShader(shader);
-        GL.GetShader(shader, ShaderParameter.CompileStatus, out int success);
-        string error = GL.GetShaderInfoLog(shader);
-        if (success == 0) GL.DeleteShader(shader);
-        Assert.True(success != 0, error); return shader;
-    }
 
     #endregion
     #region Numerical references

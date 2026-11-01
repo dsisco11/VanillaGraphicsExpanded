@@ -13,6 +13,27 @@ internal static class BuiltShaderFixture
     private static readonly ShaderVariantResolver Fixtures = ShaderBuildTool.Spirv.TestShaderPrograms.Create();
 
     #region Loading
+    /// <summary>Loads a declared executable through validated asset caching and transfers independent native ownership.</summary>
+    internal static int LoadProgram(ShaderLoadPlan plan)
+    {
+        using var candidate = new VanillaGraphicsExpanded.Rendering.ShaderCompilation.ShaderAssetCandidate(plan,
+            path => TestAssetSnapshot.Built.Read("shaders/" + path),
+            () => ShaderBinaryDigest.Parse(TestAssetSnapshot.Built.Copy("shaders/" + ShaderBinaryDigest.FileName)));
+        candidate.Complete();
+        using var shader = candidate.TakeShader();
+        int program = shader.Program.ProgramId;
+        shader.Program.Detach();
+        return program;
+    }
+
+    /// <summary>Selects an explicit test-catalog graphics pair without compiling detached stages on cache hits.</summary>
+    internal static int LoadFixtureProgram(string vertex, string fragment)
+    {
+        var contract = Fixtures.Programs.Values.Single(program =>
+            program.Stages.Any(stage => stage.Identity == vertex) && program.Stages.Any(stage => stage.Identity == fragment));
+        return LoadProgram(new(new ShaderSettings(contract)));
+    }
+
     /// <summary>Loads a declared stage's requested selection and retains its numeric interface.</summary>
     public static int Load(string identity, ShaderType type, IReadOnlyDictionary<string, string?>? defines = null)
     {

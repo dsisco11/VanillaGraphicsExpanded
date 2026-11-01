@@ -25,10 +25,9 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
     public void StandardMeshOccludesBackground(int offsetVariant, int route, int ssao, int oit = 0)
     {
         EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build("standard.vsh", 0, oit, ssao, 0, offsetVariant));
-        int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("standard.fsh", 0, oit, ssao, 0, offsetVariant));
-        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        string vertex = PbrSurfaceInstalledShaderTests.Build("standard.vsh", 0, oit, ssao, 0, offsetVariant);
+        string fragment = PbrSurfaceInstalledShaderTests.Build("standard.fsh", 0, oit, ssao, 0, offsetVariant);
+        using var program = GpuProgramObject.Adopt(TestShaderCache.CreateGraphics(vertex, fragment));
         using var vao = NativeResourceSetup.CreateVertexArray();
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         using var framework = new ShaderTestFramework();

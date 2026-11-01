@@ -17,6 +17,7 @@ public sealed class InstalledShaderFixtureTests(HeadlessGLFixture fixture) : Ren
     public void InstalledStagesLinkAndExposeSceneConvention(string name, int ssao)
     {
         EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
         using var shader = new InstalledShaderFixture(name, ssao);
         bool consumesSceneConvention = name != "final";
         Assert.Equal(consumesSceneConvention, shader.Engine.HasUniform("vge_sceneLinear"));

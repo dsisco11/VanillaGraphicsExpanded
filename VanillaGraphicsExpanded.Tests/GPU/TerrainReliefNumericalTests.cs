@@ -34,11 +34,10 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
     public void ReliefUsesAuthoredMetric(int mode,float amplitude,float height,float scale,float index,float distance,float direction)
     {
         EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
         string fragmentPath = mode == 1 ? "tests/relief-on.fsh" : "tests/relief-off.fsh";
-        int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
-        int fs=shaders.Load(ShaderType.FragmentShader,fragmentPath);
-        using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fs));
+        string vertex="tests/complete-state.vsh";
+        string fs=fragmentPath;
+        using var program=GpuProgramObject.Adopt(BuiltShaderFixture.LoadFixtureProgram(vertex,fs));
         using var vao=NativeResourceSetup.CreateVertexArray();
         using var draw=new ShaderTestFramework();
         using var heights=draw.CreateTexture(64,64,TextureFormat.Rgba32f,Enumerable.Range(0,4096).SelectMany(_=>new[]{.5f,.5f,1f,height}).ToArray());

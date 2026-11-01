@@ -15,13 +15,7 @@ internal sealed class FirstPersonMarkerDraw : IDisposable
     /// <summary>Loads a precompiled raster draw writing overlay color, sampled depth and negative metadata.</summary>
     public FirstPersonMarkerDraw()
     {
-        int vertex = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/first-person.vsh", ShaderType.VertexShader);
-        int fragment = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/first-person.fsh", ShaderType.FragmentShader);
-        program = GL.CreateProgram();
-        GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
-        GL.DeleteShader(vertex); GL.DeleteShader(fragment);
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-        Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+        program = Helpers.BuiltShaderFixture.LoadFixtureProgram("tests/first-person.vsh", "tests/first-person.fsh");
         vao = GL.GenVertexArray(); framebuffer = GL.GenFramebuffer();
     }
 
@@ -62,7 +56,7 @@ internal sealed class FirstPersonMarkerDraw : IDisposable
     /// <summary>Releases only this simulated engine draw's temporary objects.</summary>
     public void Dispose()
     {
-        GL.DeleteProgram(program); GL.DeleteVertexArray(vao); GL.DeleteFramebuffer(framebuffer);
+        Helpers.TestShaderInterfaces.DeleteProgram(program); GL.DeleteVertexArray(vao); GL.DeleteFramebuffer(framebuffer);
     }
     #endregion
 }

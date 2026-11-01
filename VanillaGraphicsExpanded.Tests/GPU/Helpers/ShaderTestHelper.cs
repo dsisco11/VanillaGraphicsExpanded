@@ -107,18 +107,14 @@ public sealed class ShaderTestHelper : IDisposable
         try
         {
             var plan = new ShaderLoadPlan(new ShaderSettings(GpuShaderContracts.Registry.FindProgram(identity), defines));
-            string root = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-            var handles = new Dictionary<ShaderStageKind, int>();
-            foreach (var selected in plan.Stages)
-            {
-                using var loaded = PrecompiledStageFixture.Load(selected, path => TestAssetSnapshot.Built.Read("shaders/" + path));
-                _allocatedShaders.Add(loaded.ShaderId);
-                int ownedShader = loaded.ShaderId;
-                TestShaderInterfaces.OnShaderRelease(ownedShader, () => _allocatedShaders.Remove(ownedShader));
-                TestShaderInterfaces.TrackShader(loaded.ShaderId, selected.Stage.Bindings);
-                handles.Add(selected.Stage.Kind, (int)loaded.Detach());
-            }
-            return LinkProgram(handles[ShaderStageKind.Vertex], handles[ShaderStageKind.Fragment]);
+            // Whole-program numerical subjects use the same validated asset/cache route as production.
+            // Explicit CompileShader/LinkProgram callers still exercise borrowed-stage integration.
+            int programId = BuiltShaderFixture.LoadProgram(plan);
+            TestShaderInterfaces.TrackProgram(programId, new VanillaGraphicsExpanded.Rendering.Spirv.GpuProgramInterface(
+                programId, plan.Stages.Select(stage => stage.Stage.Bindings)));
+            _allocatedPrograms.Add(programId);
+            TestShaderInterfaces.OnProgramRelease(programId, () => _allocatedPrograms.Remove(programId));
+            return ProgramLinkResult.Success(programId);
         }
         catch (Exception error) { return ProgramLinkResult.Failure(error.Message); }
     }

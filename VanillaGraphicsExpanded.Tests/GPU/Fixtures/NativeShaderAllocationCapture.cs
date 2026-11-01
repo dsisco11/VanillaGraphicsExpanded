@@ -20,6 +20,8 @@ internal sealed unsafe class NativeShaderAllocationCapture : IDisposable
     internal int Program => programs.Single();
     /// <summary>Gets the stage names whose eventual deletion must be established independently.</summary>
     internal int[] Stages => stages.ToArray();
+    /// <summary>Gets actual native link submissions, excluding executable-binary installation.</summary>
+    internal int Links { get; private set; }
     /// <summary>Gets the manager association observed when the original executable was submitted.</summary>
     internal GpuResourceRegistration? Registration { get; private set; }
     /// <summary>Starts observation of exact core allocations and link submission on this test thread.</summary>
@@ -45,7 +47,7 @@ internal sealed unsafe class NativeShaderAllocationCapture : IDisposable
             nint link = native.Original("glLinkProgram");
             native.Add("glLinkProgram", new Link(program =>
             {
-                native.Observe(() => RecordAssociation(unchecked((int)program)));
+                native.Observe(() => { Links++; RecordAssociation(unchecked((int)program)); });
                 ((delegate* unmanaged[Stdcall]<uint, void>)link)(program);
             }));
             native.Install();

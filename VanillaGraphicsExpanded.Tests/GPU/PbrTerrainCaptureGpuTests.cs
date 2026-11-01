@@ -80,15 +80,9 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     public void SurfaceNormalUsesGeometryForTransmissionOrLegacyUp(bool twoSided, bool smooth, bool back, float transmission, float x, float y, float z)
     {
         EnsureContextValid();
-        using var modules = new TerrainShaderTestFixture();
-        int vertex = modules.Load(ShaderType.VertexShader, "tests/normal-input.vsh");
-        int fragment = modules.Load(ShaderType.FragmentShader, "tests/normal-input.fsh");
-        int program = GL.CreateProgram();
+        int program = BuiltShaderFixture.LoadFixtureProgram("tests/normal-input.vsh", "tests/normal-input.fsh");
         try
         {
-            GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.UseProgram(program);
             using var inputs = new FixtureUniformInputs(16);
             inputs.Float(0, transmission);
@@ -119,15 +113,9 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     public void TransmissionRespectsVisibilityAndAngles(float visibility, bool frontLit, bool sideView, float factor)
     {
         EnsureContextValid();
-        using var modules = new TerrainShaderTestFixture();
-        int vertex = modules.Load(ShaderType.VertexShader, "tests/numerical-quad.vsh");
-        int fragment = modules.Load(ShaderType.FragmentShader, "tests/foliage-transmission.fsh");
-        int program = GL.CreateProgram();
+        int program = BuiltShaderFixture.LoadFixtureProgram("tests/numerical-quad.vsh", "tests/foliage-transmission.fsh");
         try
         {
-            GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.UseProgram(program);
             using var inputs = new FixtureUniformInputs(48);
             inputs.Float(0, visibility);
@@ -161,15 +149,9 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     public void LiquidOpticsRemainBounded(float cosine, bool underwater, float reflection, float missingThickness)
     {
         EnsureContextValid();
-        using var modules = new TerrainShaderTestFixture();
-        int vertex = modules.Load(ShaderType.VertexShader, "tests/numerical-quad.vsh");
-        int fragment = modules.Load(ShaderType.FragmentShader, "tests/liquid-interface.fsh");
-        int program = GL.CreateProgram();
+        int program = BuiltShaderFixture.LoadFixtureProgram("tests/numerical-quad.vsh", "tests/liquid-interface.fsh");
         try
         {
-            GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.UseProgram(program);
             using var inputs = new FixtureUniformInputs(16);
             inputs.Float(0, cosine);

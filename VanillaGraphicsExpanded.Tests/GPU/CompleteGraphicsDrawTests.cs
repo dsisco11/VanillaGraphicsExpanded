@@ -209,12 +209,8 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
         /// <summary>Loads deterministic binaries and creates an independent render target.</summary>
         public FullscreenDraw(bool facing = false)
         {
-            int vs = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/complete-state.vsh", ShaderType.VertexShader);
-            int fs = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture(
-                facing ? "tests/facing-state.fsh" : "tests/complete-state.fsh", ShaderType.FragmentShader);
-            program = GL.CreateProgram(); GL.AttachShader(program, vs); GL.AttachShader(program, fs); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked); Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            GL.DeleteShader(vs); GL.DeleteShader(fs);
+            program = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixtureProgram(
+                "tests/complete-state.vsh", facing ? "tests/facing-state.fsh" : "tests/complete-state.fsh");
             vao = NativeResourceSetup.CreateVertexArray(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId); indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); indices.UploadIndices(new uint[] { 0, 1, 2 });
             framebuffer = GL.GenFramebuffer(); GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             for (int i = 0; i < colors.Length; i++)

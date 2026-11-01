@@ -32,6 +32,10 @@ internal sealed class GpuFixtureProgram : IDisposable
         // that interval, so require the caller's existing cleanup service before allocating anything.
         if(afterShaderCreated is not null && disposal is null)
             throw new InvalidOperationException("Context-switchable construction requires an existing disposal service.");
+        // Fault-injected construction must allocate the stage being observed. Ordinary kernels reuse
+        // bytes only: every instance still owns a new program and starts with fresh uniform state.
+        var cached = afterShaderCreated is null ? Fixtures.TestShaderCache.Prepare(source) : default;
+        if (afterShaderCreated is null && Fixtures.TestShaderCache.TryLoad(cached, out program)) return;
         int shader = GL.CreateShader(ShaderType.ComputeShader);
         try
         {
@@ -42,11 +46,13 @@ internal sealed class GpuFixtureProgram : IDisposable
             GL.GetShader(shader, ShaderParameter.CompileStatus, out int compiled);
             if (compiled == 0) throw new InvalidOperationException(GL.GetShaderInfoLog(shader));
             program = GL.CreateProgram();
+            if (cached.Store is not null) GL.ProgramParameter(program, ProgramParameterName.ProgramBinaryRetrievableHint, 1);
             GL.AttachShader(program, shader);
             GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             if (linked == 0) throw new InvalidOperationException(GL.GetProgramInfoLog(program));
             GL.DetachShader(program, shader);
+            Fixtures.TestShaderCache.Save(cached, program);
         }
         catch
         {

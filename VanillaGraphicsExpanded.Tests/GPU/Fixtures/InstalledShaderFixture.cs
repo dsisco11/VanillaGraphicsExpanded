@@ -19,14 +19,13 @@ internal sealed class InstalledShaderFixture : IDisposable
     {
         ShaderCapability capabilities = ShaderCapability.None;
         int oit = name == "particlesquad2d" ? 1 : 0;
-        using var stages = new TerrainShaderTestFixture();
-        int vertex = stages.Compile(ShaderType.VertexShader,
+        string vertex =
             PbrSurfaceInstalledShaderTests.Build(name + ".vsh", 0, oit, ssao, 0, 0)
-                .Replace("#version 330 core", "#version 330 core\n#define BLOOM " + (effects ? 1 : 0) + "\n#define GODRAYS " + (effects ? 1 : 0)));
-        int fragment = stages.Compile(ShaderType.FragmentShader,
+                .Replace("#version 330 core", "#version 330 core\n#define BLOOM " + (effects ? 1 : 0) + "\n#define GODRAYS " + (effects ? 1 : 0));
+        string fragment =
             PbrSurfaceInstalledShaderTests.Build(name + ".fsh", 0, oit, ssao, 0, 0, value => capabilities |= value)
-                .Replace("#version 330 core", "#version 330 core\n#define BLOOM " + (effects ? 1 : 0) + "\n#define GODRAYS " + (effects ? 1 : 0)));
-        executable = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+                .Replace("#version 330 core", "#version 330 core\n#define BLOOM " + (effects ? 1 : 0) + "\n#define GODRAYS " + (effects ? 1 : 0));
+        executable = GpuProgramObject.Adopt(TestShaderCache.CreateGraphics(vertex, fragment));
         try
         {
             Layout = GpuProgramLayout.TryBuild(executable.ProgramId);

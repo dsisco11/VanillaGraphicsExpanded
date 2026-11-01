@@ -125,9 +125,7 @@ public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOn
         using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.HighlightContainment" }).RequireResource();
         output.Allocate(32);freeze.Output=output;
         string directory=Path.Combine(AppContext.BaseDirectory,"assets/shaders/includes");
-        using var modules=new TerrainShaderTestFixture();
-        int vertex=modules.Compile(ShaderType.VertexShader,
-            "#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
+        string vertex="#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}";
         string source="#version 330 core\n"+Expand(Path.Combine(directory,"pbr_scene_storage.glsl"))
             +Expand(Path.Combine(directory,"pbr_common.glsl"))+Expand(Path.Combine(directory,"pbr_microfacet_energy.glsl"))+"""
             uniform int highlight;
@@ -143,7 +141,7 @@ public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOn
                 result=vec4(VgeStoreSceneLighting(radiance),1);
             }
             """;
-        int program=TerrainShaderTestFixture.Link(vertex,modules.Compile(ShaderType.FragmentShader,source));
+        int program=TestShaderCache.CreateGraphics(vertex,source);
         try
         {
             using var target=TestFramework.CreateTestGBuffer(2,1,TextureFormat.Rgba16f);

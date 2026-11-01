@@ -31,8 +31,7 @@ public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : Rende
     public void InstalledFragmentPreservesCoverage(string family, int oit, int route, float alpha)
     {
         EnsureContextValid();
-        using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Compile(ShaderType.VertexShader, """
+        string vertex = """
             #version 430 core
             out vec2 uv; out vec4 color; out vec4 rgbaFog; out float fogAmount; out float glowLevel;
             out vec3 vertexPosition; flat out int renderFlags; out vec3 normal; out vec4 worldPos;
@@ -46,10 +45,9 @@ public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : Rende
                 blockLight=vec3(1); camPos=worldPos; damageEffect=0; fragFrostAlpha=0; rgbaGlow=vec4(0);
                 vge_viewPosition=vec3(0,0,-2); vge_blockField=vec3(1); vge_sunIrradiance=vec3(0); vge_skyVisibility=0;
             }
-            """);
-        int fragment = shaders.Compile(ShaderType.FragmentShader,
-            PbrSurfaceInstalledShaderTests.Build(family + ".fsh", 0, oit, 0, 0, 0));
-        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+            """;
+        string fragment = PbrSurfaceInstalledShaderTests.Build(family + ".fsh", 0, oit, 0, 0, 0);
+        using var program = GpuProgramObject.Adopt(TestShaderCache.CreateGraphics(vertex, fragment));
         using var vao = NativeResourceSetup.CreateVertexArray();
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f, oit > 0 ? 6 : 2);

@@ -91,14 +91,9 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             + Expand(Path.Combine(directory, "pbr_environment.glsl")) + "\n"
             + Expand(Path.Combine(directory, "pbr_forward_surface.glsl"))
             + $"\nvoid main() {{ outColor = vec4(VgeForwardSurface(vec3(0.2,0.4,0.6), {(scenario == 3 ? "vec3(1,0,0)" : "vec3(0,0,1)")}, vec3(0.5,0,{(scenario is 1 or 9 or 15 ? "2.0" : "0.0")}), 0.0), 0.37); }}";
-        int vertex = Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0) in vec2 position; void main(){gl_Position=vec4(position,0,1);}");
-        int fragment = Compile(ShaderType.FragmentShader, source);
-        int program = GL.CreateProgram();
+        int program = TestShaderCache.CreateGraphics("#version 330 core\nlayout(location=0) in vec2 position; void main(){gl_Position=vec4(position,0,1);}", source);
         try
         {
-            GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             Helpers.MicrofacetTextureReference.Bind();
             using var frame = new VgeFrameUniformBuffer();
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, frame.Capture()));
@@ -177,7 +172,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
                     Enumerable.Range(0,4).Max(variant=>radiance[variant,channel]) + .0001f);
             Assert.InRange(actual[3], .36999f, .37001f);
         }
-        finally { GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(fragment); }
+        finally { GL.DeleteProgram(program); }
     }
     #endregion
 
@@ -185,16 +180,5 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
     /// <summary>Expands guarded production imports without changing their lighting equations.</summary>
     private static string Expand(string path) => Regex.Replace(TestAssetSnapshot.ReadSourceText(path), "@import \"([^\"]+)\"",
         match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
-    /// <summary>Compiles production helper text at the engine runtime GLSL boundary.</summary>
-    private static int Compile(ShaderType type, string source)
-    {
-        int shader = GL.CreateShader(type);
-        GL.ShaderSource(shader, source); GL.CompileShader(shader);
-        GL.GetShader(shader, ShaderParameter.CompileStatus, out int compiled);
-        string log = GL.GetShaderInfoLog(shader);
-        if (compiled == 0) GL.DeleteShader(shader);
-        Assert.True(compiled != 0, log);
-        return shader;
-    }
     #endregion
 }

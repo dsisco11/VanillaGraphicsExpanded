@@ -30,6 +30,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     public void RuntimeAssignmentsValidateAndRepresentativesRetirePreviousExecutable(string shaderName, string variant)
     {
         EnsureContextValid();
+        using var freshStages = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         // Replacement uses only packaged binary assets.
         assets.BeforeRead = AssertBinaryAsset;
@@ -80,6 +81,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     public void BinaryOnlyReloadPreservesContractUniformDictionary()
     {
         EnsureContextValid();
+        using var freshStages = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         assets.BeforeRead = AssertBinaryAsset;
         using var program = new FixtureProgram("lumon_debug_view_direct_total");
@@ -103,6 +105,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     public void RuntimeReloadPreservesWorkingProgramOnInvalidBinary()
     {
         EnsureContextValid();
+        using var freshStages = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         var program = new FixtureProgram();
         program.Initialize(assets.Api);
@@ -144,6 +147,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     public void RuntimeFailurePreservesInstalledGeneration(string replaced, string substitute, string failure)
     {
         EnsureContextValid();
+        using var freshStages = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         using var program = new FixtureProgram();
         program.Initialize(assets.Api);
@@ -216,6 +220,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     public void RepeatedDrawsUseBuiltBinaries()
     {
         EnsureContextValid();
+        using var freshStages = DriverProgramCache.UseStoreForTesting(null);
         int vertex = 0, fragment = 0, program = 0;
         try
         {

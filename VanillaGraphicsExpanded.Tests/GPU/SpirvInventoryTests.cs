@@ -31,6 +31,7 @@ public sealed class SpirvInventoryTests : IDisposable
     public void SlicedAssetsSpecializeAndLinkWithoutMutation()
     {
         fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
         var assets = new VanillaGraphicsExpanded.Tests.Helpers.SlicedShaderAssets(path => TestAssetSnapshot.Built.Copy("shaders/" + path));
         var selected = new ShaderLoadPlan(new ShaderSettings(Registry.FindProgram("tests/GpuProgramLayoutBindingTests_1"))).Stages.Single();
         GpuShaderModule? shader = null; int program = 0;
@@ -61,6 +62,7 @@ public sealed class SpirvInventoryTests : IDisposable
     public void ComputeAssignmentsLinkAndRepresentativeDisposalPreservesReplacement(string identity, string key)
     {
         fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
         var selected = new ShaderLoadPlan(Settings(identity, key)).Stages.Single();
         ComputeShaderAsset? previous = null;
         try {
@@ -89,6 +91,7 @@ public sealed class SpirvInventoryTests : IDisposable
     public void BuiltVariantSpecializes(string identity, string key)
     {
         fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
         var selected = Assert.Single(Registry.Binaries, b => b.Stage.Identity == identity && b.Key == key);
         using var shader = PrecompiledStageFixture.Load(selected, Read);
         Assert.True(GL.IsShader(shader.ShaderId));
@@ -100,6 +103,7 @@ public sealed class SpirvInventoryTests : IDisposable
     public void DeclaredGraphicsCombinationLinks(string identity, string key)
     {
         fixture.EnsureContextValid();
+        using var freshStages = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
         var handles = new List<GpuShaderModule>(); int program = 0;
         try {
             foreach (var stage in new ShaderLoadPlan(Settings(identity, key)).Stages) handles.Add(PrecompiledStageFixture.Load(stage, Read));

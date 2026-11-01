@@ -187,15 +187,13 @@ public sealed class UniformLifetimeTests(HeadlessGLFixture fixture) : RenderTest
     /// <summary>Dispatches the existing packaged UBO fixture and reads its actual shader result.</summary>
     private static uint Observe(UniformPublication.Candidate candidate)
     {
-        int shader = BuiltShaderFixture.Load("tests/GpuUniformRingBufferIntegrationTests_1.csh", ShaderType.ComputeShader);
-        int program = GL.CreateProgram();
+        int program = BuiltShaderFixture.LoadProgram(new(new VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(
+            VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"))));
         try
         {
-            GL.AttachShader(program, shader);
-            TestShaderInterfaces.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.NotEqual(0, linked);
-            var layout = TestShaderInterfaces.BuildLayout(program);
+            var layout = new GpuProgramLayout { BinaryInterface = new VanillaGraphicsExpanded.Rendering.Spirv.GpuProgramInterface(
+                program, [VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindStage("tests/GpuUniformRingBufferIntegrationTests_1.csh").Bindings]) };
+            layout.RebuildCache(program);
             layout.RegisterUniformBlockBinding("TestParams", 0, required: true);
             layout.ApplyContract(program);
             using var output = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
@@ -214,7 +212,6 @@ public sealed class UniformLifetimeTests(HeadlessGLFixture fixture) : RenderTest
             GL.UseProgram(0);
             OpenGlStateCache.Current.Invalidate(EPipelineState.Program);
             TestShaderInterfaces.DeleteProgram(program);
-            TestShaderInterfaces.DeleteShader(shader);
         }
     }
     #endregion

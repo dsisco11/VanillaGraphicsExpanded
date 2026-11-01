@@ -39,6 +39,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     private string? _initializationError;
     private int _bindingsLoadedThreadId = -1;
     private RHIResourceManager? _resourceManager;
+    private readonly IDisposable shaderCache = Rendering.ProgramBinaries.DriverProgramCache.UseDefaultStoreForTesting(TestShaderCache.Store);
     private static readonly Lazy<HarmonyLib.Harmony> bindingHooks = new(() =>
     {
         var harmony = new HarmonyLib.Harmony("Tests.OpenTKBindingLoader");
@@ -76,8 +77,6 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     /// </summary>
     public void EnsureContextValid()
     {
-        // Lifecycle tests must exercise specialization and linking unless a cache test opts in explicitly.
-        VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.Bypass = true;
         Assert.SkipWhen(!_contextValid, $"OpenGL context not available: {_initializationError ?? "Unknown error"}");
         _ = bindingHooks.Value;
 
@@ -174,7 +173,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
                 _contextValid = false;
                 return ValueTask.CompletedTask;
             }
-            
+
             // Set window hints for OpenGL 4.5 Core
             GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4);
             GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5);
@@ -182,7 +181,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             GLFW.WindowHint(WindowHintBool.OpenGLForwardCompat, true);
             GLFW.WindowHint(WindowHintBool.OpenGLDebugContext, true);
             GLFW.WindowHint(WindowHintBool.Visible, false); // Hidden window
-            
+
             // Create a minimal window with GL context
             var windowHandle = GLFW.CreateWindow(1, 1, "HeadlessGLFixture", null, null);
             if (windowHandle == null)
@@ -192,16 +191,16 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
                 GLFW.Terminate();
                 return ValueTask.CompletedTask;
             }
-            
+
             // Make context current and load OpenGL bindings
             GLFW.MakeContextCurrent(windowHandle);
             GL.LoadBindings(new GLFWBindingsContext());
             OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
-            
+
             // Store window handle for cleanup
             _glfwWindow = windowHandle;
             Rendering.Integration.RenderContextRegistry.RegisterCurrent(this, static target => ((HeadlessGLFixture)target)._glfwWindow != null);
-            
+
             // Query OpenGL info
             GLVersion = GL.GetString(StringName.Version);
             GLRenderer = GL.GetString(StringName.Renderer);
@@ -236,25 +235,29 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     /// <inheritdoc />
     public unsafe ValueTask DisposeAsync()
     {
-        if (_glfwWindow != null)
+        try
         {
-            // Collections own separate, unshared contexts. Retire the test ring's
-            // buffer names and persistent mapping before another context can reuse them.
-            GLFW.MakeContextCurrent(_glfwWindow);
-            GL.LoadBindings(new GLFWBindingsContext());
-            OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
-            TestUniformRing.Dispose();
-            VanillaGraphicsExpanded.PBR.Materials.Energy.MicrofacetEnergyLookup.Retire();
-            VanillaGraphicsExpanded.Rendering.GpuSamplers.Dispose();
-            CleanupGpuResources();
-            Rendering.Integration.RenderContextRegistry.Retire(this);
-            GLFW.DestroyWindow(_glfwWindow);
-            _glfwWindow = null;
+            if (_glfwWindow != null)
+            {
+                // Collections own separate, unshared contexts. Retire the test ring's
+                // buffer names and persistent mapping before another context can reuse them.
+                GLFW.MakeContextCurrent(_glfwWindow);
+                GL.LoadBindings(new GLFWBindingsContext());
+                OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
+                TestUniformRing.Dispose();
+                VanillaGraphicsExpanded.PBR.Materials.Energy.MicrofacetEnergyLookup.Retire();
+                VanillaGraphicsExpanded.Rendering.GpuSamplers.Dispose();
+                CleanupGpuResources();
+                Rendering.Integration.RenderContextRegistry.Retire(this);
+                GLFW.DestroyWindow(_glfwWindow);
+                _glfwWindow = null;
+            }
+
+            GLFW.Terminate();
+            _contextValid = false;
+            return ValueTask.CompletedTask;
         }
-        
-        GLFW.Terminate();
-        _contextValid = false;
-        return ValueTask.CompletedTask;
+        finally { shaderCache.Dispose(); }
     }
 
 #if DEBUG

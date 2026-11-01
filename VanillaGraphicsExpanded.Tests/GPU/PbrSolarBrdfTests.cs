@@ -177,16 +177,9 @@ public sealed class PbrSolarBrdfTests(HeadlessGLFixture fixture) : RenderTestBas
                 result=vec4(value,1);
             }
             """;
-        int vertex = Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0) in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
-        int pixel = Compile(ShaderType.FragmentShader, fragment);
-        int program = GL.CreateProgram();
+        int program = TestShaderCache.CreateGraphics("#version 330 core\nlayout(location=0) in vec2 position;void main(){gl_Position=vec4(position,0,1);}", fragment);
         try
         {
-            GL.AttachShader(program, vertex);
-            GL.AttachShader(program, pixel);
-            GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             using var target = CreateRenderTarget(1, 1, TextureFormat.Rgba32f);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, target.FboId);
             GL.Viewport(0, 0, 1, 1);
@@ -208,8 +201,6 @@ public sealed class PbrSolarBrdfTests(HeadlessGLFixture fixture) : RenderTestBas
         finally
         {
             GL.DeleteProgram(program);
-            GL.DeleteShader(vertex);
-            GL.DeleteShader(pixel);
             OpenGlStateCache.Current.InvalidateAll();
         }
     }
@@ -221,15 +212,5 @@ public sealed class PbrSolarBrdfTests(HeadlessGLFixture fixture) : RenderTestBas
         return Regex.Replace(source, "@import \\\"([^\\\"]+)\\\"", match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
     }
 
-    /// <summary>Compiles the diagnostic stage and exposes complete driver compilation failures.</summary>
-    private static int Compile(ShaderType type, string source)
-    {
-        int shader = GL.CreateShader(type);
-        GL.ShaderSource(shader, source);
-        GL.CompileShader(shader);
-        GL.GetShader(shader, ShaderParameter.CompileStatus, out int compiled);
-        Assert.True(compiled != 0, GL.GetShaderInfoLog(shader));
-        return shader;
-    }
     #endregion
 }

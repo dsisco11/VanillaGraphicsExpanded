@@ -30,7 +30,7 @@ internal sealed class GraphicsStateShaders : IDisposable
             ShaderStageKind.TessellationEvaluation => new RHIShaderStageDescription(ShaderStage.TessellationEvaluation, "#version 450\nlayout(triangles,equal_spacing,ccw)in;void main(){gl_Position=gl_TessCoord.x*gl_in[0].gl_Position+gl_TessCoord.y*gl_in[1].gl_Position+gl_TessCoord.z*gl_in[2].gl_Position;}"),
             _ => throw new ArgumentException("A graphics stage is required.", nameof(extraStages))
         }).ToArray();
-        var created = RHICommandContext.Current.CreateShader(new(ShaderKind.Graphics, stages, new())).RequireResource();
+        var created = TestShaderCache.CreateStateShader(stages);
         shaders.Add(key, created);
         return created;
     }

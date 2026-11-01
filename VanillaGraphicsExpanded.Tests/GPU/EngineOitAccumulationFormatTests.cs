@@ -193,34 +193,7 @@ public sealed class EngineOitAccumulationFormatTests(HeadlessGLFixture fixture) 
     private static int CompileProgram(string fragment)
     {
         string vertex = "#version 330 core\nvoid main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2-1,0,1);}";
-        int program = GL.CreateProgram();
-        var shaders = new List<int>();
-        try
-        {
-            foreach (var entry in new[] { (ShaderType.VertexShader, vertex), (ShaderType.FragmentShader, fragment) })
-            {
-                int shader = GL.CreateShader(entry.Item1);
-                shaders.Add(shader);
-                GL.ShaderSource(shader, entry.Item2);
-                GL.CompileShader(shader);
-                GL.GetShader(shader, ShaderParameter.CompileStatus, out int compiled);
-                Assert.True(compiled != 0, GL.GetShaderInfoLog(shader));
-                GL.AttachShader(program, shader);
-            }
-            GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            return program;
-        }
-        catch
-        {
-            GL.DeleteProgram(program);
-            throw;
-        }
-        finally
-        {
-            foreach (int shader in shaders) GL.DeleteShader(shader);
-        }
+        return TestShaderCache.CreateGraphics(vertex, fragment);
     }
     #endregion
 }

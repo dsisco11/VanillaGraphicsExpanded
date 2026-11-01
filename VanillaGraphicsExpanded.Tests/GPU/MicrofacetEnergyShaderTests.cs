@@ -196,10 +196,8 @@ public sealed class MicrofacetEnergyShaderTests(HeadlessGLFixture fixture) : Ren
                 "assets/shaders/includes/common_constants.glsl")));
         string environment = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_environment.glsl"))
             .Replace("@import \"./pbr_common.glsl\"", "").Replace("@import \"./pbr_microfacet_energy.glsl\"", "");
-        using var modules = new TerrainShaderTestFixture();
-        int vertex = modules.Compile(ShaderType.VertexShader,
-            "#version 330 core\nlayout(location=0) in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
-        int fragment = modules.Compile(ShaderType.FragmentShader, "#version 330 core\n" + helper + common + environment + """
+        string vertex = "#version 330 core\nlayout(location=0) in vec2 position;void main(){gl_Position=vec4(position,0,1);}";
+        string fragment = "#version 330 core\n" + helper + common + environment + """
             uniform float roughness, viewCosine, material;
             uniform float environmentMetallic;
             uniform int furnace;
@@ -241,8 +239,8 @@ public sealed class MicrofacetEnergyShaderTests(HeadlessGLFixture fixture) : Ren
                     result=vec4(response,recoveredHalf.z,recoveredHalf.x,light.z);
                 }
             }
-            """);
-        int program = TerrainShaderTestFixture.Link(vertex, fragment);
+            """;
+        int program = TestShaderCache.CreateGraphics(vertex, fragment);
         try
         {
             GL.UseProgram(program);

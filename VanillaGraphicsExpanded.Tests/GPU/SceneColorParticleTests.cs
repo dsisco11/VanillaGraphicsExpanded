@@ -47,11 +47,8 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         Assert.False(capture.Captured);
         capture.BeginCapture();
         Assert.Equal(.75f, ReadDepth(capture.BeforeDepth.TextureId));
-        using var shaders = new TerrainShaderTestFixture();
         using var inputs = new PackedUniformBuffer(32);
-        int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
-        int fragment = shaders.Load(ShaderType.FragmentShader, "tests/particle-draw.fsh");
-        using var draw = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        using var draw = GpuProgramObject.Adopt(Helpers.BuiltShaderFixture.LoadFixtureProgram("tests/complete-state.vsh", "tests/particle-draw.fsh"));
         using var vao = NativeResourceSetup.CreateVertexArray();
         FramebufferTestSetup.BindForEngineRendering(capture.DrawTarget);
         GL.Enable(EnableCap.DepthTest);
@@ -152,17 +149,15 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
     {
         EnsureShaderTestAvailable();
         EstablishScissor(false);
-        using var shaders = new TerrainShaderTestFixture();
-        int vertex = shaders.Compile(ShaderType.VertexShader, """
+        string vertex = """
             #version 430 core
             layout(location=0) in vec2 position;
             out vec4 color; out vec2 uv; out float glowLevel; out float fogAmount;
             out vec4 rgbaFog; out vec3 normal; out vec4 worldPos; out vec4 fragPosition; out vec4 gnormal;
             void main(){gl_Position=vec4(position,0,1);color=vec4(.5,.25,.75,.4);uv=vec2(0);glowLevel=.2;fogAmount=0;rgbaFog=vec4(0);normal=vec3(0,1,0);worldPos=vec4(0);fragPosition=vec4(10,20,30,1);gnormal=vec4(.25,.5,.75,1);}
-            """);
-        int fragment = shaders.Compile(ShaderType.FragmentShader,
-            PbrSurfaceInstalledShaderTests.Build("particlescube.fsh", 0, 0, ssao, 0, 0));
-        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+            """;
+        string fragment = PbrSurfaceInstalledShaderTests.Build("particlescube.fsh", 0, 0, ssao, 0, 0);
+        using var program = GpuProgramObject.Adopt(TestShaderCache.CreateGraphics(vertex, fragment));
         using var lighting = new TestFrameLightingPublication();
         lighting.Bind();
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), linearScene);

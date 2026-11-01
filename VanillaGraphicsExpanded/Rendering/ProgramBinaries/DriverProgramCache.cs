@@ -13,8 +13,9 @@ namespace VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 internal static class DriverProgramCache
 {
     private static readonly Lazy<ProgramBinaryStore> DefaultStore = new(() => new(Path.Combine(GamePaths.DataPath, "VGE", "Cache", "Programs")));
-    [ThreadStatic] internal static bool Bypass;
-    [ThreadStatic] private static Override? currentOverride;
+    private static readonly System.Threading.AsyncLocal<Override?> currentOverride = new();
+    private static readonly object testStoreGate = new();
+    private static readonly System.Collections.Generic.List<DefaultOverride> testStores = [];
     /// <summary>Reports whether the most recent attempt on this GL thread loaded a cached executable.</summary>
     [ThreadStatic] internal static bool LastLoadWasHit;
 
@@ -58,43 +59,67 @@ internal static class DriverProgramCache
         Func<ShaderBinaryDigest.Manifest?> digestIndex)
     {
         LastLoadWasHit = false;
+        var (store, driver) = CaptureStore();
+        return new(plan, read, store, driver, digestIndex);
+    }
+
+    /// <summary>Captures the effective store and driver identity for asset and generated-fixture executables.</summary>
+    internal static (ProgramBinaryStore? Store, string Driver) CaptureStore()
+    {
         ProgramBinaryStore? store = null;
         string driver = string.Empty;
-        if (currentOverride != null || !Bypass)
+        try
         {
-            try
+            var capabilities = GpuSupport.Graphics;
+            if (capabilities.ProgramBinaryFormats.Length > 0)
             {
-                var capabilities = GpuSupport.Graphics;
-                int formats = capabilities.ProgramBinaryFormats.Length;
-                if (formats > 0)
-                {
-                    store = currentOverride != null ? currentOverride.Store : DefaultStore.Value;
-                    driver = string.Join("\n", capabilities.VendorString, capabilities.RendererString,
-                        capabilities.VersionString, capabilities.ShadingLanguageVersionString,
-                        capabilities.ContextProfileMaskValue, capabilities.ContextFlags,
-                        RuntimeInformation.OSDescription, RuntimeInformation.ProcessArchitecture);
-                }
+                // Explicit per-suite scopes take priority. The fixture default spans runner threads,
+                // contains bytes only, and is removed independently of the thread doing teardown.
+                lock (testStoreGate)
+                    store = currentOverride.Value != null ? currentOverride.Value.Store :
+                        testStores.Count > 0 ? testStores[^1].Store : DefaultStore.Value;
+                driver = string.Join("\n", capabilities.VendorString, capabilities.RendererString,
+                    capabilities.VersionString, capabilities.ShadingLanguageVersionString,
+                    capabilities.ContextProfileMaskValue, capabilities.ContextFlags,
+                    RuntimeInformation.OSDescription, RuntimeInformation.ProcessArchitecture);
             }
-            catch (Exception) { store = null; }
         }
-        return new(plan, read, store, driver, digestIndex);
+        catch (Exception) { store = null; }
+        return (store, driver);
     }
 
     #endregion
 
     #region Test isolation
-    /// <summary>Overrides storage on the calling GL thread; null explicitly bypasses the disk cache.</summary>
+    /// <summary>Overrides storage in the caller's execution flow; null explicitly bypasses all cache storage.</summary>
     internal static IDisposable UseStoreForTesting(ProgramBinaryStore? store) => new Override(store);
 
-    /// <summary>Restores the preceding thread-local cache policy after a focused test.</summary>
+    /// <summary>Installs a fixture-owned default across runner threads without replacing explicit suite policies.</summary>
+    internal static IDisposable UseDefaultStoreForTesting(ProgramBinaryStore store) => new DefaultOverride(store);
+
+    /// <summary>Retains a byte-store policy until its fixture retires, including out-of-order fixture teardown.</summary>
+    private sealed class DefaultOverride : IDisposable
+    {
+        internal readonly ProgramBinaryStore Store;
+        /// <summary>Registers an isolated fixture default before any shader preparation.</summary>
+        internal DefaultOverride(ProgramBinaryStore store)
+        {
+            Store = store;
+            lock (testStoreGate) testStores.Add(this);
+        }
+        /// <summary>Removes this lease without changing other active fixture defaults.</summary>
+        public void Dispose() { lock (testStoreGate) testStores.Remove(this); }
+    }
+
+    /// <summary>Restores the preceding flow-local cache policy after a focused test.</summary>
     private sealed class Override : IDisposable
     {
         internal readonly ProgramBinaryStore? Store;
         private readonly Override? previous;
-        /// <summary>Installs one scoped policy without changing other GL threads.</summary>
-        internal Override(ProgramBinaryStore? store) { Store = store; previous = currentOverride; currentOverride = this; }
+        /// <summary>Installs one scoped policy which follows the suite across awaited runner-thread changes.</summary>
+        internal Override(ProgramBinaryStore? store) { Store = store; previous = currentOverride.Value; currentOverride.Value = this; }
         /// <summary>Restores the outer policy.</summary>
-        public void Dispose() => currentOverride = previous;
+        public void Dispose() => currentOverride.Value = previous;
     }
     #endregion
 }
