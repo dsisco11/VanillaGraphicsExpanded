@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldProbeVisibilityTestBase
 {
+
+
     /// <summary>Shares the mandatory GPU context.</summary>
     public LumOnDirectWorldProbeVisibilityTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -43,8 +45,8 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldPr
         {
             using var suppressed = RenderDirectVisibility(CreateUniformCache(), local.Scene,
                 new Vector3(0.5f, 0.5f, -5), new Vector3(-7.5f), 16, consumer, suppress: true);
-            ImageAssertions.CompareHistory(suppressed.Texture, result, channelMask: 8).AssertEqual();
-            ImageAssertions.CompareConstant(suppressed.Texture, 0, channelMask: 7).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(suppressed.Texture, result, channelMask: 8).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(suppressed.Texture, 0, channelMask: 7).AssertEqual();
         }
     }
 
@@ -106,8 +108,17 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldPr
         // Unit incident radiance integrates to E=pi. Debug views display E; gather
         // publishes E/pi for the receiver's diffuse response, independently of storage scale.
         float expected = !lit ? 0 : consumer == 33 ? 1 : consumer >= 0 ? MathF.PI / (1 + MathF.PI) : 1f;
-        ImageAssertions.Inspect(result.Texture, expected - 0.004f, expected + 0.004f, channelMask: 7).AssertFiniteRange();
-        if (consumer < 0) ImageAssertions.Inspect(result.Texture, lit ? 0.999f : 0, lit ? 1.001f : 0, channelMask: 8).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(result.Texture, expected - 0.004f, expected + 0.004f, channelMask: 7).AssertFiniteRange();
+        if (consumer < 0) ImageAssertions.Statistics.Inspect(result.Texture, lit ? 0.999f : 0, lit ? 1.001f : 0, channelMask: 8).AssertFiniteRange();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

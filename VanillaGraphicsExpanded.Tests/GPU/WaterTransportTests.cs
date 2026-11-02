@@ -13,6 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WaterTransportTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>HDR radiance survives confidence blending, colored attenuation and entry/exit world-space scattering.</summary>
     [Fact]
@@ -81,7 +83,7 @@ public sealed class WaterTransportTests(HeadlessGLFixture fixture) : LumOnShader
         foreach(var selected in new (int Target,int Row,int Rows,uint Mask)[]{(0,0,1,15u),(0,1,1,7u),(0,2,10,15u),(0,12,1,7u),(1,3,9,15u)})
         {
             int first=selected.Row*16,last=first+selected.Rows*16;
-            ImageAssertions.CompareIntervals(target[selected.Target],lower[selected.Target][first..last],upper[selected.Target][first..last],
+            ImageAssertions.Comparisons.CompareIntervals(target[selected.Target],lower[selected.Target][first..last],upper[selected.Target][first..last],
                 new(new(0,0),0,selected.Row,0,4,selected.Rows,1),selected.Mask).AssertEqual();
         }
 
@@ -92,6 +94,14 @@ public sealed class WaterTransportTests(HeadlessGLFixture fixture) : LumOnShader
             lower[attachment][component]=expected-tolerance;
             upper[attachment][component]=expected+tolerance;
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

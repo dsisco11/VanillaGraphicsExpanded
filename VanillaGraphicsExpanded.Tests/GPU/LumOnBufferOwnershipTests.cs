@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumOnBufferOwnershipTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Lifecycle tests
 
     /// <summary>The production blit owner survives target recreation and leaves its engine source alive on teardown.</summary>
@@ -44,7 +46,7 @@ public sealed class LumOnBufferOwnershipTests(HeadlessGLFixture fixture) : Rende
             Assert.True(buffers.EnsureBuffers(8, 8));
             source[0].UploadDataImmediate(Enumerable.Repeat(0.25f, 8 * 8 * 4).ToArray());
             buffers.CaptureSurfaceAlbedo();
-            ImageAssertions.CompareConstant(buffers.SurfaceAlbedoTex!, 0.25f).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(buffers.SurfaceAlbedoTex!, 0.25f).AssertEqual();
 
             // Recreation must retire the scratch references before replacing the destination.
             var retired = buffers.SurfaceAlbedoTex;
@@ -54,7 +56,7 @@ public sealed class LumOnBufferOwnershipTests(HeadlessGLFixture fixture) : Rende
             Assert.True(retired.IsDisposed);
             source[0].UploadDataImmediate(Enumerable.Repeat(0.5f, 8 * 8 * 4).ToArray());
             buffers.CaptureSurfaceAlbedo();
-            ImageAssertions.CompareConstant(buffers.SurfaceAlbedoTex!, 0.5f).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(buffers.SurfaceAlbedoTex!, 0.5f).AssertEqual();
 
             // An engine rebuild can replace attachment names at the same dimensions.
             // Its resize callback updates the same wrapper consumed by the retained blitter.
@@ -71,7 +73,7 @@ public sealed class LumOnBufferOwnershipTests(HeadlessGLFixture fixture) : Rende
                 buffers.CaptureSurfaceAlbedo();
             }
             Assert.Equal(0, notifications);
-            ImageAssertions.CompareConstant(buffers.SurfaceAlbedoTex!, 0.5f).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(buffers.SurfaceAlbedoTex!, 0.5f).AssertEqual();
 
             // Rebuild notification is authoritative even when dimensions and GL names
             // remain unchanged, and ordinary primary load/unload must not masquerade as one.
@@ -81,7 +83,7 @@ public sealed class LumOnBufferOwnershipTests(HeadlessGLFixture fixture) : Rende
             buffers.EnsureBuffers(8, 8);
             Assert.True(buffers.EnsureBuffers(8, 8));
             buffers.CaptureSurfaceAlbedo();
-            ImageAssertions.CompareConstant(buffers.SurfaceAlbedoTex!, 0.5f).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(buffers.SurfaceAlbedoTex!, 0.5f).AssertEqual();
             using var replacement = new EngineTerrainBuffers(8, 8);
             framebuffers[(int)EnumFrameBuffer.Primary] = replacement.Primary;
             gbuffer.SetupGBuffers();
@@ -89,7 +91,7 @@ public sealed class LumOnBufferOwnershipTests(HeadlessGLFixture fixture) : Rende
             Assert.Equal(2, notifications);
             replacement.Color.UploadDataImmediate(Enumerable.Repeat(0.75f, 8 * 8 * 4).ToArray());
             buffers.CaptureSurfaceAlbedo();
-            ImageAssertions.CompareConstant(buffers.SurfaceAlbedoTex!, 0.75f).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(buffers.SurfaceAlbedoTex!, 0.75f).AssertEqual();
             framebuffers[(int)EnumFrameBuffer.Primary] = terrain.Primary;
             gbuffer.SetupGBuffers();
         }
@@ -172,5 +174,13 @@ public sealed class LumOnBufferOwnershipTests(HeadlessGLFixture fixture) : Rende
             .ToArray();
     }
 
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+    }
     #endregion
 }

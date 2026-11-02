@@ -25,7 +25,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
             program.IndirectDiffuseFull = normalTexture;
             program.WorldProbeSuppressedLighting = suppressedTexture;
             TestFramework.RenderQuadTo(program, output);
-            ImageAssertions.Predicate(output[0], GpuAssertionPredicate.LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTestsLightingEffect_AssertGatherLightingEffect,normalTexture,suppressedTexture,parameters:new(expectLighting?1:0,0,0,0)).AssertEqual();
+            ImageAssertions.Predicates.Predicate(output[0], SurfacePredicates.LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTestsLightingEffect_AssertGatherLightingEffect,normalTexture,suppressedTexture,parameters:new(expectLighting?1:0,0,0,0)).AssertEqual();
         }
     }
     #endregion

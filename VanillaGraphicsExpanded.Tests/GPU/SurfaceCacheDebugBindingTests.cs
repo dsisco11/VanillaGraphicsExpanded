@@ -15,6 +15,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBase
 {
+
+
     /// <summary>Uses the shared rendering context.</summary>
     public SurfaceCacheDebugBindingTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -32,7 +34,7 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         program.PrimaryDepth = sentinel;
-        using var surfaceInput1 = LayeredTestTexture.Create(sentinel, null, null);
+        using var surfaceInput1 = LayeredTestTexture.Create(ImageAssertions.Programs, sentinel, null, null);
         program.GBufferSurface = surfaceInput1;
         UpdateAndBindLumOnFrameUbo(program);
         VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(unit, sentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)sentinel).Target)))]);
@@ -101,6 +103,14 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
 
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
     }
     #endregion
 }

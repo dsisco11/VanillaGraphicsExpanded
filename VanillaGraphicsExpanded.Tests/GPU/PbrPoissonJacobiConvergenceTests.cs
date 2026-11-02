@@ -19,6 +19,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 {
+
+
     private readonly HeadlessGLFixture fixture;
 
     public PbrPoissonJacobiConvergenceTests(HeadlessGLFixture fixture) : base(fixture)
@@ -101,7 +103,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         GL.DeleteVertexArray(vao);
 
         float[] cpu = ComputeJacobiStepCpu(input.H, input.B, input.Width, input.Height);
-        ImageAssertions.Compare(outTex, cpu, 1e-4f).AssertEqual();
+        ImageAssertions.Comparisons.Compare(outTex, cpu, 1e-4f).AssertEqual();
     }
 
     [Theory]
@@ -179,7 +181,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         // After an even number of iterations, h0 is the latest; after odd, h1.
         DynamicTexture2D hSolved = (iterations % 2 == 0) ? h0 : h1;
         // Evaluate the independently authored periodic equation over every solved texel.
-        var residual = ImageAssertions.PeriodicLaplacianResidual(hSolved, rhs.Data);
+        var residual = ImageAssertions.Statistics.PeriodicLaplacianResidual(hSolved, rhs.Data);
         residual.AssertFiniteRange();
         var stats = (RmsResidual: (float)Math.Sqrt(residual.SumSquares(0) / (rhs.Width * rhs.Height)),
             RmsB: (float)Math.Sqrt(rhs.Data.Sum(value => (double)(value * value)) / (rhs.Width * rhs.Height)));
@@ -316,4 +318,15 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 
         return new RhsCase(width, height, data);
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("statistics", 0, 0);
+        programs.Prepare("statistics-poisson", 0, 0);
+    }
+    #endregion
 }

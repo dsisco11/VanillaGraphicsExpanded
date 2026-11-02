@@ -20,6 +20,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Pending work retains the admitted source, orientation and medium on both transport backends.</summary>
     [Theory]
@@ -179,7 +181,7 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
         using var smoothImage=new GpuImageSnapshot(textures.Sky,new(new(),0,0,0,width,height));
         using var solarImage=new GpuImageSnapshot(textures.Sky,new(new(),0,height,0,width,height));
         using var lunarImage=new GpuImageSnapshot(textures.Sky,new(new(),0,height*2,0,width,height));
-        ImageAssertions.Predicate(smoothImage.Texture, GpuAssertionPredicate.AtmosphereCelestialPublicationTests_ThreeBandsReconstructIndependentDirectionsAndFaintBackground,solarImage.Texture,lunarImage.Texture,oracle,new(LightingStorage.PersistentScale,0,0,0)).AssertEqual();
+        ImageAssertions.Predicates.Predicate(smoothImage.Texture, AtmospherePredicates.AtmosphereCelestialPublicationTests_ThreeBandsReconstructIndependentDirectionsAndFaintBackground,solarImage.Texture,lunarImage.Texture,oracle,new(LightingStorage.PersistentScale,0,0,0)).AssertEqual();
         Assert.Throws<ArgumentException>(() => textures.Upload(snapshot with { HasNightSources = false }));
         Assert.Throws<ArgumentException>(() => textures.Upload(snapshot with { MoonAngularRadius = AtmosphereSolarDisk.AngularRadius * .5f }));
         AssertAerialDecoder(textures, smooth, solarMie, lunarMie);
@@ -261,6 +263,14 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
             }
         }
         throw new TimeoutException("Celestial pair did not complete.");
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-atmosphere", 0, 0);
     }
     #endregion
 }

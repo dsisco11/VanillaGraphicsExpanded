@@ -13,6 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Rejects malformed candidates without poisoning selection, preserving first-valid ties and silhouettes.</summary>
     [Fact]
@@ -115,7 +117,7 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
     {
         using var colorOracle=TestFramework.CreateTexture(color.Width,color.Height,TextureFormat.Rgba32f,expectedColors);
         using var depthOracle=TestFramework.CreateTexture(depth.Width,depth.Height,TextureFormat.Rgba32f,expectedDepths);
-        ImageAssertions.Predicate(color, GpuAssertionPredicate.WaterRefractionReductionTests_AssertAssociatedReceivers,colorOracle,depth,depthOracle,parameters:new(completeInvalid?1:0,0,0,0)).AssertEqual();
+        ImageAssertions.Predicates.Predicate(color, WaterPredicates.WaterRefractionReductionTests_AssertAssociatedReceivers,colorOracle,depth,depthOracle,parameters:new(completeInvalid?1:0,0,0,0)).AssertEqual();
     }
     /// <summary>Verifies receiver selection and isolates the optional large draw-only workload.</summary>
     private void CheckReceivers(bool measure)
@@ -222,4 +224,12 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
 
     #endregion
 
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-water", 0, 0);
+    }
+    #endregion
 }

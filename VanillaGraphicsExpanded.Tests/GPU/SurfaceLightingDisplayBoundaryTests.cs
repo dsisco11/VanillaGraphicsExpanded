@@ -10,6 +10,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
 {
+
+
     /// <summary>Uses the exclusive graphics context and restores engine settings after each case.</summary>
     public SurfaceLightingDisplayBoundaryTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -27,7 +29,7 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
         try
         {
             var scene = new SpatialLightingScene { SourceAlbedo = new(.125f, .25f, .5f) };
-            using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene, pbrComposition: true);
+            using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene, pbrComposition: true);
             var receiver = new RuntimeReceiverSurface(new(.75f));
             runtime.Receiver = (_, _) => receiver;
             SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
@@ -36,9 +38,9 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
             var incident = GgxHemisphereReference.CapturedDiffuse(scene.SourceAlbedo.Value) * (32 / MathF.PI);
             SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.SceneLinearImage,
                 (x, y) => SurfaceLightingPbrRuntimeTests.DiffuseResponse(scene, x, y, receiver, incident), .08f, "scene-linear HDR");
-            Assert.True(ImageAssertions.Inspect(reference.Texture, channelMask: 7).Maximum > 2);
+            Assert.True(ImageAssertions.Statistics.Inspect(reference.Texture, channelMask: 7).Maximum > 2);
             // Primary remains scene-linear; owned final composition performs the display transfer.
-            ImageAssertions.CompareHistory(runtime.ComposedImage, reference, tolerance: .002f, channelMask: 7).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(runtime.ComposedImage, reference, tolerance: .002f, channelMask: 7).AssertEqual();
             Assert.Contains("pbr_display_resolve", runtime.LoadedPrograms);
             Assert.True(runtime.Cache.TryGetLighting(out var before));
             long history = runtime.Screen.HistoryRevision;
@@ -57,7 +59,7 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
                 Assert.Equal(before.Generation, after.Generation);
                 Assert.Same(before.OutgoingRadiance, after.OutgoingRadiance);
                 Assert.Equal(history, runtime.Screen.HistoryRevision);
-                ImageAssertions.CompareHistory(runtime.SceneLinearImage, reference).AssertEqual();
+                ImageAssertions.Comparisons.CompareHistory(runtime.SceneLinearImage, reference).AssertEqual();
             }
         }
         finally
@@ -66,6 +68,15 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
             ClientSettings.GammaLevel = gamma;
             ClientSettings.ExtraGammaLevel = extraGamma;
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

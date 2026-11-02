@@ -8,6 +8,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
 {
+
+
     /// <summary>Uses the material-isolated graphics context.</summary>
     public SurfaceLightingPbrLifetimeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -20,7 +22,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene { SourceAlbedo = new(.125f, .25f, .5f) };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene, pbrComposition: true);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene, pbrComposition: true);
         var receiver = new RuntimeReceiverSurface(new(.5f, .25f, .125f), Emission: 1f/32, Transmission: 0);
         runtime.Receiver = (_, _) => receiver;
         runtime.EngineUniforms.SunPosition3D = new(0, 0, 1);
@@ -28,7 +30,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame = 8;
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
-        Assert.True(ImageAssertions.Inspect(runtime.FinalImage, channelMask: 7).Minimum > .001f);
+        Assert.True(ImageAssertions.Statistics.Inspect(runtime.FinalImage, channelMask: 7).Minimum > .001f);
         using var reference = new Assertions.GpuImageSnapshot(runtime.SceneLinearImage);
         var screen = runtime.Screen.IndirectFullTex;
         var direct = runtime.Direct.Radiance;
@@ -48,12 +50,12 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
             Assert.Same(screen, runtime.Screen.IndirectFullTex);
             Assert.Same(direct, runtime.Direct.Radiance);
             Assert.Same(atlas, runtime.Cache.IrradianceAtlas());
-            ImageAssertions.CompareHistory(runtime.Direct.Radiance!, primary).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(runtime.Direct.Radiance!, primary).AssertEqual();
             var expectedIncident = SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene);
             SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.SceneLinearImage,
                 (x, y) => SurfaceLightingPbrRuntimeTests.DiffuseResponse(scene, x, y, receiver, expectedIncident),
                 light == 0 ? .002f : .055f, "retained source composition", additiveLayers: primary.Texture);
-            if (light != 0) ImageAssertions.CompareHistory(runtime.SceneLinearImage, reference, tolerance: .01f, channelMask: 7).AssertEqual();
+            if (light != 0) ImageAssertions.Comparisons.CompareHistory(runtime.SceneLinearImage, reference, tolerance: .01f, channelMask: 7).AssertEqual();
         }
     }
 
@@ -65,13 +67,13 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene { SourceAlbedo = new(.125f, .25f, .5f) };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene, pbrComposition: true);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene, pbrComposition: true);
         runtime.Cache.Config.LumOn.TemporalAlpha = .9f;
         runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame = 8;
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene,
             expectedWorldRadiance: SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene));
-        Assert.True(ImageAssertions.Inspect(runtime.FinalImage, channelMask: 7).Minimum > .001f);
+        Assert.True(ImageAssertions.Statistics.Inspect(runtime.FinalImage, channelMask: 7).Minimum > .001f);
         using var reference = new Assertions.GpuImageSnapshot(runtime.SceneLinearImage);
         var oldAtlas = runtime.Cache.IrradianceAtlas();
         var screen = runtime.Screen.IndirectFullTex;
@@ -92,7 +94,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene,
             expectedWorldRadiance: SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene));
-        ImageAssertions.CompareHistory(runtime.SceneLinearImage, reference, tolerance: .01f, channelMask: 7).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(runtime.SceneLinearImage, reference, tolerance: .01f, channelMask: 7).AssertEqual();
     }
     #endregion
 
@@ -105,10 +107,10 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene { SourceAlbedo = new(.125f, .25f, .5f), AlternateDarkRooms = true };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene, pbrComposition: true);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene, pbrComposition: true);
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
-        Assert.True(ImageAssertions.Inspect(runtime.FinalImage, channelMask: 7).Minimum > .001f);
+        Assert.True(ImageAssertions.Statistics.Inspect(runtime.FinalImage, channelMask: 7).Minimum > .001f);
         using var reference = new Assertions.GpuImageSnapshot(runtime.SceneLinearImage);
         foreach (float x in new[] { 8f, 40f, -24f, 0f })
         {
@@ -117,15 +119,24 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
             if (x != 0) SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.SceneLinearImage, (_, _) => Vector3.Zero, .0001f, "dark room after move");
             SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
             SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
-            if (x == 0) Assert.True(ImageAssertions.Inspect(runtime.FinalImage, channelMask: 7).Minimum > .001f);
+            if (x == 0) Assert.True(ImageAssertions.Statistics.Inspect(runtime.FinalImage, channelMask: 7).Minimum > .001f);
             for (int frame = 0; frame < 8; frame++)
             {
                 runtime.Frame();
                 if (x != 0) SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.SceneLinearImage, (_, _) => Vector3.Zero, .0001f, "sealed neighbor composition");
             }
         }
-        ImageAssertions.CompareHistory(runtime.SceneLinearImage, reference, tolerance: .01f, channelMask: 7).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(runtime.SceneLinearImage, reference, tolerance: .01f, channelMask: 7).AssertEqual();
     }
     #endregion
 
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+    }
+    #endregion
 }

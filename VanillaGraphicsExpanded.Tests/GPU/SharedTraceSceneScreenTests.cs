@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SharedTraceSceneScreenTests : NearFieldShaderTestBase
 {
+
+
     /// <summary>Uses the exclusive material fixture's shared GPU context.</summary>
     public SharedTraceSceneScreenTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -40,7 +42,7 @@ public sealed class SharedTraceSceneScreenTests : NearFieldShaderTestBase
         var unavailable = Trace(compatibility, worldOffset: new(anchor, 32, 0), shared: shared.Scene);
         Assert.True(cache.CaptureAndSeed());
         var result = Trace(compatibility, worldOffset: new(anchor, 32, 0), shared: shared.Scene, surfaceLighting: cache.Snapshot);
-        ObserveTrace(result, GpuAssertionPredicate.SharedTraceSceneScreenTests_SealedRoomUsesSharedHitLighting, unavailable,new(light-.002f,light+.002f,light==0?3:2,0)).AssertEqual();
+        ObserveTrace(result, LightingPredicates.SharedTraceSceneScreenTests_SealedRoomUsesSharedHitLighting, unavailable,new(light-.002f,light+.002f,light==0?3:2,0)).AssertEqual();
     }
 
     /// <summary>Unsupported, unpublished, exhausted and out-of-domain traces cannot become cache handoff.</summary>
@@ -55,7 +57,16 @@ public sealed class SharedTraceSceneScreenTests : NearFieldShaderTestBase
         using var compatibility = new NearFieldVoxelFixture();
         var result = Trace(compatibility, budget: scenario == "budget" ? 1 : 256,
             worldOffset: new(0, scenario == "outside" ? 96 : 32, 0), shared: shared.Scene);
-        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTests_UnresolvedScene_RemainsDark).AssertEqual();
+        ObserveTrace(result, SurfacePredicates.LumOnNearFieldFunctionalTests_UnresolvedScene_RemainsDark).AssertEqual();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-lighting", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
     }
     #endregion
 }

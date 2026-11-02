@@ -30,7 +30,7 @@ public sealed class CelestialLightingAdmissionTests(HeadlessGLFixture fixture) :
         try
         {
             lightingProperty.SetValue(null,lighting);
-            using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true);
+            using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true);
             runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame=0;
             runtime.PrimeGeometry(); runtime.RunUntil(runtime.RequestedDirectRefreshComplete);
             Assert.True(runtime.TryGetLighting(out var initial));

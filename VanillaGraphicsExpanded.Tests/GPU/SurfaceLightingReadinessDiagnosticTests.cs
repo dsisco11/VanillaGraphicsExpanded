@@ -20,7 +20,7 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
     [Trait("Scenario", "HeadlessRuntime")]
     public void RuntimeDiagnosticTogglePreservesPublishedLighting()
     {
-        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture();
+        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions);
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.TryGetLighting(out var before));
         foreach(bool enabled in new[]{false,true,false,true})
@@ -42,7 +42,7 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
     public void ZeroBudget_ReportsNoSeedAttempts()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceCacheRuntimeFixture();
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions);
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         runtime.PrimeGeometry();
         runtime.RunUntil(runtime.AllRequestedCaptured);
@@ -58,7 +58,7 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
     public void CaptureOutsideCoverage_DefersWithoutGpuAttemptsThenPublishesAfterRecovery()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceCacheRuntimeFixture(feedbackPlaneX: 24);
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions, feedbackPlaneX: 24);
         runtime.PrimeGeometry();
         for (int frame = 0; frame < 12; frame++) runtime.Frame();
         ((LumonSceneRelightUpdateRenderer)runtime.LightingProvider).TryGetSelfCheckLine(out string blocked);
@@ -89,7 +89,7 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
     public void SeedOutsideCoverage_ReportsFailedSeedAttempts()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceCacheRuntimeFixture(feedbackPlaneX:31);
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions, feedbackPlaneX:31);
         runtime.CameraX = 24;
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         runtime.PrimeGeometry();
@@ -111,7 +111,7 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
     public void FirstPublication_ReportsSuccessfulSeedAndResetsOnLeaveWorld()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceCacheRuntimeFixture();
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions);
         runtime.PrimeGeometry();
         runtime.RunUntil(() => runtime.TryGetLighting(out _));
         var producer = (LumonSceneRelightUpdateRenderer)runtime.LightingProvider;

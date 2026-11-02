@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Every source texel, including odd edges and one-dimensional tails, contributes to its proportional parent footprint.</summary>
     [Theory]
@@ -38,9 +40,9 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
             hostile.AssertRestored();
         }
         var texture=owner.Texture!;long bytes=0;int w=width,h=height;
-        using var assertions = new GpuImageAssertions();
+        var assertions = ImageAssertions;
         for(int level=0;level<texture.MipLevels;level++) {
-            assertions.Compare(texture, values, selection: new(new(level,0),0,0,0,w,h,1)).AssertEqual();bytes+=4L*w*h;
+            assertions.Comparisons.Compare(texture, values, selection: new(new(level,0),0,0,0,w,h,1)).AssertEqual();bytes+=4L*w*h;
             if(level+1==texture.MipLevels)break;
             int nextW=Math.Max(1,w/2),nextH=Math.Max(1,h/2);
             float[] expected=new float[nextW*nextH];
@@ -111,13 +113,21 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
                 source.UploadDataImmediate(Enumerable.Repeat(depth,width*height).ToArray());
                 owner.Render(source);
                 for(int level=0;level<texture.MipLevels;level++)
-                    ImageAssertions.CompareConstant(texture, depth, Assertions.GpuImageSnapshot.Mip(texture, level)).AssertEqual();
+                    ImageAssertions.Comparisons.CompareConstant(texture, depth, Assertions.GpuImageSnapshot.Mip(texture, level)).AssertEqual();
                 owner.Prepare(width,height,compute);
                 Assert.Same(texture,owner.Texture);
             }
         }
         owner.Dispose(); Assert.Null(owner.Texture); Assert.Equal(0,owner.ScratchBytes);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

@@ -11,6 +11,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>No-op renderbuffer resizes retain depth contents and only changed storage publishes an attachment update.</summary>
     [Fact]
@@ -34,7 +36,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         Assert.False(framebuffer.Resize(2, 2));
         Assert.Equal(0, notifications);
         using var contents = Assertions.GpuImageSnapshot.FromAttachment(framebuffer.GetAttachment(FramebufferSlot.Depth)!, ImageAspects.Depth);
-        ImageAssertions.Inspect(contents.Texture, 0.374f, 0.376f).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(contents.Texture, 0.374f, 0.376f).AssertFiniteRange();
 
         Assert.True(framebuffer.Resize(4, 3));
         Assert.Equal(1, notifications);
@@ -94,19 +96,19 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         wrapped.AttachmentsChanged += () => notifications++;
         var copy = FramebufferTestSetup.DescribeCopy(source, destination);
         RHICommandContext.Current.BlitImages(copy);
-        ImageAssertions.CompareConstant(destination[0], 3f).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(destination[0], 3f).AssertEqual();
 
         // The observer reports the change; an already prepared copy still retains
         // its original image selection until the caller rebuilds its description.
         source.Attach(replacement);
         RHICommandContext.Current.BlitImages(copy);
         Assert.Equal(1, notifications);
-        ImageAssertions.CompareConstant(destination[0], 3f).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(destination[0], 3f).AssertEqual();
         wrapped.RefreshWrappedFramebuffer(source.FboId, 2, 2);
         copy=FramebufferTestSetup.DescribeCopy(source, destination);
         Assert.Equal(2, notifications);
         RHICommandContext.Current.BlitImages(copy);
-        ImageAssertions.CompareConstant(destination[0], 9f).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(destination[0], 9f).AssertEqual();
         Assert.True(GL.IsTexture(first.TextureId));
         Assert.True(GL.IsTexture(replacement.TextureId));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -137,7 +139,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         source[0].UploadDataImmediate(Enumerable.Repeat(7f, 4 * 3 * 4).ToArray());
         copy=FramebufferTestSetup.DescribeCopy(source,destination);
         RHICommandContext.Current.BlitImages(copy);
-        ImageAssertions.CompareConstant(destination[0], 7f).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(destination[0], 7f).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -193,6 +195,15 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         var copy = FramebufferTestSetup.DescribeCopy(source, destination);
         RHICommandContext.Current.BlitImages(copy);
         return new WeakReference((object)copy);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

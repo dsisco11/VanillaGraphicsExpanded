@@ -21,6 +21,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     #region Scenario resources
     // The base fixture owns disposal; each test keeps its own variants and cleared output target.
     private LumOnDebugShaderProgram? geometryProgram;
@@ -55,11 +57,11 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
             camera: scenario == "outside" ? new Vector3(1000, 0, 0) : scenario == "outside_facing" ? new Vector3(0.5f, 0.5f, 40) : null);
             if (scenario is "solid" or "outside_facing")
             {
-                ImageAssertions.Predicate(result.Texture, GpuAssertionPredicate.LumOnNearFieldGeometryDebugFunctionalTests_GeometryView_DistinguishesPublishedStates).AssertEqual();
+                ImageAssertions.Predicates.Predicate(result.Texture, SurfacePredicates.LumOnNearFieldGeometryDebugFunctionalTests_GeometryView_DistinguishesPublishedStates).AssertEqual();
             }
             else if (scenario == "material_missing")
             {
-                ImageAssertions.Predicate(result.Texture, GpuAssertionPredicate.LumOnNearFieldGeometryDebugFunctionalTests_GeometryView_DistinguishesPublishedStates_2).AssertEqual();
+                ImageAssertions.Predicates.Predicate(result.Texture, SurfacePredicates.LumOnNearFieldGeometryDebugFunctionalTests_GeometryView_DistinguishesPublishedStates_2).AssertEqual();
             }
             else
             {
@@ -68,10 +70,10 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
                     "unsupported" => [1, 0, 1], "unpublished" => [0.5f, 0, 1],
                     "disabled" => [0.1f, 0.2f, 0.8f], "outside" => [0, 0.2f, 0.8f], _ => [0, 0, 0]
                 };
-                ImageAssertions.Predicate(result.Texture, GpuAssertionPredicate.LumOnNearFieldGeometryDebugFunctionalTests_GeometryView_DistinguishesPublishedStates_3,
+                ImageAssertions.Predicates.Predicate(result.Texture, SurfacePredicates.LumOnNearFieldGeometryDebugFunctionalTests_GeometryView_DistinguishesPublishedStates_3,
                     parameters:new(expected[0],expected[1],expected[2],0)).AssertEqual();
             }
-        ImageAssertions.CompareConstant(result.Texture,1,channelMask:8).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(result.Texture,1,channelMask:8).AssertEqual();
     }
 
     /// <summary>Camera translation changes which real cell is visible while large integer origins preserve that result.</summary>
@@ -93,9 +95,9 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
         // A different fractional player-origin split must reconstruct the identical absolute camera.
         using var splitOrigin = RenderGeometry(fixture.Scene, camera: new Vector3(0.25f, 1.25f, -0.125f),
             playerOrigin: new Vector3d(offset + 0.25, -0.75, 0.125));
-        ImageAssertions.CompareHistory(splitOrigin.Texture,blocked).AssertEqual();
-        ImageAssertions.Predicate(blocked.Texture, GpuAssertionPredicate.LumOnNearFieldGeometryDebugFunctionalTests_GeometryView_CameraMovesAcrossVoxelBoundary_AtLargeOrigins).AssertEqual();
-        ImageAssertions.CompareConstant(clear.Texture,0,channelMask:7).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(splitOrigin.Texture,blocked).AssertEqual();
+        ImageAssertions.Predicates.Predicate(blocked.Texture, SurfacePredicates.LumOnNearFieldGeometryDebugFunctionalTests_GeometryView_CameraMovesAcrossVoxelBoundary_AtLargeOrigins).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(clear.Texture,0,channelMask:7).AssertEqual();
     }
     #endregion
 
@@ -119,7 +121,7 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
         {
             using var pixels = RenderGeometry(fixture.Scene, camera: new Vector3(.5f + step * .25f,
                 .5f + .1f * MathF.Sin(step), 0), playerOrigin: new Vector3d(offset, 0, 0));
-            var proof=ImageAssertions.Predicate(pixels.Texture, GpuAssertionPredicate.LumOnNearFieldGeometryDebugFunctionalTests_GeometryView_PublicationIntervalCameraSweep);
+            var proof=ImageAssertions.Predicates.Predicate(pixels.Texture, SurfacePredicates.LumOnNearFieldGeometryDebugFunctionalTests_GeometryView_PublicationIntervalCameraSweep);
             proof.AssertEqual();sawPublicationBoundary|=proof.MatchingTexels>0;
         }
         Assert.True(sawPublicationBoundary, "The viewer did not expose the 16-block publication grid.");
@@ -134,7 +136,7 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
         fixture.Publish(Plane(0));
         using var original=RenderGeometry(fixture.Scene);
         using var selected=RenderGeometry(fixture.Scene,legacySelector:22);
-        ImageAssertions.CompareHistory(selected.Texture,original).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(selected.Texture,original).AssertEqual();
     }
     #endregion
 
@@ -178,6 +180,15 @@ public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunc
             TestFramework.RenderQuadTo(program, output);
             return new(output[0]);
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
     }
     #endregion
 }

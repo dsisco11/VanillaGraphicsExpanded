@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>A real native triangle publishes the response of its interpolated raw field, rather than interpolated endpoint illumination.</summary>
     [Theory]
@@ -89,7 +91,7 @@ public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : Render
                 }
 
             }
-            ImageAssertions.CompareIntervals(target[7],lower,upper,new(new(0),0,0,0,7,1,1)).AssertEqual();
+            ImageAssertions.Comparisons.CompareIntervals(target[7],lower,upper,new(new(0),0,0,0,7,1,1)).AssertEqual();
             // The first two interior samples would be much brighter if only calibrated endpoints were interpolated.
             double torchRed = LightingCalibration.Default.BlockReferenceLux * Math.Pow(135.0 / 255, 4)
                 / (Math.Pow(135.0 / 255, 3) + .064) / Math.PI;
@@ -100,6 +102,14 @@ public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : Render
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.DeleteBuffer(buffer);
             OpenGlStateCache.Current.InvalidateAll();
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

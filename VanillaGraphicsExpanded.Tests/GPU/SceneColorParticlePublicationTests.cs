@@ -22,6 +22,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Only successful current-frame captures publish corrected depth and retire on every owner boundary.</summary>
     [Theory]
@@ -181,7 +183,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 Assert.NotNull(layer);
                 Assert.Null(SceneColorParticleCapture.Layer(assets.Api));
                 Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(assets.Api, new GpuTextureRef((GpuResource<GpuTextureMetadata>)depth.Resource!)).TextureId);
-                ImageAssertions.CompareConstant(layer, 0).AssertEqual();
+                ImageAssertions.Comparisons.CompareConstant(layer, 0).AssertEqual();
                 int receiver = SceneColorParticleCapture.ReceiverDepth(api, new GpuTextureRef((GpuResource<GpuTextureMetadata>)depth.Resource!)).TextureId;
                 Assert.NotEqual(depth.TextureId, receiver);
                 // Distinguish corrected material depth from a later primary-depth change.
@@ -191,7 +193,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 hierarchy.Prepare(2, 2, hierarchyCompute);
                 hierarchy.Render(corrected);
                 for (int mip = 0; mip < hierarchy.Texture!.MipLevels; mip++)
-                    ImageAssertions.CompareConstant(hierarchy.Texture, .75f, Assertions.GpuImageSnapshot.Mip(hierarchy.Texture, mip)).AssertEqual();
+                    ImageAssertions.Comparisons.CompareConstant(hierarchy.Texture, .75f, Assertions.GpuImageSnapshot.Mip(hierarchy.Texture, mip)).AssertEqual();
                 int perCycle = ssao ? 6 : 1;
                 Assert.Equal(cycle * perCycle + 1, resolveDraws);
                 if (ssao) Assert.Equal(new[] { 1f, 2f, 3f, 4f }, engine[3].ReadTexel()[..4]);
@@ -261,6 +263,14 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
     {
         /// <summary>Registers the actual driver location used by the production scene-mode setter.</summary>
         internal void Populate() => uniformLocations["vge_sceneLinear"] = GL.GetUniformLocation(ProgramId, "vge_sceneLinear");
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

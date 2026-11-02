@@ -17,6 +17,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Publication lifetime
     /// <summary>Unsupported lighting and dimensionless transport never replace the complete generation with contained invalid values.</summary>
     [Theory]
@@ -135,7 +137,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         Assert.Same(previous, AtmosphereModSystem.Lighting);
         Assert.Equal(sky, AtmosphereModSystem.SkyTextureId);
         Assert.Same(transmission, AtmosphereModSystem.ExternalTransmissionTexture);
-        ImageAssertions.CompareHistory(transmission, contents).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(transmission, contents).AssertEqual();
     }
 
     /// <summary>Physical LUT encoding preserves dimensionless attenuation and commits metadata only after valid upload.</summary>
@@ -150,7 +152,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         textures.Upload(snapshot);
         Assert.Equal(LightingStorage.PersistentScale, textures.StorageScale);
         Assert.Equal(7u, textures.CalibrationGeneration);
-        ImageAssertions.Compare(textures.Sky,[2,4,8,1,0,0,0,1]).AssertEqual();
+        ImageAssertions.Comparisons.Compare(textures.Sky,[2,4,8,1,0,0,0,1]).AssertEqual();
         // The attenuation fallback remains a local one-texel tuple.
         Assert.Equal(new float[]{0,0,0,1},textures.Attenuation.ReadPixels());
         Assert.Throws<ArgumentOutOfRangeException>(() => textures.Upload(snapshot with
@@ -178,14 +180,14 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         AtmosphereMieTransport.Pack(snapshot.Sky.AsSpan(),snapshot.SkyMie.AsSpan(),packedSky,
             snapshot.Width,snapshot.Height,1,snapshot.Sun,snapshot.HorizonElevation,snapshot.LookupStorageScale);
         var sky=(GpuTexture)AtmosphereModSystem.SkyTexture.Resource!;
-        ImageAssertions.CompareFloating(sky,packedSky,packedSky.Select(value=>Math.Max(.00001f,value*.001f)).ToArray()).AssertEqual();
+        ImageAssertions.Comparisons.CompareFloating(sky,packedSky,packedSky.Select(value=>Math.Max(.00001f,value*.001f)).ToArray()).AssertEqual();
         AssertVolume(AtmosphereModSystem.AerialRadianceTextureId, snapshot.AerialRadiance, snapshot, true);
         AssertVolume(AtmosphereModSystem.AerialAttenuationTextureId, snapshot.AerialAttenuation, snapshot);
         var external = AtmosphereModSystem.ExternalTransmissionTexture!;
         Assert.Equal(snapshot.ExternalTransmission.IsEmpty ? 1 : 512, external.Width);
         Assert.Equal(1, external.Height);
         Assert.Equal(TextureFormat.Rgba32f, external.InternalFormat);
-        ImageAssertions.Compare(external,snapshot.ExternalTransmission.IsEmpty ? [0f,0f,0f,1f]
+        ImageAssertions.Comparisons.Compare(external,snapshot.ExternalTransmission.IsEmpty ? [0f,0f,0f,1f]
             : snapshot.ExternalTransmission.ToArray()).AssertEqual();
     }
 
@@ -209,8 +211,17 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         }
         using var image=new BorrowedTexture(id);
         float[] wanted=expected.IsEmpty?[0,0,0,1]:expected.ToArray();
-        if(expected.IsEmpty)ImageAssertions.Compare(image,wanted).AssertEqual();
-        else ImageAssertions.CompareFloating(image,wanted,wanted.Select(value=>Math.Max(.00001f,value*.001f)).ToArray()).AssertEqual();
+        if(expected.IsEmpty)ImageAssertions.Comparisons.Compare(image,wanted).AssertEqual();
+        else ImageAssertions.Comparisons.CompareFloating(image,wanted,wanted.Select(value=>Math.Max(.00001f,value*.001f)).ToArray()).AssertEqual();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-observation", 0, 0);
     }
     #endregion
 }

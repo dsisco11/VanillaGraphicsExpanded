@@ -10,6 +10,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Partial runtime publication
     /// <summary>A ready subset can publish below the original complete-batch cost without exceeding the upload budget.</summary>
     [Fact]
@@ -17,14 +19,14 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     public void PartialUploadFitsBelowOriginalAdmissionCost()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);
         using var provider=new SelectiveSurfaceLightingProvider(runtime.Cache.LightingProvider);
         runtime.WorldRenderer.SetSurfaceLightingProvider(provider,runtime.Cache.Geometry);
         runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
-        runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 0).AssertEqual();
+        runtime.Cache.ImageAssertions.Comparisons.CompareConstant(runtime.WorldImage, 0).AssertEqual();
         runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=2095;
         runtime.RunUntil(()=>runtime.Energy(runtime.WorldImage)>.001f);
-        int published=(int)runtime.Cache.ImageAssertions.Inspect(runtime.WorldImage, channelMask: 8).Nonzero;
+        int published=(int)runtime.Cache.ImageAssertions.Statistics.Inspect(runtime.WorldImage, channelMask: 8).Nonzero;
         Assert.InRange(published,1,63);
         Assert.True(48+(published<<5)<=2095);
     }
@@ -35,7 +37,7 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     public void PartialCachePagesPublishAndRetryWithoutDiscardingReadyDirections()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);
         using var provider=new SelectiveSurfaceLightingProvider(runtime.Cache.LightingProvider);
         runtime.WorldRenderer.SetSurfaceLightingProvider(provider,runtime.Cache.Geometry);
         var observed=new Dictionary<LumOnWorldProbeUpdateRequest,System.Collections.Immutable.ImmutableArray<LumOnWorldProbeAtlasSample>>();
@@ -55,21 +57,21 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
                 observed[result.Request]=result.AtlasSamples;
             }
             Assert.InRange(Pending(runtime.WorldRenderer).Sum(r=>r.AtlasSamples.Count(s=>s.SurfaceHit.HasValue)),0,4096);
-            return retriedSubset && (int)runtime.Cache.ImageAssertions.Inspect(runtime.WorldImage, channelMask: 8).Nonzero>0;
+            return retriedSubset && (int)runtime.Cache.ImageAssertions.Statistics.Inspect(runtime.WorldImage, channelMask: 8).Nonzero>0;
         });
         using var partial = new Assertions.GpuImageSnapshot(runtime.WorldImage);
-        int validBefore=(int)runtime.Cache.ImageAssertions.Inspect(partial.Texture, channelMask: 8).Nonzero;
+        int validBefore=(int)runtime.Cache.ImageAssertions.Statistics.Inspect(partial.Texture, channelMask: 8).Nonzero;
         Assert.True(runtime.Energy(partial.Texture)>.001f);
         // Permanently unavailable pages exhaust bounded retries without erasing the completed directions.
         for(int i=0;i<16;i++)
         {
             runtime.Frame();
             Assert.All(Pending(runtime.WorldRenderer),r=>Assert.InRange(r.SurfaceRetryCount,0,3));
-            runtime.Cache.ImageAssertions.CompareHistory(runtime.WorldImage, partial,
+            runtime.Cache.ImageAssertions.Comparisons.CompareHistory(runtime.WorldImage, partial,
                 channelMask: 8, retainNonzero: true).AssertEqual();
         }
         provider.Withhold=false;
-        runtime.RunUntil(()=>(int)runtime.Cache.ImageAssertions.Inspect(runtime.WorldImage, channelMask: 8).Nonzero>validBefore);
+        runtime.RunUntil(()=>(int)runtime.Cache.ImageAssertions.Statistics.Inspect(runtime.WorldImage, channelMask: 8).Nonzero>validBefore);
         Assert.Equal(0,runtime.World.VanillaLightReads);
     }
     #endregion
@@ -81,16 +83,16 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     public void PendingQueryRejectsSourceInvalidationWithoutGlobalCacheReplacement()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);
         runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
-        runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 0).AssertEqual();
+        runtime.Cache.ImageAssertions.Comparisons.CompareConstant(runtime.WorldImage, 0).AssertEqual();
         Assert.True(runtime.Cache.TryGetLighting(out var before));
         runtime.Cache.GeometryAvailable=false;
         runtime.Cache.InvalidateGeometry();
         runtime.Frame();
         Assert.True(runtime.Cache.TryGetLighting(out var suspended));
         Assert.Equal(before.DependencyRevision,suspended.DependencyRevision);
-        runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 0).AssertEqual();
+        runtime.Cache.ImageAssertions.Comparisons.CompareConstant(runtime.WorldImage, 0).AssertEqual();
         runtime.Cache.GeometryAvailable=true;
         runtime.Cache.InvalidateGeometry();
         runtime.RunUntil(()=>runtime.Energy(runtime.WorldImage)>.001f);
@@ -102,7 +104,7 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     public void MissingWorldAccessorStillFlushesQueuedHistory()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);runtime.Frame();
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);runtime.Frame();
         var resources=runtime.WorldBuffers.Resources!;
         FramebufferTestSetup.ClearPass(resources.RadiancePass,1);
         resources.QueueClearLocalBox(0,new(),new(),new(3,3,3));
@@ -115,7 +117,7 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
 #if DEBUG
         Assert.Equal(dispatches+1,resources.InvalidationDispatchCount);
 #endif
-        runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 0).AssertEqual();
+        runtime.Cache.ImageAssertions.Comparisons.CompareConstant(runtime.WorldImage, 0).AssertEqual();
     }
 
     /// <summary>Real scheduler anchor events clear introduced physical slots while preserving overlap in either direction.</summary>
@@ -125,16 +127,16 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     public void AnchorShiftClearsReusedSlotsAndPreservesOverlappingDirections(int delta,int remaining)
     {
         EnsureContextValid();
-        using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);runtime.Frame();
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);runtime.Frame();
         var resources=runtime.WorldBuffers.Resources!;
         FramebufferTestSetup.ClearPass(resources.RadiancePass,1);
         var scheduler=(LumOnWorldProbeScheduler)typeof(LumOnWorldProbeUpdateRenderer)
             .GetField("scheduler",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(runtime.WorldRenderer)!;
         scheduler.UpdateOrigins(new Vintagestory.API.MathTools.Vec3d(4+delta,36,6),4);
         resources.FlushHistoryInvalidation();
-        Assert.Equal(remaining<<6,(int)runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 1, channelMask: 8).ConstantMatches);
-        var zeros = runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 0);
-        var ones = runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 1);
+        Assert.Equal(remaining<<6,(int)runtime.Cache.ImageAssertions.Comparisons.CompareConstant(runtime.WorldImage, 1, channelMask: 8).ConstantMatches);
+        var zeros = runtime.Cache.ImageAssertions.Comparisons.CompareConstant(runtime.WorldImage, 0);
+        var ones = runtime.Cache.ImageAssertions.Comparisons.CompareConstant(runtime.WorldImage, 1);
         Assert.Equal(runtime.WorldImage.Width * runtime.WorldImage.Height * runtime.WorldImage.Depth * 4,
             (int)(zeros.ConstantMatches + ones.ConstantMatches));
     }
@@ -146,10 +148,10 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     public void GeometryDirtyClearsRetainedDirectionsAndRejectsPendingRetry(bool explicitFlush)
     {
         EnsureContextValid();
-        using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);
         using var provider=new SelectiveSurfaceLightingProvider(runtime.Cache.LightingProvider);
         runtime.WorldRenderer.SetSurfaceLightingProvider(provider,runtime.Cache.Geometry);
-        runtime.RunUntil(()=>runtime.Cache.ImageAssertions.Inspect(runtime.WorldImage).Positive > 0 && Pending(runtime.WorldRenderer).Any(r=>r.SurfaceRetryCount>0));
+        runtime.RunUntil(()=>runtime.Cache.ImageAssertions.Statistics.Inspect(runtime.WorldImage).Positive > 0 && Pending(runtime.WorldRenderer).Any(r=>r.SurfaceRetryCount>0));
         var pending=Pending(runtime.WorldRenderer).ToArray();
         var scheduler=(LumOnWorldProbeScheduler)typeof(LumOnWorldProbeUpdateRenderer)
             .GetField("scheduler",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(runtime.WorldRenderer)!;
@@ -158,14 +160,14 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
         typeof(LumOnWorldProbeUpdateRenderer).GetMethod("ClearDirtyProbeHistory",BindingFlags.Instance|BindingFlags.NonPublic)!
             .Invoke(runtime.WorldRenderer,[0,min,max,4d]);
         Assert.All(pending,r=>Assert.False(scheduler.IsCurrent(r.Request)));
-        Assert.True(runtime.Cache.ImageAssertions.Inspect(runtime.WorldImage).Positive > 0);
+        Assert.True(runtime.Cache.ImageAssertions.Statistics.Inspect(runtime.WorldImage).Positive > 0);
         if(explicitFlush)
         {
             runtime.WorldBuffers.Resources!.FlushHistoryInvalidation();
-            runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 0).AssertEqual();
+            runtime.Cache.ImageAssertions.Comparisons.CompareConstant(runtime.WorldImage, 0).AssertEqual();
         }
         runtime.Frame();
-        runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 0).AssertEqual();
+        runtime.Cache.ImageAssertions.Comparisons.CompareConstant(runtime.WorldImage, 0).AssertEqual();
     }
     #endregion
 
@@ -174,5 +176,14 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     private static IReadOnlyList<LumOnWorldProbeTraceResult> Pending(LumOnWorldProbeUpdateRenderer renderer)
         => (IReadOnlyList<LumOnWorldProbeTraceResult>)(typeof(LumOnWorldProbeUpdateRenderer)
             .GetField("pendingSurfaceResults",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(renderer)!);
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+    }
     #endregion
 }

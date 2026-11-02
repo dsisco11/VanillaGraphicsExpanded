@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Preserves HDR RGB, water eligibility and depth while the display pass samples packed scene color.</summary>
     [Theory]
@@ -38,8 +40,8 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
         using var position = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[receiverX,0f,-2f,1f]);
         using var depth = TestFramework.CreateTexture(1,1,TextureFormat.R32f,[.75f]);
         using var neutralExposure = ExposureTestStorage.Create(0);
-        using var lighting = LayeredTestTexture.Create(direct,specular,emission);
-        using var surface = LayeredTestTexture.Create(normal,material,indirect);
+        using var lighting = LayeredTestTexture.Create(ImageAssertions.Programs, direct,specular,emission);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal,material,indirect);
         using var target = TestFramework.CreateTestGBuffer(1,1,TextureFormat.R11fG11fB10f,TextureFormat.Rgba16f,TextureFormat.R32f);
         using var positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); positions.UploadData(new float[] {-1,-1,0, 3,-1,0, -1,3,0});
         using var uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); uv.UploadData(new float[] {0,0, 2,0, 0,2});
@@ -122,4 +124,12 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
     }
     #endregion
 
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+    }
+    #endregion
 }

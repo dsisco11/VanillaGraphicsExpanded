@@ -20,8 +20,8 @@ public sealed class SurfaceCacheReadinessTests(HeadlessGLFixture fixture, ITestO
         using var texture = CreateAtlas(pages);
         var regions = SurfaceCacheReadiness.Plan(pages, 2, 4, 16);
         Assert.Equal(6, regions.Length);
-        Assert.False(SurfaceCacheReadiness.AllInitialized(texture, [], ImageAssertions));
-        Assert.True(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions));
+        Assert.False(SurfaceCacheReadiness.AllInitialized(texture, [], ImageAssertions.Comparisons));
+        Assert.True(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions.Comparisons));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -35,16 +35,16 @@ public sealed class SurfaceCacheReadinessTests(HeadlessGLFixture fixture, ITestO
         uint[] pages = [1, 2, 17, 18];
         var regions = SurfaceCacheReadiness.Plan(pages, 2, 4, 16);
         using var texture = CreateAtlas(pages);
-        Assert.True(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions));
+        Assert.True(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions.Comparisons));
         // First, interior and final requested texels must remain observable without a frame advance or new plan.
         int x = texel % 4, y = texel / 4 % 2, layer = texel / 8;
         texture.UploadDataImmediate(new float[] { 0, 0, 0, missingAlpha }, x, y, layer, 1, 1, 1);
-        Assert.False(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions));
+        Assert.False(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions.Comparisons));
         using var replacement = CreateAtlas(pages);
-        Assert.True(SurfaceCacheReadiness.AllInitialized(replacement, regions, ImageAssertions));
-        Assert.False(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions));
+        Assert.True(SurfaceCacheReadiness.AllInitialized(replacement, regions, ImageAssertions.Comparisons));
+        Assert.False(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions.Comparisons));
         texture.UploadDataImmediate(new float[] { 0, 0, 0, 1 }, x, y, layer, 1, 1, 1);
-        Assert.True(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions));
+        Assert.True(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions.Comparisons));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion
@@ -59,16 +59,16 @@ public sealed class SurfaceCacheReadinessTests(HeadlessGLFixture fixture, ITestO
         using var texture = CreateAtlas(pages);
         var regions = SurfaceCacheReadiness.Plan(pages, 2, 4, 16);
         Assert.Equal(6, regions.Length);
-        Assert.False(SurfaceCacheReadiness.AllInitialized(texture, [], ImageAssertions));
+        Assert.False(SurfaceCacheReadiness.AllInitialized(texture, [], ImageAssertions.Comparisons));
         Assert.Equal(24 << 2, regions.Sum(region => region.Width * region.Height));
-        Assert.True(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions));
+        Assert.True(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions.Comparisons));
         // Retain the exact 24-page coverage: changing each requested tail must be observed independently.
         foreach (uint page in pages)
         {
             int physical = (int)page - 1, local = physical & 15;
             int x = ((local & 3) << 1) + 1, y = ((local >> 2) << 1) + 1, layer = physical >> 4;
             texture.UploadDataImmediate(new float[] { 0, 0, 0, 0 }, x, y, layer, 1, 1, 1);
-            Assert.False(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions));
+            Assert.False(SurfaceCacheReadiness.AllInitialized(texture, regions, ImageAssertions.Comparisons));
             texture.UploadDataImmediate(new float[] { 0, 0, 0, 1 }, x, y, layer, 1, 1, 1);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -96,5 +96,13 @@ public sealed class SurfaceCacheReadinessTests(HeadlessGLFixture fixture, ITestO
         return texture;
     }
 
+    #endregion
+    #region Private
+    /// <summary>Prepares the comparison service consumed by requested-page readiness observations.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare");
+    }
     #endregion
 }

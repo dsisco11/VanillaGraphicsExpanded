@@ -24,13 +24,13 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(world);
         var open = Trace(fixture);
-        Assert.True(ObserveTrace(open, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsGeometry_Doorway_OpenThenClosed_ChangesOnlyUnoccludedDirections).MatchingTexels>0);
-        Assert.True(ObserveTrace(open, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsGeometry_Doorway_OpenThenClosed_ChangesOnlyUnoccludedDirections_2).MatchingTexels>0);
+        Assert.True(ObserveTrace(open, SurfacePredicates.LumOnNearFieldFunctionalTestsGeometry_Doorway_OpenThenClosed_ChangesOnlyUnoccludedDirections).MatchingTexels>0);
+        Assert.True(ObserveTrace(open, SurfacePredicates.LumOnNearFieldFunctionalTestsGeometry_Doorway_OpenThenClosed_ChangesOnlyUnoccludedDirections_2).MatchingTexels>0);
         world.AddRoom((-3, -3, -8), (3, 3, -2));
         fixture.InvalidateAll();
         fixture.Publish(world);
         var closed = Trace(fixture);
-        ObserveTrace(closed, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsGeometry_Doorway_OpenThenClosed_ChangesOnlyUnoccludedDirections_3).AssertEqual();
+        ObserveTrace(closed, SurfacePredicates.LumOnNearFieldFunctionalTestsGeometry_Doorway_OpenThenClosed_ChangesOnlyUnoccludedDirections_3).AssertEqual();
     }
 
     /// <summary>Integer world-cell mapping retains local occlusion beyond exact single-precision world coordinates.</summary>
@@ -47,7 +47,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture(origin);
         fixture.Publish(world);
         var result = Trace(fixture, worldOffset: origin);
-        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsGeometry_Doorway_OpenThenClosed_ChangesOnlyUnoccludedDirections_3).AssertEqual();
+        ObserveTrace(result, SurfacePredicates.LumOnNearFieldFunctionalTestsGeometry_Doorway_OpenThenClosed_ChangesOnlyUnoccludedDirections_3).AssertEqual();
     }
 
     /// <summary>An initial solid is an immediate near-field hit rather than a clear ray into the cache.</summary>
@@ -63,7 +63,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         using var fixture = new NearFieldVoxelFixture();
         fixture.Publish(world);
         var result = Trace(fixture);
-        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsGeometry_InitialSolid_IsNotSkipped).AssertEqual();
+        ObserveTrace(result, SurfacePredicates.LumOnNearFieldFunctionalTestsGeometry_InitialSolid_IsNotSkipped).AssertEqual();
     }
 
     /// <summary>Premature near-field-window exit cannot shorten the required segment and authorize cached light.</summary>

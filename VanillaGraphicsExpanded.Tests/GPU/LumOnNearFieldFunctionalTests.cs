@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestBase
 {
+
+
     /// <summary>Shares the headless GPU context.</summary>
     public LumOnNearFieldFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -51,8 +53,8 @@ public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestB
         fixture.Publish(world);
         var result = Trace(fixture);
         var suppressed = Trace(fixture, suppress: true);
-        ImageAssertions.Predicate(result.Meta, GpuAssertionPredicate.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4, suppressed.Meta).AssertEqual();
-        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTests_SealedRoom_RequiresPublishedSurfaceLighting, suppressed).AssertEqual();
+        ImageAssertions.Predicates.Predicate(result.Meta, ObservationPredicates.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4, suppressed.Meta).AssertEqual();
+        ObserveTrace(result, SurfacePredicates.LumOnNearFieldFunctionalTests_SealedRoom_RequiresPublishedSurfaceLighting, suppressed).AssertEqual();
     }
 
     /// <summary>Unpublished data, unsupported cells and exhausted traversal never authorize cache or sky.</summary>
@@ -66,7 +68,7 @@ public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestB
         using var fixture = new NearFieldVoxelFixture();
         if (publish) fixture.Publish(new ControlledVoxelWorld { IsLoaded = _ => !unsupported });
         var result = Trace(fixture, budget: budget);
-        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTests_UnresolvedScene_RemainsDark).AssertEqual();
+        ObserveTrace(result, SurfacePredicates.LumOnNearFieldFunctionalTests_UnresolvedScene_RemainsDark).AssertEqual();
     }
 
     /// <summary>A fully known clear segment admits distant cache lighting and suppression affects only that lighting.</summary>
@@ -78,9 +80,23 @@ public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestB
         fixture.Publish(new ControlledVoxelWorld());
         var result = Trace(fixture);
         var suppressed = Trace(fixture, suppress: true);
-        ImageAssertions.Predicate(result.Meta, GpuAssertionPredicate.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4, suppressed.Meta).AssertEqual();
-        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTests_ClearScene_UsesDistantCache, suppressed).AssertEqual();
+        ImageAssertions.Predicates.Predicate(result.Meta, ObservationPredicates.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4, suppressed.Meta).AssertEqual();
+        ObserveTrace(result, SurfacePredicates.LumOnNearFieldFunctionalTests_ClearScene_UsesDistantCache, suppressed).AssertEqual();
     }
     #endregion
 
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 2, 0);
+        programs.Prepare("compare", 2, 0);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-cloud", 0, 0);
+        programs.Prepare("predicate-observation", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
+    #endregion
 }

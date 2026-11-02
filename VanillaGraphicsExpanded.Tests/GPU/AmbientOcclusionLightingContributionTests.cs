@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AmbientOcclusionLightingContributionTests(HeadlessGLFixture fixture,ITestOutputHelper log) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Separates indoor/sunlit direct, diffuse and specular changes and distinguishes weak illumination from rejected AO.</summary>
     [Theory]
@@ -28,16 +30,16 @@ public sealed class AmbientOcclusionLightingContributionTests(HeadlessGLFixture 
         EnsureShaderTestAvailable();
         using var owner=new AmbientOcclusionPass();using var draw=new PostprocessDraw();
         const int width=257,height=129;
-        using var scene=new AmbientOcclusionSceneFixture(TestFramework,Programs,width,height,4,roughness:roughness,availability:.5f);
+        using var scene=new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework,Programs,width,height,4,roughness:roughness,availability:.5f);
         scene.Render(owner,draw,2);using var stages=AmbientOcclusionSceneFixture.CaptureStages(owner);
         int firstX=width/2+3,firstY=height/4;
-        var selected=ImageAssertions.Extremum(stages.Reconstructed,0,false,
+        var selected=ImageAssertions.Selection.Extremum(stages.Reconstructed,0,false,
             new(new(),firstX,firstY,0,width-firstX,3*height/4-firstY));
         int receiverX=firstX+selected.X,receiverY=firstY+selected.Y,pixel=receiverY*width+receiverX;
         float visibility=selected.Value;Assert.InRange(visibility,0,.995f);
-        using var lighting=new AmbientOcclusionLightingFixture(TestFramework,Programs,scene,lumon,sunlit?8:0,.5f);
+        using var lighting=new AmbientOcclusionLightingFixture(ImageAssertions, TestFramework,Programs,scene,lumon,sunlit?8:0,.5f);
         using var neutral=lighting.Capture(null);using var occluded=lighting.Capture(owner.Texture);
-        ImageAssertions.Predicate(occluded.Direct, GpuAssertionPredicate.AmbientOcclusionLightingContributionTests_GeneratedVisibilityChangesOnlyAvailableIndirectLighting,neutral.Direct,occluded.Combined,neutral.Combined).AssertEqual();
+        ImageAssertions.Predicates.Predicate(occluded.Direct, AoPredicates.AmbientOcclusionLightingContributionTests_GeneratedVisibilityChangesOnlyAvailableIndirectLighting,neutral.Direct,occluded.Combined,neutral.Combined).AssertEqual();
         var neutralPixel=(Direct:Receiver(neutral.Direct),Diffuse:Receiver(neutral.Diffuse),Specular:Receiver(neutral.Specular),Combined:Receiver(neutral.Combined));
         var occludedPixel=(Direct:Receiver(occluded.Direct),Diffuse:Receiver(occluded.Diffuse),Specular:Receiver(occluded.Specular),Combined:Receiver(occluded.Combined));
         Assert.True(neutralPixel.Diffuse.X>.1f);Assert.True(neutralPixel.Specular.X>.001f);
@@ -50,8 +52,8 @@ public sealed class AmbientOcclusionLightingContributionTests(HeadlessGLFixture 
         if(sunlit)Assert.True(occludedPixel.Direct.X>1);else Assert.InRange(occludedPixel.Direct.X,0,.00001f);
 
         // Retain the same valid scalar signal while reducing only available indirect energy.
-        using var weakScene=new AmbientOcclusionSceneFixture(TestFramework,Programs,width,height,4,roughness:roughness,availability:.005f);
-        using var weakLighting=new AmbientOcclusionLightingFixture(TestFramework,Programs,weakScene,lumon,sunlit?8:0,.005f);
+        using var weakScene=new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework,Programs,width,height,4,roughness:roughness,availability:.005f);
+        using var weakLighting=new AmbientOcclusionLightingFixture(ImageAssertions, TestFramework,Programs,weakScene,lumon,sunlit?8:0,.005f);
         using var weakNeutral=weakLighting.Capture(null);using var weakOccluded=weakLighting.Capture(owner.Texture);
         var weakNeutralPixel=(Combined:Receiver(weakNeutral.Combined),Diffuse:Receiver(weakNeutral.Diffuse));
         var weakOccludedPixel=(Combined:Receiver(weakOccluded.Combined),Diffuse:Receiver(weakOccluded.Diffuse));
@@ -59,8 +61,8 @@ public sealed class AmbientOcclusionLightingContributionTests(HeadlessGLFixture 
         Assert.InRange(weakLoss,strongLoss*.008,strongLoss*.012);
         Assert.InRange(weakOccludedPixel.Diffuse.X/weakNeutralPixel.Diffuse.X,visibility-.001f,visibility+.001f);
 
-        using var projection=new GpuImageTransform();
-        using var wrongDepth=projection.Apply(stages.Reconstructed, GpuImageProjection.AmbientOcclusionLightingContributionTests_GeneratedVisibilityChangesOnlyAvailableIndirectLighting_2);
+        var projection = ImageAssertions.Projections;
+        using var wrongDepth=projection.Apply(stages.Reconstructed, AoProjections.AmbientOcclusionLightingContributionTests_GeneratedVisibilityChangesOnlyAvailableIndirectLighting_2);
         using var retained=new GpuImageSnapshot(wrongDepth);using var rejected=retained.ToPlane();
         using var unmatched=lighting.Capture(rejected);
         var unmatchedPixel=Receiver(unmatched.Combined);
@@ -73,6 +75,17 @@ public sealed class AmbientOcclusionLightingContributionTests(HeadlessGLFixture 
             float[] values=image.ReadPixelsRegion(receiverX,receiverY,1,1);
             Assert.Equal(4,values.Length);return new(values[0],values[1],values[2],values[3]);
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-ao", 0, 0);
+        programs.Prepare("predicate-observation", 0, 0);
+        programs.Prepare("projection-ao", 0, 0);
     }
     #endregion
 }

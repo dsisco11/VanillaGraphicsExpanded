@@ -25,6 +25,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     #region Engine inputs
     /// <summary>Captures altitude and fivefold wind animation while shared camera fields remain outside the sky effect block.</summary>
@@ -164,7 +166,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         Assert.Equal(1, actual[3]);
         Assert.Equal(new float[] { 0, 0, 0, 1 }, sky.Target[1].ReadPixels());
         foreach (int attachment in new[] { 2, 3, 4, 5, 7 })
-            ImageAssertions.CompareConstant(sky.Target[attachment], (float)attachment).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(sky.Target[attachment], (float)attachment).AssertEqual();
         using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, sky.Target[6].TextureId))
         {
             uint[] patch = new uint[4];
@@ -302,7 +304,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
             for (int channel = 0; channel < 3; channel++) { expectedPixels[i+channel]=expected;tolerances[i+channel]=.0001f; }
             expectedPixels[i+3]=1;
         }
-        ImageAssertions.CompareFloating(actual.Texture,expectedPixels,tolerances).AssertEqual();
+        ImageAssertions.Comparisons.CompareFloating(actual.Texture,expectedPixels,tolerances).AssertEqual();
     }
 
     /// <summary>Tracks the published non-axis-aligned sun instead of leaving the Mie lobe at a fixed pole.</summary>
@@ -515,6 +517,15 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         public void Dispose()
         { inputs.Dispose(); cameraInputs.Dispose(); vao.Dispose(); atmosphere.Dispose(); }
         #endregion
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-observation", 0, 0);
     }
     #endregion
 }

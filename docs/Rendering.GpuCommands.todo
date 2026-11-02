@@ -2809,7 +2809,7 @@ Phase 10.8: Reconcile qualification corrections and residual test cleanup
 Phase 10.9: Attribute remaining test costs and agree on the runtime-reduction design
   Status: complete as the original analysis/design boundary. Checkpoint 10.9.1 is complete by user
     acceptance; 10.9.2 design and coverage mapping is complete by user approval. Implementation subphases
-    10.9.3 is complete by user acceptance; 10.9.4–10.9.7 remain open and await selection. Batching is
+    10.9.3 and 10.9.4 are complete by user acceptance; 10.9.5–10.9.7 remain open and await selection. Batching is
     deferred and Phase 10 remains open.
   Depends on 10.8. Governing constraints: Phase 10/10.2's coverage and isolation map, 10.7's cache policy,
     Rendering.ShaderBindingState.md (Verification boundary) and Rendering.GpuCommands.Contracts.md
@@ -3545,25 +3545,81 @@ Phase 10.9.4: Replace universal assertion dispatch with explicit observation ser
   Depends on 10.9.1's checkpoint and 10.9.2's approved design. Separate implementation/commit boundary.
   Outcome: focused production-backed observation operations with explicit fixture ownership and dependencies.
 
-  ☐ Implement the agreed comparison, statistics and selection/projection boundaries with typed requests
+  Status: complete by explicit user metrics acceptance on 2026-11-01. Implementation, focused verification,
+    second review and independent completion audit passed. No staging or commits; later subphases stay open.
+
+  Traceability and qualification:
+    - Tasks 1/2 -> approved 10.9.2 observation boundaries and 10.2 family/coverage map -> focused typed
+      comparison, statistics, predicate, selection and projection services replace the universal Run/API.
+      Domain-owned assets retain all 185 predicate contracts and 27 projection contracts. 182 predicate
+      bodies and all 27 projection bodies remain whitespace-equivalent; two comparison predicates add
+      count instrumentation only, and predicate 28 uses equivalent integer Boolean masks. Original
+      numerical expressions, domains, selected channels and tolerances remain. The independent periodic
+      Poisson equation lives in its own asset, sharing only generic moment transport/reduction mechanics.
+    - Tasks 3/4 -> Rendering.GpuResources.md#shader-executable-ownership;
+      Rendering.ShaderBindingState.md#shader-ownership-and-publication and #verification-boundary;
+      Rendering.GpuCommands.Contracts.md#executable-and-pipeline-contracts and #submission-and-failure-rules
+      -> explicit fixture/composite dependencies, production precompiled assets/default in-memory cache,
+      setup-only selective preparation, original manager/context retirement and native independent oracles.
+      Context validation prepares zero observers; no thread-static fixture lookup, runtime source fallback,
+      new scheduler/cache, placeholder image or unused histogram. Active executable footprints preserve
+      exact native selector/UBO base-range semantics, including optional-input clearing and exceptions.
+      Typed results distinguish witness/flag/constant/sparse/moment meanings; comparison counts and bounded
+      first-failure native tuples provide expected/actual values without downloading passing images.
+    - Task 5 -> unchanged 10.9.2 double/ordered contracts -> the old SPIR-V route lost moment precision
+      independently of RHI submission, whereas equivalent native GLSL was exact. Decoder and shared-storage
+      changes did not fix it and were reverted. Changing only function-local accumulator storage from
+      double arrays to exact integer bit pairs restored all original exact moments/weighted expectations;
+      shared double storage, arithmetic and grouping remain. This isolates the failing compiled local
+      accumulation path without claiming a particular compiler/driver instruction defect.
+      Cloud predicate 28 could reject at most six texels but reported 35 including (0,0). GPU request
+      provenance and compiled selector/constants agreed. Replacing its short-circuit Boolean merges with
+      equivalent integer masks restored the complete unchanged temporal case; no scene oracle was weakened.
+    - Tasks 5/6 -> final normal Debug build: zero errors, 224 warnings, 20.5766s. Focused correctness:
+      223/223 passing, zero skips, 55.8304s process wall / 55.0775s runner, across 25 affected families or
+      method groups, including all 43 helper rows, exact precision, malformed/suppressed dispatch,
+      native restoration, original-context/manager retirement, UInt/signed/stencil preparation, cloud
+      temporal, water, near-field/spatial and independent stage coverage. Source/DLL hashes are unchanged
+      across that run: 742 recorded source entries; DLL SHA256
+      C5F24479F421938649EEDD712161D167EEA6994EE6A58D8646632C95C68DD252.
+      Receipts: TestResults/GpuTests1094/focused-final-callers.*, final-caller-source-before/after.csv,
+      final-caller-dll-before/after.txt and focused-final-callers-families.csv.
+    - Actual bounded metrics: three distinct new production owners prepared in 3.757ms using the enabled
+      existing in-memory binary cache; repeated preparation retained the same owner. Ordinary comparisons
+      allocate one result image per operation; statistics allocate two result/scratch images. These counts
+      exclude subject/source snapshots and reference uploads, which remain for later selected work.
+      No matched before/after timing, whole-suite speedup, Release/full-suite or visual acceptance is
+      claimed. No numerical performance threshold applies; the user explicitly accepted these metrics and limitations on 2026-11-01.
+      README.md documents the resulting services and preparation/result ownership. Second review and
+      independent completion audit passed; explicit user metrics acceptance closes this boundary.
+      Final source hygiene changed only #region directives/blank lines in GpuImageComparisons.cs and
+      GpuImageStatistics.cs. Independent source equivalence checks preserve the 223-case receipt without
+      rerunning tests. Final normal Debug rebuild: zero errors, 224 warnings, 26.1684s; resulting DLL SHA256
+      1E61C10F6B2A092FBFA97E03CF4A214FE0305F66CD89C25F469B24ACF2C9C42B.
+      build-final-regions.*, final-post-regions-source/drift/proof.csv and final-post-regions-dll.txt
+      reconcile that final build with the executed candidate. The source-parity utility separately
+      verifies the 182 unchanged bodies, two counter-only additions, one equivalent Boolean rewrite and
+      all 27 unchanged projections. git diff --check passed.
+
+  ☑ Implement the agreed comparison, statistics and selection/projection boundaries with typed requests
     and results. Remove Run's unrelated numeric-mode/argument combinations and overloaded result meanings;
     migrate their callers and remove superseded dispatcher paths coherently, without compatibility facades.
-  ☐ Move authored numerical/predicate policy to the relevant test-domain shader assets, preserving original
+  ☑ Move authored numerical/predicate policy to the relevant test-domain shader assets, preserving original
     independent math. Share generic observation/reduction mechanics without making every new regression
     modify a global executable or creating per-value/per-case infrastructure variants unnecessarily.
-  ☐ Replace thread-static fixture discovery with explicit observation dependencies. Prepare only required
+  ☑ Replace thread-static fixture discovery with explicit observation dependencies. Prepare only required
     declared programs through existing production assets/cache, retaining their production owners through
     the original fixture context. Context validation must not eagerly load the entire assertion catalog.
     Prepare before hostile selectors or active native observation; preserve cache opt-outs and fresh subjects.
-  ☐ Give result/scratch resources clear fixture or operation ownership and explicit initialization before
+  ☑ Give result/scratch resources clear fixture or operation ownership and explicit initialization before
     each use; reuse only safe scratch, never mutable test subjects. Bind only required inputs/results;
     remove unused histogram/dummy allocations and unnecessary selector capture/restoration while preserving
     required native state, exact base/range semantics and exceptional cleanup. Keep native RHI oracles independent.
-  ☐ Close the earlier production migration, including its unresolved statistics precision regression and
+  ☑ Close the earlier production migration, including its unresolved statistics precision regression and
     exceptional manager/context retirement. Establish the numerical cause before choosing a fix; do not
     weaken double/ordered-float expectations or adopt a custom source-compiler fallback. Remove obsolete
     APIs/assets/enums and delegate precision, lifecycle, negative-dispatch and state-restoration checks.
-  ☐ Record actual preparation/allocation and focused execution metrics, reconcile docs, and satisfy the
+  ☑ Record actual preparation/allocation and focused execution metrics, reconcile docs, and satisfy the
     shared second-review/audit and explicit user acceptance contract before closing this boundary.
 
 Phase 10.9.5: Supply compact independent expectations and direct sparse observations
@@ -3644,6 +3700,11 @@ Phase 10.10: Qualify combined correctness and review final metrics, then remove 
     catalog preparation, stale Category=GPU command, physical test-owned persistence, blanket shader-cache bypass or bulk image assertion survives outside the explicitly
     classified exceptions. Required immutable bootstrap/loader inputs and runner receipts retain their
     documented boundaries.
+    Explicit temporary-support inventory also includes TestResults/GpuTests1094's refactor/diagnostic
+      utilities (*.cjs, refactor.py, bitload.csh, precision-probe/, source-before-regions/ and policy-map.json). Preserve required
+      numerical/source-parity decisions and build/TRX/metric evidence above before removing those utilities.
+      Keep the qualification receipts; utility removal is not permission to remove acceptance evidence.
+
   ☐ Diagnose the outstanding water-state/exception failures recorded in 10.1 against the resulting source.
     Preserve expected contracts and tolerances; do not treat an unexplained failure as redundancy or
     change assertions to match incidental behavior. Reconcile any other failing retained correctness case.

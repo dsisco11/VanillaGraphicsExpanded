@@ -13,6 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>All six faces of a non-power-of-two mip chain can be attached and populated in different color formats.</summary>
     [Theory]
@@ -42,7 +44,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         {
             int size=Math.Max(1,3>>mip);
             using var selected=new Assertions.GpuImageSnapshot(cube,new(new(mip,face),0,0,0,size,size,1));
-            ImageAssertions.Predicate(selected.Texture, GpuAssertionPredicate.DynamicTextureCubeTests_ColorFacesAndMipsAreIndependent,
+            ImageAssertions.Predicates.Predicate(selected.Texture, LightingPredicates.DynamicTextureCubeTests_ColorFacesAndMipsAreIndependent,
                 parameters:new((face+1)/8f,0,0,0)).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -60,7 +62,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, target.FboId);
         GL.ClearBuffer(ClearBuffer.Color, 0, new uint[] { 7, 0, 0, 0 });
         using var textureBinding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)cube).Target), 0, cube.TextureId);
-        ImageAssertions.Inspect(cube,7,7,new(new(0,0),0,0,0,2,2,1)).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(cube,7,7,new(new(0,0),0,0,0,2,2,1)).AssertFiniteRange();
         GL.GetTexParameter(OpenTK.Graphics.OpenGL.TextureTarget.TextureCubeMap, GetTextureParameter.TextureMinFilter, out int minimum);
         Assert.Equal((int)TextureMinFilter.Nearest, minimum);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -102,7 +104,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         target.Bind();
         GL.ClearBuffer(ClearBuffer.Color, 0, new[] { .25f, .5f, .75f, 1f });
         using var textureBinding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)cube).Target), 0, cube.TextureId);
-        ImageAssertions.CompareConstant(cube,.25f,new(new(1,5),0,0,0,4,4,1),channelMask:1).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(cube,.25f,new(new(1,5),0,0,0,4,4,1),channelMask:1).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion
@@ -125,6 +127,17 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
             else AllocateOrReallocate2DTexture(size, size, TextureFormat.Rgba16f, 2, TextureDimension.Cube);
         }
         #endregion
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 2, 0);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-lighting", 0, 0);
     }
     #endregion
 }

@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOutputHelper log) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Unoccluded flat and tilted planes, clear sky and invalid receivers remain neutral including image boundaries.</summary>
     [Theory]
@@ -28,8 +30,8 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         using var draw = new PostprocessDraw();
         using var result = RenderAndCapture(owner, draw, 65, 37, 2, scene);
         AssertFinite(result);
-        if(scene==7)ImageAssertions.CompareConstant(result.Texture,0,channelMask:2).AssertEqual();
-        ImageAssertions.Inspect(result.Texture,.995f,1.001f,channelMask:1).AssertFiniteRange();
+        if(scene==7)ImageAssertions.Comparisons.CompareConstant(result.Texture,0,channelMask:2).AssertEqual();
+        ImageAssertions.Statistics.Inspect(result.Texture,.995f,1.001f,channelMask:1).AssertFiniteRange();
     }
 
     /// <summary>Nearby foreground darkens a background receiver, transmission attenuates once, and the next plane frame has no residual history.</summary>
@@ -46,16 +48,16 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         using var transparentOccluder = RenderAndCapture(owner, draw, 65, 37, quality, 4, 1, 0);
         using var partialReceiver = RenderAndCapture(owner, draw, 65, 37, quality, 4, 0, .5f);
         AssertFinite(opaque); AssertFinite(transparentOccluder); AssertFinite(partialReceiver);
-        var strongest=ImageAssertions.Extremum(opaque.Texture,0,false,new(new(),33,0,0,32,37));
+        var strongest=ImageAssertions.Selection.Extremum(opaque.Texture,0,false,new(new(),33,0,0,32,37));
         int receiver=(strongest.Y*65+33+strongest.X)*4;
         Assert.True(strongest.Value<.99f,$"Expected contact occlusion, got {strongest.Value}");
         Assert.InRange(GpuLocalRead.Scalar(transparentOccluder.Texture,receiver),.995f,1.001f);
         float expected=.5f+.5f*strongest.Value;
         Assert.InRange(GpuLocalRead.Scalar(partialReceiver.Texture,receiver),expected-.002f,expected+.002f);
         // The nearer front-facing plane has no evidence in front of it, despite its darkened neighboring receiver.
-        ImageAssertions.Predicate(opaque.Texture, GpuAssertionPredicate.AmbientOcclusionPassTests_ContactTransmissionAndMotionRemainCurrentFrame).AssertEqual();
+        ImageAssertions.Predicates.Predicate(opaque.Texture, AoPredicates.AmbientOcclusionPassTests_ContactTransmissionAndMotionRemainCurrentFrame).AssertEqual();
         using var movedAway = RenderAndCapture(owner, draw, 65, 37, quality, 0);
-        ImageAssertions.Inspect(movedAway.Texture,.995f,1.001f,channelMask:1).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(movedAway.Texture,.995f,1.001f,channelMask:1).AssertFiniteRange();
         declarations.AssertReusable(minimumTargets: 7);
     }
 
@@ -68,10 +70,10 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         using var draw = new PostprocessDraw();
         using var corner = RenderAndCapture(owner, draw, 65, 37, 2, 5);
         AssertFinite(corner);
-        Assert.True(ImageAssertions.Inspect(corner.Texture,channelMask:1).Minimum<.97f,"Expected retained corner occlusion.");
+        Assert.True(ImageAssertions.Statistics.Inspect(corner.Texture,channelMask:1).Minimum<.97f,"Expected retained corner occlusion.");
         using var gaps = RenderAndCapture(owner, draw, 65, 37, 2, 6);
         AssertFinite(gaps);
-        ImageAssertions.Predicate(gaps.Texture, GpuAssertionPredicate.AmbientOcclusionPassTests_PerpendicularCornerAndCutoutGapsRespectGeometry).AssertEqual();
+        ImageAssertions.Predicates.Predicate(gaps.Texture, AoPredicates.AmbientOcclusionPassTests_PerpendicularCornerAndCutoutGapsRespectGeometry).AssertEqual();
     }
 
     /// <summary>A narrow foreground strip releases occlusion beyond contact while a continuous foreground wall retains stronger evidence.</summary>
@@ -89,8 +91,8 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         // Both scenes share the same foreground edge; compare the background halo outside its immediate contact pixels.
         var area=new RHITextureRegion(new(),width/2+5,height/4,0,15,3*height/4-height/4);
         double count=area.Width*area.Height;
-        double wallMean=ImageAssertions.Statistics(wall.Texture,area,channelMask:1).Sum(0)/count;
-        double thinMean=ImageAssertions.Statistics(thin.Texture,area,channelMask:1).Sum(0)/count;
+        double wallMean=ImageAssertions.Statistics.Statistics(wall.Texture,area,channelMask:1).Sum(0)/count;
+        double thinMean=ImageAssertions.Statistics.Statistics(thin.Texture,area,channelMask:1).Sum(0)/count;
         log.WriteLine($"Running horizon quality{quality}: wall visibility={wallMean:R}, thin strip visibility={thinMean:R}");
         Assert.True(wallMean<.995,$"Expected retained wall evidence: {wallMean:R}");
         Assert.True(thinMean>wallMean+.0005,$"Expected thin-object release: wall={wallMean:R}, thin={thinMean:R}");
@@ -115,7 +117,7 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         int radius = (int)MathF.Ceiling(1.25f / distance * 360);
         int left=Math.Max(0,center-radius),right=Math.Min(1280,center+radius);
         var region=new RHITextureRegion(new(),left,180,0,right-left,360);
-        var values=ImageAssertions.Inspect(result.Texture,0,MathF.BitDecrement(.99f),region,channelMask:1);
+        var values=ImageAssertions.Statistics.Inspect(result.Texture,0,MathF.BitDecrement(.99f),region,channelMask:1);
         log.WriteLine($"AO scene={scene} distance={distance} 1280x720 ROIcenter={center} radius={radius}: min={values.Minimum:R} fractionBelow.99={values.InsideRange/(double)values.Components:R}");
         Assert.True(values.Minimum<.99f);
     }
@@ -175,7 +177,7 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
     private void Render(AmbientOcclusionPass owner, PostprocessDraw draw, int width, int height, int quality, int scene,
         float occluderTransmission = 0, float receiverTransmission = 0, bool measure = false, float receiverDistance = 3)
     {
-        using var inputs=new AmbientOcclusionSceneFixture(TestFramework,Programs,width,height,scene,
+        using var inputs=new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework,Programs,width,height,scene,
             receiverDistance:receiverDistance,occluderTransmission:occluderTransmission,receiverTransmission:receiverTransmission);
         inputs.Render(owner,draw,quality);
         if(measure) {
@@ -196,8 +198,20 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
     /// <summary>Rejects nonfinite and out-of-range visibility while allowing depth and packed normal channels.</summary>
     private void AssertFinite(GpuImageSnapshot image)
     {
-        ImageAssertions.Inspect(image.Texture).AssertFiniteRange();
-        ImageAssertions.Inspect(image.Texture,0,1.001f,channelMask:1).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(image.Texture).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(image.Texture,0,1.001f,channelMask:1).AssertFiniteRange();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-ao", 0, 0);
+        programs.Prepare("predicate-observation", 0, 0);
+        programs.Prepare("statistics", 0, 0);
     }
     #endregion
 }

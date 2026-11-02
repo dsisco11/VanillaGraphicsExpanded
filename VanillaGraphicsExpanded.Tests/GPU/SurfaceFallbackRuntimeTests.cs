@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
+
+
     #region Runtime completion
     /// <summary>Completed CPU estimates retained by page credit must still reject withdrawn chunk dependencies before publication.</summary>
     [Theory]
@@ -20,7 +22,7 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
     {
         EnsureContextValid();
         var world = new ControlledVoxelWorld { MapSizeY = 256 };
-        using var runtime = new SurfaceCacheRuntimeFixture(requestedPages:24,enclosure:true,fallbackWorld:world);
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages:24,enclosure:true,fallbackWorld:world);
         world.AddRoom((0,32,0),(7,39,7),materialId:runtime.SourceBlock.Id);
         runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady,256);
         runtime.TransformVoxel=(x,y,z,voxel)=>(voxel.Geometry&3u)==1?voxel with{Geometry=3u}:voxel;
@@ -68,7 +70,7 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
     {
         EnsureContextValid();
         var world = new ControlledVoxelWorld { MapSizeY = 256 };
-        using var runtime = new SurfaceCacheRuntimeFixture(requestedPages:24,enclosure:true,fallbackWorld:world);
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages:24,enclosure:true,fallbackWorld:world);
         world.AddRoom((0,32,0),(7,39,7),materialId:runtime.SourceBlock.Id);
         runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady,256);
         runtime.TransformVoxel=(x,y,z,voxel)=>(voxel.Geometry&3u)==1?voxel with{Geometry=3u}:voxel;
@@ -98,7 +100,7 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
         EnsureContextValid(); using var entered = new ManualResetEventSlim(); using var release = new ManualResetEventSlim();
         var world = new ControlledVoxelWorld { MapSizeY=36, IsLoaded=_=>
         { entered.Set(); release.Wait(TestContext.Current.CancellationToken); return true; } };
-        using var runtime = new SurfaceCacheRuntimeFixture(exposedWall:true,fallbackWorld:world);
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true,fallbackWorld:world);
         runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.TryGetLighting(out var initial));
         runtime.TransformVoxel=(x,y,z,voxel)=>x>=1?voxel with{Geometry=3u}:voxel;
@@ -123,7 +125,7 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
     public void UnsupportedGeometryCompletesThroughNormalPublication()
     {
         EnsureContextValid();var world=new ControlledVoxelWorld{MapSizeY=36};
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true,fallbackWorld:world);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true,fallbackWorld:world);
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.TryGetLighting(out var initial));
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var pages,out _));uint page=pages.Single().Key;
@@ -135,8 +137,8 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
         Assert.True(Counter(renderer,"fallbackAdmitted")>0);Assert.Empty(world.LightQueries);
         Assert.True(runtime.TryGetLighting(out var current));
         using var after=SurfaceLightingPageSelection.Capture(current.OutgoingRadiance,current,page);
-        ImageAssertions.CompareConstant(after.Texture, 1, channelMask: 8).AssertEqual();
-        ImageAssertions.CompareHistory(after.Texture, before).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(after.Texture, 1, channelMask: 8).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(after.Texture, before).AssertEqual();
     }
 
     /// <summary>CPU collision hits resolve actual cached radiance through the asynchronous query and normal commit path.</summary>
@@ -144,7 +146,7 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
     public void UnsupportedRoomAirResolvesCapturedWallRadiance()
     {
         EnsureContextValid();var world=new ControlledVoxelWorld{MapSizeY=256};
-        using var runtime=new SurfaceCacheRuntimeFixture(requestedPages:24,enclosure:true,fallbackWorld:world);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages:24,enclosure:true,fallbackWorld:world);
         world.AddRoom((0,32,0),(7,39,7),materialId:runtime.SourceBlock.Id);
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady,256);
@@ -157,7 +159,7 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
         foreach(uint page in pages.Keys)
         {
             using var pixels=SurfaceLightingPageSelection.Capture(lighting.IndirectIrradiance,lighting,page);
-            nonzero |= ImageAssertions.CountMatching(pixels.Texture,
+            nonzero |= ImageAssertions.Statistics.CountMatching(pixels.Texture,
                 new(MathF.BitIncrement(.01f),float.NegativeInfinity,float.NegativeInfinity,float.Epsilon),
                 new(float.PositiveInfinity), channelMask: 9).MatchingTexels > 0;
         }
@@ -171,7 +173,7 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
         EnsureContextValid();using var entered=new ManualResetEventSlim();using var release=new ManualResetEventSlim();
         var world=new ControlledVoxelWorld{MapSizeY=36,IsLoaded=_=>
         { entered.Set();release.Wait(TestContext.Current.CancellationToken);return true; }};
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true,fallbackWorld:world);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true,fallbackWorld:world);
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         runtime.TransformVoxel=(x,y,z,voxel)=>x>=1?voxel with{Geometry=3u}:voxel;
         runtime.InvalidateGeometry();var renderer=(LumonSceneRelightUpdateRenderer)runtime.LightingProvider;
@@ -194,7 +196,7 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
         EnsureContextValid();using var entered=new ManualResetEventSlim();using var release=new ManualResetEventSlim();
         var world=new ControlledVoxelWorld{MapSizeY=36,IsLoaded=_=>
         { entered.Set();release.Wait(TestContext.Current.CancellationToken);return true; }};
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true,fallbackWorld:world);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true,fallbackWorld:world);
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         runtime.TransformVoxel=(x,y,z,voxel)=>x>=1?voxel with{Geometry=3u}:voxel;
         runtime.InvalidateGeometry();var renderer=(LumonSceneRelightUpdateRenderer)runtime.LightingProvider;
@@ -219,6 +221,15 @@ public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):Rende
         Assert.True(renderer.TryGetSelfCheckLine(out string line));
         var match=Regex.Match(line,$@"\b{name}:(\d+)");Assert.True(match.Success,line);
         return long.Parse(match.Groups[1].Value);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

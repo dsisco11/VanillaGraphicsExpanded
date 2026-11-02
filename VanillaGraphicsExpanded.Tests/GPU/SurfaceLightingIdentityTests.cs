@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Source freshness
     /// <summary>Unchanged and light-only source refreshes retain capture and lighting after geometry becomes available again.</summary>
     [Theory]
@@ -20,7 +22,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
     public void SameSurfaceIdentityPreservesCaptureAndLighting(bool changeLight)
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true);
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.TryGetLighting(out var before));
         uint page=Pages(runtime).Single().Key;
@@ -35,11 +37,11 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         Assert.True(after.LightingIsStale);
         Assert.Equal(captures,CaptureAttempts(runtime));
         using var observed1=SurfaceLightingPageSelection.Capture(after.OutgoingRadiance,after,page);
-        ImageAssertions.CompareHistory(observed1.Texture, pixels).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(observed1.Texture, pixels).AssertEqual();
         using var observed2=SurfaceLightingPageSelection.Capture(after.DirectIrradiance,after,page);
-        ImageAssertions.CompareHistory(observed2.Texture, direct).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(observed2.Texture, direct).AssertEqual();
         using var observed3=SurfaceLightingPageSelection.Capture(after.IndirectIrradiance,after,page);
-        ImageAssertions.CompareHistory(observed3.Texture, indirect).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(observed3.Texture, indirect).AssertEqual();
         Assert.True(runtime.AllRequestedCaptured());
     }
 
@@ -49,7 +51,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
     public void UnknownGeometrySuspendsAndResumesTheSameCapturedPage()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true);
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.TryGetLighting(out var before));
         uint page=Pages(runtime).Single().Key;
@@ -71,12 +73,12 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
             Assert.Equal(0,answers[0].Result.W);
         }
         using var observed4=SurfaceLightingPageSelection.Capture(before.OutgoingRadiance,before,page);
-        ImageAssertions.CompareHistory(observed4.Texture, pixels).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(observed4.Texture, pixels).AssertEqual();
         runtime.GeometryAvailable=true;runtime.InvalidateGeometry();
         runtime.RunUntil(()=>runtime.Feedback.IsCaptureAvailable(page));
         Assert.True(runtime.TryGetLighting(out var after));
         using var observed5=SurfaceLightingPageSelection.Capture(after.OutgoingRadiance,after,page);
-        ImageAssertions.CompareHistory(observed5.Texture, pixels).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(observed5.Texture, pixels).AssertEqual();
         Assert.True(after.LightingIsStale);
         Assert.Equal(captures,CaptureAttempts(runtime));
     }
@@ -87,7 +89,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
     public void ChangedPatchInvalidatesOnlyItsOwnPage()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(requestedPages:2,exposedWall:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages:2,exposedWall:true);
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.TryGetLighting(out var before));
         var pages=Pages(runtime).OrderBy(pair=>LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(pair.Value)).ToArray();
@@ -99,7 +101,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         for(int frame=0;frame<16;frame++) runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var after));
         using var observed6=SurfaceLightingPageSelection.Capture(after.OutgoingRadiance,after,pages[1].Key);
-        ImageAssertions.CompareHistory(observed6.Texture, untouched).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(observed6.Texture, untouched).AssertEqual();
         Assert.Equal(captures+1,CaptureAttempts(runtime));
         using(var readiness=after.Readiness.MapRange<uint>(0,checked((int)pages.Max(pair=>pair.Key)+1),BufferMapAccess.Read))
         {
@@ -110,11 +112,11 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         runtime.RunUntil(runtime.AllRequestedLightingReady,maximumFrames:64);
         Assert.True(runtime.TryGetLighting(out var recovered));
         using var removed=SurfaceLightingPageSelection.Capture(recovered.OutgoingRadiance,recovered,pages[0].Key);
-        ImageAssertions.CompareConstant(removed.Texture, 0, channelMask: 7).AssertEqual();
-        ImageAssertions.CompareConstant(removed.Texture, 1, channelMask: 8).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(removed.Texture, 0, channelMask: 7).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(removed.Texture, 1, channelMask: 8).AssertEqual();
         using var retained=SurfaceLightingPageSelection.Capture(recovered.DirectIrradiance,recovered,pages[1].Key);
         // The producer retains C-encoded RGB; this assertion compares physical irradiance.
-        ImageAssertions.CompareConstant(retained.Texture, 32 * LightingStorage.PersistentScale, channelMask: 1).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(retained.Texture, 32 * LightingStorage.PersistentScale, channelMask: 1).AssertEqual();
         Assert.Equal(captures+1,CaptureAttempts(runtime));
     }
     #endregion
@@ -133,6 +135,14 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         runtime.Feedback.TryGetSelfCheckLine(out string line);
         var match=Regex.Match(line,@"captureFail:\d+/(\d+)");
         Assert.True(match.Success,line);return long.Parse(match.Groups[1].Value);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

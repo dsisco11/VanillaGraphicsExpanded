@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Resident publication
     /// <summary>Ready lighting and valid black publish the same directional values as diagnostic full readback.</summary>
     [Theory]
@@ -24,7 +26,7 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
     {
         EnsureContextValid();
         using var platform=new EngineShaderPlatformScope();
-        using var room=new SurfaceLightingEnclosureFixture(blockLight:light);room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, blockLight:light);room.Seed();
         using var assets=new BinaryShaderApiFixture();
         using var atlas=new SurfaceLightingWorldProbeFixture();
         using var batch=new WorldProbeTraceBatch(assets.Api);
@@ -47,9 +49,9 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         Assert.NotNull(result.GpuLease);
         Assert.All(result.AtlasSamples,sample=>Assert.True(sample.GpuRayIndex>=0));
         var pixels=atlas.Upload(result);
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeVis0, expectedVisibility).AssertEqual();
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeDist0, expectedDistance).AssertEqual();
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeMeta0, expectedMetadata).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeVis0, expectedVisibility).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeDist0, expectedDistance).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeMeta0, expectedMetadata).AssertEqual();
         var lower = Enumerable.Repeat(double.NegativeInfinity, pixels.Width * pixels.Height * 4).ToArray();
         var upper = Enumerable.Repeat(double.PositiveInfinity, lower.Length).ToArray();
         foreach (var sample in reference.AtlasSamples)
@@ -64,8 +66,8 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
                 upper[index+c] = Math.Min(upper[index+c], expected[c] + (double).003f);
             }
         }
-        ImageAssertions.CompareIntervals(pixels, lower, upper).AssertEqual();
-        var alpha = ImageAssertions.Inspect(pixels, channelMask: 8);
+        ImageAssertions.Comparisons.CompareIntervals(pixels, lower, upper).AssertEqual();
+        var alpha = ImageAssertions.Statistics.Inspect(pixels, channelMask: 8);
         Assert.True(alpha.NonFinite == 0 && alpha.Minimum > 0);
     }
 
@@ -75,7 +77,7 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
     {
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
-        using var room = new SurfaceLightingEnclosureFixture();
+        using var room = new SurfaceLightingEnclosureFixture(ImageAssertions);
         room.Seed();
         room.SetIncidentRadiance(400000);
         using var assets = new BinaryShaderApiFixture();
@@ -117,7 +119,7 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
     {
         EnsureContextValid();
         using var platform=new EngineShaderPlatformScope();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         using var assets=new BinaryShaderApiFixture();
         using var atlas=new SurfaceLightingWorldProbeFixture();
         bool current=true, providerThrows=false;
@@ -134,8 +136,8 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         else if(change==3)backend.Dispose();
         else providerThrows=true;
         Assert.Equal(0,atlas.TryUpload(result,65536));
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeRadianceAtlas,radiance).AssertEqual();
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeMeta0,metadata).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeRadianceAtlas,radiance).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeMeta0,metadata).AssertEqual();
     }
 
     /// <summary>A refused budget cannot publish metadata or consume the retained resident lighting.</summary>
@@ -144,7 +146,7 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
     {
         EnsureContextValid();
         using var platform=new EngineShaderPlatformScope();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         using var assets=new BinaryShaderApiFixture();
         using var atlas=new SurfaceLightingWorldProbeFixture();
         using var backend=new LumOnWorldProbeGpuTraceBackend(assets.Api,256,()=>room.Geometry.Scene,
@@ -155,13 +157,13 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         using var before=new GpuImageSnapshot(atlas.Resources.ProbeRadianceAtlas);
         using var metadata=new GpuImageSnapshot(atlas.Resources.ProbeMeta0);
         Assert.Equal(0,atlas.TryUpload(result with {GpuLease=null},65536));
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeRadianceAtlas,before).AssertEqual();
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeMeta0,metadata).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeRadianceAtlas,before).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeMeta0,metadata).AssertEqual();
         Assert.Equal(0,atlas.TryUpload(result,1));
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeRadianceAtlas,before).AssertEqual();
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeMeta0,metadata).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeRadianceAtlas,before).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeMeta0,metadata).AssertEqual();
         Assert.True(atlas.TryUpload(result,65536)>0);
-        Assert.True(ImageAssertions.Inspect(atlas.Resources.ProbeRadianceAtlas).Maximum>.001f);
+        Assert.True(ImageAssertions.Statistics.Inspect(atlas.Resources.ProbeRadianceAtlas).Maximum>.001f);
     }
 
     /// <summary>CPU-confirmed unsupported hits and untouched resident directions publish together in one complete tile.</summary>
@@ -169,7 +171,7 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
     public void MixedFallbackAndResidentDirectionsPublishTogether()
     {
         EnsureContextValid();using var platform=new EngineShaderPlatformScope();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         room.Geometry.Sample=(x,y,z)=>
         {
             var voxel=room.Sample(x,y,z);
@@ -198,8 +200,8 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
             samples[index]=samples[index] with {SurfaceHit=null,RadianceRgb=new Vector3(light.X,light.Y,light.Z)};
         }
         var pixels=atlas.Upload(result with {AtlasSamples=samples.ToImmutable()});
-        Assert.True(ImageAssertions.Inspect(pixels, channelMask: 8).Minimum > 0);
-        Assert.True(ImageAssertions.Inspect(pixels, channelMask: 7).Minimum > .001f);
+        Assert.True(ImageAssertions.Statistics.Inspect(pixels, channelMask: 8).Minimum > 0);
+        Assert.True(ImageAssertions.Statistics.Inspect(pixels, channelMask: 7).Minimum > .001f);
         Assert.Empty(world.LightQueries);
     }
 
@@ -209,7 +211,7 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
     public void ReleasedResidentStorageDoesNotReleaseRetryIdentity(int change)
     {
         EnsureContextValid();using var platform=new EngineShaderPlatformScope();
-        using var room=new SurfaceLightingEnclosureFixture();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);
         using var assets=new BinaryShaderApiFixture();using var atlas=new SurfaceLightingWorldProbeFixture();
         bool current=true;
         using var backend=new LumOnWorldProbeGpuTraceBackend(assets.Api,256,()=>room.Geometry.Scene,()=>room.Snapshot,
@@ -239,8 +241,8 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         if(change==0)room.Geometry.Dirty();else if(change==1)room.DependencyRevision++;else current=false;
         Assert.False(retry.GpuIdentity!.IsCurrent);
         Assert.Equal(0,atlas.TryUpload(retry,65536));
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeRadianceAtlas,pixels).AssertEqual();
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeMeta0,metadata).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeRadianceAtlas,pixels).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeMeta0,metadata).AssertEqual();
     }
     #endregion
 
@@ -249,7 +251,7 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
     [Fact]
     public void ResidentBackpressureRetainsCompletedUndrainedAllocations()
     {
-        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         using var assets=new BinaryShaderApiFixture();int claims=0;
         using var backend=new LumOnWorldProbeGpuTraceBackend(assets.Api,256,()=>room.Geometry.Scene,()=>room.Snapshot,
             (_,_)=>{claims++;return true;},new UnexpectedWorldProbeTraceScene(),_=>true);
@@ -286,7 +288,7 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
     {
         EnsureContextValid();
         using var platform=new EngineShaderPlatformScope();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         using var assets=new BinaryShaderApiFixture();
         using var atlas=new SurfaceLightingWorldProbeFixture();
         using var batch=new WorldProbeTraceBatch(assets.Api);
@@ -309,10 +311,10 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         using var darkLease=new WorldProbeGpuLease(darkStorage,0,selectors.Length,()=>true);
         var darkResult=WorldProbeGpuIntegration.Integrate(item,dark,0,dark.Length,darkLease);
         var brightPixels=atlas.Upload(brightResult);
-        Assert.True(ImageAssertions.Inspect(brightPixels, channelMask: 7).Maximum > .001f);
+        Assert.True(ImageAssertions.Statistics.Inspect(brightPixels, channelMask: 7).Maximum > .001f);
         var darkPixels=atlas.Upload(darkResult);
-        ImageAssertions.CompareConstant(darkPixels, 0, channelMask: 7).AssertEqual();
-        Assert.True(ImageAssertions.Inspect(darkPixels, channelMask: 8).Minimum > 0);
+        ImageAssertions.Comparisons.CompareConstant(darkPixels, 0, channelMask: 7).AssertEqual();
+        Assert.True(ImageAssertions.Statistics.Inspect(darkPixels, channelMask: 8).Minimum > 0);
     }
 
     /// <summary>Missing lighting reads only required hit descriptors and leaves those directions explicitly unresolved.</summary>
@@ -320,7 +322,7 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
     public void CompactCompletionReadsMissingLightingDescriptorsWithoutReadyPayloads()
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);
         using var assets=new BinaryShaderApiFixture();using var batch=new WorldProbeTraceBatch(assets.Api);
         var item=Item();var selectors=WorldProbeGpuIntegration.CreateDirections(item);
         batch.Submit(room.Geometry.Scene,null,[new(item.ProbePosWorld,16,256,8,0,selectors.Length)],selectors.AsSpan());
@@ -340,5 +342,14 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
     /// <summary>Uses every octahedral direction of a single atlas tile inside the authored enclosure.</summary>
     private static LumOnWorldProbeTraceWorkItem Item()
         => new(1,new(0,new(),new(),0,Ticket:11),new(3.5,35.5,3.5),16,8,64,false,.25f,-1,1e-6f,0,true);
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+    }
     #endregion
 }

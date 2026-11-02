@@ -9,6 +9,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Settled refresh
     /// <summary>A recycled physical page rejects its bright old contents until a different dark surface is captured and initialized.</summary>
     [Fact]
@@ -16,7 +18,7 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
     public void ReusedPhysicalPageCannotPublishOldLightingBeforeCapture()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true);
         bool missing=true;
         runtime.TransformVoxel=(x,y,z,voxel)=>voxel with
         {
@@ -51,8 +53,8 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
         Assert.NotEqual(oldCapture,runtime.Feedback.GetCaptureRevision(physical));
         Assert.Same(initial.IndirectIrradiance,current.IndirectIrradiance);
         using var dark=SurfaceLightingPageSelection.Capture(current.OutgoingRadiance,current,physical);
-        ImageAssertions.CompareConstant(dark.Texture, 0, channelMask: 7).AssertEqual();
-        ImageAssertions.CompareConstant(dark.Texture, 1, channelMask: 8).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(dark.Texture, 0, channelMask: 7).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(dark.Texture, 1, channelMask: 8).AssertEqual();
     }
 
     /// <summary>Remote retained indirect lighting reaches the same energy as a fresh cache of the edited scene.</summary>
@@ -63,7 +65,7 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
         EnsureContextValid();
         ulong identity;
         float retained;
-        using(var runtime=new SurfaceCacheRuntimeFixture(spatial:new SpatialLightingScene { Reflectance=.25f }))
+        using(var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, spatial:new SpatialLightingScene { Reflectance=.25f }))
         {
             runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
             runtime.Config.LumOn.LumonScene.RelightRaysPerTexel=16;
@@ -93,7 +95,7 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
                 Assert.Equal(original.DependencyRevision,current.DependencyRevision);
                 Assert.Equal(capture,runtime.Feedback.GetCaptureRevision(page));
                 using var pixels=SurfaceLightingPageSelection.Capture(current.OutgoingRadiance,current,page);
-                ImageAssertions.CompareConstant(pixels.Texture, 1, channelMask: 8).AssertEqual();
+                ImageAssertions.Comparisons.CompareConstant(pixels.Texture, 1, channelMask: 8).AssertEqual();
             }
             retained=Energy(runtime,page);
             Assert.True(retained<bright*.9f);
@@ -101,7 +103,7 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
             Assert.InRange(Math.Abs(Energy(runtime,page)-retained),0,Math.Max(.03f,retained*.05f));
         }
         // A separately initialized cache supplies the target; it never inherits pre-edit illumination.
-        using var reference=new SurfaceCacheRuntimeFixture(spatial:new SpatialLightingScene { Reflectance=.25f });
+        using var reference=new SurfaceCacheRuntimeFixture(ImageAssertions, spatial:new SpatialLightingScene { Reflectance=.25f });
         reference.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = reference.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = reference.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         reference.Config.LumOn.LumonScene.RelightRaysPerTexel=16;
         reference.TransformVoxel=(x,y,z,voxel)=>x>=0 ? voxel with
@@ -119,7 +121,7 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
         Assert.True(reference.TryGetLighting(out var referenceLighting));
         using(var pixels=SurfaceLightingPageSelection.Capture(referenceLighting.IndirectIrradiance,referenceLighting,referencePage))
         {
-            Assert.True(ImageAssertions.Inspect(pixels.Texture, channelMask: 8).Maximum >= 4);
+            Assert.True(ImageAssertions.Statistics.Inspect(pixels.Texture, channelMask: 8).Maximum >= 4);
         }
         for(int frame=0;frame<128;frame++) reference.Frame();
         Assert.InRange(Math.Abs(Energy(reference,referencePage)-expected),0,Math.Max(.03f,expected*.05f));
@@ -133,9 +135,19 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
     {
         Assert.True(runtime.TryGetLighting(out var snapshot));
         using var pixels=SurfaceLightingPageSelection.Capture(snapshot.IndirectIrradiance,snapshot,page);
-        var result = runtime.ImageAssertions.Statistics(pixels.Texture, channelMask: 1);
+        var result = runtime.ImageAssertions.Statistics.Statistics(pixels.Texture, channelMask: 1);
         result.AssertFiniteRange();
         return (float)(result.Sum(0) / (pixels.Texture.Width * pixels.Texture.Height));
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("statistics", 0, 0);
     }
     #endregion
 }

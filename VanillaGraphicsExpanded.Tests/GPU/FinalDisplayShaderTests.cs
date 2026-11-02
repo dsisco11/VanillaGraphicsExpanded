@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     private readonly CountingDiskCacheFileSystem storage = new();
 
     #region Public API
@@ -161,9 +163,9 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         shader.GradingLookup=grading.Prepare(Programs.Api,controls.Grading);
         shader.Capture(false,controls,Vector4.Zero);Draw(shader,target);
         // Preserve every RGB witness and every finite/range/alpha assertion over the full 17x9 domain.
-        Assert.True(ImageAssertions.Predicate(target[0], GpuAssertionPredicate.FinalDisplayShaderTests_DisplayControlsAffectOutputWithoutChangingScene,baseline.Texture).MatchingTexels>0);
-        ImageAssertions.Inspect(target[0],0,1).AssertFiniteRange();
-        ImageAssertions.CompareConstant(target[0],1,channelMask:8).AssertEqual();
+        Assert.True(ImageAssertions.Predicates.Predicate(target[0], MaterialPredicates.FinalDisplayShaderTests_DisplayControlsAffectOutputWithoutChangingScene,baseline.Texture).MatchingTexels>0);
+        ImageAssertions.Statistics.Inspect(target[0],0,1).AssertFiniteRange();
+        ImageAssertions.Comparisons.CompareConstant(target[0],1,channelMask:8).AssertEqual();
         if(treatment==0)Assert.True(GpuLocalRead.Scalar(target[0],0)>GpuLocalRead.Scalar(baseline.Texture,0));
         Assert.Equal(new[]{.18f,.18f,.18f,.3f},source.ReadPixels());
     }
@@ -185,6 +187,16 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         using var boundary=commands.EnterBoundary(new("Tests.FinalDisplay",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses));
         boundary.Run(()=>draw.Submit(commands,pipeline,target.PostprocessPass(),shader.CaptureBindings()));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-material", 0, 0);
     }
     #endregion
 }

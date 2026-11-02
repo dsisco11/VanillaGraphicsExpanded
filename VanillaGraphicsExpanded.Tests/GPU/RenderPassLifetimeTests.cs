@@ -13,6 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Load actions do not change target identity; replacing the same storage owner invalidates its realization.</summary>
     [Fact]
@@ -99,7 +101,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
             Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             commands.BeginRenderPass(valid); commands.EndRenderPass();
         });
-        ImageAssertions.CompareConstant(image, .375f).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(image, .375f).AssertEqual();
         image.Dispose();
         using var rejected = commands.EnterBoundary(new("Tests.RetiredTarget", true, operations: BoundaryOperations.RenderPasses));
         rejected.Run(() => Assert.Throws<InvalidOperationException>(() => commands.BeginRenderPass(valid)));
@@ -182,5 +184,13 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
             Dimension = TextureDimension.Two, Width = width, Height = height, Format = format,
             MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0
         }).RequireResource();
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+    }
     #endregion
 }

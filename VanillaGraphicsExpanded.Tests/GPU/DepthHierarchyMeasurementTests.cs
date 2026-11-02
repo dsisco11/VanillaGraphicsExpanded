@@ -13,6 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class DepthHierarchyMeasurementTests(HeadlessGLFixture fixture, ITestOutputHelper log) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Measures warm GPU work and CPU submissions after verifying identical complete mip chains.</summary>
     [Theory]
@@ -42,7 +44,7 @@ public sealed class DepthHierarchyMeasurementTests(HeadlessGLFixture fixture, IT
         for(int level=0;level<compute.Texture!.MipLevels;level++)
         {
             using var reference=new GpuImageSnapshot(raster.Texture!,GpuImageSnapshot.Mip(raster.Texture!,level));
-            ImageAssertions.CompareHistory(compute.Texture,reference,selection:GpuImageSnapshot.Mip(compute.Texture,level)).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(compute.Texture,reference,selection:GpuImageSnapshot.Mip(compute.Texture,level)).AssertEqual();
         }
         var rasterGpu=new List<double>(); var computeGpu=new List<double>();
         var rasterCpu=new List<double>(); var computeCpu=new List<double>();
@@ -67,6 +69,14 @@ public sealed class DepthHierarchyMeasurementTests(HeadlessGLFixture fixture, IT
         long start=Stopwatch.GetTimestamp(); render();
         cpu.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
         timer.End(); gpu.Add(timer.GetResultNanoseconds()/1e6);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

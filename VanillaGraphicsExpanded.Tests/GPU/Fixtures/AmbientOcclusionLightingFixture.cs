@@ -16,6 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Runs production direct and indirect composition against one generated AO receiver, isolating pre-exposure contributions by controlled draws.</summary>
 internal sealed class AmbientOcclusionLightingFixture : IDisposable
 {
+    private readonly VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations;
     private readonly AmbientOcclusionSceneFixture scene;
     private readonly PBRCompositeShaderProgram composite;
     private readonly GpuFramebuffer directTarget,outputTarget;
@@ -26,13 +27,17 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
     private readonly GpuVbo positions=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(),uv=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
     private readonly ArrayGraphicsGeometry geometry;
     private readonly RHIGraphicsPipeline compositePipeline;
-    private readonly GpuImageTransform projections=new();
+    private readonly GpuImageTransform projections;
 
     #region Public API
     /// <summary>Evaluates actual solar BRDF output, then borrows it unchanged through all AO diagnostic compositions.</summary>
-    internal AmbientOcclusionLightingFixture(ShaderTestFramework framework,ComponentShaderPrograms programs,AmbientOcclusionSceneFixture scene,
+    internal AmbientOcclusionLightingFixture(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations, ShaderTestFramework framework,ComponentShaderPrograms programs,AmbientOcclusionSceneFixture scene,
         bool lumon,float solarIrradiance,float availability)
     {
+        this.observations = observations;
+        observations.Programs.Prepare("layer", 0, 0);
+        observations.Programs.Prepare("projection-ao", 0, 0);
+        projections = observations.Projections;
         try
         {
         this.scene=scene;
@@ -44,7 +49,7 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
         indirect=framework.CreateTexture(1,1,TextureFormat.Rgba32f,[availability,availability,availability,1f]);
         // A matched zero-visibility field isolates each lobe through the existing independent
         // AO controls without changing material roughness or its compensated energy budget.
-        using(var projected=projections.Apply(scene.Position, GpuImageProjection.AmbientOcclusionLightingFixture_AmbientOcclusionLightingFixture))
+        using(var projected=projections.Apply(scene.Position, AoProjections.AmbientOcclusionLightingFixture_AmbientOcclusionLightingFixture))
         using(var retained=new GpuImageSnapshot(projected))
             zeroVisibility=retained.ToPlane();
         var direct=programs.Create<PBRDirectLightingShaderProgram>();
@@ -56,7 +61,7 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
         direct.ShadowRanges=(1,1);direct.ShadowZExtendNear=direct.ShadowZExtendFar=1;direct.DropShadowIntensity=0;
         direct.SetSolarLighting(System.Numerics.Vector3.UnitZ,new(solarIrradiance));direct.RgbaAmbientIn=new(0,0,0);
         using(var pipeline=CreatePipeline(direct,directTarget))Draw(directTarget,pipeline,direct);
-        directLighting=LayeredTestTexture.Create(directTarget[0],directTarget[1],directTarget[2]);
+        directLighting=LayeredTestTexture.Create(observations.Programs, directTarget[0],directTarget[1],directTarget[2]);
         composite=programs.Create<PBRCompositeShaderProgram>(p=>{p.LumOnEnabled=lumon;p.EnablePbrComposite=lumon;p.EnableShortRangeAo=false;});
         composite.DirectLighting=directLighting;composite.IndirectDiffuse=indirect;
         composite.GBufferAlbedo=scene.Albedo;composite.PrimaryDepth=scene.Depth;
@@ -93,15 +98,15 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
         using var specularCombined=Render();
         composite.DiffuseAOStrength=1;composite.SpecularAOStrength=1;
         using var combined=Render();
-        using var diffuse=projections.Apply(diffuseCombined.Texture, GpuImageProjection.AmbientOcclusionLightingFixture_Capture,second:specularBaseline.Texture);
-        using var specular=projections.Apply(specularCombined.Texture, GpuImageProjection.AmbientOcclusionLightingFixture_Capture,second:diffuseBaseline.Texture);
+        using var diffuse=projections.Apply(diffuseCombined.Texture, AoProjections.AmbientOcclusionLightingFixture_Capture,second:specularBaseline.Texture);
+        using var specular=projections.Apply(specularCombined.Texture, AoProjections.AmbientOcclusionLightingFixture_Capture,second:diffuseBaseline.Texture);
         return new([direct.Texture,diffuse,specular,combined.Texture]);
     }
 
     /// <summary>Retires executable references, draw geometry and diagnostic resources without owning the borrowed scene or shaders.</summary>
     public void Dispose()
     {
-        RenderingCleanup.Run(projections.Dispose,()=>compositePipeline?.Dispose(),()=>geometry?.Dispose(),
+        RenderingCleanup.Run(()=>compositePipeline?.Dispose(),()=>geometry?.Dispose(),
             uv.Dispose,positions.Dispose,()=>directLighting?.Dispose(),()=>outputTarget?.Dispose(),
             ()=>directTarget?.Dispose(),()=>indirect?.Dispose(),()=>zeroVisibility?.Dispose(),()=>shadow?.Dispose(),lights.Dispose);
     }

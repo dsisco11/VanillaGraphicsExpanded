@@ -13,6 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WaterBoundaryTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Checks analytic interval lengths, colored transmission, zero density, scattering and unresolved winding.</summary>
     [Fact]
@@ -38,13 +40,21 @@ public sealed class WaterBoundaryTests(HeadlessGLFixture fixture) : LumOnShaderF
                 expectedScattering[column*4+channel]=scattering;
             }
         }
-        ImageAssertions.CompareDouble(target[0],expectedLengths,1e-5,new(new(0,0),0,0,0,4,1,1)).AssertEqual();
-        ImageAssertions.CompareConstant(target[0],1,new(new(0,0),0,1,0,4,1,1),7).AssertEqual();
-        ImageAssertions.CompareDouble(target[0],expectedScattering,1e-5,new(new(0,0),0,2,0,4,1,1),7).AssertEqual();
+        ImageAssertions.Comparisons.CompareDouble(target[0],expectedLengths,1e-5,new(new(0,0),0,0,0,4,1,1)).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(target[0],1,new(new(0,0),0,1,0,4,1,1),7).AssertEqual();
+        ImageAssertions.Comparisons.CompareDouble(target[0],expectedScattering,1e-5,new(new(0,0),0,2,0,4,1,1),7).AssertEqual();
         var first=GpuLocalRead.Tuple(target[0],0,0);
         Assert.True(first[0]>first[1]&&first[1]>first[2]);
-        ImageAssertions.CompareConstant(target[0],-1,new(new(0,0),4,0,0,1,3,1),8).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(target[0],-1,new(new(0,0),4,0,0,1,3,1),8).AssertEqual();
 
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

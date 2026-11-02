@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOutputHelper output):RenderTestBase(fixture)
 {
+
+
     #region Public API
     #region Equivalent restoration
     /// <summary>Repeated named restoration preserves images and routes in standalone and shared boundaries.</summary>
@@ -28,7 +30,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         scene.AssertRestored();using var expected=scene.CaptureOutput();scene.Initialize();List<string> named;
         using(var capture=new GraphicsTransitionCapture()){scene.Render(standalone);named=[..capture.Calls];}
         scene.AssertRestored();using var actual=scene.CaptureOutput();
-        for(int layer=0;layer<expected.Count;layer++)ImageAssertions.CompareHistory(actual[layer].Texture, expected[layer]).AssertEqual();
+        for(int layer=0;layer<expected.Count;layer++)ImageAssertions.Comparisons.CompareHistory(actual[layer].Texture, expected[layer]).AssertEqual();
         Assert.Equal(.25f,Assertions.GpuLocalRead.Scalar(actual[0].Texture, 0));Assert.Equal(.5f,Assertions.GpuLocalRead.Scalar(actual[3].Texture, 0));
         Assert.Equal(4,fallback.Count(call=>call.StartsWith("RoutingNamed:")));
         Assert.Equal(4,named.Count(call=>call.StartsWith("RoutingNamed:")));
@@ -230,6 +232,14 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         /// <summary>Retains fixture allocation ownership in dependency order.</summary>
         private T Own<T>(T value)where T:IDisposable{owned.Add(value);return value;}
         #endregion
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

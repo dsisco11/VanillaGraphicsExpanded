@@ -27,7 +27,7 @@ public sealed class SurfaceUpdateBudgetMeasurementTests(HeadlessGLFixture fixtur
         foreach(bool diagnosticsEnabled in new[]{false,true})
         for(int block=0;block<3;block++)foreach(bool separate in new[]{false,true,true,false})
         {
-            using var room=new SurfaceLightingEnclosureFixture(worldHeight:40);
+            using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, worldHeight:40);
             room.Seed();
             room.Diagnostics.Enabled=diagnosticsEnabled;
             using var seedTimer=GpuTimerQuery.Create();using var directTimer=GpuTimerQuery.Create();using var indirectTimer=GpuTimerQuery.Create();

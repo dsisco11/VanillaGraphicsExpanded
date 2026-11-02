@@ -22,6 +22,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 {
+
+
     public LumonScenePipelineSmokeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     [Fact]
@@ -276,8 +278,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             pool.PagePool.DecodePhysicalId(pid,out ushort atlasIdx,out ushort tileX,out ushort tileY);
             positions.Add((tileX*tileSize+tileSize/2,tileY*tileSize+tileSize/2,atlasIdx));
         }
-        var weight=ImageAssertions.PredicateAt(irradianceAtlas,positions, GpuAssertionPredicate.LumonScenePipelineSmokeTests_PipelineSmoke_FeedbackToCaptureToRelight_PopulatesManyPages);
-        var rgb=ImageAssertions.PredicateAt(irradianceAtlas,positions, GpuAssertionPredicate.LumonScenePipelineSmokeTests_PipelineSmoke_FeedbackToCaptureToRelight_PopulatesManyPages_2);
+        var weight=ImageAssertions.Predicates.PredicateAt(irradianceAtlas,positions, SurfacePredicates.LumonScenePipelineSmokeTests_PipelineSmoke_FeedbackToCaptureToRelight_PopulatesManyPages);
+        var rgb=ImageAssertions.Predicates.PredicateAt(irradianceAtlas,positions, SurfacePredicates.LumonScenePipelineSmokeTests_PipelineSmoke_FeedbackToCaptureToRelight_PopulatesManyPages_2);
         weight.AssertEqual();rgb.AssertEqual();
         Assert.True(weight.MatchingTexels>=desiredPages-1,"Expected most pages to have weight.");
         Assert.True(rgb.MatchingTexels>=(desiredPages*3)/4,"Expected most pages to have RGB.");
@@ -453,4 +455,12 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             WriteCount++;
         }
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
+    #endregion
 }

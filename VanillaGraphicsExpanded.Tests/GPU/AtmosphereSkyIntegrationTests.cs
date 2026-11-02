@@ -28,6 +28,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>The enabled renderer draws without an engine sky shader and restores native graphics state.</summary>
     [Theory]
@@ -158,8 +160,8 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                     if (attachment == 2 && !ssao) continue;
                     using var contents = Assertions.GpuImageSnapshot.FromAttachment(engine.GetAttachment(FramebufferSlot.Color0 + attachment)!);
                     if (attachment == 6)
-                        ImageAssertions.CompareBits(contents.Texture, Enumerable.Repeat(6u, 16).ToArray()).AssertEqual();
-                    else ImageAssertions.CompareConstant(contents.Texture, attachment).AssertEqual();
+                        ImageAssertions.Comparisons.CompareBits(contents.Texture, Enumerable.Repeat(6u, 16).ToArray()).AssertEqual();
+                    else ImageAssertions.Comparisons.CompareConstant(contents.Texture, attachment).AssertEqual();
                 }
             }
             Mock.Get(render).Verify(value => value.DeleteMesh(It.IsAny<MeshRef>()), Times.Never);
@@ -215,6 +217,15 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
         typeof(ClientWorldPlayerData).GetField("entityplayer", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(data, new EntityPlayer());
         typeof(ClientPlayer).GetField("worlddata", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(player, data);
         return player;
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 2, 0);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

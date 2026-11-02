@@ -19,6 +19,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Depth/stencil clear masks remain valid independently of disabled draw tests and restore disabled incoming masks.</summary>
     [Fact]
@@ -58,9 +60,9 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
 }
         Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
         Assert.Equal(0x35, GL.GetInteger(GetPName.StencilWritemask)); Assert.Equal(0x53, GL.GetInteger(GetPName.StencilBackWritemask));
-        ImageAssertions.Inspect(color, .1999f, .2001f).AssertFiniteRange();
-        ImageAssertions.Inspect(depth, .7499f, .7501f).AssertFiniteRange();
-        ImageAssertions.CompareStencil(depth,0x59).AssertEqual();
+        ImageAssertions.Statistics.Inspect(color, .1999f, .2001f).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(depth, .7499f, .7501f).AssertFiniteRange();
+        ImageAssertions.Comparisons.CompareStencil(depth,0x59).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -102,7 +104,7 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         Assert.False(GL.IsEnabled(EnableCap.ScissorTest));
         int[] restored = new int[4]; GL.GetInteger(GetPName.ScissorBox, restored);
         Assert.Equal(new[] { 2, 1, 1, 2 }, restored);
-        ImageAssertions.Inspect(target[0], .1999f, .2001f).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(target[0], .1999f, .2001f).AssertFiniteRange();
         Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -277,6 +279,16 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         float[] values = components == 3 ? [-1, -1, 0, 3, -1, 0, -1, 3, 0] : [-1, -1, 3, -1, -1, 3];
         return ManagedGraphicsGeometry.Create(Layout(components), topology,
             [new(0, MemoryMarshal.AsBytes(values.AsSpan()).ToArray())], [0, 1, 2]);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 2, 0);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

@@ -41,11 +41,11 @@ public abstract partial class NearFieldShaderTestBase
     }
 
     /// <summary>Checks correlated physical radiance and metadata, retaining the original exact power-of-two storage decode.</summary>
-    private protected GpuImageResult ObserveTrace(TraceImages result, GpuAssertionPredicate predicate, TraceImages? other = null,
+    private protected GpuPredicateResult ObserveTrace(TraceImages result, GpuAssertionPredicate predicate, TraceImages? other = null,
         Vector4 parameters = default)
     {
         // Only radiance RGB is decoded. Distances and metadata retain their original represented bits.
-        return ImageAssertions.Predicate(result.Radiance, predicate, result.Meta, other?.Radiance ?? result.Radiance,
+        return ImageAssertions.Predicates.Predicate(result.Radiance, predicate, result.Meta, other?.Radiance ?? result.Radiance,
             other?.Meta ?? result.Meta, parameters, evaluation:new(result.RgbDecode,(other??result).RgbDecode,1,2));
     }
 
@@ -54,10 +54,10 @@ public abstract partial class NearFieldShaderTestBase
         GpuLocalRead.Scalar(result.Radiance, 0) * result.RgbDecode;
 
     /// <summary>Correlates screen-control metadata with actual radiance/metadata and an optional offscreen radiance control.</summary>
-    private protected GpuImageResult ObserveScreenTrace(TraceImages result, TraceImages screenControl, GpuAssertionPredicate predicate,
+    private protected GpuPredicateResult ObserveScreenTrace(TraceImages result, TraceImages screenControl, GpuAssertionPredicate predicate,
         TraceImages? offscreen = null, Vector4 parameters = default)
     {
-        return ImageAssertions.Predicate(result.Radiance, predicate, result.Meta, screenControl.Meta,
+        return ImageAssertions.Predicates.Predicate(result.Radiance, predicate, result.Meta, screenControl.Meta,
             offscreen?.Radiance ?? result.Radiance, parameters, evaluation:new(result.RgbDecode,1,(offscreen??result).RgbDecode,3));
     }
     #endregion

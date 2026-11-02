@@ -26,6 +26,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Persistent instance geometry exposes exactly the selected prefix and retires with the completed source owner.</summary>
     [Fact]
@@ -143,10 +145,10 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
             Vector3 expected=AtmosphereModel.ExternalTransmittance(new(MathF.Cos(e),MathF.Sin(e),0),lighting.Altitude,2.75f);
             samples.Add(i,expected);
         }
-        ImageAssertions.CompareSelected(first,samples,.000001f).AssertEqual();
+        ImageAssertions.Comparisons.CompareSelected(first,samples,.000001f).AssertEqual();
         textures.Upload(lighting with{CloudCoverage=.5f,ExternalTransmission=AtmosphereExternalTransmission.Build(.001f,4.5f)});
         Assert.Same(first,textures.ExternalTransmission);
-        Assert.True(ImageAssertions.CompareHistory(first,previous).Mismatches>0);
+        Assert.True(ImageAssertions.Comparisons.CompareHistory(first,previous).Mismatches>0);
         textures.Dispose();Assert.False(first.IsValid);
     }
     /// <summary>Resolution, field of view, off-axis position and subpixel phase preserve calibrated RGB flux.</summary>
@@ -204,9 +206,9 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         using var geometry=new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>(),3);
         using var actual=Draw(shader,geometry,CelestialDrawPass.FullscreenLayout,32,1);
         float red=(rotated?1f:6f)*.125f*.5f;
-        ImageAssertions.Inspect(actual.Texture,red-.0001f,red+.0001f,channelMask:1).AssertFiniteRange();
-        ImageAssertions.Inspect(actual.Texture,.06249f,.06251f,channelMask:2).AssertFiniteRange();
-        ImageAssertions.Inspect(actual.Texture,.37499f,.37501f,channelMask:4).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(actual.Texture,red-.0001f,red+.0001f,channelMask:1).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(actual.Texture,.06249f,.06251f,channelMask:2).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(actual.Texture,.37499f,.37501f,channelMask:4).AssertFiniteRange();
     }
     #endregion
 
@@ -239,7 +241,7 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
             double area=CornerArea(highX,highY)-CornerArea(lowX,highY)-CornerArea(highX,lowY)+CornerArea(lowX,lowY);
             weights[y*size+x]=area;
         }
-        var integrated=ImageAssertions.WeightedStatistics(data.Texture,weights,channelMask:7);
+        var integrated=ImageAssertions.Statistics.WeightedStatistics(data.Texture,weights,channelMask:7);
         return new((float)integrated.Sum(0),(float)integrated.Sum(1),(float)integrated.Sum(2));
     }
     /// <summary>Integrates a rectangular perspective pixel analytically in double precision.</summary>
@@ -269,9 +271,9 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         Assert.Equal(priorFramebuffer,GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(priorDepth,GL.IsEnabled(EnableCap.DepthTest));Assert.Equal(priorBlend,GL.IsEnabled(EnableCap.Blend));
         GL.GetBoolean(GetPName.DepthWritemask,out bool currentWrites);Assert.Equal(priorWrites,currentWrites);
-        ImageAssertions.CompareConstant(glow, 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(glow, 0).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
-        ImageAssertions.Inspect(color,0).AssertFiniteRange();return new GpuImageSnapshot(color);
+        ImageAssertions.Statistics.Inspect(color,0).AssertFiniteRange();return new GpuImageSnapshot(color);
     }
     /// <summary>Checks independent RGB energy with a one-percent relative tolerance.</summary>
     private static void AssertEnergy(Vector3 expected,Vector3 actual)
@@ -279,6 +281,17 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         Assert.InRange(Math.Abs(actual.X/expected.X-1),0,.01f);
         Assert.InRange(Math.Abs(actual.Y/expected.Y-1),0,.01f);
         Assert.InRange(Math.Abs(actual.Z/expected.Z-1),0,.01f);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("statistics", 0, 0);
+        programs.Prepare("statistics", 0, 3);
     }
     #endregion
 }

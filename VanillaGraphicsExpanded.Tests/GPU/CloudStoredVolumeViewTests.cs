@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.ITestOutputHelper output):LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     private readonly string gpu=fixture.GLRenderer;
     #region Public API
     /// <summary>Checks typed borrowed view pixels against the same owned inputs.</summary>
@@ -20,12 +22,12 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
     {
         EnsureShaderTestAvailable();
         var settings=CloudVolumeViewSettings.Default;
-        using var ownedScene=new CloudStoredVolumeViewScene(Programs,18,14);
+        using var ownedScene=new CloudStoredVolumeViewScene(ImageAssertions, Programs,18,14);
         using var expected=ownedScene.DrawAndCapture(settings);
-        using var borrowedScene=new CloudStoredVolumeViewScene(Programs,18,14);
+        using var borrowedScene=new CloudStoredVolumeViewScene(ImageAssertions, Programs,18,14);
         OpenGlStateCache.Current.InvalidateAll();
         using var actual=borrowedScene.DrawBorrowedInputs(settings);
-        for(int image=0;image<expected.Count;image++)ImageAssertions.CompareHistory(actual[image].Texture,expected[image]).AssertEqual();
+        for(int image=0;image<expected.Count;image++)ImageAssertions.Comparisons.CompareHistory(actual[image].Texture,expected[image]).AssertEqual();
         Assert.Equal(OpenTK.Graphics.OpenGL.ErrorCode.NoError,OpenTK.Graphics.OpenGL.GL.GetError());
     }
 
@@ -33,7 +35,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
     [Fact]
     public void RefreshSchedulesCoverOddTilesWithoutStarvation()
     {
-        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs,18,14);
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(ImageAssertions, Programs,18,14);
         scene.SetMaterialDepthRamp();
         var settings=CloudVolumeViewSettings.Default with{TraceDivisor=2};
         // Exercise two complete periods of the delivered schedule, including unsigned wrap.
@@ -53,7 +55,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
                 MipLevels=1,Storage=ResourceStorageMode.Immutable,Filter=TextureFilterMode.Nearest
             }).RequireResource();
             initial.UploadDataImmediate(Enumerable.Range(0,63).SelectMany(_=>new[]{-1f,0,0,0}).ToArray());
-            using var projection=new GpuImageTransform();
+            var projection = ImageAssertions.Projections;
             GpuTexture state=initial;
             var replay=new List<GpuImageSnapshot>();
             try
@@ -62,18 +64,18 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
                 {
                     scene.AdvanceFrame();scene.Draw(settings);Assert.True(scene.HistoryCompatible);
                     var receipt=Assert.IsAssignableFrom<GpuTexture>(scene.HistoryDiagnostics);
-                    var observation=ImageAssertions.Predicate(receipt, GpuAssertionPredicate.CloudStoredVolumeViewTests_RefreshSchedulesCoverOddTilesWithoutStarvation,scene.TraceReceipts,expectedDepth,state,new(frame,0,0,0),mappedSources:true);
+                    var observation=ImageAssertions.Predicates.Predicate(receipt, CloudPredicates.CloudStoredVolumeViewTests_RefreshSchedulesCoverOddTilesWithoutStarvation,scene.TraceReceipts,expectedDepth,state,new(frame,0,0,0),mappedSources:true);
                     observation.AssertEqual();Assert.Equal(20u,observation.MatchingTexels);
                     if(frame<32)replay.Add(new(receipt));
-                    else ImageAssertions.CompareHistory(receipt,replay[frame-32],channelMask:2).AssertEqual();
-                    var next=projection.Apply(state, GpuImageProjection.CloudStoredVolumeViewTests_RefreshSchedulesCoverOddTilesWithoutStarvation_2,
+                    else ImageAssertions.Comparisons.CompareHistory(receipt,replay[frame-32],channelMask:2).AssertEqual();
+                    var next=projection.Apply(state, CloudProjections.CloudStoredVolumeViewTests_RefreshSchedulesCoverOddTilesWithoutStarvation_2,
                         new(frame,0,0,0),receipt);
                     if(!ReferenceEquals(state,initial))state.Dispose();
                     state=next;
                     if(frame%4==3)
                     {
-                        ImageAssertions.Inspect(state,1,1,channelMask:2).AssertFiniteRange();
-                        next=projection.Apply(state, GpuImageProjection.CloudStoredVolumeViewTests_RefreshSchedulesCoverOddTilesWithoutStarvation_3);
+                        ImageAssertions.Statistics.Inspect(state,1,1,channelMask:2).AssertFiniteRange();
+                        next=projection.Apply(state, CloudProjections.CloudStoredVolumeViewTests_RefreshSchedulesCoverOddTilesWithoutStarvation_3);
                         state.Dispose();state=next;
                     }
                 }
@@ -90,7 +92,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
     [Trait("Purpose", "Diagnostic")]
     public void RecordQualityProfileViewCost()
     {
-        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs,1920,1080);
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(ImageAssertions, Programs,1920,1080);
         using var timer=GpuTimerQuery.Create("Tests.Cloud.Quality.View");
         foreach(int level in Enumerable.Range(0,5))
         {
@@ -109,7 +111,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
     [Fact]
     public void StoredViewUsesVoxelTransportAndNativeProducts()
     {
-        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs);
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(ImageAssertions, Programs);
         var settings=CloudVolumeViewSettings.Default with{Detail=false,Stop=0,TraceDivisor=2};
         using var baseline=scene.DrawAndCapture(settings);
         scene.Draw(settings); // Warm both disjoint temporal destinations before checking stable preparation.
@@ -138,7 +140,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             Assert.InRange(Math.Abs(image[3]-(1-GpuLocalRead.Scalar(baseline[1].Texture,0))*(1-GpuLocalRead.Scalar(baseline[0].Texture,bucket))),0,2e-5f);
             Assert.InRange(Math.Abs(image[0]/image[3]-source),0,3e-4f);
         }
-        using var encoded=scene.DrawAndCapture(settings,scale:2);ImageAssertions.CompareHistory(encoded[0].Texture,baseline[0]).AssertEqual();ImageAssertions.CompareHistory(encoded[1].Texture,baseline[1]).AssertEqual();
+        using var encoded=scene.DrawAndCapture(settings,scale:2);ImageAssertions.Comparisons.CompareHistory(encoded[0].Texture,baseline[0]).AssertEqual();ImageAssertions.Comparisons.CompareHistory(encoded[1].Texture,baseline[1]).AssertEqual();
         Assert.InRange(Math.Abs(GpuLocalRead.Scalar(encoded[3].Texture,0)-2*GpuLocalRead.Scalar(baseline[3].Texture,0)),0,2e-5f);
         using var disabled=scene.DrawAndCapture(settings with{SelfShadowing=false,Diffuse=false});
         float fallback=.9f*(30*phase1+3*phase0)+9;
@@ -149,12 +151,12 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             scene.Draw(settings);using var depthOutput=scene.CaptureOutput();
             Assert.InRange(Math.Abs(GpuLocalRead.Scalar(depthOutput[1].Texture,0)-MathF.Exp(-.0078125f*50)),0,2e-5f);
         }
-        scene.SeedDensity(0);using var empty=scene.DrawAndCapture(settings);Assert.Equal(1,GpuLocalRead.Scalar(empty[1].Texture,0));for(int image=2;image<empty.Count;image++)ImageAssertions.CompareConstant(empty[image].Texture,0).AssertEqual();
+        scene.SeedDensity(0);using var empty=scene.DrawAndCapture(settings);Assert.Equal(1,GpuLocalRead.Scalar(empty[1].Texture,0));for(int image=2;image<empty.Count;image++)ImageAssertions.Comparisons.CompareConstant(empty[image].Texture,0).AssertEqual();
         AssertUniformOutput(scene,settings,.25f);
         scene.SeedDensity(float.NaN);
         AssertUniformOutput(scene,settings,.25f);
         scene.ReleaseViewTargets(); // The shared asset now belongs to the replacement resolution fixture.
-        using(var edge=new CloudStoredVolumeViewScene(Programs,5,3))
+        using(var edge=new CloudStoredVolumeViewScene(ImageAssertions, Programs,5,3))
         {
             // Resolution changes retire only screen-sized products and preserve cloud-space density.
             edge.SetMaterialDepthColumns(2,.1f,100);
@@ -162,21 +164,21 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             foreach(int divisor in new[]{2,4,1,2})
             {
                 var selection=settings with{TraceDivisor=divisor};edge.SeedDensity(.0078125f);
-                using var clipped=edge.DrawAndCapture(selection);for(int image=0;image<clipped.Count;image++)ImageAssertions.Inspect(clipped[image].Texture).AssertFiniteRange();
+                using var clipped=edge.DrawAndCapture(selection);for(int image=0;image<clipped.Count;image++)ImageAssertions.Statistics.Inspect(clipped[image].Texture).AssertFiniteRange();
                 Assert.Equal(divisor==1?0:108*((5+divisor-1)/divisor)*((3+divisor-1)/divisor)+
                     44*((5+divisor*2-1)/(divisor*2))*((3+divisor*2-1)/(divisor*2)),edge.ViewTargetBytes);
                 Assert.Same(retained,edge.StoredDensity);
-                if(divisor!=4)ImageAssertions.Predicate(clipped[1].Texture, GpuAssertionPredicate.CloudStoredVolumeViewTests_StoredViewUsesVoxelTransportAndNativeProducts).AssertEqual();
+                if(divisor!=4)ImageAssertions.Predicates.Predicate(clipped[1].Texture, CloudPredicates.CloudStoredVolumeViewTests_StoredViewUsesVoxelTransportAndNativeProducts).AssertEqual();
                 edge.SeedDensity(0);
                 AssertUniformOutput(edge,selection,.25f);
                 edge.SeedDensity(float.NaN);
                 AssertUniformOutput(edge,selection,.25f);
             }
         }
-        using(var fog=new CloudStoredVolumeViewScene(Programs,fogColor:Vector3.UnitY,fogMinimum:1){Underwater=1})
+        using(var fog=new CloudStoredVolumeViewScene(ImageAssertions, Programs,fogColor:Vector3.UnitY,fogMinimum:1){Underwater=1})
         {
             // A fully selected medium uses the green shared-frame fog without changing cloud extinction.
-            using var covered=fog.DrawAndCapture(settings);ImageAssertions.CompareHistory(covered[1].Texture,baseline[1]).AssertEqual();
+            using var covered=fog.DrawAndCapture(settings);ImageAssertions.Comparisons.CompareHistory(covered[1].Texture,baseline[1]).AssertEqual();
             for(int bucket=0;bucket<3;bucket++)
             {
                 float[] image=covered[bucket+3].Texture.ReadPixelsRegion(0,0,1,1);Assert.Equal(0,image[0]);Assert.Equal(0,image[2]);
@@ -184,7 +186,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             }
         }
         scene.Atmosphere=scene.Atmosphere with{CalibrationGeneration=0};scene.Draw(settings,succeeds:false);
-        using(var temporal=new CloudStoredVolumeViewScene(Programs,16,16))
+        using(var temporal=new CloudStoredVolumeViewScene(ImageAssertions, Programs,16,16))
         {
             temporal.Draw(settings);Assert.False(temporal.HistoryCompatible);
             for(int frame=0;frame<4;frame++)
@@ -192,23 +194,23 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
                 temporal.AdvanceFrame();temporal.Draw(settings,scale:frame%2+1);
                 Assert.True(temporal.HistoryCompatible);
                 var receipt=temporal.TraceReceipts;
-                Assert.Equal(16u,ImageAssertions.Predicate(receipt, GpuAssertionPredicate.CloudStoredVolumeViewTests_StoredViewUsesVoxelTransportAndNativeProducts_2).MatchingTexels); // One exact fresh ray per 2x2 reduced tile.
+                Assert.Equal(16u,ImageAssertions.Predicates.Predicate(receipt, CloudPredicates.CloudStoredVolumeViewTests_StoredViewUsesVoxelTransportAndNativeProducts_2).MatchingTexels); // One exact fresh ray per 2x2 reduced tile.
             }
-            Assert.True(ImageAssertions.Predicate(temporal.HistoryReceipts, GpuAssertionPredicate.CloudStoredVolumeViewTests_StoredViewUsesVoxelTransportAndNativeProducts_3).MatchingTexels>0);
+            Assert.True(ImageAssertions.Predicates.Predicate(temporal.HistoryReceipts, CloudPredicates.CloudStoredVolumeViewTests_StoredViewUsesVoxelTransportAndNativeProducts_3).MatchingTexels>0);
             temporal.AdvanceFrame(materialMotion:.1f);temporal.Draw(settings);
             Assert.True(temporal.HistoryCompatible);
-            Assert.True(ImageAssertions.Predicate(temporal.HistoryReceipts, GpuAssertionPredicate.CloudStoredVolumeViewTests_StoredViewUsesVoxelTransportAndNativeProducts_3).MatchingTexels>0);
+            Assert.True(ImageAssertions.Predicates.Predicate(temporal.HistoryReceipts, CloudPredicates.CloudStoredVolumeViewTests_StoredViewUsesVoxelTransportAndNativeProducts_3).MatchingTexels>0);
             temporal.AdvanceFrame(yaw:.001f);temporal.Draw(settings);
             Assert.True(temporal.HistoryCompatible);
-            Assert.True(ImageAssertions.Predicate(temporal.HistoryReceipts, GpuAssertionPredicate.CloudStoredVolumeViewTests_StoredViewUsesVoxelTransportAndNativeProducts_3).MatchingTexels>0);
+            Assert.True(ImageAssertions.Predicates.Predicate(temporal.HistoryReceipts, CloudPredicates.CloudStoredVolumeViewTests_StoredViewUsesVoxelTransportAndNativeProducts_3).MatchingTexels>0);
             temporal.SetDepths(50,50,50);temporal.AdvanceFrame();temporal.Draw(settings);
-            ImageAssertions.Inspect(temporal.HistoryReceipts,0,1,channelMask:8).AssertFiniteRange();
+            ImageAssertions.Statistics.Inspect(temporal.HistoryReceipts,0,1,channelMask:8).AssertFiniteRange();
             // Removed density is observed at each pixel's next scheduled fresh ray; no global
             // content reset is required. Across changing sweeps every pixel is revisited within
             // seven frames; this is an exact removal/coverage contract, not an image-quality gate.
             temporal.SeedDensity(0);
             for(int phase=0;phase<7;phase++){temporal.AdvanceFrame();temporal.Draw(settings);}
-            using var cleared=temporal.CaptureOutput();ImageAssertions.CompareConstant(cleared[1].Texture,1).AssertEqual();
+            using var cleared=temporal.CaptureOutput();ImageAssertions.Comparisons.CompareConstant(cleared[1].Texture,1).AssertEqual();
             temporal.AdvanceFrame(cameraCut:true);temporal.Draw(settings);Assert.False(temporal.HistoryCompatible);
             temporal.ReleaseViewTargets();temporal.AdvanceFrame();temporal.Draw(settings);
             Assert.False(temporal.HistoryCompatible);
@@ -222,19 +224,19 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
     [Fact]
     public void TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight()
     {
-        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs,16,16);
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(ImageAssertions, Programs,16,16);
         var settings=CloudVolumeViewSettings.Default with{Detail=false,TraceDivisor=2};scene.Draw(settings);
-        using var projection=new GpuImageTransform();
+        var projection = ImageAssertions.Projections;
         using var original=new GpuImageSnapshot(scene.HistoryCloud);
         using var originalMetadata=new GpuImageSnapshot(scene.HistoryReceipts);
-        using var authored=projection.Apply(original.Texture, GpuImageProjection.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight);
-        using var authoredMetadata=projection.Apply(originalMetadata.Texture, GpuImageProjection.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_2);
+        using var authored=projection.Apply(original.Texture, CloudProjections.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight);
+        using var authoredMetadata=projection.Apply(originalMetadata.Texture, CloudProjections.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_2);
         var diagnostic=new float[64*4];
         scene.SeedHistory(authored,authoredMetadata,diagnostic);scene.AdvanceFrame();scene.Draw(settings);
         var actual=scene.HistoryCloud;var receipts=scene.HistoryReceipts;var info=scene.HistoryDiagnostics!;
-        var carriedObservation=ImageAssertions.Predicate(info, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_3,receipts,actual,authored);
+        var carriedObservation=ImageAssertions.Predicates.Predicate(info, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_3,receipts,actual,authored);
         carriedObservation.AssertEqual();uint carried=carriedObservation.MatchingTexels;
-        var freshObservation=ImageAssertions.Predicate(info, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_4,receipts);
+        var freshObservation=ImageAssertions.Predicates.Predicate(info, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_4,receipts);
         freshObservation.AssertEqual();uint fresh=freshObservation.MatchingTexels;
         Assert.Equal(16u,fresh);Assert.True(carried>0);
         // Diagnostic attachments are optional; changing them keeps the physical images,
@@ -242,14 +244,14 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         scene.CaptureDiagnostics=false;scene.AdvanceFrame();scene.Draw(settings);
         Assert.True(scene.HistoryCompatible);Assert.Null(scene.HistoryDiagnostics);
         Assert.Equal(92*8*8+44*4*4,scene.ViewTargetBytes);
-        Assert.True(ImageAssertions.Predicate(scene.HistoryReceipts, GpuAssertionPredicate.CloudStoredVolumeViewTests_StoredViewUsesVoxelTransportAndNativeProducts_3).MatchingTexels>0);
+        Assert.True(ImageAssertions.Predicates.Predicate(scene.HistoryReceipts, CloudPredicates.CloudStoredVolumeViewTests_StoredViewUsesVoxelTransportAndNativeProducts_3).MatchingTexels>0);
         scene.CaptureDiagnostics=true;scene.AdvanceFrame();scene.Draw(settings);
         Assert.True(scene.HistoryCompatible);Assert.NotNull(scene.HistoryDiagnostics);
         Assert.Equal(108*8*8+44*4*4,scene.ViewTargetBytes);
         // One independently authored observation cannot define a neighborhood range. Its
         // radiance change retains .8 old weight and confidence5 when support is unchanged.
         float depth=GpuLocalRead.Scalar(originalMetadata.Texture,0);
-        ImageAssertions.CompareConstant(originalMetadata.Texture,depth,channelMask:1).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(originalMetadata.Texture,depth,channelMask:1).AssertEqual();
         var metadata=new float[64*4];
         var priorCloud=new float[metadata.Length];var priorBins=Enumerable.Repeat(.5f,8*8*3).ToArray();
         for(int i=0;i<metadata.Length;i+=4)
@@ -263,41 +265,41 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         rayMeta[0]=metadata[0];rayMeta[1]=1;rayMeta[2]=10;
         using var single=scene.FilterAuthored(rayCloud,Enumerable.Repeat(.5f,4*4*3).ToArray(),rayMeta);
         using var ordinary=scene.FilterAuthored(rayCloud,Enumerable.Repeat(.5f,4*4*3).ToArray(),rayMeta,diagnostics:false);
-        ImageAssertions.Predicate(single.Cloud, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5,ordinary.Cloud).AssertEqual();
-        ImageAssertions.Predicate(single.Bins, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_6,ordinary.Bins).AssertEqual();
-        ImageAssertions.Predicate(single.Metadata, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5,ordinary.Metadata).AssertEqual();
-        Assert.Null(ordinary.Diagnostics);ImageAssertions.Predicate(single.Age, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_7,ordinary.Age).AssertEqual();
-        var selected=AssertObserved(single,single.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_18);
+        ImageAssertions.Predicates.Predicate(single.Cloud, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5,ordinary.Cloud).AssertEqual();
+        ImageAssertions.Predicates.Predicate(single.Bins, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_6,ordinary.Bins).AssertEqual();
+        ImageAssertions.Predicates.Predicate(single.Metadata, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5,ordinary.Metadata).AssertEqual();
+        Assert.Null(ordinary.Diagnostics);ImageAssertions.Predicates.Predicate(single.Age, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_7,ordinary.Age).AssertEqual();
+        var selected=AssertObserved(single,single.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_18);
         Assert.Equal(1u,selected.MatchingTexels);
         // A uniform current RGB change retains compatible old illumination;
         // all sixteen fresh locations use the same declared observation response as one ray.
         var uniformRays=new float[rayCloud.Length];var uniformMeta=new float[rayMeta.Length];
         for(int p=0;p<16;p++){Array.Copy(rayCloud,0,uniformRays,p*4,4);Array.Copy(rayMeta,0,uniformMeta,p*4,4);}
         using var uniformStep=scene.FilterAuthored(uniformRays,Enumerable.Repeat(.5f,4*4*3).ToArray(),uniformMeta);
-        var uniformFresh=ImageAssertions.Predicate(uniformStep.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_8,uniformStep.Cloud,uniformStep.Metadata);
+        var uniformFresh=ImageAssertions.Predicates.Predicate(uniformStep.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_8,uniformStep.Cloud,uniformStep.Metadata);
         uniformFresh.AssertEqual();Assert.Equal(16u,uniformFresh.MatchingTexels);
-        var uniformCarry=ImageAssertions.Predicate(uniformStep.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_9,
+        var uniformCarry=ImageAssertions.Predicates.Predicate(uniformStep.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_9,
             uniformStep.Cloud,uniformStep.Metadata);
         uniformCarry.AssertEqual();Assert.Equal(48u,uniformCarry.MatchingTexels);
         rayCloud[0]=rayCloud[1]=rayCloud[2]=0;
         using var reactive=scene.FilterAuthored(rayCloud,Enumerable.Repeat(.5f,4*4*3).ToArray(),rayMeta);
-        AssertObserved(reactive,single.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_19);
+        AssertObserved(reactive,single.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_19);
         rayCloud[3]=.25f;
         using var changedOpacity=scene.FilterAuthored(rayCloud,Enumerable.Repeat(.5f,4*4*3).ToArray(),rayMeta);
-        AssertObserved(changedOpacity,single.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_20);
+        AssertObserved(changedOpacity,single.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_20);
         rayCloud[3]=0;rayMeta[1]=2;rayMeta[2]=0;
         using var empty=scene.FilterAuthored(rayCloud,Enumerable.Repeat(1f,4*4*3).ToArray(),rayMeta);
-        AssertObserved(empty,single.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_21);
+        AssertObserved(empty,single.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_21);
         rayCloud[3]=.5f;rayMeta[1]=1;rayMeta[2]=10;
         for(int i=3;i<diagnostic.Length;i+=4)diagnostic[i]=7;
         scene.SeedHistory(priorCloud,metadata,diagnostic,priorBins);
         using var expired=scene.FilterAuthored(rayCloud,Enumerable.Repeat(.5f,4*4*3).ToArray(),rayMeta);
-        Assert.Equal(0u,ImageAssertions.Predicate(expired.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_10).MatchingTexels);
-        Assert.True(ImageAssertions.Predicate(expired.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_11).MatchingTexels>0);
+        Assert.Equal(0u,ImageAssertions.Predicates.Predicate(expired.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_10).MatchingTexels);
+        Assert.True(ImageAssertions.Predicates.Predicate(expired.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_11).MatchingTexels>0);
         // Exactly centred history has one nonzero bilinear tap. Invalid adjacent taps must
         // not reject it; the static centre also has no distance or camera-depth ambiguity.
-        using var centre=new CloudStoredVolumeViewScene(Programs,6,6);centre.Draw(settings);
-        using var centreMeta=projection.Apply(centre.HistoryReceipts, GpuImageProjection.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_12);
+        using var centre=new CloudStoredVolumeViewScene(ImageAssertions, Programs,6,6);centre.Draw(settings);
+        using var centreMeta=projection.Apply(centre.HistoryReceipts, CloudProjections.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_12);
         centre.SeedHistory(centre.HistoryCloud,centreMeta,new float[9*4]);
         centre.AdvanceFrame();centre.Draw(settings);
         Assert.Equal(0,GpuLocalRead.Scalar(centre.HistoryDiagnostics!,18));
@@ -305,12 +307,12 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         // With a rotated but now stationary view, every carried pixel owns its exact age.
         // Matrix roundoff must not let a nearly zero neighboring weight age a fresh pixel.
         centre.AdvanceFrame(cameraCut:true,yaw:.001f);centre.Draw(settings);
-        using var stationaryMeta=projection.Apply(centre.HistoryReceipts, GpuImageProjection.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_2);
+        using var stationaryMeta=projection.Apply(centre.HistoryReceipts, CloudProjections.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_2);
         var stationaryAge=new float[9*4];
         for(int pixel=0;pixel<9;pixel++)stationaryAge[pixel*4+3]=pixel%2==0?0:6;
         centre.SeedHistory(centre.HistoryCloud,stationaryMeta,stationaryAge);
         centre.AdvanceFrame();centre.Draw(settings);
-        var stationary=ImageAssertions.Predicate(centre.HistoryDiagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_13,centre.HistoryReceipts);
+        var stationary=ImageAssertions.Predicates.Predicate(centre.HistoryDiagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_13,centre.HistoryReceipts);
         stationary.AssertEqual();Assert.True(stationary.MatchingTexels>0);
         // Subpixel material reprojection straddles a contributing/empty boundary. The selected
         // compatible centre must retain its complete physical tuple and its own age/confidence;
@@ -333,30 +335,30 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         scene.SeedHistory(edgeCloud,edgeMeta,edgeAge,edgeBins);
         using var boundary=scene.FilterAuthored(edgeRays,Enumerable.Repeat(.5f,4*4*3).ToArray(),edgeRayMeta,
             translation:new Vector3(.625f,0,0));
-        ImageAssertions.Predicate(boundary.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_14,boundary.Cloud,boundary.Bins,boundary.Metadata).AssertEqual();
-        ImageAssertions.Predicate(boundary.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_15,boundary.Age).AssertEqual();
+        ImageAssertions.Predicates.Predicate(boundary.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_14,boundary.Cloud,boundary.Bins,boundary.Metadata).AssertEqual();
+        ImageAssertions.Predicates.Predicate(boundary.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_15,boundary.Age).AssertEqual();
         // The same nearest candidate cannot bypass a foreground mismatch or expired observation.
         for(int p=0;p<64;p++)edgeMeta[p*4]=0;
         scene.SeedHistory(edgeCloud,edgeMeta,edgeAge,edgeBins);
         using var occluded=scene.FilterAuthored(edgeRays,Enumerable.Repeat(.5f,4*4*3).ToArray(),edgeRayMeta,
             translation:new Vector3(.625f,0,0));
-        Assert.Equal(0u,ImageAssertions.Predicate(occluded.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_10).MatchingTexels);
+        Assert.Equal(0u,ImageAssertions.Predicates.Predicate(occluded.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_10).MatchingTexels);
         for(int p=0;p<64;p++){edgeMeta[p*4]=metadata[0];edgeAge[p*4+3]=7;}
         scene.SeedHistory(edgeCloud,edgeMeta,edgeAge,edgeBins);
         using var oldEdge=scene.FilterAuthored(edgeRays,Enumerable.Repeat(.5f,4*4*3).ToArray(),edgeRayMeta,
             translation:new Vector3(.625f,0,0));
-        Assert.Equal(0u,ImageAssertions.Predicate(oldEdge.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_10).MatchingTexels);
+        Assert.Equal(0u,ImageAssertions.Predicates.Predicate(oldEdge.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_10).MatchingTexels);
         // A failed own ray cannot be hidden by retained information or a nearby valid prefix.
         using var invalid=scene.FilterAuthored(new float[4*4*4],Enumerable.Repeat(1f,4*4*3).ToArray(),new float[4*4*4]);
         var failed=invalid.Diagnostics!;var failedMeta=invalid.Metadata;
-        Assert.True(ImageAssertions.Predicate(failed, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_16).MatchingTexels>0);
-        ImageAssertions.Predicate(failed, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_17,failedMeta).AssertEqual();
+        Assert.True(ImageAssertions.Predicates.Predicate(failed, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_16).MatchingTexels>0);
+        ImageAssertions.Predicates.Predicate(failed, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_17,failedMeta).AssertEqual();
     }
     /// <summary>Moving history carries corresponding cloud support rather than unrelated same-screen metadata.</summary>
     [Fact]
     public void TemporalMotionCarriesMappedClassificationAndCurrentFrameDistance()
     {
-        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs,16,16);
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(ImageAssertions, Programs,16,16);
         scene.SetDepths(1000,1000,1000);
         scene.Draw(CloudVolumeViewSettings.Default with{Detail=false,TraceDivisor=2});
         var prior=new float[8*8*4];var metadata=new float[prior.Length];
@@ -398,12 +400,12 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             }).RequireResource();
             expectedDistance.UploadDataImmediate(distances);
 
-            var mapped=ImageAssertions.Predicate(result.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalMotionCarriesMappedClassificationAndCurrentFrameDistance,result.Metadata,result.Cloud,expectedDistance);
+            var mapped=ImageAssertions.Predicates.Predicate(result.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalMotionCarriesMappedClassificationAndCurrentFrameDistance,result.Metadata,result.Cloud,expectedDistance);
             mapped.AssertEqual();Assert.True(mapped.MatchingTexels>0,
                 $"No corresponding cloud survived yaw {motion.Yaw}, translation {motion.Translation}.");
-            ImageAssertions.Predicate(result.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalMotionCarriesMappedClassificationAndCurrentFrameDistance_2,result.Metadata,result.Bins,result.Age).AssertEqual();
-            uint wrongClass=ImageAssertions.Predicate(result.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalMotionCarriesMappedClassificationAndCurrentFrameDistance_3,result.Metadata).MatchingTexels;
-            uint wrongDistance=ImageAssertions.Predicate(result.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalMotionCarriesMappedClassificationAndCurrentFrameDistance_4,result.Metadata).MatchingTexels;
+            ImageAssertions.Predicates.Predicate(result.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalMotionCarriesMappedClassificationAndCurrentFrameDistance_2,result.Metadata,result.Bins,result.Age).AssertEqual();
+            uint wrongClass=ImageAssertions.Predicates.Predicate(result.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalMotionCarriesMappedClassificationAndCurrentFrameDistance_3,result.Metadata).MatchingTexels;
+            uint wrongDistance=ImageAssertions.Predicates.Predicate(result.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalMotionCarriesMappedClassificationAndCurrentFrameDistance_4,result.Metadata).MatchingTexels;
             Assert.True(wrongClass>0&&wrongDistance>0,"Both unrelated empty and unrelated distant same-screen support must be corrected.");
             output.WriteLine($"Motion yaw={motion.Yaw}, translation={motion.Translation}: mapped wrong class={wrongClass}, wrong distance={wrongDistance}.");
         }
@@ -413,7 +415,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
     [Trait("Purpose", "Diagnostic")]
     public void RecordStoredViewCost()
     {
-        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs,3440,1377);
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(ImageAssertions, Programs,3440,1377);
         using var timer=GpuTimerQuery.Create("Tests.Cloud.StoredVolume.ViewCost");
         foreach(float sigma in new[]{.0078125f,0f})
         foreach(bool reuse in new[]{false,true})
@@ -473,13 +475,13 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
     [Fact]
     public void StoredSolutionInitializesRefinesDrawsAndRetires()
     {
-        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs);
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(ImageAssertions, Programs);
         var solution=new CloudVolumeSolution(Programs.Api,false);
         try
         {
             using var value=scene.DrawAndCapture(CloudVolumeViewSettings.Default with{Detail=false},solution:solution);
             Assert.True(solution.Storage.Ready);Assert.True(solution.Storage.StorageBytes>0);
-            for(int image=0;image<value.Count;image++)ImageAssertions.Inspect(value[image].Texture,0).AssertFiniteRange();
+            for(int image=0;image<value.Count;image++)ImageAssertions.Statistics.Inspect(value[image].Texture,0).AssertFiniteRange();
             var first=solution.Drawable!;
             scene.Draw(CloudVolumeViewSettings.Default with{Detail=false},solution:solution);
             Assert.True(solution.Drawable!.Revision>first.Revision);Assert.Same(first.Density,solution.Drawable.Density);
@@ -509,20 +511,31 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
     private void AssertTransmission(CloudStoredVolumeViewScene scene,CloudVolumeViewSettings settings,GpuImageSnapshot expected)
     {
         scene.Draw(settings);using var actual=scene.CaptureOutput();
-        ImageAssertions.CompareHistory(actual[1].Texture,expected).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(actual[1].Texture,expected).AssertEqual();
     }
     /// <summary>Requires every attachment and every texel to retain the original uniform clear value.</summary>
     private void AssertUniformOutput(CloudStoredVolumeViewScene scene,CloudVolumeViewSettings settings,float value)
     {
         scene.Draw(settings,clear:value);using var images=scene.CaptureOutput();
-        for(int image=0;image<images.Count;image++)ImageAssertions.CompareConstant(images[image].Texture,value).AssertEqual();
+        for(int image=0;image<images.Count;image++)ImageAssertions.Comparisons.CompareConstant(images[image].Texture,value).AssertEqual();
     }
     /// <summary>Checks every direction selected by the original one-ray control and proves it was actually selected.</summary>
-    private GpuImageResult AssertObserved(CloudTemporalObservation actual,GpuTexture selected,GpuAssertionPredicate expectation)
+    private GpuPredicateResult AssertObserved(CloudTemporalObservation actual,GpuTexture selected,GpuAssertionPredicate expectation)
     {
-        var result=ImageAssertions.Predicate(actual.Diagnostics!,expectation,
+        var result=ImageAssertions.Predicates.Predicate(actual.Diagnostics!,expectation,
             selected,actual.Cloud,actual.Metadata);
         result.AssertEqual();Assert.True(result.MatchingTexels>0);return result;
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-cloud", 0, 0);
+        programs.Prepare("projection-cloud", 0, 0);
     }
     #endregion
 }

@@ -24,6 +24,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     // One immutable executable belongs to this test; all source, exposure and grading inputs refresh per draw.
     private FinalDisplayShaderProgram? finalProgram;
     #region Public API
@@ -43,15 +45,15 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         Assert.Equal(64, texture.Width);
         Assert.Equal(64, texture.Height);
         Assert.Equal(64, texture.Depth);
-        ImageAssertions.Inspect(texture, 0, 1).AssertFiniteRange();
-        ImageAssertions.CompareConstant(texture, 1, channelMask: 8).AssertEqual();
+        ImageAssertions.Statistics.Inspect(texture, 0, 1).AssertFiniteRange();
+        ImageAssertions.Comparisons.CompareConstant(texture, 1, channelMask: 8).AssertEqual();
         var expected = new Dictionary<int, Vector3>();
         int[] selected = Enumerable.Range(0, 16).Select(i => i * 4).Append(63).ToArray();
         foreach (int z in selected) foreach (int y in selected) foreach (int x in selected)
             expected.Add((z * 64 + y) * 64 + x, FilmicGradingReference.Display(new(FilmicGradingReference.Node(x),
                 FilmicGradingReference.Node(y), FilmicGradingReference.Node(z)), controls));
-        ImageAssertions.CompareSelected(texture, expected, .001f).AssertEqual();
-        ImageAssertions.Compare(texture, [0f,0f,0f,1f], selection: new(new(0),0,0,0,1,1)).AssertEqual();
+        ImageAssertions.Comparisons.CompareSelected(texture, expected, .001f).AssertEqual();
+        ImageAssertions.Comparisons.Compare(texture, [0f,0f,0f,1f], selection: new(new(0),0,0,0,1,1)).AssertEqual();
     }
 
     /// <summary>Unchanged controls retain their texture through resize; changes and reload replace only complete images.</summary>
@@ -68,7 +70,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         Assert.Equal(1, owner.Generation);
         using var previous = new Assertions.GpuImageSnapshot(first);
         Assert.Throws<ArgumentException>(() => owner.Prepare(Programs.Api, new(1, 1, 1, float.NaN)));
-        Assert.True(first.IsValid); ImageAssertions.CompareHistory(first, previous).AssertEqual(); Assert.Equal(1, owner.Generation);
+        Assert.True(first.IsValid); ImageAssertions.Comparisons.CompareHistory(first, previous).AssertEqual(); Assert.Equal(1, owner.Generation);
         var changed = owner.Prepare(Programs.Api, new(1, 1, 1, .416f));
         Assert.NotSame(first, changed); Assert.Equal(2, owner.Generation);
         owner.Invalidate();
@@ -101,14 +103,14 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
             ClientRenderingLifetime.CompleteNativeReload();
             assets.BeforeRead = _ => throw new IOException("controlled grading reload failure");
             Assert.Throws<InvalidOperationException>(() => owner.Prepare(assets.Api, neutral));
-            Assert.True(first.IsValid); ImageAssertions.CompareHistory(first, previous).AssertEqual(); Assert.Equal(1, owner.Generation);
+            Assert.True(first.IsValid); ImageAssertions.Comparisons.CompareHistory(first, previous).AssertEqual(); Assert.Equal(1, owner.Generation);
             assets.BeforeRead = null;
             // Failed demand preparation is deliberately latched for this reload.
             // A subsequent explicit reload authorizes a new executable attempt.
             ClientRenderingLifetime.BeginNativeReload(); owner.Invalidate(); ClientRenderingLifetime.CompleteNativeReload();
             var replacement = owner.Prepare(assets.Api, neutral);
             Assert.NotSame(first, replacement); Assert.Equal(2, owner.Generation);
-            ImageAssertions.CompareHistory(replacement, previous).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(replacement, previous).AssertEqual();
         }
         finally { owner.Dispose(); lifetime.Shutdown(); }
     }
@@ -139,7 +141,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
                 }
                 expectedPixels[pixel*4+3]=1;
             }
-            ImageAssertions.CompareFloating(actual.Texture,expectedPixels,tolerances).AssertEqual();
+            ImageAssertions.Comparisons.CompareFloating(actual.Texture,expectedPixels,tolerances).AssertEqual();
             Assert.Equal(1, owner.Generation); // Exposure is sampled before the lookup; it does not rebuild its transform.
         }
     }
@@ -162,8 +164,8 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
             expected[pixel*4]=FilmicGradingReference.Quantize(reference,pixel);
             tolerances[pixel*4]=6.001f/255;
         }
-        ImageAssertions.CompareFloating(actual.Texture,expected,tolerances,channelMask:1).AssertEqual();
-        ImageAssertions.Predicate(actual.Texture, GpuAssertionPredicate.ColorGradingLutTests_NeutralGradientHasBoundedInterpolationError,parameters:new(1.001f/255,0,0,0)).AssertEqual();
+        ImageAssertions.Comparisons.CompareFloating(actual.Texture,expected,tolerances,channelMask:1).AssertEqual();
+        ImageAssertions.Predicates.Predicate(actual.Texture, MaterialPredicates.ColorGradingLutTests_NeutralGradientHasBoundedInterpolationError,parameters:new(1.001f/255,0,0,0)).AssertEqual();
         output.WriteLine($"Neutral ramp remains monotonic within 6.001/255 reference and 1.001/255 chroma tolerances at contrast {contrast:R}.");
     }
     /// <summary>The actual generated galaxy survives saved positive contrast after filmic LUT sampling and RGBA8 output.</summary>
@@ -179,31 +181,31 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         while (generated is null && clock.Elapsed < TimeSpan.FromSeconds(20)) { generated = generation.TryComplete(); if (generated is null) Thread.Sleep(1); }
         Assert.NotNull(generated);
         using var resources = generated;
-        using var projection=new GpuImageTransform();
-        using var decoded=projection.Apply(resources!.Galaxy, GpuImageProjection.ColorGradingLutTests_GeneratedGalaxySurvivesPositiveContrastInFinalOutput,new(source.StorageScale,0,0,0));
-        Vector3 brightest=ImageAssertions.Brightest(decoded).Color;
+        var projection = ImageAssertions.Projections;
+        using var decoded=projection.Apply(resources!.Galaxy, MaterialProjections.ColorGradingLutTests_GeneratedGalaxySurvivesPositiveContrastInFinalOutput,new(source.StorageScale,0,0,0));
+        Vector3 brightest=ImageAssertions.Selection.Brightest(decoded).Color;
         using var owner = new ColorGradingLut();
         Vector4 controls = new(1, 1, 1, .41573521f);
         var lookup = owner.Prepare(Programs.Api, controls);
         using var final=Final([brightest],lookup,controls,4);
-        Assert.True(ImageAssertions.Inspect(final.Texture,channelMask:7).Maximum>=1f/255);
+        Assert.True(ImageAssertions.Statistics.Inspect(final.Texture,channelMask:7).Maximum>=1f/255);
         Vector3 reference = FilmicGradingReference.Lookup(brightest * 16, controls);
-        output.WriteLine($"Generated peak galaxy nits {brightest}; independent encoded LUT {reference}; final RGBA8 maximum {ImageAssertions.Inspect(final.Texture,channelMask:7).Maximum:R}.");
+        output.WriteLine($"Generated peak galaxy nits {brightest}; independent encoded LUT {reference}; final RGBA8 maximum {ImageAssertions.Statistics.Inspect(final.Texture,channelMask:7).Maximum:R}.");
         using var view=DrawGalaxyView(resources!);
-        Vector3 visible=ImageAssertions.Brightest(view.Texture).Color;
-        using var withAlpha=projection.Apply(view.Texture, GpuImageProjection.ColorGradingLutTests_GeneratedGalaxySurvivesPositiveContrastInFinalOutput_2);
+        Vector3 visible=ImageAssertions.Selection.Brightest(view.Texture).Color;
+        using var withAlpha=projection.Apply(view.Texture, MaterialProjections.ColorGradingLutTests_GeneratedGalaxySurvivesPositiveContrastInFinalOutput_2);
         using var captured=new GpuImageSnapshot(withAlpha);using var scene=captured.ToPlane();
         using var attenuated=DrawFinal(scene,lookup,controls,4);
-        uint nonblack=ImageAssertions.Predicate(attenuated.Texture, GpuAssertionPredicate.ColorGradingLutTests_GeneratedGalaxySurvivesPositiveContrastInFinalOutput_3).MatchingTexels;
-        output.WriteLine($"Actual fullscreen galaxy draw, clear atmosphere, four orientations: peak nits {visible}; final RGBA8 maximum {ImageAssertions.Inspect(attenuated.Texture,channelMask:7).Maximum:R}, nonblack pixels {nonblack}/{scene.Width*scene.Height}.");
+        uint nonblack=ImageAssertions.Predicates.Predicate(attenuated.Texture, MaterialPredicates.ColorGradingLutTests_GeneratedGalaxySurvivesPositiveContrastInFinalOutput_3).MatchingTexels;
+        output.WriteLine($"Actual fullscreen galaxy draw, clear atmosphere, four orientations: peak nits {visible}; final RGBA8 maximum {ImageAssertions.Statistics.Inspect(attenuated.Texture,channelMask:7).Maximum:R}, nonblack pixels {nonblack}/{scene.Width*scene.Height}.");
         using var neutralOwner = new ColorGradingLut();
         var neutralLookup = neutralOwner.Prepare(Programs.Api,new(1,1,1,0));
         foreach (float ev in new[] {2f,4f}) foreach (bool savedContrast in new[] {false,true})
         {
             var settings = new Vector4(1,1,1,savedContrast?.41573521f:0);
             using var image=DrawFinal(scene,savedContrast?lookup:neutralLookup,settings,ev);
-            uint count=ImageAssertions.Predicate(image.Texture, GpuAssertionPredicate.ColorGradingLutTests_GeneratedGalaxySurvivesPositiveContrastInFinalOutput_3).MatchingTexels;
-            output.WriteLine($"Actual galaxy-only final EV {ev}, contrast {settings.W:R}: maximum {ImageAssertions.Inspect(image.Texture,channelMask:7).Maximum*255:R}/255; nonblack {count}/{scene.Width*scene.Height}.");
+            uint count=ImageAssertions.Predicates.Predicate(image.Texture, MaterialPredicates.ColorGradingLutTests_GeneratedGalaxySurvivesPositiveContrastInFinalOutput_3).MatchingTexels;
+            output.WriteLine($"Actual galaxy-only final EV {ev}, contrast {settings.W:R}: maximum {ImageAssertions.Statistics.Inspect(image.Texture,channelMask:7).Maximum*255:R}/255; nonblack {count}/{scene.Width*scene.Height}.");
         }
         Assert.True(nonblack > 0);
         // Use the calibrated catalog's real flux at a controlled pixel solid
@@ -211,8 +213,8 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         var star = source.Stars[0];
         Vector3 starRadiance = star.Color * star.FluxLux / .0001f;
         using var starFinal=Final([starRadiance],lookup,controls,4);
-        Assert.True(ImageAssertions.Inspect(starFinal.Texture,channelMask:7).Maximum>ImageAssertions.Inspect(final.Texture,channelMask:7).Maximum);
-        output.WriteLine($"Calibrated catalog star at 0.0001sr: {starRadiance}; final RGBA8 maximum {ImageAssertions.Inspect(starFinal.Texture,channelMask:7).Maximum:R}.");
+        Assert.True(ImageAssertions.Statistics.Inspect(starFinal.Texture,channelMask:7).Maximum>ImageAssertions.Statistics.Inspect(final.Texture,channelMask:7).Maximum);
+        output.WriteLine($"Calibrated catalog star at 0.0001sr: {starRadiance}; final RGBA8 maximum {ImageAssertions.Statistics.Inspect(starFinal.Texture,channelMask:7).Maximum:R}.");
     }
     #endregion
 
@@ -252,13 +254,13 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
                 commands.BindResources(shader.CaptureBindings()); commands.Draw(geometry.Inputs,new(0,3)); commands.EndRenderPass();
             });
 }
-            var candidate=ImageAssertions.Brightest(color);
+            var candidate=ImageAssertions.Selection.Brightest(color);
             if(candidate.Luminance>peak)
             {
                 peak=candidate.Luminance;
                 brightestView?.Dispose();brightestView=new GpuImageSnapshot(color);
             }
-            ImageAssertions.CompareConstant(glow, 0).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(glow, 0).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
         return brightestView??throw new InvalidOperationException("The generated galaxy must produce a visible view.");
@@ -274,7 +276,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         float[] input = colors.SelectMany(color => new[] { color.X, color.Y, color.Z, .37f }).ToArray();
         using var source = TestFramework.CreateTexture(width, height, TextureFormat.Rgba32f, input);
         var result=DrawFinal(source,lookup,controls,ev);
-        try { ImageAssertions.Compare(source,input).AssertEqual();return result; }
+        try { ImageAssertions.Comparisons.Compare(source,input).AssertEqual();return result; }
         catch { result.Dispose();throw; }
     }
 
@@ -299,8 +301,21 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
     scope26.Run(()=>draw.Submit(commands, pipeline,target.PostprocessPass(), program.CaptureBindings()));
 }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        ImageAssertions.CompareHistory(source,previous).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(source,previous).AssertEqual();
         return new GpuImageSnapshot(target[0]);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-material", 0, 0);
+        programs.Prepare("predicate-observation", 0, 0);
+        programs.Prepare("projection-material", 0, 0);
+        programs.Prepare("projection-observation", 0, 0);
     }
     #endregion
 }

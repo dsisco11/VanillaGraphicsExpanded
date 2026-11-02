@@ -17,6 +17,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     private const float SH_C0 = 0.282095f;
 
     public LumOnProbeAtlasProjectSHFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
@@ -183,7 +185,7 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
 
         programId.ScreenProbeAtlas = atlasTex;
         programId.ScreenProbeAtlasMeta = metaTex;
-        using var anchorInputs101 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs101 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs101;
 
         TestFramework.RenderQuadTo(programId, outSh);
@@ -207,4 +209,12 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
     }
 
 
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+    }
+    #endregion
 }

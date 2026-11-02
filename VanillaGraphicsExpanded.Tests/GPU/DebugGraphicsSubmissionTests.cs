@@ -20,6 +20,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Alternating borrowed destinations retain metadata until an explicit rebuild or window resize retires every wrapper.</summary>
     [Fact]
@@ -90,7 +92,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
             Assert.True(submission.Draw("primitive", shader, geometry.Inputs, new(0, 2), topology, pointSize: 3));
             hostile.AssertRestored();
             Assert.Equal(target.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
-            Assert.True(ImageAssertions.Inspect(target[0]).Maximum>.9f);
+            Assert.True(ImageAssertions.Statistics.Inspect(target[0]).Maximum>.9f);
         }
         shader.InvalidateAssets(); target.Bind();
         Assert.True(submission.Draw("primitive", shader, geometry.Inputs, new(0, 2), topology));
@@ -176,7 +178,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
                 depthTest: true, pointSize: 6, programPointSize: true, depthWrite: true, blending: blending));
             hostile.AssertRestored();
         }
-        var accumulation=ImageAssertions.Predicate(target[3], GpuAssertionPredicate.DebugGraphicsSubmissionTests_OrbSubmissionUsesSixRoutesProgramPointSizeAndDepthWrites);
+        var accumulation=ImageAssertions.Predicates.Predicate(target[3], LightingPredicates.DebugGraphicsSubmissionTests_OrbSubmissionUsesSixRoutesProgramPointSizeAndDepthWrites);
         accumulation.AssertEqual();Assert.True(accumulation.MatchingTexels>4);
         int center = (4 * 8 + 4) * 4;
         Assert.InRange(Assertions.GpuLocalRead.Scalar(target[1], 4 * 8 + 4), 0, .001f);
@@ -200,6 +202,15 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
             "get_Event" => events.Api,
             _ => method.Invoke(assets.Api, args)
         });
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-lighting", 0, 0);
     }
     #endregion
 }

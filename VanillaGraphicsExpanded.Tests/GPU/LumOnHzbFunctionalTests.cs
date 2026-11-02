@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     private const float Epsilon = 1e-6f;
 
     public LumOnHzbFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
@@ -49,8 +51,8 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         using var mip1=new GpuImageSnapshot(hzb,GpuImageSnapshot.Mip(hzb,1));
         using var mip2=new GpuImageSnapshot(hzb,GpuImageSnapshot.Mip(hzb,2));
 
-        ImageAssertions.Predicate(mip1.Texture, GpuAssertionPredicate.LumOnHzbFunctionalTests_HZB_BuildProducesMonotonicDepthMips,mip0.Texture,parameters:new(Epsilon,0,0,0),mappedSources:true).AssertEqual();
-        ImageAssertions.Predicate(mip2.Texture, GpuAssertionPredicate.LumOnHzbFunctionalTests_HZB_BuildProducesMonotonicDepthMips,mip1.Texture,parameters:new(Epsilon,0,0,0),mappedSources:true).AssertEqual();
+        ImageAssertions.Predicates.Predicate(mip1.Texture, SurfacePredicates.LumOnHzbFunctionalTests_HZB_BuildProducesMonotonicDepthMips,mip0.Texture,parameters:new(Epsilon,0,0,0),mappedSources:true).AssertEqual();
+        ImageAssertions.Predicates.Predicate(mip2.Texture, SurfacePredicates.LumOnHzbFunctionalTests_HZB_BuildProducesMonotonicDepthMips,mip1.Texture,parameters:new(Epsilon,0,0,0),mappedSources:true).AssertEqual();
     }
 
     [Fact]
@@ -121,11 +123,11 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         float[] invView = LumOnTestInputFactory.CreateIdentityView();
 
         // Render with coarse mip 0
-            using var anchorInputs1 = LayeredTestTexture.Create(probePos, probeNorm);
+            using var anchorInputs1 = LayeredTestTexture.Create(ImageAssertions.Programs, probePos, probeNorm);
             progMip0.ProbeAnchors = anchorInputs1;
             progMip0.PrimaryDepth = primaryDepth;
             progMip0.SurfaceAlbedo = primaryColor;
-            using var surfaceInput1 = LayeredTestTexture.Create(null, material, null);
+            using var surfaceInput1 = LayeredTestTexture.Create(ImageAssertions.Programs, null, material, null);
             progMip0.GBufferSurface = surfaceInput1;
             progMip0.ScreenProbeAtlasMetaHistory = metaHistory;
             progMip0.ScreenProbeAtlasHistory = history;
@@ -149,11 +151,11 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         float[] outCoarse;
         if (hzb.MipLevels > 1)
         {
-            using var anchorInputs2 = LayeredTestTexture.Create(probePos, probeNorm);
+            using var anchorInputs2 = LayeredTestTexture.Create(ImageAssertions.Programs, probePos, probeNorm);
             progMip1.ProbeAnchors = anchorInputs2;
             progMip1.PrimaryDepth = primaryDepth;
             progMip1.SurfaceAlbedo = primaryColor;
-            using var surfaceInput2 = LayeredTestTexture.Create(null, material, null);
+            using var surfaceInput2 = LayeredTestTexture.Create(ImageAssertions.Programs, null, material, null);
             progMip1.GBufferSurface = surfaceInput2;
             progMip1.ScreenProbeAtlasMetaHistory = metaHistory;
             progMip1.ScreenProbeAtlasHistory = history;
@@ -215,4 +217,13 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         }
         return data;
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
+    #endregion
 }

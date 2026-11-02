@@ -11,6 +11,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Physical slot invalidation
     /// <summary>A full reset crosses the guaranteed X workgroup limit without leaving the final physical slots uncleared.</summary>
     [Fact]
@@ -27,10 +29,10 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
 #if DEBUG
         Assert.Equal(dispatches+1,resources.InvalidationDispatchCount);
 #endif
-        ImageAssertions.CompareConstant(resources.ProbeRadianceAtlas, 0).AssertEqual();
-        ImageAssertions.CompareConstant(resources.ProbeVis0, 0).AssertEqual();
-        ImageAssertions.CompareConstant(resources.ProbeDist0, 0).AssertEqual();
-        ImageAssertions.CompareConstant(resources.ProbeMeta0, 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(resources.ProbeRadianceAtlas, 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(resources.ProbeVis0, 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(resources.ProbeDist0, 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(resources.ProbeMeta0, 0).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
@@ -65,29 +67,29 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
         resources.QueueClearLocalBox(0,new(),new(1,0,0),new(3,1,1));
         resources.QueueClearLocalBox(0,new(),new(),new(2,1,1));
         Assert.Equal(16,resources.PendingInvalidationCount);
-        ImageAssertions.CompareConstant(resources.ProbeRadianceAtlas, 1).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(resources.ProbeRadianceAtlas, 1).AssertEqual();
         resources.FlushHistoryInvalidation();
 #if DEBUG
         Assert.Equal(initialDispatches+1,resources.InvalidationDispatchCount);
 #endif
         Assert.Equal(0,resources.PendingInvalidationCount);
-        var cleared=ImageAssertions.Predicate(resources.ProbeRadianceAtlas, GpuAssertionPredicate.WorldProbeDirectionalHistoryTests_QueuedOverlapAndEmptyFlushPreserveNewHistoryUntilFullReset);
+        var cleared=ImageAssertions.Predicates.Predicate(resources.ProbeRadianceAtlas, SurfacePredicates.WorldProbeDirectionalHistoryTests_QueuedOverlapAndEmptyFlushPreserveNewHistoryUntilFullReset);
         cleared.AssertEqual();Assert.Equal((uint)(16<<4),cleared.MatchingTexels);
         Fill(resources);
         resources.FlushHistoryInvalidation();
 #if DEBUG
         Assert.Equal(initialDispatches+1,resources.InvalidationDispatchCount);
 #endif
-        ImageAssertions.CompareConstant(resources.ProbeRadianceAtlas, 1).AssertEqual();
-        ImageAssertions.CompareConstant(resources.ProbeMeta0, 1).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(resources.ProbeRadianceAtlas, 1).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(resources.ProbeMeta0, 1).AssertEqual();
         // Full reset must be immediate and independent of fixed-function write restrictions.
         GL.Enable(EnableCap.ScissorTest);GL.Scissor(0,0,1,1);GL.ColorMask(false,false,false,false);
         try { resources.ClearAll(); }
         finally { GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true); }
-        ImageAssertions.CompareConstant(resources.ProbeRadianceAtlas, 0).AssertEqual();
-        ImageAssertions.CompareConstant(resources.ProbeMeta0, 0).AssertEqual();
-        ImageAssertions.CompareConstant(resources.ProbeVis0, 0).AssertEqual();
-        ImageAssertions.CompareConstant(resources.ProbeDist0, 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(resources.ProbeRadianceAtlas, 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(resources.ProbeMeta0, 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(resources.ProbeVis0, 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(resources.ProbeDist0, 0).AssertEqual();
 #if DEBUG
         Assert.Equal(initialDispatches+2,resources.InvalidationDispatchCount);
 #endif
@@ -133,10 +135,10 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
                 for(int c=0;c<4;c++)radiance[pixel+c]=expected;
             }
         }
-        ImageAssertions.Compare(resources.ProbeRadianceAtlas,radiance).AssertEqual();
-        ImageAssertions.Compare(resources.ProbeMeta0,metadata,channelMask:1).AssertEqual();
-        ImageAssertions.Compare(resources.ProbeVis0,visibility,channelMask:1).AssertEqual();
-        ImageAssertions.Compare(resources.ProbeDist0,distance,channelMask:1).AssertEqual();
+        ImageAssertions.Comparisons.Compare(resources.ProbeRadianceAtlas,radiance).AssertEqual();
+        ImageAssertions.Comparisons.Compare(resources.ProbeMeta0,metadata,channelMask:1).AssertEqual();
+        ImageAssertions.Comparisons.Compare(resources.ProbeVis0,visibility,channelMask:1).AssertEqual();
+        ImageAssertions.Comparisons.Compare(resources.ProbeDist0,distance,channelMask:1).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion
@@ -148,6 +150,15 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
         GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true);
         FramebufferTestSetup.ClearPass(resources.RadiancePass,1);
         FramebufferTestSetup.ClearPass(resources.MetadataPass,1);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
     }
     #endregion
 }

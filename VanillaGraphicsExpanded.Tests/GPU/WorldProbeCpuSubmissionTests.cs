@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Invalid scalar metadata or one invalid directional lane rejects the complete probe update before any attachment is changed.</summary>
     [Theory]
@@ -44,10 +46,10 @@ public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : Re
             _ => invalid with { ShortRangeAoDirWorld = new Vector3(float.MaxValue) }
         };
         Assert.Equal(0, atlas.TryUpload(invalid, 1024));
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeRadianceAtlas, radiance).AssertEqual();
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeMeta0, metadata).AssertEqual();
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeVis0, visibility).AssertEqual();
-        ImageAssertions.CompareHistory(atlas.Resources.ProbeDist0, distance).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeRadianceAtlas, radiance).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeMeta0, metadata).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeVis0, visibility).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeDist0, distance).AssertEqual();
     }
 
     /// <summary>Two-pass publication ignores hostile ambient state, restores it and republishes changed values without clearing neighbors.</summary>
@@ -76,7 +78,7 @@ public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : Re
             Assert.InRange(Assertions.GpuLocalRead.Scalar(pixels.Texture, 0), .2499f * LightingStorage.PersistentScale, .2501f * LightingStorage.PersistentScale);
             Assert.InRange(Assertions.GpuLocalRead.Scalar(atlas.Resources.ProbeMeta0, 0), .4999f, .5001f);
             Assert.Equal(0, atlas.TryUpload(Result(.75f, .9f), 1));
-            ImageAssertions.CompareHistory(atlas.Resources.ProbeRadianceAtlas, pixels).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeRadianceAtlas, pixels).AssertEqual();
             atlas.InvalidatePrograms();
             Assert.Equal(1, atlas.TryUpload(Result(.75f, .9f), 1024));
             var changed = atlas.Resources.ProbeRadianceAtlas;
@@ -85,7 +87,7 @@ public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : Re
                 new(new(0),1,0,0,changed.Width-1,1), new(new(0),0,1,0,changed.Width,changed.Height-1) })
             {
                 using var previous = new Assertions.GpuImageSnapshot(pixels.Texture, region);
-                ImageAssertions.CompareHistory(changed, previous, region).AssertEqual();
+                ImageAssertions.Comparisons.CompareHistory(changed, previous, region).AssertEqual();
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -102,5 +104,13 @@ public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : Re
     private static LumOnWorldProbeTraceResult Result(float radiance, float confidence) =>
         new(1, new(0, new(), new(), 0), true, WorldProbeTraceFailureReason.None,
             [new(0, 0, new Vector3(radiance), 1)], 0, Vector3.UnitY, .5f, confidence, 1, LumOnWorldProbeImportanceFlags.None);
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+    }
     #endregion
 }

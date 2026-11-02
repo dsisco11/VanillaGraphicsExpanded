@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SharedTraceSceneSurfaceTests : RenderTestBase
 {
+
+
     /// <summary>Uses the exclusive material fixture's GPU context.</summary>
     public SharedTraceSceneSurfaceTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -51,13 +53,13 @@ public sealed class SharedTraceSceneSurfaceTests : RenderTestBase
         scene.Publish();
         using var page = new SharedSurfacePageFixture(anchor);
         Assert.True(page.Capture(scene.Scene));
-        ImageAssertions.Predicate(page.MaterialAtlas, GpuAssertionPredicate.SharedTraceSceneSurfaceTests_ValidSharedSurfaceCapturesAndAccumulates).AssertEqual();
+        ImageAssertions.Predicates.Predicate(page.MaterialAtlas, LightingPredicates.SharedTraceSceneSurfaceTests_ValidSharedSurfaceCapturesAndAccumulates).AssertEqual();
         Assert.True(page.Relight(scene.Scene)); Assert.True(page.Relight(scene.Scene));
         float expected=32*GgxHemisphereReference.CapturedDiffuse(1);
-        ImageAssertions.Predicate(page.IrradianceAtlas, GpuAssertionPredicate.SharedTraceSceneSurfaceTests_ValidSharedSurfaceCapturesAndAccumulates_2,
+        ImageAssertions.Predicates.Predicate(page.IrradianceAtlas, LightingPredicates.SharedTraceSceneSurfaceTests_ValidSharedSurfaceCapturesAndAccumulates_2,
             parameters:new(expected-.1f,expected+.1f,0,0)).AssertEqual();
         page.ResetLighting();
-        ImageAssertions.CompareConstant(page.IrradianceAtlas,0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(page.IrradianceAtlas,0).AssertEqual();
     }
 
     /// <summary>Dirty, missing, unsupported, empty and exhausted traces cannot create sky or sample weight.</summary>
@@ -78,7 +80,16 @@ public sealed class SharedTraceSceneSurfaceTests : RenderTestBase
         bool captured = page.Capture(scene.Scene);
         Assert.Equal(scenario is "exit" or "budget" or "unsupported", captured);
         Assert.False(page.Relight(scene.Scene, scenario == "budget" ? 1u : 256u));
-        ImageAssertions.CompareConstant(page.IrradianceAtlas,0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(page.IrradianceAtlas,0).AssertEqual();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-lighting", 0, 0);
     }
     #endregion
 }

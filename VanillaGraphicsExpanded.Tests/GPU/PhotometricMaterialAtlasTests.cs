@@ -10,6 +10,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PhotometricMaterialAtlasTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Warm disk-cached terrain uploads retain zero emission and authored weak sources in the actual GPU atlas.</summary>
     [Fact]
@@ -34,7 +36,7 @@ public sealed class PhotometricMaterialAtlasTests(HeadlessGLFixture fixture) : R
         Assert.True(store.TryGetPageTextures(7, out var page));
         var expected=new float[64*4];
         for(int pixel=0;pixel<64;pixel++)expected[pixel*4+2]=(float)(Half)loaded[pixel*3+2];
-        ImageAssertions.Compare(page.MaterialParamsTexture,expected,channelMask:6).AssertEqual();
+        ImageAssertions.Comparisons.Compare(page.MaterialParamsTexture,expected,channelMask:6).AssertEqual();
         Assert.Equal(LightingCalibration.EmissionReferenceNits, store.MaximumEmissionNits);
     }
 
@@ -97,6 +99,14 @@ public sealed class PhotometricMaterialAtlasTests(HeadlessGLFixture fixture) : R
         Assert.Equal(textureId, page.MaterialParamsTexture.TextureId);
         Assert.Equal(pixels, page.MaterialParamsTexture.ReadPixels());
         Assert.Equal(maximum, store.MaximumEmissionNits);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

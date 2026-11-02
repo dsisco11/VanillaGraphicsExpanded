@@ -13,6 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Disk rasterization
     /// <summary>The GPU segment model retains bounded geometry and CPU agreement at grazing incidence.</summary>
     [Fact]
@@ -95,28 +97,38 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
             using var glowPixels = new Assertions.GpuImageSnapshot(target[1]);
-            ImageAssertions.CompareHistory(target[0], glowPixels, channelMask: 8).AssertEqual();
-            if (!displayTransfer) ImageAssertions.CompareConstant(target[1], 0, channelMask: 1).AssertEqual();
-            else ImageAssertions.InspectCoverage(target[1], .88f, 1f).AssertFiniteRange();
+            ImageAssertions.Comparisons.CompareHistory(target[0], glowPixels, channelMask: 8).AssertEqual();
+            if (!displayTransfer) ImageAssertions.Comparisons.CompareConstant(target[1], 0, channelMask: 1).AssertEqual();
+            else ImageAssertions.Statistics.InspectCoverage(target[1], .88f, 1f).AssertFiniteRange();
             if (iteration == 0)
             {
                 baseline = new(target[0]);
-                baselineCoverage = ImageAssertions.Statistics(target[0], channelMask: 8).Sum(3);
+                baselineCoverage = ImageAssertions.Statistics.Statistics(target[0], channelMask: 8).Sum(3);
                 float expected = displayTransfer ? 1.055f * MathF.Pow(.75f, 1 / 2.4f) - .055f : 3f;
                 if (displayTransfer) expected -= 31.5f / (64f * 255f);
                 Assert.InRange(Assertions.GpuLocalRead.Scalar(target[0], (32 * 64 + 32) * 4), expected - .00001f, expected + .00001f);
                 Assert.Equal(0f, Assertions.GpuLocalRead.Scalar(target[0], 0));
             }
-            else if (iteration == 1) ImageAssertions.CompareHistory(target[0], baseline!).AssertEqual();
-            else if (iteration == 3) ImageAssertions.CompareConstant(target[0], 0).AssertEqual();
+            else if (iteration == 1) ImageAssertions.Comparisons.CompareHistory(target[0], baseline!).AssertEqual();
+            else if (iteration == 3) ImageAssertions.Comparisons.CompareConstant(target[0], 0).AssertEqual();
             else
             {
-                double half = ImageAssertions.Statistics(target[0], channelMask: 8).Sum(3);
+                double half = ImageAssertions.Statistics.Statistics(target[0], channelMask: 8).Sum(3);
                 Assert.InRange(half / baselineCoverage, .47f, .53f);
             }
         }
         }
         finally { baseline?.Dispose(); }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("statistics", 0, 0);
     }
     #endregion
 }

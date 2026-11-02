@@ -40,6 +40,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     // Debug mode constants
     private const LumOnDebugMode MODE_PROBE_GRID = LumOnDebugMode.ProbeGrid;
     private const LumOnDebugMode MODE_PROBE_DEPTH = LumOnDebugMode.ProbeDepth;
@@ -287,9 +289,9 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_GRID, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput1 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput1 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput1;
-        using var anchorInputs1 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs1 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs1;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
@@ -300,7 +302,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Verify that some pixels have green (valid), yellow (edge), or red (invalid) colors
-        bool hasColor=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode1_ProbeGrid_ShowsValidityColors).MatchingTexels>0;
+        bool hasColor=ImageAssertions.Predicates.Predicate(outputData, SurfacePredicates.LumOnDebugFunctionalTests_Mode1_ProbeGrid_ShowsValidityColors).MatchingTexels>0;
         // With mixed validity, we should see at least valid (green) and invalid (red)
         Assert.True(hasColor,
             "Mode 1 should show colored probe dots based on validity");
@@ -357,9 +359,9 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
 
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput2 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput2 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput2;
-        using var anchorInputs2 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs2 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs2;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
@@ -370,7 +372,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // All pixels should have non-black color (heatmap)
-        uint coloredCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode4_SceneDepth_ShowsHeatmap).MatchingTexels;
+        uint coloredCount=ImageAssertions.Predicates.Predicate(outputData, SurfacePredicates.LumOnDebugFunctionalTests_Mode4_SceneDepth_ShowsHeatmap).MatchingTexels;
         Assert.True(coloredCount == ScreenWidth * ScreenHeight,
             $"Mode 4 should show heatmap for all non-sky pixels, got {coloredCount}/{ScreenWidth * ScreenHeight}");
     }
@@ -436,9 +438,9 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_RADIANCE_OVERLAY, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput3 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput3 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput3;
-        using var anchorInputs3 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs3 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs3;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
@@ -449,7 +451,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Reinhard tone map: 1/(1+1) = 0.5
-        ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode10_RadianceOverlay_ShowsIndirectDiffuse).AssertEqual();
+        ImageAssertions.Predicates.Predicate(outputData, SurfacePredicates.LumOnDebugFunctionalTests_Mode10_RadianceOverlay_ShowsIndirectDiffuse).AssertEqual();
     }
 
     #endregion
@@ -499,9 +501,9 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_DEPTH, invProjection, identity, identity);
 
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput4 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput4 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput4;
-        using var anchorInputs4 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs4 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs4;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
@@ -512,7 +514,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // All pixels should be black
-        uint blackCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode4_SceneDepth_SkyIsBlack).MatchingTexels;
+        uint blackCount=ImageAssertions.Predicates.Predicate(outputData, SurfacePredicates.LumOnDebugFunctionalTests_Mode4_SceneDepth_SkyIsBlack).MatchingTexels;
         Assert.True(blackCount == ScreenWidth * ScreenHeight,
             $"Mode 4 should show black for sky, got {blackCount}/{ScreenWidth * ScreenHeight}");
     }
@@ -567,9 +569,9 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_SCENE_NORMAL, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput5 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput5 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput5;
-        using var anchorInputs5 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs5 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs5;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
@@ -636,9 +638,9 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_SH_COEFFICIENTS, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput6 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput6 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput6;
-        using var anchorInputs6 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs6 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs6;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
@@ -649,7 +651,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Should have some non-zero output from SH visualization
-        uint nonZeroCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
+        uint nonZeroCount=ImageAssertions.Predicates.Predicate(outputData, SurfacePredicates.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
         Assert.True(nonZeroCount > 0,
             "Mode 8 should show non-zero SH visualization for valid probes");
     }
@@ -700,9 +702,9 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_DEPTH, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput7 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput7 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput7;
-        using var anchorInputs7 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs7 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs7;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
@@ -713,7 +715,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // All pixels should be black
-        uint blackCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode4_SceneDepth_SkyIsBlack).MatchingTexels;
+        uint blackCount=ImageAssertions.Predicates.Predicate(outputData, SurfacePredicates.LumOnDebugFunctionalTests_Mode4_SceneDepth_SkyIsBlack).MatchingTexels;
         Assert.True(blackCount == ScreenWidth * ScreenHeight,
             $"Mode 2 should show black for invalid probes, got {blackCount}/{ScreenWidth * ScreenHeight}");
     }
@@ -768,9 +770,9 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_PROBE_NORMAL, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput8 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput8 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput8;
-        using var anchorInputs8 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs8 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs8;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
@@ -781,7 +783,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Check that we get non-black output for valid probes
-        uint nonBlackCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
+        uint nonBlackCount=ImageAssertions.Predicates.Predicate(outputData, SurfacePredicates.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
         Assert.True(nonBlackCount > 0,
             "Mode 3 should show normal colors for valid probes");
     }
@@ -832,9 +834,9 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_WEIGHT, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput9 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput9 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput9;
-        using var anchorInputs9 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs9 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs9;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
@@ -845,7 +847,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Check for non-black output
-        uint nonBlackCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
+        uint nonBlackCount=ImageAssertions.Predicates.Predicate(outputData, SurfacePredicates.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
         Assert.True(nonBlackCount > 0,
             "Mode 6 should visualize temporal weights");
     }
@@ -896,9 +898,9 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_TEMPORAL_REJECTION, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput10 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput10 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput10;
-        using var anchorInputs10 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs10 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs10;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
@@ -909,7 +911,7 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Check for output (rejection visualization)
-        uint nonBlackCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
+        uint nonBlackCount=ImageAssertions.Predicates.Predicate(outputData, SurfacePredicates.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
         Assert.True(nonBlackCount > 0,
             "Mode 7 should visualize temporal rejection mask");
     }
@@ -960,9 +962,9 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         SetupDebugUniforms(programId, debugMode: (int)MODE_INTERPOLATION_WEIGHTS, identity, identity, identity);
 
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput11 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput11 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput11;
-        using var anchorInputs11 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs11 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs11;
         programId.RadianceTexture0 = radiance0Tex;
         programId.RadianceTexture1 = radiance1Tex;
@@ -973,10 +975,19 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var outputData = outputGBuffer[0];
 
         // Check for output (weight visualization)
-        uint nonBlackCount=ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
+        uint nonBlackCount=ImageAssertions.Predicates.Predicate(outputData, SurfacePredicates.LumOnDebugFunctionalTests_Mode8_SHCoefficients_ShowsRadiance).MatchingTexels;
         Assert.True(nonBlackCount > 0,
             "Mode 9 should visualize interpolation weights");
     }
 
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
     #endregion
 }

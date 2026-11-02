@@ -20,7 +20,7 @@ public sealed class SurfaceFallbackGpuTests(HeadlessGLFixture fixture):RenderTes
     [InlineData("unpublished",false)] [InlineData("budget",false)] [InlineData("missing-light",false)] [InlineData("sky",false)]
     public void QueueOnlyRetriesGeometryCoverageAndUnsupportedShapes(string scenario,bool expected)
     {
-        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:35);
+        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:35);
         floor.Seed();floor.SetIndirect(7,4);var before=floor.Read(floor.Snapshot.IndirectIrradiance);
         Configure(floor,scenario);
         using var queue=Queue(16,1,37);
@@ -42,7 +42,7 @@ public sealed class SurfaceFallbackGpuTests(HeadlessGLFixture fixture):RenderTes
     [Fact]
     public void QueueExhaustionKeepsBoundedStorageAndExistingHistory()
     {
-        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:35);
+        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:35);
         floor.Seed();Configure(floor,"coverage");using var queue=Queue(16,4,0);
         floor.DispatchDiagnosticWork(1,steps:256,fallbackRequests:queue);
         GpuTestFence.WaitForGpuOrSkip("Bounded fallback queue");
@@ -57,7 +57,7 @@ public sealed class SurfaceFallbackGpuTests(HeadlessGLFixture fixture):RenderTes
     [InlineData(false)] [InlineData(true)]
     public void SelectionRotatesAcrossAllPageTexels(bool cyclingBuckets)
     {
-        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:35);
+        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:35);
         floor.Seed();Configure(floor,"origin-outside");var visited=new HashSet<(uint Page,uint Linear)>();
         uint capacity=cyclingBuckets?4u:16u;
         for(uint serial=0;serial<1024 && visited.Count<256;serial++)
@@ -81,7 +81,7 @@ public sealed class SurfaceFallbackGpuTests(HeadlessGLFixture fixture):RenderTes
     [InlineData(1)] [InlineData(4)] [InlineData(12)]
     public void CommitUsesTheNormalTemporalFormula(int cap)
     {
-        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:35);
+        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:35);
         floor.Seed();floor.MaxFramesAccumulated=cap;floor.SetIndirect(10,cap);
         using var queue=Queue(16,1,37);Configure(floor,"coverage");Assert.False(floor.BounceSample(rays:1,fallbackRequests:queue));
         var request=ReadRequest(queue);var direct=floor.Read(floor.Snapshot.DirectIrradiance);
@@ -98,7 +98,7 @@ public sealed class SurfaceFallbackGpuTests(HeadlessGLFixture fixture):RenderTes
     [InlineData("patch")] [InlineData("slot")] [InlineData("page")] [InlineData("linear")] [InlineData("incomplete")]
     public void CommitRejectsNonmatchingIdentity(string mismatch)
     {
-        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:35);
+        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:35);
         floor.Seed();floor.SetIndirect(9,4);Configure(floor,"coverage");using var queue=Queue(16,1,37);
         Assert.False(floor.BounceSample(rays:1,fallbackRequests:queue));var request=ReadRequest(queue);
         var commit=new SurfaceFallbackCommit{Page=request.Page,Slot=request.Slot,Patch=request.Patch,Linear=request.Linear,Estimate=new(0,0,0,1)};

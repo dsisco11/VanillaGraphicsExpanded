@@ -13,6 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
 {
+
+
     /// <summary>Uses the material-isolated graphics context.</summary>
     public SurfaceCacheLightingTermsTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -37,7 +39,7 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
         Assert.True(fixture.Page.Capture(fixture.Geometry.Scene));
         Assert.True(fixture.Page.Relight(fixture.Geometry.Scene));
         float expected=32f*GgxHemisphereReference.CapturedDiffuse(reflectance);
-        ImageAssertions.Predicate(fixture.Page.IrradianceAtlas, GpuAssertionPredicate.SurfaceCacheLightingTermsTests_UniformEnclosurePreservesIrradianceAcrossTravelDistances,
+        ImageAssertions.Predicates.Predicate(fixture.Page.IrradianceAtlas, SurfacePredicates.SurfaceCacheLightingTermsTests_UniformEnclosurePreservesIrradianceAcrossTravelDistances,
             parameters:new(expected-.1f,expected+.1f,0,0)).AssertEqual();
     }
 
@@ -55,7 +57,7 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
         fixture.Page.ResetLighting();
         Assert.False(fixture.Page.Relight(fixture.Geometry.Scene, steps: 2, rays: 16));
         // The first ray is identical; require at least one texel whose complete batch is rejected.
-        var mixed=ImageAssertions.Predicate(fixture.Page.IrradianceAtlas, GpuAssertionPredicate.SurfaceCacheLightingTermsTests_IncompleteHemisphereBatchPreservesHistory,second:firstDirections.Texture);
+        var mixed=ImageAssertions.Predicates.Predicate(fixture.Page.IrradianceAtlas, SurfacePredicates.SurfaceCacheLightingTermsTests_IncompleteHemisphereBatchPreservesHistory,second:firstDirections.Texture);
         mixed.AssertEqual();Assert.True(mixed.MatchingTexels>0,"Fixture must exercise a mixed resolved/unresolved hemisphere batch.");
     }
 
@@ -68,10 +70,10 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
         Assert.True(fixture.Page.Capture(fixture.Geometry.Scene));
         Assert.True(fixture.Page.Relight(fixture.Geometry.Scene));
         using var expected = new GpuImageSnapshot(fixture.Page.IrradianceAtlas);
-        ImageAssertions.CompareConstant(expected.Texture,1,channelMask:8).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(expected.Texture,1,channelMask:8).AssertEqual();
         // Preserve the completed representable sample; only the authored temporal weight changes.
-        using var transform=new GpuImageTransform();
-        using var history=transform.Apply(expected.Texture, GpuImageProjection.SurfaceCacheLightingTermsTests_CappedHistoryPreservesConstantIrradiance);
+        var transform = ImageAssertions.Projections;
+        using var history=transform.Apply(expected.Texture, SurfaceProjections.SurfaceCacheLightingTermsTests_CappedHistoryPreservesConstantIrradiance);
         var area=new VanillaGraphicsExpanded.Rendering.RHI.RenderArea(0,0,8,8);
         VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BlitImages(new(
             VanillaGraphicsExpanded.Rendering.RHI.RHIAttachment.FromTexture(history),area,
@@ -79,9 +81,19 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
         for(int repeat=0;repeat<3;repeat++)
         {
             Assert.True(fixture.Page.Relight(fixture.Geometry.Scene));
-            ImageAssertions.CompareHistory(fixture.Page.IrradianceAtlas,expected,channelMask:7).AssertEqual();
-            ImageAssertions.CompareConstant(fixture.Page.IrradianceAtlas,1024,channelMask:8).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(fixture.Page.IrradianceAtlas,expected,channelMask:7).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(fixture.Page.IrradianceAtlas,1024,channelMask:8).AssertEqual();
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
+        programs.Prepare("projection-surface", 0, 0);
     }
     #endregion
 }

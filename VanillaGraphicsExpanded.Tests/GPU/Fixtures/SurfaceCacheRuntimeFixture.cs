@@ -17,9 +17,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Runs production surface-cache renderers against controlled engine edges and real GPU resources.</summary>
 internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
 {
-    private Assertions.GpuImageAssertions? imageAssertions;
     /// <summary>Owns compact observation programs independently of producer resources and frame lifetime.</summary>
-    internal Assertions.GpuImageAssertions ImageAssertions => imageAssertions ??= new();
+    internal Assertions.GpuObservations ImageAssertions { get; }
     private readonly BinaryShaderApiFixture assets = new();
     private readonly ScopedPbrMaterialFixture material = new();
     private readonly ShaderTestFramework drawing = new();
@@ -77,7 +76,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         // Both the snapshot and pooled observations remain local: another call sees writes and resource replacement.
         var regions = SurfaceCacheReadiness.Plan(pages.Select(page => page.Physical),
             snapshot.TileSize, snapshot.TilesPerAxis, snapshot.TilesPerAtlas);
-        return SurfaceCacheReadiness.AllInitialized(snapshot.OutgoingRadiance, regions, ImageAssertions);
+        return SurfaceCacheReadiness.AllInitialized(snapshot.OutgoingRadiance, regions, ImageAssertions.Comparisons);
     }
 
     /// <summary>Observes completion of all requested terrain captures without accepting allocation as successful capture.</summary>
@@ -119,8 +118,11 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
 
     #region Runtime setup
     /// <summary>Mocks camera and terrain raster inputs while retaining renderer registration, cache work and viewer selection.</summary>
-    public SurfaceCacheRuntimeFixture(int requestedPages = 1, bool exposedWall = false, bool enclosure = false, SpatialLightingScene? spatial = null, bool productionOwned = false, int feedbackPlaneX = 0, ControlledVoxelWorld? fallbackWorld = null)
+    public SurfaceCacheRuntimeFixture(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations, int requestedPages = 1, bool exposedWall = false, bool enclosure = false, SpatialLightingScene? spatial = null, bool productionOwned = false, int feedbackPlaneX = 0, ControlledVoxelWorld? fallbackWorld = null)
     {
+        ImageAssertions = observations;
+        observations.Programs.Prepare("compare");
+        observations.Programs.Prepare("inspection", 0, 0);
         this.spatial=spatial; edge=spatial==null?2:4;
         this.productionOwned=productionOwned; this.enclosure=enclosure; this.exposedWall=exposedWall;
         Terrain = new(edge,edge);
@@ -344,7 +346,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Disposes production owners before their mocked engine and material dependencies.</summary>
     public void Dispose()
     {
-        imageAssertions?.Dispose(); controller?.Dispose(); debug?.Dispose(); frameCamera?.Dispose(); lights?.Dispose();
+         controller?.Dispose(); debug?.Dispose(); frameCamera?.Dispose(); lights?.Dispose();
         if (!productionOwned) { relight.Dispose(); Feedback.Dispose(); Geometry.Dispose(); }
         partitions.Dispose();
         if (!productionOwned)

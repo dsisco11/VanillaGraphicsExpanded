@@ -20,7 +20,7 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     {
         EnsureContextValid();
         using var atmosphere = new ScopedAtmosphereLighting(System.Numerics.Vector3.Zero);
-        using var floor = new SurfaceLightingEnclosureFixture(blockLight: 0, skyFloor: true, worldHeight: 34);
+        using var floor = new SurfaceLightingEnclosureFixture(ImageAssertions, blockLight: 0, skyFloor: true, worldHeight: 34);
         floor.SunLight = 32;
         floor.Geometry.Dirty(); floor.Geometry.Publish(); floor.Seed();
         Assert.Equal(new float[] { 0, 0, 0, 1 }, floor.ReadStored(floor.Snapshot.DirectIrradiance));
@@ -34,7 +34,7 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     public void CalibratedFieldReachesInstalledCacheProducer(bool emissionPolicy)
     {
         EnsureContextValid();
-        using var room = new SurfaceLightingEnclosureFixture(blockLight: 0, emission: 32, skyFloor: true, worldHeight: 34);
+        using var room = new SurfaceLightingEnclosureFixture(ImageAssertions, blockLight: 0, emission: 32, skyFloor: true, worldHeight: 34);
         room.EmissionPolicy = emissionPolicy;
         room.SetCalibration(LightingCalibration.Default);
         // The synthetic normalized source publishes exactly white RGB and the accessor's rounded zero byte.
@@ -67,7 +67,7 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
         {
             property.SetValue(null, new VanillaGraphicsExpanded.PBR.Atmosphere.AtmosphereLighting(
                 System.Numerics.Vector3.UnitY, new(.3f,.5f,.7f), new(.2f,.4f,.6f), new(0), new(0), []));
-            using var floor = new SurfaceLightingEnclosureFixture(blockLight:0, skyFloor:true, worldHeight:34);
+            using var floor = new SurfaceLightingEnclosureFixture(ImageAssertions, blockLight:0, skyFloor:true, worldHeight:34);
             floor.SunLight = skyLevel;
             floor.Geometry.Dirty(); floor.Geometry.Publish(); floor.Seed();
             float[] direct = floor.Read(floor.Snapshot.DirectIrradiance);
@@ -88,7 +88,7 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     public void SixtyFourStepsCannotCompleteLongPublishedSkyRoute()
     {
         EnsureContextValid();
-        using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:100,surfaceResolution:128);
+        using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:100,surfaceResolution:128);
         floor.Seed();
         // Select a nearly vertical cosine ray so coverage contains its complete route to y100.
         uint frame=(uint)Enumerable.Range(1,100000).First(value=>Hash(Hash(1,27,(uint)value),0,0)/4294967295f<.001f);
@@ -107,7 +107,7 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     {
         EnsureContextValid();
         using var atmosphere = new ScopedAtmosphereLighting(new System.Numerics.Vector3(32 / MathF.PI));
-        using var floor=new SurfaceLightingEnclosureFixture(.25f,32,emission,skyFloor:true,worldHeight:34);
+        using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, .25f,32,emission,skyFloor:true,worldHeight:34);
         floor.EmissionPolicy=emissionPolicy; floor.SunLight=16;
         floor.Geometry.Dirty(); floor.Geometry.Publish(); floor.Seed();
         var direct=floor.Read(floor.Snapshot.DirectIrradiance);
@@ -129,7 +129,7 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     public void EntireSkyFloorCompletesAndPublishes()
     {
         EnsureContextValid();
-        using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:34,surfaceResolution:64);
+        using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:34,surfaceResolution:64);
         floor.RaysPerTexel=1; floor.Seed();
         var outgoing=floor.Read(floor.Snapshot.OutgoingRadiance);
         floor.Bounce();
@@ -151,7 +151,7 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     public void UnresolvedPathsCannotBecomeSkyOrAlterCompletedHistory(string scenario)
     {
         EnsureContextValid();
-        using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:35);
+        using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:35);
         floor.Seed(); Assert.True(floor.BounceSample());
         var indirect=floor.Read(floor.Snapshot.IndirectIrradiance);
         var outgoing=floor.Read(floor.Snapshot.OutgoingRadiance);
@@ -183,7 +183,7 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     public void GrazingSkyDirectionCannotBypassHorizontalCoverage()
     {
         EnsureContextValid();
-        using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:34);
+        using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:34);
         floor.Seed(); Assert.True(floor.BounceSample());
         var before=floor.Read(floor.Snapshot.IndirectIrradiance);
         // This cosine sample has over 99 blocks of horizontal travel per vertical block,
@@ -200,7 +200,7 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     public void MixedSkyAndSurfaceHitsAverageAcrossEveryRay(bool staleRoofBeyondWorldTop)
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture(worldHeight:40);
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, worldHeight:40);
         room.Seed();
         var original=room.Geometry.Sample;
         // Open the roof below the fixed world top; stale source geometry above it must not obstruct sky.

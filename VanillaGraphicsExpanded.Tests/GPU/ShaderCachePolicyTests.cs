@@ -121,11 +121,11 @@ public sealed class ShaderCachePolicyTests(HeadlessGLFixture fixture)
         {
             try
             {
-                fixture.EnsureContextValid(prepareAssertions: false);
+                fixture.EnsureContextValid();
                 Assert.Same(disable ? null : secondStore, DriverProgramCache.CaptureStore().Store);
                 using (DriverProgramCache.UseStoreForTesting(null))
                 {
-                    fixture.EnsureContextValid(prepareAssertions: false);
+                    fixture.EnsureContextValid();
                     Assert.Null(DriverProgramCache.CaptureStore().Store);
                 }
                 Assert.Same(disable ? null : secondStore, DriverProgramCache.CaptureStore().Store);

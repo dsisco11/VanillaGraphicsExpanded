@@ -14,8 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Restores exported AO inputs at their native precision, validates uploads, and prepares captured-scene comparisons.</summary>
 internal sealed class CapturedAmbientOcclusionFixture : IDisposable
 {
+    private readonly VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations imageAssertions;
     private readonly GpuResourceCollection resources = new();
-    private readonly GpuImageAssertions imageAssertions=new();
     private readonly JsonDocument manifest;
     private readonly TestAssetSnapshot inputs;
     private readonly DynamicTexture2D depth, hierarchy;
@@ -36,8 +36,10 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
     internal float[] CapturedOutput { get; }
 
     /// <summary>Loads verified payloads without changing formats, camera transforms, mip contents or array layer order.</summary>
-    internal CapturedAmbientOcclusionFixture(ComponentShaderPrograms programs, TestAssetSnapshot inputs)
+    internal CapturedAmbientOcclusionFixture(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations, ComponentShaderPrograms programs, TestAssetSnapshot inputs)
     {
+        imageAssertions = observations;
+        observations.Programs.Prepare("compare", 0, 0);
         this.inputs = inputs;
         manifest = JsonDocument.Parse(inputs.Copy("manifest.json"));
         try
@@ -106,7 +108,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
     }
 
     /// <summary>Retires all restored GPU inputs and parsed metadata together.</summary>
-    public void Dispose() { imageAssertions.Dispose();comparisonMasks.Dispose();camera?.Dispose(); resources.Dispose(); manifest.Dispose(); }
+    public void Dispose() { comparisonMasks.Dispose();camera?.Dispose(); resources.Dispose(); manifest.Dispose(); }
     #endregion
 
     #region Private
@@ -135,7 +137,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
                 using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId))
                 using (OpenGLPixelLayouts.UnpackScope(OpenGlStateCache.Current, new OpenGlStateCache.PixelUnpackState(4)))
                     GL.TexSubImage2D(TextureTarget.Texture2D, mip, 0, 0, width, height, PixelFormat.Red, PixelType.Float, pixels);
-                imageAssertions.Compare(texture,pixels,selection:GpuImageSnapshot.Mip(texture,mip)).AssertEqual();
+                imageAssertions.Comparisons.Compare(texture,pixels,selection:GpuImageSnapshot.Mip(texture,mip)).AssertEqual();
             }
             return texture;
         }
@@ -163,7 +165,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
                 float[] pixels = DecodeHalf(CapturedPayload.Read(inputs, subresource, checked(Width * Height * 8)));
                 // Half values are exactly representable as float; the upload returns to the original RGBA16F storage.
                 texture.UploadDataImmediate(pixels, 0, 0, layer, Width, Height, 1);
-                imageAssertions.Compare(texture,pixels,selection:new(new(0,layer),0,0,0,Width,Height)).AssertEqual();
+                imageAssertions.Comparisons.Compare(texture,pixels,selection:new(new(0,layer),0,0,0,Width,Height)).AssertEqual();
             }
             return texture;
         }

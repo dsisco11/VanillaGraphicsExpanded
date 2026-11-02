@@ -21,6 +21,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Owns a tiny authored stored volume and independent native OIT/depth/atmosphere inputs.</summary>
 internal sealed class CloudStoredVolumeViewScene:IDisposable
 {
+    private readonly VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations;
     private readonly List<IDisposable> resources=[];
     private readonly DynamicTexture2D map,material,visibility,liquid,shafts;
     private readonly DynamicTexture3D aerial,attenuation;
@@ -34,7 +35,6 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     private CloudMapInput input;
     private uint updateFrame;
     private object? replacementIdentity;
-    private GpuImageTransform? projections;
     private CloudVolumeViewScene preparedScene=null!;
     /// <summary>Reports only the view owner's allocated trace products and reconstruction metadata.</summary>
     internal long ViewTargetBytes=>renderer.TargetBytes;
@@ -81,7 +81,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         CopyHistoryImage(observation.Metadata,completed.Images[2]);CopyHistoryImage(observation.Age,completed.Images[3]);
         if(completed.Diagnostics is {} diagnostics)
         {
-            using var age=(projections??=Own(new GpuImageTransform())).Apply(observation.Age, GpuImageProjection.CloudStoredVolumeViewScene_SeedHistory);
+            using var age=observations.Projections.Apply(observation.Age, CloudProjections.CloudStoredVolumeViewScene_SeedHistory);
             CopyHistoryImage(age,diagnostics);
         }
     }
@@ -96,9 +96,11 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         ImmutableArray<float>.Empty){Moon=-Vector3.UnitY,Lunar=new Vector3(3),CalibrationGeneration=7,LookupStorageScale=1f/16};
     #region Public API
     /// <summary>Allocates only existing GPU owners and the actual stored-volume view program.</summary>
-    internal CloudStoredVolumeViewScene(ComponentShaderPrograms programs,int width=1,int height=1,
+    internal CloudStoredVolumeViewScene(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations, ComponentShaderPrograms programs,int width=1,int height=1,
         Vector3 fogColor=default,float fogDensity=0,float fogMinimum=0)
     {
+        this.observations = observations;
+        observations.Programs.Prepare("projection-cloud", 0, 0);
         try
         {
             camera=Own(TestFrameCamera.CreateFromProjection([1,0,0,0,0,1,0,0,0,0,-1.00020002f,-1,0,0,-.200020002f,0],width,height,.1f,1000,fogColor,fogDensity,fogMinimum));

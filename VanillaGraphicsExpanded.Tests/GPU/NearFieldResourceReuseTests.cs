@@ -10,6 +10,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
 {
+
+
     /// <summary>Uses the shared GPU context and real component shader owners.</summary>
     public NearFieldResourceReuseTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -30,11 +32,11 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
         var restored = Trace(geometry, resources: first);
         Assert.NotSame(first.EnsureScreen(4, 4, 2).ScreenProbeAtlasTraceTex,
             second.EnsureScreen(4, 4, 2).ScreenProbeAtlasTraceTex);
-        ImageAssertions.Predicate(bright.Radiance, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, restored.Radiance).AssertEqual();
-        ImageAssertions.Predicate(bright.Meta, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, restored.Meta).AssertEqual();
-        ImageAssertions.Predicate(bright.Meta, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, suppressed.Meta).AssertEqual();
-        ObserveTrace(restored, GpuAssertionPredicate.NearFieldResourceReuseTests_TraceRebindsInputsAfterBranchAndVariantChanges, suppressed).AssertEqual();
-        ObserveTrace(disabled, GpuAssertionPredicate.NearFieldResourceReuseTests_TraceRebindsInputsAfterBranchAndVariantChanges_2).AssertEqual();
+        ImageAssertions.Predicates.Predicate(bright.Radiance, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, restored.Radiance).AssertEqual();
+        ImageAssertions.Predicates.Predicate(bright.Meta, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, restored.Meta).AssertEqual();
+        ImageAssertions.Predicates.Predicate(bright.Meta, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, suppressed.Meta).AssertEqual();
+        ObserveTrace(restored, GeometryPredicates.NearFieldResourceReuseTests_TraceRebindsInputsAfterBranchAndVariantChanges, suppressed).AssertEqual();
+        ObserveTrace(disabled, GeometryPredicates.NearFieldResourceReuseTests_TraceRebindsInputsAfterBranchAndVariantChanges_2).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -67,8 +69,8 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
             Assert.Same(history, screen.ScreenProbeAtlasHistoryTex);
             Assert.Same(depth, first.Scene.Engine.Depth);
             Assert.True(radiance.IsValid);
-            ImageAssertions.CompareConstant(other.ScreenProbeAtlasTraceTex, .75f).AssertEqual();
-            if (prior != null) ImageAssertions.Predicate(prior.Radiance, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, result.Radiance).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(other.ScreenProbeAtlasTraceTex, .75f).AssertEqual();
+            if (prior != null) ImageAssertions.Predicates.Predicate(prior.Radiance, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, result.Radiance).AssertEqual();
             prior = result;
         }
         first.Dispose();
@@ -76,6 +78,16 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
         Assert.True(world.ProbeRadianceAtlas.IsValid);
         Assert.True(other.ScreenProbeAtlasTraceTex.IsValid);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-cloud", 0, 0);
+        programs.Prepare("predicate-geometry", 0, 0);
     }
     #endregion
 }

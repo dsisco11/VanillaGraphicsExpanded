@@ -94,14 +94,14 @@ internal static class SurfaceLightingRefreshSynchronization
                 int sx = slot % resolution, sy = slot / resolution % resolution, sz = slot / (resolution * resolution);
                 var selection = new VanillaGraphicsExpanded.Rendering.RHI.RHITextureRegion(new(0),
                     (sx + sz * resolution) * worldTile, sy * worldTile, 0, worldTile, worldTile);
-                var confidence = runtime.Cache.ImageAssertions.Inspect(runtime.WorldImage, selection: selection, channelMask: 8);
+                var confidence = runtime.Cache.ImageAssertions.Statistics.Inspect(runtime.WorldImage, selection: selection, channelMask: 8);
                 Assert.True(confidence.NonFinite == 0 && confidence.Minimum > 0, $"Missing world direction: slot={slot}; {confidence}");
                 float[] encoded = Enumerable.Range(0, worldTile * worldTile)
                     .SelectMany(_ => new[] { expected.X / 16, expected.Y / 16, expected.Z / 16, 0f }).ToArray();
                 // The independently authored physical bound is scaled exactly by the power-of-two persistent encoding.
-                runtime.Cache.ImageAssertions.Compare(runtime.WorldImage, encoded, .01f / 16,
+                runtime.Cache.ImageAssertions.Comparisons.Compare(runtime.WorldImage, encoded, .01f / 16,
                     selection, channelMask: 7).AssertEqual();
-                runtime.Cache.ImageAssertions.Inspect(runtime.WorldImage, 0, 65504, selection, channelMask: 7).AssertFiniteRange();
+                runtime.Cache.ImageAssertions.Statistics.Inspect(runtime.WorldImage, 0, 65504, selection, channelMask: 7).AssertFiniteRange();
             }
         }
         int tile = VanillaGraphicsExpanded.Rendering.DynamicTexture3D.OctahedralSize;
@@ -123,8 +123,8 @@ internal static class SurfaceLightingRefreshSynchronization
                 var history = runtime.Screen.ScreenProbeAtlasHistoryTex!;
                 var meta = runtime.Screen.ScreenProbeAtlasMetaHistoryTex!;
                 stable = previousHistory != null &&
-                    runtime.Cache.ImageAssertions.CompareHistory(history, previousHistory).Mismatches == 0 &&
-                    runtime.Cache.ImageAssertions.CompareHistory(meta, previousMeta!).Mismatches == 0;
+                    runtime.Cache.ImageAssertions.Comparisons.CompareHistory(history, previousHistory).Mismatches == 0 &&
+                    runtime.Cache.ImageAssertions.Comparisons.CompareHistory(meta, previousMeta!).Mismatches == 0;
                 // Both retained histories belong to this observation interval and are always retired on failure.
                 previousHistory?.Dispose(); previousHistory = null;
                 previousMeta?.Dispose(); previousMeta = null;

@@ -17,6 +17,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Signed boundary RGB decodes before nonzero camera illumination while optical length and winding remain unscaled.</summary>
     [Fact]
@@ -28,7 +30,7 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
         using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
         using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [.75f]);
         using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, 1f, .5f, 1]);
-        using var surface = LayeredTestTexture.Create(normal, zero, zero);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, zero, zero);
         using var optical = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [-.7f, -1.4f, -2.1f, -7]);
         using var output = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba16f, TextureFormat.R32f);
         using var camera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1],
@@ -46,9 +48,9 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
         {
             publication.Capture(scale);
             using var direct = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [2*scale, scale, .5f*scale, 1]);
-            using var lighting = LayeredTestTexture.Create(direct, zero, zero);
+            using var lighting = LayeredTestTexture.Create(ImageAssertions.Programs, direct, zero, zero);
             using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [-2.1f*scale, -2.8f*scale, -3.5f*scale, -1]);
-            using var water = LayeredTestTexture.Create(optical, source);
+            using var water = LayeredTestTexture.Create(ImageAssertions.Programs, optical, source);
             program.DirectLighting = lighting;
             program.SetWaterVolume(new(water, medium, cameraSource, cameraSource));
             program.SetUnderwater(true);
@@ -81,9 +83,9 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
         using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
         using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [.75f]);
         using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, 1f, .5f, 1f]);
-        using var lighting = LayeredTestTexture.Create(zero, zero, zero);
-        using var surface = LayeredTestTexture.Create(normal, zero, zero);
-        using var water = LayeredTestTexture.Create(zero, zero);
+        using var lighting = LayeredTestTexture.Create(ImageAssertions.Programs, zero, zero, zero);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, zero, zero);
+        using var water = LayeredTestTexture.Create(ImageAssertions.Programs, zero, zero);
         using var output = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba16f, TextureFormat.R32f);
         using var camera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1],
             [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
@@ -123,6 +125,14 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
             if (incident[channel] > 0) Assert.True(actual[channel] > 0);
             else Assert.Equal(0, actual[channel]);
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
     }
     #endregion
 }

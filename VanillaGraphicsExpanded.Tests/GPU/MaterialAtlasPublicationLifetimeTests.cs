@@ -13,6 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class MaterialAtlasPublicationLifetimeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>A live texture owner cannot authorize a queued write addressed to a different live texture name.</summary>
     [Fact]
@@ -119,7 +121,7 @@ public sealed class MaterialAtlasPublicationLifetimeTests(HeadlessGLFixture fixt
             Assert.True(manager.GetDiagnosticsSnapshot().DroppedInvalid > 0);
 #endif
             Assert.Equal(identity, replacement.MaterialParamsTexture.TextureId);
-            ImageAssertions.CompareHistory(replacement.MaterialParamsTexture,retained).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(replacement.MaterialParamsTexture,retained).AssertEqual();
             Assert.Equal(256, store.MaximumEmissionNits);
         }
         finally { TextureStreamingSystem.Dispose(); }
@@ -133,6 +135,14 @@ public sealed class MaterialAtlasPublicationLifetimeTests(HeadlessGLFixture fixt
         for (int tick = 0; tick < 32 && TextureStreamingSystem.Manager.PendingCount > 0; tick++)
             TextureStreamingSystem.TickOnRenderThread();
         Assert.Equal(0, TextureStreamingSystem.Manager.PendingCount);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

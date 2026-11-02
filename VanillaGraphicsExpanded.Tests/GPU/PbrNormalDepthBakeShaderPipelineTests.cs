@@ -21,6 +21,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 {
+
+
     private readonly HeadlessGLFixture fixture;
 
     public PbrNormalDepthBakeShaderPipelineTests(HeadlessGLFixture fixture) : base(fixture)
@@ -106,7 +108,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.UseProgram(0);
         GpuFramebuffer.Unbind();
 
-        var alpha=ImageAssertions.Inspect(target[0],channelMask:8);
+        var alpha=ImageAssertions.Statistics.Inspect(target[0],channelMask:8);
         float minA=(float)alpha.Minimum,maxA=(float)alpha.Maximum;
 
         // Sanity: should vary and stay in a renderdoc-friendly range.
@@ -265,7 +267,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.UseProgram(0);
         GpuFramebuffer.Unbind();
 
-        var alpha=ImageAssertions.Inspect(target[0],channelMask:8);
+        var alpha=ImageAssertions.Statistics.Inspect(target[0],channelMask:8);
         float minA=(float)alpha.Minimum,maxA=(float)alpha.Maximum;
 
         return (minA, maxA);
@@ -429,10 +431,10 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.UseProgram(0);
         GpuFramebuffer.Unbind();
 
-        var alpha=ImageAssertions.Inspect(outFbo[0],channelMask:8);
+        var alpha=ImageAssertions.Statistics.Inspect(outFbo[0],channelMask:8);
         float minA=(float)alpha.Minimum,maxA=(float)alpha.Maximum;
-        uint ones=ImageAssertions.Predicate(outFbo[0], GpuAssertionPredicate.PbrNormalDepthBakeShaderPipelineTests_NormalizeThenPack_ProducesNonFlatAlpha_ForBipolarInput).MatchingTexels;
-        uint zeros=ImageAssertions.Predicate(outFbo[0], GpuAssertionPredicate.PbrNormalDepthBakeShaderPipelineTests_NormalizeThenPack_ProducesNonFlatAlpha_ForBipolarInput_2).MatchingTexels;
+        uint ones=ImageAssertions.Predicates.Predicate(outFbo[0], MaterialPredicates.PbrNormalDepthBakeShaderPipelineTests_NormalizeThenPack_ProducesNonFlatAlpha_ForBipolarInput).MatchingTexels;
+        uint zeros=ImageAssertions.Predicates.Predicate(outFbo[0], MaterialPredicates.PbrNormalDepthBakeShaderPipelineTests_NormalizeThenPack_ProducesNonFlatAlpha_ForBipolarInput_2).MatchingTexels;
 
         Assert.True(maxA - minA > 0.10f, $"Alpha too flat; min={minA}, max={maxA}");
         Assert.True(ones < (w * h * 0.95), $"Alpha appears saturated to 1.0; ones={ones}/{w*h}");
@@ -519,7 +521,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GpuFramebuffer.Unbind();
         GL.Disable(EnableCap.Blend);
 
-        uint ones=ImageAssertions.Predicate(target[0], GpuAssertionPredicate.PbrNormalDepthBakeShaderPipelineTests_NormalizeThenPack_ProducesNonFlatAlpha_ForBipolarInput).MatchingTexels;
+        uint ones=ImageAssertions.Predicates.Predicate(target[0], MaterialPredicates.PbrNormalDepthBakeShaderPipelineTests_NormalizeThenPack_ProducesNonFlatAlpha_ForBipolarInput).MatchingTexels;
 
         Assert.True(ones < (w * h * 0.98), $"Alpha appears solid white under blending; ones={ones}/{w*h}");
     }
@@ -547,4 +549,13 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         return RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = "Tests.Pbr.NormalDepthBake.AlbedoAtlas" }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba8), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((rgba).AsSpan()).ToArray())]).RequireResource();
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-material", 0, 0);
+    }
+    #endregion
 }

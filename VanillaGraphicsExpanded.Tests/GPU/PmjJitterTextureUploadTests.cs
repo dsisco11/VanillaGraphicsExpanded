@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class PmjJitterTextureUploadTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Every normalized texel matches independent sequence packing and ordinary frames retain owned storage.</summary>
     [Fact]
@@ -30,13 +32,22 @@ public sealed class PmjJitterTextureUploadTests(HeadlessGLFixture fixture):Rende
             Storage=ResourceStorageMode.Immutable,Filter=TextureFilterMode.Nearest,Label="Tests.Pmj.Expected"
         }).RequireResource();
         oracle.UploadDataImmediate(expected.Select(value=>(float)value).ToArray());
-        ImageAssertions.Predicate(texture, GpuAssertionPredicate.PmjJitterTextureUploadTests_UploadMatchesPackedSequenceAndRetainsIndependentStorage,oracle).AssertEqual();
+        ImageAssertions.Predicates.Predicate(texture, LightingPredicates.PmjJitterTextureUploadTests_UploadMatchesPackedSequenceAndRetainsIndependentStorage,oracle).AssertEqual();
         using var original=new Assertions.GpuImageSnapshot(texture);
         int id=texture.TextureId;texture.EnsureCreated();Assert.Equal(id,texture.TextureId);
         using var independent=PmjJitterTexture.Create(count,seed);
         Assert.NotEqual(id,independent.TextureId);texture.Dispose();Assert.False(texture.IsValid);
         Assert.Throws<ObjectDisposedException>(texture.EnsureCreated);
-        Assert.True(independent.IsValid);ImageAssertions.CompareHistory(independent,original).AssertEqual();
+        Assert.True(independent.IsValid);ImageAssertions.Comparisons.CompareHistory(independent,original).AssertEqual();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-lighting", 0, 0);
     }
     #endregion
 }

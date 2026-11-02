@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumOnTraceOutcomeDebugFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     #region Construction
     /// <summary>Uses the shared OpenGL context.</summary>
     public LumOnTraceOutcomeDebugFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
@@ -42,8 +44,16 @@ public sealed class LumOnTraceOutcomeDebugFunctionalTests : LumOnShaderFunctiona
             UpdateAndBindLumOnFrameUbo(program);
             program.ProbeAtlasMeta = metadata;
             TestFramework.RenderQuadTo(program, output);
-            ImageAssertions.Compare(output[0],Enumerable.Repeat(new[]{red,green,blue,1f},ScreenWidth*ScreenHeight).SelectMany(x=>x).ToArray()).AssertEqual();
+            ImageAssertions.Comparisons.Compare(output[0],Enumerable.Repeat(new[]{red,green,blue,1f},ScreenWidth*ScreenHeight).SelectMany(x=>x).ToArray()).AssertEqual();
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

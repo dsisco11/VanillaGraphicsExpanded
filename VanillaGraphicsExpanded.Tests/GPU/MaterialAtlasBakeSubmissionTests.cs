@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>All three entries preserve hostile caller state while clear, bounded bake and whole-page bake produce matching pixels.</summary>
     [Fact]
@@ -97,11 +99,11 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             }
             using var rectangle = new GpuImageSnapshot(destination);
             // The complete rectangle is finite; every exterior texel retains the independently authored sentinel.
-            ImageAssertions.Predicate(rectangle.Texture, GpuAssertionPredicate.MaterialAtlasBakeSubmissionTests_IndependentAtlasEntriesPreserveStateAndRectangles,parameters:new(sentinel[0],sentinel[1],sentinel[2],sentinel[3])).AssertEqual();
-            var heights=ImageAssertions.Inspect(rectangle.Texture,
+            ImageAssertions.Predicates.Predicate(rectangle.Texture, MaterialPredicates.MaterialAtlasBakeSubmissionTests_IndependentAtlasEntriesPreserveStateAndRectangles,parameters:new(sentinel[0],sentinel[1],sentinel[2],sentinel[3])).AssertEqual();
+            var heights=ImageAssertions.Statistics.Inspect(rectangle.Texture,
                 selection:new(new(),origin,origin,0,size,size),channelMask:8);
             Assert.True(heights.Maximum-heights.Minimum>.001f,"The production solver must produce nonflat checkerboard relief.");
-            Assert.True(ImageAssertions.Predicate(rectangle.Texture, GpuAssertionPredicate.MaterialAtlasBakeSubmissionTests_IndependentAtlasEntriesPreserveStateAndRectangles_2).MatchingTexels>0);
+            Assert.True(ImageAssertions.Predicates.Predicate(rectangle.Texture, MaterialPredicates.MaterialAtlasBakeSubmissionTests_IndependentAtlasEntriesPreserveStateAndRectangles_2).MatchingTexels>0);
             using (var hostile = new HostileFullscreenState())
             {
                 // An absent input is rejected before admission without touching caller state.
@@ -124,14 +126,14 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
                     destination, edge, edge, origin, origin, size, size, 1, 1));
                 hostile.AssertRestored(); AssertBindings();
             }
-            ImageAssertions.CompareHistory(destination,rectangle).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(destination,rectangle).AssertEqual();
             using (var hostile = new HostileFullscreenState())
             {
                 MaterialAtlasNormalDepthGpuBuilder.BakePerTexture(assets.Api, source, destination, edge, edge,
                     [new TextureAtlasPosition { atlasTextureId = source.TextureId, x1 = .25f, y1 = .25f, x2 = .75f, y2 = .75f }]);
                 hostile.AssertRestored(); AssertBindings();
             }
-            ImageAssertions.Predicate(destination, GpuAssertionPredicate.MaterialAtlasBakeSubmissionTests_IndependentAtlasEntriesPreserveStateAndRectangles_3,rectangle.Texture).AssertEqual();
+            ImageAssertions.Predicates.Predicate(destination, MaterialPredicates.MaterialAtlasBakeSubmissionTests_IndependentAtlasEntriesPreserveStateAndRectangles_3,rectangle.Texture).AssertEqual();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { OpenGlStateCache.Current.InvalidateAll(); }
@@ -157,7 +159,7 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             var values=new float[edge*edge*4];
             for(int y=0;y<edge;y++)for(int x=0;x<edge;x++)
                 expected(x,y).CopyTo(values,(y*edge+x)*4);
-            ImageAssertions.Compare(actual,values,tolerance:.001f).AssertEqual();
+            ImageAssertions.Comparisons.Compare(actual,values,tolerance:.001f).AssertEqual();
         }
     }
     #endregion
@@ -186,6 +188,16 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
                 field.SetValue(null, field.FieldType == typeof(bool) ? false : null);
             }
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-material", 0, 0);
     }
     #endregion
 }

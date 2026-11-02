@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class TraceGeometryPublicationTests : RenderTestBase
 {
+
+
     /// <summary>Uses the existing headless GL owner.</summary>
     public TraceGeometryPublicationTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -44,17 +46,17 @@ public sealed class TraceGeometryPublicationTests : RenderTestBase
             partition.Service(plan);
             Assert.InRange(scene.UploadedBytes - bytes, 0, 65536);
             if (scene.TablesRevision != expected.Revision)
-                ImageAssertions.Inspect(scene.Readiness,0,0).AssertFiniteRange();
+                ImageAssertions.Statistics.Inspect(scene.Readiness,0,0).AssertFiniteRange();
         }
-        ImageAssertions.Inspect(scene.Readiness,1,1).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(scene.Readiness,1,1).AssertFiniteRange();
         uint[] faces=expected.Faces.ToArray();
-        ImageAssertions.CompareBits(scene.Faces,faces).AssertEqual();
+        ImageAssertions.Comparisons.CompareBits(scene.Faces,faces).AssertEqual();
         Assert.NotEqual(0u, faces[id * 4]); Assert.Equal(hitReady ? 3u : 1u, faces[id * 4 + 3] & 3u);
         Assert.Equal((uint)fixture.Cube.Id,faces[id * 4 + 3] >> 2);
         byte[] colors=expected.Colors.ToArray();
-        ImageAssertions.CompareRgba8(scene.Materials,colors).AssertEqual();
+        ImageAssertions.Comparisons.CompareRgba8(scene.Materials,colors).AssertEqual();
         if(hitReady)Assert.Equal((byte)MathF.Round(GgxHemisphereReference.CapturedDiffuse(1)*255),colors[id*48]);
-        ImageAssertions.CompareBits(scene.Surfaces,expected.Surfaces.ToArray()).AssertEqual();
+        ImageAssertions.Comparisons.CompareBits(scene.Surfaces,expected.Surfaces.ToArray()).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -72,18 +74,18 @@ public sealed class TraceGeometryPublicationTests : RenderTestBase
         using var partition = new TraceGeometryPartition(coordinator, cache, new(), scene);
         var plan = TraceGeometryCoverage.Plan(new(anchor + 1, 40, anchor + 1), true, null, 256);
         for (int frame = 1; frame <= 10; frame++) { partition.Prepare(plan); coordinator.Pump(frame); partition.Service(plan); }
-        ImageAssertions.Inspect(scene.Readiness,1,1).AssertFiniteRange();
-        ImageAssertions.Inspect(scene.Geometry,2,2).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(scene.Readiness,1,1).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(scene.Geometry,2,2).AssertFiniteRange();
         byte[] light=GpuLocalRead.Rgba8(scene.Light,0,0);
         for(int c=0;c<4;c++)Assert.Equal((byte)(0x44332211u>>(8*c)),light[c]);
-        ImageAssertions.Inspect(scene.Legacy,23,23).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(scene.Legacy,23,23).AssertFiniteRange();
         version++;
         partition.Prepare(plan);
-        ImageAssertions.Inspect(scene.Readiness,0,0).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(scene.Readiness,0,0).AssertFiniteRange();
         coordinator.Pump(11); partition.Service(plan);
         var moved = TraceGeometryCoverage.Plan(new(anchor + 1000, 40, anchor + 1000), true, null, 256);
         partition.Prepare(moved);
-        ImageAssertions.Inspect(scene.Readiness,0,0).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(scene.Readiness,0,0).AssertFiniteRange();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -99,10 +101,22 @@ public sealed class TraceGeometryPublicationTests : RenderTestBase
             byte[] expected = Enumerable.Range(0, 12).Select(i => (byte)(i * 19)).ToArray();
             texture.UploadDataImmediate(expected);
             GL.GetInteger(GetPName.UnpackAlignment, out int alignment); Assert.Equal(8, alignment);
-            ImageAssertions.CompareRgba8(texture,expected).AssertEqual();
+            ImageAssertions.Comparisons.CompareRgba8(texture,expected).AssertEqual();
         }
         finally { GL.PixelStore(PixelStoreParameter.UnpackAlignment, 4); }
     }
 
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 2, 0);
+        programs.Prepare("compare", 2, 0);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("projection-observation", 0, 0);
+    }
     #endregion
 }

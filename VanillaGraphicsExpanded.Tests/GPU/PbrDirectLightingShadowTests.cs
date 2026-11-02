@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
 {
+
+
     #region Scenario resources
 
     // Each test owns one specialization through Programs; receiver inputs are rebound for every draw.
@@ -198,7 +200,7 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         GL.TextureSubImage2D(farShadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { farDepth ?? shadowDepth });
         program.PrimaryScene = albedo;
         program.PrimaryDepth = depth;
-        using var surface = LayeredTestTexture.Create(normal, material, environment);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, material, environment);
         program.GBufferSurface = surface;
         program.GBufferPosition = position;
         program.ShadowMapNear = shadow;
@@ -240,5 +242,13 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         return result;
     }
 
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+    }
     #endregion
 }

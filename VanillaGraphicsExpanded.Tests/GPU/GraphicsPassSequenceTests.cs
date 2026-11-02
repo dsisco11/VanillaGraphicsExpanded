@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOutputHelper output):RenderTestBase(fixture)
 {
+
+
     #region Public API
     #region Transition comparison
     /// <summary>Identical output and native restoration require fewer API calls when intermediate pass handbacks are omitted.</summary>
@@ -30,8 +32,8 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         scene.Initialize();List<string> sequence;
         using(var capture=new GraphicsTransitionCapture()){scene.DrawSequence(differentPrograms);sequence=[..capture.Calls];}
         scene.AssertRestored();using var actual=scene.CaptureOutput();
-        for(int layer=0;layer<expected.Count;layer++)ImageAssertions.CompareHistory(actual[layer].Texture, expected[layer]).AssertEqual();
-        Assert.True(Enumerable.Range(0, actual.Count).Any(layer => ImageAssertions.CompareConstant(actual[layer].Texture, .25f).ConstantMatches > 0));
+        for(int layer=0;layer<expected.Count;layer++)ImageAssertions.Comparisons.CompareHistory(actual[layer].Texture, expected[layer]).AssertEqual();
+        Assert.True(Enumerable.Range(0, actual.Count).Any(layer => ImageAssertions.Comparisons.CompareConstant(actual[layer].Texture, .25f).ConstantMatches > 0));
         foreach(string prefix in new[]{"Framebuffer:","Program:","Routing"})
             Assert.True(sequence.Count(call=>call.StartsWith(prefix))<=baseline.Count(call=>call.StartsWith(prefix)),
                 $"{prefix} sequence={string.Join(';',sequence)} baseline={string.Join(';',baseline)}");
@@ -282,6 +284,14 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
             finally{GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer,previous);OpenGlStateCache.Current.InvalidateAll();}
         }
         #endregion
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

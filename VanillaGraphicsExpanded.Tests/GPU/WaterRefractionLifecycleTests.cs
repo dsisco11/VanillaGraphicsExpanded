@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Capture owns only its receiver pair and retains sparse output routing across reuse and resize.</summary>
     [Fact]
@@ -80,7 +82,7 @@ public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : R
             source.Publish();
             Assert.True(source.Published);
             composite.UploadDataImmediate(Enumerable.Repeat(2f, 16).ToArray());
-            ImageAssertions.CompareConstant(source.Color, .5f).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(source.Color, .5f).AssertEqual();
             // A new frame must withdraw last frame's publication before any consumer can use it.
             Assert.Same(target, source.BeginFrame(true, composite));
             Assert.False(source.Published);
@@ -133,6 +135,14 @@ public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : R
         source.Dispose();
         Assert.False(source.Published);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

@@ -11,6 +11,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class MaterialDisplacementAtlasTests : RenderTestBase
 {
+
+
     /// <summary>Uses the shared headless context.</summary>
     public MaterialDisplacementAtlasTests(HeadlessGLFixture fixture):base(fixture) { }
 
@@ -29,10 +31,10 @@ public sealed class MaterialDisplacementAtlasTests : RenderTestBase
         store.SyncToAtlasPages([(7,4,4)],true);
         Assert.True(store.TryGetDisplacementTextures(7,out var texture));
         var expected=new float[16];
-        ImageAssertions.Compare(texture!.Records,[.25f,.25f,.5f,.5f,.03f,0,0,0]).AssertEqual();
+        ImageAssertions.Comparisons.Compare(texture!.Records,[.25f,.25f,.5f,.5f,.03f,0,0,0]).AssertEqual();
         for(int y=0;y<4;y++) for(int x=0;x<4;x++)
             expected[y*4+x]=x is 1 or 2 && y is 1 or 2 ? 1f : 0f;
-        ImageAssertions.Compare(texture.Indices,expected).AssertEqual();
+        ImageAssertions.Comparisons.Compare(texture.Indices,expected).AssertEqual();
         store.UpdateDisplacement(plan with {MaterialParamsTiles=[tile with {Definition=definition with {DisplacementAmplitudeMetres=0}}]});
         Assert.False(store.TryGetDisplacementTextures(7,out _));
         store.UpdateDisplacement(plan);
@@ -63,12 +65,20 @@ public sealed class MaterialDisplacementAtlasTests : RenderTestBase
         Assert.True(store.TryGetDisplacementTextures(7,out var page));
         Assert.Equal(256,page!.Records.Width);
         Assert.Equal(2,page.Records.Height);
-        ImageAssertions.Compare(page.Indices,Enumerable.Range(0,256).Select(index=>index<129 ? (float)(index+1) : 0).ToArray()).AssertEqual();
+        ImageAssertions.Comparisons.Compare(page.Indices,Enumerable.Range(0,256).Select(index=>index<129 ? (float)(index+1) : 0).ToArray()).AssertEqual();
 
         int offset = 128 << 3;
         Assert.Equal(.5f,GpuLocalRead.Scalar(page.Records,offset));
         Assert.Equal(1f/256,GpuLocalRead.Scalar(page.Records,offset+2));
         Assert.Equal(.02f,GpuLocalRead.Scalar(page.Records,offset+4));
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

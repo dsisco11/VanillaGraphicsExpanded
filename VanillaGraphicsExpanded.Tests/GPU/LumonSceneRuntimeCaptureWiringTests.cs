@@ -22,6 +22,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Scenario", "HeadlessRuntime")]
 public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
 {
+
+
     public LumonSceneRuntimeCaptureWiringTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     [Fact]
@@ -203,7 +205,7 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
             pool.PagePool.DecodePhysicalId(captureOut[i].PhysicalPageId,out ushort atlasIdx,out ushort tileX,out ushort tileY);
             positions.Add((tileX*tileSize+tileSize/2,tileY*tileSize+tileSize/2,atlasIdx));
         }
-        var proof=ImageAssertions.PredicateAt(materialAtlas,positions, GpuAssertionPredicate.LumonSceneRuntimeCaptureWiringTests_RuntimeWiring_FeedbackToCpuToCapture_WritesExpectedMaterialNormals);
+        var proof=ImageAssertions.Predicates.PredicateAt(materialAtlas,positions, SurfacePredicates.LumonSceneRuntimeCaptureWiringTests_RuntimeWiring_FeedbackToCpuToCapture_WritesExpectedMaterialNormals);
         proof.AssertEqual();Assert.Equal((uint)captureCount,proof.MatchingTexels);
     }
 
@@ -283,4 +285,12 @@ public sealed class LumonSceneRuntimeCaptureWiringTests : RenderTestBase
         GL.BindTexture(TextureTarget.Texture2DArray, 0);
     }
 
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
+    #endregion
 }

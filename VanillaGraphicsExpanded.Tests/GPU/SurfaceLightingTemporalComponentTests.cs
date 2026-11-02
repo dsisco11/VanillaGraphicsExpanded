@@ -9,6 +9,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTemporalTestBase
 {
+
+
     /// <summary>Uses the material-isolated GPU context.</summary>
     public SurfaceLightingTemporalComponentTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -18,7 +20,7 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
     public void RetainedHistoryFollowsSourceLighting()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture(); room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions); room.Seed();
         using var history=new SurfaceLightingHistoryFixture();
         var bright=Sweep(room,history,true);
         long revision=history.Buffers.HistoryRevision;
@@ -41,7 +43,7 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
     public void BounceGenerationPreservesAndAccumulatesHistory()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture(); room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions); room.Seed();
         using var history=new SurfaceLightingHistoryFixture();
         var seed=Sweep(room,history,true);
         long revision=history.Buffers.HistoryRevision;
@@ -50,7 +52,7 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
         Assert.False(bounce.Reset); Assert.Equal(revision,history.Buffers.HistoryRevision);
         AssertRetainedDirections(seed.Pixels.Radiance,bounce,history.FrameIndex-1);
         // At least one freshly traced direction must actually blend old energy, not merely copy current.
-        Assert.True(ImageAssertions.Predicate(bounce.Raw, GpuAssertionPredicate.SurfaceLightingTemporalComponentTests_BounceGenerationPreservesAndAccumulatesHistory,seed.Pixels.Radiance,bounce.Pixels.Radiance).MatchingTexels>0);
+        Assert.True(ImageAssertions.Predicates.Predicate(bounce.Raw, SurfacePredicates.SurfaceLightingTemporalComponentTests_BounceGenerationPreservesAndAccumulatesHistory,seed.Pixels.Radiance,bounce.Pixels.Radiance).MatchingTexels>0);
         AssertHits(bounce.Pixels,true);
     }
     #endregion
@@ -61,12 +63,12 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
     public void UnavailabilityAndDependencyRevisionRejectHistory()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture(); room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions); room.Seed();
         using var history=new SurfaceLightingHistoryFixture();
         Sweep(room,history,true);
         var absent=RenderHistory(room,history,available:false);
         Assert.True(absent.Reset); AssertHits(absent.Pixels,false);
-        ImageAssertions.CompareConstant(absent.Pixels.Meta,0,channelMask:1).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(absent.Pixels.Meta,0,channelMask:1).AssertEqual();
         Sweep(room,history,true);
         long geometry=room.Geometry.Scene.Revision;
         room.DependencyRevision++;
@@ -82,13 +84,13 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
     {
         EnsureShaderTestAvailable();
         using var history=new SurfaceLightingHistoryFixture();
-        using(var bright=new SurfaceLightingEnclosureFixture()) { bright.Seed(); Sweep(bright,history,true); }
-        using(var dark=new SurfaceLightingEnclosureFixture(blockLight:0))
+        using(var bright=new SurfaceLightingEnclosureFixture(ImageAssertions)) { bright.Seed(); Sweep(bright,history,true); }
+        using(var dark=new SurfaceLightingEnclosureFixture(ImageAssertions, blockLight:0))
         {
             dark.Seed(); var frame=RenderHistory(dark,history);
             Assert.True(frame.Reset); AssertHits(frame.Pixels,false); Sweep(dark,history,false);
         }
-        using(var restored=new SurfaceLightingEnclosureFixture()) { restored.Seed(); Sweep(restored,history,true); }
+        using(var restored=new SurfaceLightingEnclosureFixture(ImageAssertions)) { restored.Seed(); Sweep(restored,history,true); }
     }
     #endregion
 
@@ -98,7 +100,7 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
     public void DoorwayClosureAndReopeningReachRetainedProbeHistory()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture(dividedRoom:true); room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, dividedRoom:true); room.Seed();
         using var history=new SurfaceLightingHistoryFixture();
         var open=Sweep(room,history,true);
         uint exterior=room.Geometry.ReadGeometry(4,36,7);
@@ -117,8 +119,8 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
             else
             {
                 AssertHits(first.Pixels,false);
-                Assert.True(ImageAssertions.Predicate(settled.Pixels.Radiance, GpuAssertionPredicate.SurfaceLightingTemporalComponentTests_DoorwayClosureAndReopeningReachRetainedProbeHistory,open.Pixels.Radiance).MatchingTexels>0);
-                ImageAssertions.CompareConstant(settled.Pixels.Meta,1,channelMask:1).AssertEqual();
+                Assert.True(ImageAssertions.Predicates.Predicate(settled.Pixels.Radiance, SurfacePredicates.SurfaceLightingTemporalComponentTests_DoorwayClosureAndReopeningReachRetainedProbeHistory,open.Pixels.Radiance).MatchingTexels>0);
+                ImageAssertions.Comparisons.CompareConstant(settled.Pixels.Meta,1,channelMask:1).AssertEqual();
             }
         }
     }
@@ -133,7 +135,7 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
         {
             frame=RenderHistory(room,history);
             if(i>0) Assert.False(frame.Reset);
-            foreach(var pixels in new[]{frame.Raw,frame.Pixels.Radiance}) ImageAssertions.Inspect(pixels).AssertFiniteRange();
+            foreach(var pixels in new[]{frame.Raw,frame.Pixels.Radiance}) ImageAssertions.Statistics.Inspect(pixels).AssertFiniteRange();
             if(!lit) AssertHits(frame.Pixels,false);
         }
         AssertHits(frame.Pixels,lit);
@@ -143,7 +145,7 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
     /// <summary>Checks every untraced RGBA direction equals previous temporal output, with actual retained illumination.</summary>
     private void AssertRetainedDirections(GpuTexture previous,HistoryFrame frame,int index)
     {
-        var observation=ImageAssertions.Predicate(frame.Pixels.Radiance, GpuAssertionPredicate.SurfaceLightingTemporalComponentTests_AssertRetainedDirections,previous,parameters:new(index,0,0,0));
+        var observation=ImageAssertions.Predicates.Predicate(frame.Pixels.Radiance, SurfacePredicates.SurfaceLightingTemporalComponentTests_AssertRetainedDirections,previous,parameters:new(index,0,0,0));
         observation.AssertEqual();
         Assert.True(observation.MatchingTexels>32,"Untraced retained history must contain actual cache-originating illumination.");
     }
@@ -151,7 +153,7 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
     /// <summary>Checks reset directions cannot copy lighting or confidence from the obsolete generation.</summary>
     private void AssertColdUntracedDirections(HistoryFrame frame,int index)
     {
-        ImageAssertions.Predicate(frame.Pixels.Radiance, GpuAssertionPredicate.SurfaceLightingTemporalComponentTests_AssertColdUntracedDirections,frame.Pixels.Meta,parameters:new(index,0,0,0)).AssertEqual();
+        ImageAssertions.Predicates.Predicate(frame.Pixels.Radiance, SurfacePredicates.SurfaceLightingTemporalComponentTests_AssertColdUntracedDirections,frame.Pixels.Meta,parameters:new(index,0,0,0)).AssertEqual();
     }
 
     // The documented eight-direction batch schedule selects assertions; it never predicts shader radiance.
@@ -159,8 +161,18 @@ public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTempo
     /// <summary>Compares every RGB output with the original absolute half-float transport tolerance.</summary>
     private void AssertClose(GpuTexture expected,GpuTexture actual,float tolerance)
     {
-        ImageAssertions.Predicate(actual, GpuAssertionPredicate.SurfaceLightingTemporalComponentTests_AssertClose,
+        ImageAssertions.Predicates.Predicate(actual, SurfacePredicates.SurfaceLightingTemporalComponentTests_AssertClose,
             expected,parameters:new(tolerance,0,0,0)).AssertEqual();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
     }
     #endregion
 }

@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class ShaderInputSubmissionTests : RenderTestBase
 {
+
+
     /// <summary>Uses the mandatory headless context without starting the game.</summary>
     public ShaderInputSubmissionTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -301,7 +303,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
             shader.IndirectHalf = texture;
             shader.PrimaryDepth = texture;
-            using var surfaceInput1 = LayeredTestTexture.Create(texture, null, null);
+            using var surfaceInput1 = LayeredTestTexture.Create(ImageAssertions.Programs, texture, null, null);
             shader.GBufferSurface = surfaceInput1;
             shader.UpsampleDepthSigma = 0.25f;
             shader.UpsampleNormalSigma = 12f;
@@ -369,7 +371,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             shader.FrameUniformBuffer = frame;
             ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
             shader.PrimaryDepth = texture;
-            using var surfaceInput2 = LayeredTestTexture.Create(texture, null, null);
+            using var surfaceInput2 = LayeredTestTexture.Create(ImageAssertions.Programs, texture, null, null);
             shader.GBufferSurface = surfaceInput2;
             shader.PmjJitter = texture;
             shader.DepthDiscontinuityThreshold = 0.25f;
@@ -469,13 +471,13 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     }
 
     /// <summary>Supplies required borrowed inputs while giving each owner distinct parameter bytes.</summary>
-    private static Texture3D AssignResources(LumOnUpsampleShaderProgram shader, GpuTexture texture, GpuUniformBuffer frame, VgeFrameUniformBuffer frameCamera, float sigma)
+    private Texture3D AssignResources(LumOnUpsampleShaderProgram shader, GpuTexture texture, GpuUniformBuffer frame, VgeFrameUniformBuffer frameCamera, float sigma)
     {
         shader.FrameUniformBuffer = frame;
             ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
         shader.IndirectHalf = texture;
         shader.PrimaryDepth = texture;
-        var surfaceInput3 = LayeredTestTexture.Create(texture, null, null);
+        var surfaceInput3 = LayeredTestTexture.Create(ImageAssertions.Programs, texture, null, null);
         shader.GBufferSurface = surfaceInput3;
         shader.UpsampleDepthSigma = sigma;
         return surfaceInput3;
@@ -513,5 +515,13 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     /// <summary>Observes the retained CPU block without exposing test-only production accessors.</summary>
     private static CpuUniformBuffer Parameters(LumOnUpsampleShaderProgram shader) =>
         (CpuUniformBuffer)typeof(LumOnUpsampleShaderProgram).GetField("paramsUbo", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(shader)!;
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+    }
     #endregion
 }

@@ -10,12 +10,14 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudTemporalFreshnessTests(HeadlessGLFixture fixture):LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Weights freshness and confidence with admitted transport, then expires repeated carries without fresh rays.</summary>
     [Fact]
     public void ResampledFreshnessUsesPhysicalWeightsAndExpiresWithoutObservations()
     {
-        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs,16,16);
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(ImageAssertions, Programs,16,16);
         scene.SetDepths(1000,1000,1000);
         scene.Draw(CloudVolumeViewSettings.Default with{Detail=false,TraceDivisor=2});
         var cloud=new float[64*4];var metadata=new float[cloud.Length];var diagnostic=new float[cloud.Length];
@@ -55,11 +57,11 @@ public sealed class CloudTemporalFreshnessTests(HeadlessGLFixture fixture):LumOn
         {
 
             // Age and numerical oracle occupy distinct images; keep each original condition explicit.
-            ImageAssertions.Predicate(result.Diagnostics!, GpuAssertionPredicate.CloudTemporalFreshnessTests_ResampledFreshnessUsesPhysicalWeightsAndExpiresWithoutObservations,
+            ImageAssertions.Predicates.Predicate(result.Diagnostics!, CloudPredicates.CloudTemporalFreshnessTests_ResampledFreshnessUsesPhysicalWeightsAndExpiresWithoutObservations,
                 result.Cloud,result.Bins).AssertEqual();
-            var age=ImageAssertions.Predicate(result.Diagnostics!, GpuAssertionPredicate.CloudTemporalFreshnessTests_ResampledFreshnessUsesPhysicalWeightsAndExpiresWithoutObservations_2,result.Age,oracle);
+            var age=ImageAssertions.Predicates.Predicate(result.Diagnostics!, CloudPredicates.CloudTemporalFreshnessTests_ResampledFreshnessUsesPhysicalWeightsAndExpiresWithoutObservations_2,result.Age,oracle);
             age.AssertEqual();Assert.True(age.MatchingTexels>0);
-            ImageAssertions.Predicate(result.Diagnostics!, GpuAssertionPredicate.CloudTemporalFreshnessTests_ResampledFreshnessUsesPhysicalWeightsAndExpiresWithoutObservations_3,result.Metadata,oracle).AssertEqual();
+            ImageAssertions.Predicates.Predicate(result.Diagnostics!, CloudPredicates.CloudTemporalFreshnessTests_ResampledFreshnessUsesPhysicalWeightsAndExpiresWithoutObservations_3,result.Metadata,oracle).AssertEqual();
             // Reuse completed physical history; the required age image is copied without resetting its clocks.
             for(int frame=1;frame<8;frame++)
             {
@@ -67,9 +69,17 @@ public sealed class CloudTemporalFreshnessTests(HeadlessGLFixture fixture):LumOn
                 var next=scene.FilterAuthored(rays,rayBins,rays,previousYaw:yaw);
                 result.Dispose();result=next;
             }
-            Assert.Equal(0u,ImageAssertions.Predicate(result.Diagnostics!, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_10).MatchingTexels);
+            Assert.Equal(0u,ImageAssertions.Predicates.Predicate(result.Diagnostics!, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_10).MatchingTexels);
         }
         finally { result.Dispose(); }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-cloud", 0, 0);
     }
     #endregion
 }

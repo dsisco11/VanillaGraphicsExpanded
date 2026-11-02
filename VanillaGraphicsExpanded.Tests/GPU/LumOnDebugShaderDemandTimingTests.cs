@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture, ITestOutputHelper output)
     : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Demand timing
     /// <summary>Checks cold and cached demand, mode switching and program reuse against identical output.</summary>
     [Fact]
@@ -44,7 +46,7 @@ public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture,
         using var cache = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory, fileSystem: new VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem()));
 
         using var input = TestFramework.CreateTexture(4, 4, TextureFormat.Rgba32f, Enumerable.Repeat(1f, 64).ToArray());
-        using var lightingArray = LayeredTestTexture.Create(input, input, input);
+        using var lightingArray = LayeredTestTexture.Create(ImageAssertions.Programs, input, input, input);
         using var target = TestFramework.CreateTestGBuffer(4, 4, TextureFormat.Rgba32f);
         using var frameLighting = new TestFrameLightingPublication();
         for (int generation = 0; generation < 2; generation++)
@@ -87,8 +89,8 @@ public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture,
 
                     TestFramework.RenderQuadTo(program, target, (1f, 0f, 0f, 0f));
                 }
-                ImageAssertions.Inspect(target[0],.499f,.501f,channelMask:7).AssertFiniteRange();
-                ImageAssertions.Inspect(target[0],.999f,1f,channelMask:8).AssertFiniteRange();
+                ImageAssertions.Statistics.Inspect(target[0],.499f,.501f,channelMask:7).AssertFiniteRange();
+                ImageAssertions.Statistics.Inspect(target[0],.999f,1f,channelMask:8).AssertFiniteRange();
                 double firstUse = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
 
                 if (reportTiming) output.WriteLine($"Generation={generation}, name={name}, selection={selection:F3} ms, first-use/readback={firstUse:F3} ms, assetreads={reads}, cachehit={DriverProgramCache.LastLoadWasHit}.");
@@ -96,6 +98,15 @@ public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture,
             Assert.Equal(expectedPrograms.Order(), assets.PreparedPrograms.Keys.Order());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("layer", 0, 0);
     }
     #endregion
 }

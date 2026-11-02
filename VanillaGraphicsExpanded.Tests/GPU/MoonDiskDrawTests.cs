@@ -19,6 +19,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class MoonDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Owned moon registrations persist through empty startup, resize, reload and leave-world until explicit disposal.</summary>
     [Fact]
@@ -103,8 +105,8 @@ public sealed class MoonDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFu
         Assert.Equal(framebuffer, GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(depth, GL.IsEnabled(EnableCap.DepthTest)); Assert.Equal(blending, GL.IsEnabled(EnableCap.Blend));
         GL.GetBoolean(GetPName.DepthWritemask, out bool currentWrites); Assert.Equal(writes, currentWrites);
-        ImageAssertions.CompareConstant(glow, 0).AssertEqual();
-        ImageAssertions.Inspect(color,0,disk.MaximumNits*scale,channelMask:7).AssertFiniteRange();
+        ImageAssertions.Comparisons.CompareConstant(glow, 0).AssertEqual();
+        ImageAssertions.Statistics.Inspect(color,0,disk.MaximumNits*scale,channelMask:7).AssertFiniteRange();
         var areas=new double[size*size];var cosines=new double[areas.Length];
         for(int y=0;y<size;y++)for(int x=0;x<size;x++)
         {
@@ -113,13 +115,25 @@ public sealed class MoonDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFu
             areas[y*size+x]=CornerArea(b,d)-CornerArea(a,d)-CornerArea(b,c)+CornerArea(a,c);
             cosines[y*size+x]=1/Math.Sqrt(1+Math.Pow((a+b)/2,2)+Math.Pow((c+d)/2,2));
         }
-        using var imageProjection=new GpuImageTransform();
-        using var physical=imageProjection.Apply(color, GpuImageProjection.MoonDiskDrawTests_Draw,new(scale,0,0,0));
-        var power=ImageAssertions.WeightedStatistics(physical,areas,channelMask:7,secondaryWeights:cosines);
+        var imageProjection = ImageAssertions.Projections;
+        using var physical=imageProjection.Apply(color, AtmosphereProjections.MoonDiskDrawTests_Draw,new(scale,0,0,0));
+        var power=ImageAssertions.Statistics.WeightedStatistics(physical,areas,channelMask:7,secondaryWeights:cosines);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
         return new((float)power.Sum(0),(float)power.Sum(1),(float)power.Sum(2));
     }
     /// <summary>Integrates a perspective rectangle in double precision without production geometry helpers.</summary>
     private static double CornerArea(double x, double y) => Math.Atan2(x*y, Math.Sqrt(1+x*x+y*y));
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("projection-atmosphere", 0, 0);
+        programs.Prepare("statistics", 0, 0);
+        programs.Prepare("statistics", 0, 3);
+    }
     #endregion
 }

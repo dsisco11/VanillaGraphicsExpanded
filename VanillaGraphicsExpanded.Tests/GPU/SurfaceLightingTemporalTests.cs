@@ -15,7 +15,7 @@ public sealed class SurfaceLightingTemporalTests(HeadlessGLFixture fixture) : Re
     public void AgedHistoryConvergesWithinTwentyFourCompletedUpdates(float initial,float target)
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);
         room.Seed(); room.SetIndirect(initial,1024);
         float prior=initial;
         for(int sample=0;sample<24;sample++)
@@ -38,7 +38,7 @@ public sealed class SurfaceLightingTemporalTests(HeadlessGLFixture fixture) : Re
     public void WarmupUsesCompletedMeanAndStableSamplesRemainBounded()
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);
         room.Seed();
         float sum=0;
         for(int sample=1;sample<=40;sample++)
@@ -59,7 +59,7 @@ public sealed class SurfaceLightingTemporalTests(HeadlessGLFixture fixture) : Re
     public void UnresolvedSamplesRetainAgedHistoryAndResolvedBlackAccumulates()
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);
         room.Seed(); room.SetIndirect(8,1024);
         var before=room.Read(room.Snapshot.IndirectIrradiance);
         var displayed=room.Read(room.Snapshot.OutgoingRadiance);
@@ -76,7 +76,7 @@ public sealed class SurfaceLightingTemporalTests(HeadlessGLFixture fixture) : Re
     public void ConfiguredCapControlsSaturatedWeight(int cap)
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture { MaxFramesAccumulated=cap };
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions) { MaxFramesAccumulated=cap };
         room.Seed(); room.SetIndirect(8,cap); room.SetIncidentRadiance(0);
         Assert.True(room.BounceSample());
         var actual=room.Read(room.Snapshot.IndirectIrradiance);
@@ -90,7 +90,7 @@ public sealed class SurfaceLightingTemporalTests(HeadlessGLFixture fixture) : Re
     public void LoweringCapUsesPreviousCountForFirstCompletedSample()
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture { MaxFramesAccumulated=8 };
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions) { MaxFramesAccumulated=8 };
         room.Seed(); room.SetIndirect(8,8);
         var before=room.Read(room.Snapshot.IndirectIrradiance);
         room.MaxFramesAccumulated=4;
@@ -112,7 +112,7 @@ public sealed class SurfaceLightingTemporalTests(HeadlessGLFixture fixture) : Re
     public void DirectRefreshChangesIndirectWithoutResettingHistory()
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);
         room.Seed();
         for(int bounce=0;bounce<16;bounce++) room.Bounce();
         var original=room.Snapshot;

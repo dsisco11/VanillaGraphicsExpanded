@@ -31,7 +31,7 @@ public sealed class WorldProbeRoutingMeasurementTests(HeadlessGLFixture fixture)
         var rows=new List<Measurement>();
         foreach(bool mixed in new[]{false,true})
         {
-            using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+            using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
             if(mixed)
             {
                 room.Geometry.Sample=(x,y,z)=>{var voxel=room.Sample(x,y,z);return x==7&&(voxel.Geometry&3)==2?voxel with {Geometry=(voxel.Geometry&~3u)|3u}:voxel;};

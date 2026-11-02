@@ -9,6 +9,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Resident refresh
     /// <summary>Disabling indirect work leaves initial direct seeding and subsequent light refresh active.</summary>
     [Fact]
@@ -16,7 +18,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     public void ZeroIndirectBudgetPreservesDirectProgressAndLiveBudgetIdentity()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceCacheRuntimeFixture(exposedWall:true);
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true);
         var config = runtime.Config.LumOn.LumonScene;
         config.RelightIndirectPagesPerFrame = 0;
         runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady);
@@ -45,7 +47,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     public void HistoryLimitChangesPreservePublishedSurfaceIdentity()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(spatial:new SpatialLightingScene { Reflectance=.25f });
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, spatial:new SpatialLightingScene { Reflectance=.25f });
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));
@@ -65,7 +67,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
                 Assert.Equal(original.DependencyRevision,current.DependencyRevision);
                 Assert.Equal(capture,runtime.Feedback.GetCaptureRevision(page));
                 using var outgoing=SurfaceLightingPageSelection.Capture(current.OutgoingRadiance,current,page);
-                ImageAssertions.CompareConstant(outgoing.Texture, 1, channelMask: 8).AssertEqual();
+                ImageAssertions.Comparisons.CompareConstant(outgoing.Texture, 1, channelMask: 8).AssertEqual();
                 reached=IndirectWeight(runtime,page)==cap;
             }
             Assert.True(reached,"Runtime history configuration did not reach the retained producer history.");
@@ -79,7 +81,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         var spatial=new SpatialLightingScene { Reflectance=.25f };
-        using var runtime=new SurfaceCacheRuntimeFixture(spatial:spatial);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, spatial:spatial);
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));
@@ -113,7 +115,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     public void ExteriorOcclusionCanHideAndRevealTheSameCapture()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true);
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));
         uint page=mapping.Keys.Single();
@@ -133,7 +135,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     public void RepeatedDirtyAvailabilityCyclesRefreshEveryPage()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(requestedPages:4,exposedWall:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages:4,exposedWall:true);
         runtime.Config.LumOn.LumonScene.RelightTexelsPerPagePerFrame=4;
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));
@@ -163,7 +165,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     public void LightChangesRefreshAllResidentsWithoutRecapture(int texels)
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(requestedPages:2,exposedWall:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages:2,exposedWall:true);
         runtime.Config.LumOn.LumonScene.RelightTexelsPerPagePerFrame=texels;
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.TryGetLighting(out var original));
@@ -185,7 +187,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
                 {
                     Assert.Equal(pair.Value,runtime.Feedback.GetCaptureRevision(pair.Key));
                     using var outgoing=SurfaceLightingPageSelection.Capture(current.OutgoingRadiance,current,pair.Key);
-                    ImageAssertions.CompareConstant(outgoing.Texture, 1, channelMask: 8).AssertEqual();
+                    ImageAssertions.Comparisons.CompareConstant(outgoing.Texture, 1, channelMask: 8).AssertEqual();
                     completed &= HasDirect(runtime,pair.Key,light);
                 }
             }
@@ -199,7 +201,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     public void UnresolvedRefreshRetainsPreviousDirectAndOutgoing()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true);
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.TryGetLighting(out var initial));
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));
@@ -213,10 +215,10 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
             runtime.Frame();
             Assert.True(runtime.TryGetLighting(out var current));
             using var direct=SurfaceLightingPageSelection.Capture(current.DirectIrradiance,current,page);
-            ImageAssertions.CompareHistory(direct.Texture, before).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(direct.Texture, before).AssertEqual();
             using var outgoing=SurfaceLightingPageSelection.Capture(current.OutgoingRadiance,current,page);
-            ImageAssertions.CompareConstant(outgoing.Texture, 1, channelMask: 8).AssertEqual();
-            Assert.True(ImageAssertions.Inspect(outgoing.Texture, channelMask: 1).Minimum > .001f);
+            ImageAssertions.Comparisons.CompareConstant(outgoing.Texture, 1, channelMask: 8).AssertEqual();
+            Assert.True(ImageAssertions.Statistics.Inspect(outgoing.Texture, channelMask: 1).Minimum > .001f);
         }
         runtime.TransformVoxel=null;runtime.InvalidateGeometry();
         runtime.RunUntil(()=>HasDirect(runtime,page,0),maximumFrames:96);
@@ -230,7 +232,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     {
         if(!runtime.TryGetLighting(out var current)) return 0;
         using var indirect=SurfaceLightingPageSelection.Capture(current.IndirectIrradiance,current,page);
-        var result = runtime.ImageAssertions.Statistics(indirect.Texture, channelMask: 1);
+        var result = runtime.ImageAssertions.Statistics.Statistics(indirect.Texture, channelMask: 1);
         result.AssertFiniteRange();
         return (float)(result.Sum(0) / (indirect.Texture.Width * indirect.Texture.Height));
     }
@@ -240,7 +242,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     {
         if(!runtime.TryGetLighting(out var current)) return 0;
         using var indirect=SurfaceLightingPageSelection.Capture(current.IndirectIrradiance,current,page);
-        var result = runtime.ImageAssertions.Inspect(indirect.Texture, channelMask: 8);
+        var result = runtime.ImageAssertions.Statistics.Inspect(indirect.Texture, channelMask: 8);
         result.AssertFiniteRange(); return (float)Math.Max(0, result.Maximum);
     }
 
@@ -249,10 +251,20 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     {
         if(!runtime.TryGetLighting(out var current)) return false;
         using var direct=SurfaceLightingPageSelection.Capture(current.DirectIrradiance,current,page);
-        return runtime.ImageAssertions.CompareConstant(direct.Texture, validity, channelMask: 8).Mismatches == 0 &&
-            runtime.ImageAssertions.CompareConstant(direct.Texture, expected * LightingStorage.PersistentScale,
+        return runtime.ImageAssertions.Comparisons.CompareConstant(direct.Texture, validity, channelMask: 8).Mismatches == 0 &&
+            runtime.ImageAssertions.Comparisons.CompareConstant(direct.Texture, expected * LightingStorage.PersistentScale,
                 channelMask: 7, tolerance: .01f * LightingStorage.PersistentScale).Mismatches == 0;
 
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("statistics", 0, 0);
     }
     #endregion
 }

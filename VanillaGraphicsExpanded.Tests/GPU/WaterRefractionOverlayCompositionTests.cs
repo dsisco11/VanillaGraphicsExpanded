@@ -19,6 +19,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Restores only overlay pixels, retaining invalid metadata when no clean world capture exists.</summary>
     [Theory]
@@ -60,11 +62,11 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
             AerialAttenuation = ImmutableArray.CreateRange(new float[96])
         };
         atmosphere.Publish(snapshot);
-        using var directLighting = LayeredTestTexture.Create(direct, zero, zero);
+        using var directLighting = LayeredTestTexture.Create(ImageAssertions.Programs, direct, zero, zero);
         program.DirectLighting = directLighting;
         program.IndirectDiffuse = zero;
         program.GBufferAlbedo = zero;
-        using var surface = LayeredTestTexture.Create(normal, zero, zero);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, zero, zero);
         program.GBufferSurface = surface;
         program.GBufferPosition = position;
         program.PrimaryDepth = depth;
@@ -111,6 +113,14 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
                         foreach (RenderMode mode in Enum.GetValues<RenderMode>())
                             Assert.Equal(enabled && self && !shadow && stage == EnumRenderStage.Opaque && mode == RenderMode.FirstPerson,
                                 WaterRefractionCapture.ShouldCapture(enabled, stage, shadow, self, mode));
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
     }
     #endregion
 }

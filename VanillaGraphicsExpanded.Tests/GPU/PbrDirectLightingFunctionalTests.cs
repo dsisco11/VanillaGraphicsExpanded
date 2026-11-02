@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     public PbrDirectLightingFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     /// <summary>Authored flux reaches the installed deferred receiver with inverse-square lux and Lambertian normalization.</summary>
@@ -531,7 +533,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 
         // Samplers
         using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [0f, 0f, 0f, 1f]);
-        using var surface = LayeredTestTexture.Create(gBufferNormal, gBufferMaterial, environment);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, gBufferNormal, gBufferMaterial, environment);
         programId.GBufferSurface = surface;
         using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
         programId.GBufferPosition = position;
@@ -615,12 +617,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
 
-        using var lightingArray = LayeredTestTexture.Create(directDiffuse, directSpecular, emissive);
+        using var lightingArray = LayeredTestTexture.Create(ImageAssertions.Programs, directDiffuse, directSpecular, emissive);
         programId.DirectLighting = lightingArray;
         using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
         using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new float[4]);
         programId.GBufferPosition = position;
-        using var surface = LayeredTestTexture.Create(gBufferNormal, gBufferMaterial, environment);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, gBufferNormal, gBufferMaterial, environment);
         programId.GBufferSurface = surface;
         programId.IndirectDiffuse = indirectDiffuse;
         programId.GBufferAlbedo = gBufferAlbedo;
@@ -656,4 +658,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         GpuFramebuffer.Unbind();
     }
 
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+    }
+    #endregion
 }

@@ -19,6 +19,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITestOutputHelper log) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Public API
     /// <summary>Checks exact images at small odd, collapsed, tied, cutout and transmitted receiver workloads.</summary>
@@ -70,7 +72,7 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
         string? directory=Environment.GetEnvironmentVariable("VGE_AO_CAPTURE_INPUT_DIR");
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_AO_MASK_EVALUATION")=="1" && !string.IsNullOrEmpty(directory),"Explicit captured production measurement required.");
         EnsureShaderTestAvailable();
-        using var inputs=new CapturedAmbientOcclusionFixture(Programs,TestAssetSnapshot.CaptureDirectory(directory!));
+        using var inputs=new CapturedAmbientOcclusionFixture(ImageAssertions, Programs,TestAssetSnapshot.CaptureDirectory(directory!));
         Run(inputs.Width,inputs.Height,inputs.Quality,-1,inputs.CapturedOutput,true,
             (reference,draw,target)=>inputs.PrepareComparison(reference,draw,target,target));
     }
@@ -82,7 +84,7 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
     private void Synthetic(int width,int height,int quality,int scene,bool measure)
     {
         EnsureShaderTestAvailable();
-        using var inputs=new AmbientOcclusionSceneFixture(TestFramework,Programs,width,height,scene,
+        using var inputs=new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework,Programs,width,height,scene,
             verticalFov:height==1?1:90,occluderTransmission:.3f,receiverTransmission:.2f);
         Run(width,height,quality,scene,null,measure,
             (reference,draw,target)=>inputs.PrepareHorizonComparison(reference,draw,target,target,quality));
@@ -97,7 +99,7 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
         using var original=TestFramework.CreateTestGBuffer((width+1)/2,(height+1)/2,TextureFormat.Rgba16f);
         prepare(reference,draw,original).Reference();
         using var rawOriginal=new GpuImageSnapshot(original[0]);
-        if(captured is not null) ImageAssertions.Compare(original[0],captured,bitwise:true).AssertEqual();
+        if(captured is not null) ImageAssertions.Comparisons.Compare(original[0],captured,bitwise:true).AssertEqual();
         using var hierarchy=new DepthHierarchyPass();
         hierarchy.Prepare(width,height,Programs.CreateDepthHierarchy());
         hierarchy.Render(reference.ReceiverDepth);
@@ -105,7 +107,7 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
         for(int level=0;level<imported.MipLevels;level++)
         {
             using var expected=new GpuImageSnapshot(imported,GpuImageSnapshot.Mip(imported,level));
-            ImageAssertions.CompareHistory(hierarchy.Texture!,expected,GpuImageSnapshot.Mip(hierarchy.Texture!,level),bitwise:true).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(hierarchy.Texture!,expected,GpuImageSnapshot.Mip(hierarchy.Texture!,level),bitwise:true).AssertEqual();
         }
         using var frozen=new FrozenAmbientOcclusionPass();
         using var current=new AmbientOcclusionPass();
@@ -129,7 +131,7 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
 }
         };
         baseline();candidate();
-        ImageAssertions.CompareHistory(Stage(frozen,"raw"),rawOriginal,bitwise:true).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(Stage(frozen,"raw"),rawOriginal,bitwise:true).AssertEqual();
         CompareStages(frozen,current);
         var masks=Assert.IsType<MinimumChildMaskPass>(AccessTools.Field(typeof(AmbientOcclusionPass),"minimumChildren").GetValue(current));
         ValidateMasks(masks.Texture!,hierarchy.Texture!,width,height);
@@ -185,10 +187,10 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
             using var mask=new GpuImageSnapshot(masks,GpuImageSnapshot.Mip(masks,level-1));
             Assert.Equal((w,h),(parent.Texture.Width,parent.Texture.Height));
             Assert.Equal((cw,ch),(children.Texture.Width,children.Texture.Height));
-            using var projection=new GpuImageTransform();
+            var projection = ImageAssertions.Projections;
             // R16UI converts exactly to float32, so the following numeric view retains all original mask bits.
-            using var numeric=projection.Apply(mask.Texture, GpuImageProjection.AoMinimumChildProductionTests_ValidateMasks);
-            ImageAssertions.Predicate(numeric, GpuAssertionPredicate.AoMinimumChildProductionTests_ValidateMasks_2,parent.Texture,children.Texture,parameters:new(cw,ch,w,h),mappedSources:true).AssertEqual();
+            using var numeric=projection.Apply(mask.Texture, AoProjections.AoMinimumChildProductionTests_ValidateMasks);
+            ImageAssertions.Predicates.Predicate(numeric, AoPredicates.AoMinimumChildProductionTests_ValidateMasks_2,parent.Texture,children.Texture,parameters:new(cw,ch,w,h),mappedSources:true).AssertEqual();
         }
     }
 
@@ -200,7 +202,7 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
             (stages.Filtered,(GpuTexture)Stage(frozen,"filtered")),(stages.Reconstructed,(GpuTexture)frozen.Texture!)})
         {
             using var expected=new GpuImageSnapshot(pair.Item2);
-            ImageAssertions.CompareHistory(pair.Item1,expected,bitwise:true).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(pair.Item1,expected,bitwise:true).AssertEqual();
         }
     }
 
@@ -225,5 +227,17 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
         return (ordered[(ordered.Length-1)/2]+ordered[ordered.Length/2])/2;
     }
     #endregion
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-ao", 0, 0);
+        programs.Prepare("predicate-observation", 0, 0);
+        programs.Prepare("projection-ao", 0, 0);
+        programs.Prepare("projection-ao", 2, 0);
+    }
     #endregion
 }

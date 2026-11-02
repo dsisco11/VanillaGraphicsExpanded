@@ -17,6 +17,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Extinction, horizon coverage and opaque occlusion govern solar bloom through scene RGB alone.</summary>
     [Fact]
@@ -57,18 +59,18 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
             });
 }
             using var solar = new Assertions.GpuImageSnapshot(color);
-            ImageAssertions.CompareConstant(glow, 0, channelMask: 1).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(glow, 0, channelMask: 1).AssertEqual();
             bloom.SourceImage=color;bloom.SecondaryImage=color;bloom.Capture(Vector4.Zero,new(1,0,1,ev));
             SubmitBloom(draw,bloom,extracted);
             bloom.SourceImage=extracted[0];bloom.CaptureGaussian(4,false);SubmitBloom(draw,bloom,horizontal);
             bloom.SourceImage=horizontal[0];bloom.CaptureGaussian(4,true);SubmitBloom(draw,bloom,halo);
-            var result = ImageAssertions.Statistics(halo[0], channelMask: 1);
+            var result = ImageAssertions.Statistics.Statistics(halo[0], channelMask: 1);
             result.AssertFiniteRange(); double energy = result.Sum(0);
             if(baseline==0) { baseline=energy;Assert.True(energy>1); }
             Assert.InRange(energy,baseline*ratio-baseline*.04,baseline*ratio+baseline*.04);
             if(ratio==0)Assert.Equal(0,energy);
-            else ImageAssertions.CompareChannelRatios(halo[0], new(0, .5f, .25f, 0), .0001f).AssertEqual();
-            ImageAssertions.CompareHistory(color, solar).AssertEqual();
+            else ImageAssertions.Comparisons.CompareChannelRatios(halo[0], new(0, .5f, .25f, 0), .0001f).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(color, solar).AssertEqual();
 
         }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
@@ -112,8 +114,8 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
             commands.EndRenderPass();
         });
 }
-        Assert.Equal(visible, ImageAssertions.Inspect(color).Positive > 0);
-        Assert.Equal(visible, ImageAssertions.Inspect(glow).Positive > 0);
+        Assert.Equal(visible, ImageAssertions.Statistics.Inspect(color).Positive > 0);
+        Assert.Equal(visible, ImageAssertions.Statistics.Inspect(glow).Positive > 0);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -128,6 +130,16 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
     using var scope11=commands.EnterBoundary(new("Tests.SolarBloom",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope11.Run(()=>draw.Submit(commands,pipeline,target.PostprocessPass(), shader.CaptureBindings()));
 }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("statistics", 0, 0);
     }
     #endregion
 }

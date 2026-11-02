@@ -26,6 +26,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctionalTestBase
 {
+
+
     private readonly HeadlessGLFixture fixture;
 
     /// <summary>Uses the shared GL context and its deferred resource cleanup service.</summary>
@@ -174,7 +176,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             // This synthetic outdoor scene has full propagated sunlight at every receiver.
             using var directEnvironment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [0f, 0f, 0f, 1f]);
-            using var surface = LayeredTestTexture.Create(gBufferNormal, gBufferMaterial, directEnvironment);
+            using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, gBufferNormal, gBufferMaterial, directEnvironment);
             pbrDirectProg.GBufferSurface = surface;
             pbrCompositeProg.GBufferSurface = surface;
             using var receiverPosition = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
@@ -226,7 +228,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             var velocityPixels = targets.Velocity[0];
             AssertAllFinite(velocityPixels, "Stage: Velocity");
 
-            ImageAssertions.Inspect(velocityPixels,-TestEpsilon,TestEpsilon,channelMask:3).AssertFiniteRange();
+            ImageAssertions.Statistics.Inspect(velocityPixels,-TestEpsilon,TestEpsilon,channelMask:3).AssertFiniteRange();
             // -----------------------------------------------------------------
             // Stage: LumOn HZB build
             // -----------------------------------------------------------------
@@ -236,7 +238,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             using var hzb0=new GpuImageSnapshot(targets.Hzb.Texture,GpuImageSnapshot.Mip(targets.Hzb.Texture,0));
             using var hzb2=new GpuImageSnapshot(targets.Hzb.Texture,GpuImageSnapshot.Mip(targets.Hzb.Texture,2));
             AssertAllFinite(hzb0.Texture,"Stage: HZB mip0");AssertAllFinite(hzb2.Texture,"Stage: HZB mip2");
-            ImageAssertions.Inspect(hzb0.Texture,.5f-TestEpsilon,.5f+TestEpsilon).AssertFiniteRange();
+            ImageAssertions.Statistics.Inspect(hzb0.Texture,.5f-TestEpsilon,.5f+TestEpsilon).AssertFiniteRange();
             Assert.InRange(GpuLocalRead.Scalar(hzb2.Texture,0),.5f-TestEpsilon,.5f+TestEpsilon);
             // -----------------------------------------------------------------
             // Stage: LumOn Probe Anchor
@@ -273,7 +275,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             AssertAllFinite(anchorPosPixels, "Stage: Probe Anchor (pos)");
             AssertAllFinite(anchorNormalPixels, "Stage: Probe Anchor (normal)");
 
-            var valid=ImageAssertions.Predicate(anchorPosPixels, GpuAssertionPredicate.PbrLumOnFullPipelineIntegrationTests_Integration_OneFrame_FullPipeline_PropagatesIndirectIntoComposite);
+            var valid=ImageAssertions.Predicates.Predicate(anchorPosPixels, MaterialPredicates.PbrLumOnFullPipelineIntegrationTests_Integration_OneFrame_FullPipeline_PropagatesIndirectIntoComposite);
             valid.AssertEqual();Assert.True(valid.MatchingTexels>0,"Stage: Probe Anchor -> no valid probes");
             // -----------------------------------------------------------------
             // Stage: LumOn Atlas Trace
@@ -298,7 +300,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // UBO-backed probe params (indirectTint/intensity etc).
             traceProg.IndirectTint = new(1,1,1);
 
-            using var anchorInputs1 = LayeredTestTexture.Create(targets.ProbeAnchor[0], targets.ProbeAnchor[1]);
+            using var anchorInputs1 = LayeredTestTexture.Create(ImageAssertions.Programs, targets.ProbeAnchor[0], targets.ProbeAnchor[1]);
             traceProg.ProbeAnchors = anchorInputs1;
             traceProg.PrimaryDepth = primaryDepth;
             traceProg.SurfaceAlbedo = gBufferAlbedo;
@@ -324,7 +326,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             AssertAllFinite(traceRadiance, "Stage: Atlas Trace (radiance)");
             AssertAllFinite(traceMeta, "Stage: Atlas Trace (meta)");
 
-            ImageAssertions.Inspect(traceMeta,0,1,channelMask:1).AssertFiniteRange();
+            ImageAssertions.Statistics.Inspect(traceMeta,0,1,channelMask:1).AssertFiniteRange();
 
             AssertStageHasRgbEnergy(traceRadiance, 1e-6f, "Stage: Atlas Trace → radiance");
 
@@ -413,7 +415,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             gatherProg.Intensity = 1; gatherProg.IndirectTint = [1,1,1]; gatherProg.LeakThreshold = .5f; gatherProg.SampleStride = 1;
 
             gatherProg.ScreenProbeAtlas = targets.AtlasFiltered[0];
-            using var anchorInputs2 = LayeredTestTexture.Create(targets.ProbeAnchor[0], targets.ProbeAnchor[1]);
+            using var anchorInputs2 = LayeredTestTexture.Create(ImageAssertions.Programs, targets.ProbeAnchor[0], targets.ProbeAnchor[1]);
             gatherProg.ProbeAnchors = anchorInputs2;
             gatherProg.PrimaryDepth = primaryDepth;
             gatherProg.GBufferSurface = surface;
@@ -464,7 +466,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Full composite (indirect from pipeline)
             using var compositeCamera1 = SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
 
-            using var fullDirectLighting = LayeredTestTexture.Create(targets.DirectLightingMrt[0], targets.DirectLightingMrt[1], targets.DirectLightingMrt[2]);
+            using var fullDirectLighting = LayeredTestTexture.Create(ImageAssertions.Programs, targets.DirectLightingMrt[0], targets.DirectLightingMrt[1], targets.DirectLightingMrt[2]);
             pbrCompositeProg.DirectLighting = fullDirectLighting;
             pbrCompositeProg.IndirectDiffuse = targets.IndirectFull[0];
             pbrCompositeProg.GBufferAlbedo = gBufferAlbedo;
@@ -488,7 +490,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Baseline (same wiring, but indirectDiffuse is forced to 0)
             using var compositeCamera2 = SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
 
-            using var baselineDirectLighting = LayeredTestTexture.Create(targets.DirectLightingMrt[0], targets.DirectLightingMrt[1], targets.DirectLightingMrt[2]);
+            using var baselineDirectLighting = LayeredTestTexture.Create(ImageAssertions.Programs, targets.DirectLightingMrt[0], targets.DirectLightingMrt[1], targets.DirectLightingMrt[2]);
             pbrCompositeProg.DirectLighting = baselineDirectLighting;
             pbrCompositeProg.IndirectDiffuse = zeroIndirectFull;
             pbrCompositeProg.GBufferAlbedo = gBufferAlbedo;
@@ -522,7 +524,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // composite brightens vs baseline. This isolates composite binding/uniform logic.
             using var compositeCamera3 = SetupPbrCompositeUniforms(pbrCompositeProg, invProj, identity, lumOnEnabled: 1);
 
-            using var injectedDirectLighting = LayeredTestTexture.Create(targets.DirectLightingMrt[0], targets.DirectLightingMrt[1], targets.DirectLightingMrt[2]);
+            using var injectedDirectLighting = LayeredTestTexture.Create(ImageAssertions.Programs, targets.DirectLightingMrt[0], targets.DirectLightingMrt[1], targets.DirectLightingMrt[2]);
             pbrCompositeProg.DirectLighting = injectedDirectLighting;
             pbrCompositeProg.IndirectDiffuse = injectedIndirectFull;
             pbrCompositeProg.GBufferAlbedo = gBufferAlbedo;
@@ -548,7 +550,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             Assert.True(injectedLuma > baselineLuma + 1e-4f,
                 $"Composite did not brighten with injected indirect (baselineLuma={baselineLuma}, injectedLuma={injectedLuma})");
 
-            var changed=ImageAssertions.Predicate(compositeFull, GpuAssertionPredicate.PbrLumOnFullPipelineIntegrationTests_Integration_OneFrame_FullPipeline_PropagatesIndirectIntoComposite_2,compositeBaselinePixels);
+            var changed=ImageAssertions.Predicates.Predicate(compositeFull, MaterialPredicates.PbrLumOnFullPipelineIntegrationTests_Integration_OneFrame_FullPipeline_PropagatesIndirectIntoComposite_2,compositeBaselinePixels);
             changed.AssertEqual();Assert.True(changed.MatchingTexels>0,"Composite did not change with indirect enabled.");
             // Final hygiene checkpoint: no GL errors should remain queued for subsequent tests.
             AssertNoGLError("PbrLumOnFullPipelineIntegrationTests end");
@@ -559,14 +561,14 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
     /// <summary>Checks every represented stage component while retaining its stage identity in failures.</summary>
     private void AssertAllFinite(GpuTexture image,string stage)
     {
-        var proof=ImageAssertions.Inspect(image);
+        var proof=ImageAssertions.Statistics.Inspect(image);
         Assert.True(proof.NonFinite==0,$"{stage}: {proof}");
     }
 
     /// <summary>Requires a positive RGB witness anywhere in the complete original stage output.</summary>
     private void AssertStageHasRgbEnergy(GpuTexture image,float threshold,string stage)
     {
-        var proof=ImageAssertions.Predicate(image, GpuAssertionPredicate.PbrLumOnFullPipelineIntegrationTests_AssertStageHasRgbEnergy,
+        var proof=ImageAssertions.Predicates.Predicate(image, MaterialPredicates.PbrLumOnFullPipelineIntegrationTests_AssertStageHasRgbEnergy,
             parameters:new(threshold,0,0,0));
         proof.AssertEqual();Assert.True(proof.MatchingTexels>0,$"{stage}: no RGB energy above {threshold}; {proof}");
     }
@@ -574,14 +576,14 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
     /// <summary>Checks every direct-only RGB component against the independent ordered float sum.</summary>
     private void AssertCompositeMatchesDirectOnly(GpuTexture composite,GpuTexture diffuse,GpuTexture specular,GpuTexture emissive,float epsilon)
     {
-        ImageAssertions.Predicate(composite, GpuAssertionPredicate.PbrLumOnFullPipelineIntegrationTests_AssertCompositeMatchesDirectOnly,
+        ImageAssertions.Predicates.Predicate(composite, MaterialPredicates.PbrLumOnFullPipelineIntegrationTests_AssertCompositeMatchesDirectOnly,
             diffuse,specular,emissive,parameters:new(epsilon,0,0,0)).AssertEqual();
     }
 
     /// <summary>Preserves the original scalar float Rec.709 expression and ordered accumulation over every pixel.</summary>
     private float ComputeAverageLuminance(GpuTexture image)
     {
-        float sum=ImageAssertions.OrderedFloatSum(image, GpuImageProjection.PbrLumOnFullPipelineIntegrationTests_ComputeAverageLuminance);
+        float sum=ImageAssertions.Statistics.OrderedFloatSum(image, MaterialProjections.PbrLumOnFullPipelineIntegrationTests_ComputeAverageLuminance);
         return sum/(image.Width*image.Height);
     }
     /// <summary>Submits the retained inputs before observing the actual driver sampler binding.</summary>
@@ -729,4 +731,16 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         program.DiffuseAOStrength = 1; program.SpecularAOStrength = 1;
         return frameCamera;
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("layer", 0, 0);
+        programs.Prepare("predicate-material", 0, 0);
+        programs.Prepare("projection-material", 0, 0);
+        programs.Prepare("statistics", 0, 0);
+    }
+    #endregion
 }

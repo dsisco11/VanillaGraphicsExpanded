@@ -19,6 +19,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Both production water-volume accumulators clear on every repeated pass instead of retaining an earlier frame.</summary>
     [Fact]
@@ -48,7 +50,7 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
                 commands.EndRenderPass();
             });
 }
-            ImageAssertions.CompareConstant(transport,0).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(transport,0).AssertEqual();
         }
         declarations.AssertReusable();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -117,7 +119,7 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
             {
                 var image=output.Image!.Value;
                 var source=Assert.IsAssignableFrom<GpuTexture>(image.Texture.Resource);
-                ImageAssertions.CompareConstant(source,0,new(image.Subresource,0,0,0,source.Width,source.Height,1)).AssertEqual();
+                ImageAssertions.Comparisons.CompareConstant(source,0,new(image.Subresource,0,0,0,source.Width,source.Height,1)).AssertEqual();
             }
     }
 
@@ -170,6 +172,14 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
             work.CompletenessChecks,
         }));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

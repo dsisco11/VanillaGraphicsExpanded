@@ -22,7 +22,7 @@ public sealed class SurfaceHitRetryGpuTests(HeadlessGLFixture fixture):RenderTes
     [Fact]
     public void CapturedHitsCompleteAfterLightingPublicationWithoutRetrace()
     {
-        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture();
+        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);
         room.Seed();room.SetIndirect(7,4);room.WithholdPages();using var queue=Queue();
         var before=room.Read(room.Snapshot.IndirectIrradiance);
         Assert.False(room.BounceSample(rays:4,hitRetries:queue,captureHitRetries:true));
@@ -47,7 +47,7 @@ public sealed class SurfaceHitRetryGpuTests(HeadlessGLFixture fixture):RenderTes
     [Fact]
     public void PendingGeometrySkipsRayWorkWithoutSuppressingDirectRefresh()
     {
-        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture();room.Seed();room.WithholdPages();
+        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();room.WithholdPages();
         using var queue=Queue();Assert.False(room.BounceSample(rays:4,hitRetries:queue,captureHitRetries:true));
         var request=Read(queue).Texels[0].Request;ulong rays=Counter(room,SurfaceWorkCounter.Rays);
         queue.UploadSubData<uint>([1,0,0,0,request.Page,request.Slot,request.Patch,request.Linear],16,32);
@@ -65,7 +65,7 @@ public sealed class SurfaceHitRetryGpuTests(HeadlessGLFixture fixture):RenderTes
     [Fact]
     public void AdmissionCapacityPreservesCanaryAndHistory()
     {
-        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture();room.Seed();room.WithholdPages();
+        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();room.WithholdPages();
         using var queue=Queue(pages:4);room.DispatchDiagnosticWork(1,rays:4,steps:256,hitRetries:queue,captureHitRetries:true);
         GpuTestFence.WaitForGpuOrSkip("Bounded retained hit capture");
         using(var header=queue.MapRange<uint>(0,4,BufferMapAccess.Read))
@@ -79,7 +79,7 @@ public sealed class SurfaceHitRetryGpuTests(HeadlessGLFixture fixture):RenderTes
     [Fact]
     public void BudgetExhaustionDoesNotProduceRetainedGeometry()
     {
-        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture();room.Seed();room.WithholdPages();
+        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();room.WithholdPages();
         using var queue=Queue();Assert.False(room.BounceSample(rays:4,steps:0,hitRetries:queue,captureHitRetries:true));
         GpuTestFence.WaitForGpuOrSkip("Incomplete retained geometry");
         uint count;

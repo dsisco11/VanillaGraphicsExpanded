@@ -29,9 +29,9 @@ public sealed partial class LumOnNearFieldFunctionalTests
         var offScreen = Trace(fixture);
         var onScreen = Trace(fixture, screenDepth: depth);
         var suppressed = Trace(fixture, screenDepth: depth, suppress: true);
-        ImageAssertions.Predicate(onScreen.Radiance, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, suppressed.Radiance).AssertEqual();
-        ImageAssertions.Predicate(onScreen.Meta, GpuAssertionPredicate.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4, suppressed.Meta).AssertEqual();
-        var checkedDirections = ObserveScreenTrace(onScreen, screenOnly, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsScreenHits_ScreenHits_AndOffscreenHitsRequireCachePublication, offScreen);
+        ImageAssertions.Predicates.Predicate(onScreen.Radiance, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, suppressed.Radiance).AssertEqual();
+        ImageAssertions.Predicates.Predicate(onScreen.Meta, ObservationPredicates.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4, suppressed.Meta).AssertEqual();
+        var checkedDirections = ObserveScreenTrace(onScreen, screenOnly, SurfacePredicates.LumOnNearFieldFunctionalTestsScreenHits_ScreenHits_AndOffscreenHitsRequireCachePublication, offScreen);
         checkedDirections.AssertEqual(); uint checkedHits=checkedDirections.MatchingTexels;
         Assert.True(checkedHits > 0, "The visible plane must produce accepted screen hits.");
     }
@@ -45,7 +45,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         float depth = ScreenDepthAt(-7);
         var screenOnly = Trace(fixture, screenDepth: depth, nearFieldTracing: false);
         var result = Trace(fixture, screenDepth: depth);
-        var checkedDirections = ObserveScreenTrace(result, screenOnly, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsScreenHits_ScreenHits_UnavailableLighting_RemainsUnresolved);
+        var checkedDirections = ObserveScreenTrace(result, screenOnly, SurfacePredicates.LumOnNearFieldFunctionalTestsScreenHits_ScreenHits_UnavailableLighting_RemainsUnresolved);
         checkedDirections.AssertEqual(); uint checkedHits=checkedDirections.MatchingTexels;
         Assert.True(checkedHits > 0);
     }
@@ -65,9 +65,9 @@ public sealed partial class LumOnNearFieldFunctionalTests
         var screenOnly = Trace(fixture, screenDepth: depth, nearFieldTracing: false, screenEmission: 0.25f, emissionBoost: 2);
         var result = Trace(fixture, screenDepth: depth, screenEmission: 0.25f, emissionBoost: 2);
         var suppressed = Trace(fixture, screenDepth: depth, screenEmission: 0.25f, emissionBoost: 2, suppress: true);
-        ImageAssertions.Predicate(result.Radiance, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, suppressed.Radiance).AssertEqual();
-        ImageAssertions.Predicate(result.Meta, GpuAssertionPredicate.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4, suppressed.Meta).AssertEqual();
-        var checkedDirections = ObserveScreenTrace(result, screenOnly, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsScreenHits_ScreenHits_EmissionIsNotDoubled_AndSurvivesUnavailableLocalData, parameters:new(publish?0:1,publish?0:.495f,publish?0:.505f,0));
+        ImageAssertions.Predicates.Predicate(result.Radiance, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, suppressed.Radiance).AssertEqual();
+        ImageAssertions.Predicates.Predicate(result.Meta, ObservationPredicates.GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4, suppressed.Meta).AssertEqual();
+        var checkedDirections = ObserveScreenTrace(result, screenOnly, SurfacePredicates.LumOnNearFieldFunctionalTestsScreenHits_ScreenHits_EmissionIsNotDoubled_AndSurvivesUnavailableLocalData, parameters:new(publish?0:1,publish?0:.495f,publish?0:.505f,0));
         checkedDirections.AssertEqual(); uint checkedHits=checkedDirections.MatchingTexels;
         Assert.True(checkedHits > 0);
     }
@@ -84,7 +84,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         float depth = ScreenDepthAt(-7);
         var screenOnly = Trace(fixture, screenDepth: depth, nearFieldTracing: false, screenEmission: 1);
         var result = Trace(fixture, screenDepth: depth, screenEmission: 1);
-        var checkedDirections = ObserveScreenTrace(result, screenOnly, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsScreenHits_ScreenHits_UnavailableLighting_RemainsUnresolved);
+        var checkedDirections = ObserveScreenTrace(result, screenOnly, SurfacePredicates.LumOnNearFieldFunctionalTestsScreenHits_ScreenHits_UnavailableLighting_RemainsUnresolved);
         checkedDirections.AssertEqual(); uint checkedHits=checkedDirections.MatchingTexels;
         Assert.True(checkedHits > 0);
     }

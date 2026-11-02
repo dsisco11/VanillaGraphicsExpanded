@@ -9,6 +9,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SkyDrawTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     #region Matched composition and pass contracts
     /// <summary>Four prepared passes produce identical surrogate pixels with one context and fewer actual native transitions.</summary>
@@ -40,7 +42,7 @@ public sealed class SkyDrawTests(HeadlessGLFixture fixture, ITestOutputHelper ou
         Assert.Single(scene.Contexts);
         scene.AssertRestored();
         using var actual = scene.CaptureOutput();
-        for (int image = 0; image < 2; image++) ImageAssertions.CompareHistory(actual[image].Texture, expected[image]).AssertEqual();
+        for (int image = 0; image < 2; image++) ImageAssertions.Comparisons.CompareHistory(actual[image].Texture, expected[image]).AssertEqual();
         Assert.Equal(new[] { .5f, .4375f, .5625f, 1.375f }, actual[0].Texture.ReadPixelsRegion(0, 0, 1, 1));
         Assert.Equal(new[] { .25f, .21875f, .28125f, 1.375f }, actual[1].Texture.ReadPixelsRegion(0, 0, 1, 1));
         Assert.Equal(new[] { "prepare:sky0", "prepare:sky1", "prepare:sky2", "prepare:sky3",
@@ -158,5 +160,13 @@ public sealed class SkyDrawTests(HeadlessGLFixture fixture, ITestOutputHelper ou
         scene.AssertMutable();
     }
     #endregion
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+    }
     #endregion
 }

@@ -26,7 +26,7 @@ public sealed class WorldProbeComputeTraceTests(HeadlessGLFixture fixture) : Ren
     public void MixedSkyAndFloorMetadataMatchesCpu()
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:40,surfaceResolution:64);room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:40,surfaceResolution:64);room.Seed();
         using var assets=new BinaryShaderApiFixture();using var batch=new WorldProbeTraceBatch(assets.Api);
         var world=new ControlledVoxelWorld { MapSizeY=40 };
         var block=new Vintagestory.API.Common.Block { BlockId=room.BlockId,CollisionBoxes=Vintagestory.API.Common.Block.DefaultCollisionSelectionBoxes };
@@ -55,7 +55,7 @@ public sealed class WorldProbeComputeTraceTests(HeadlessGLFixture fixture) : Ren
     public void IntegratedMetadataMatchesCpuForSelectedDirections(bool importanceSampling)
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture(); room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions); room.Seed();
         using var assets=new BinaryShaderApiFixture(); using var batch=new WorldProbeTraceBatch(assets.Api);
         var world=new ControlledVoxelWorld { MapSizeY=256 };
         world.AddRoom((0,32,0),(7,39,7),materialId:room.BlockId);
@@ -91,7 +91,7 @@ public sealed class WorldProbeComputeTraceTests(HeadlessGLFixture fixture) : Ren
     public void FullCubeHitsMatchCpuWithoutFloatWorldCoordinateLoss(int offset)
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture(xOffset:offset);
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, xOffset:offset);
         room.Seed();
         using var assets=new BinaryShaderApiFixture(); using var batch=new WorldProbeTraceBatch(assets.Api);
         var world=new ControlledVoxelWorld { MapSizeY=256 };
@@ -117,7 +117,7 @@ public sealed class WorldProbeComputeTraceTests(HeadlessGLFixture fixture) : Ren
     public void GeometryHitDoesNotDependOnLightingAvailability(bool lightingAvailable)
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture(blockLight:0); room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, blockLight:0); room.Seed();
         using var assets=new BinaryShaderApiFixture(); using var batch=new WorldProbeTraceBatch(assets.Api);
         var result=Trace(batch,room.Geometry.Scene,lightingAvailable?room.Snapshot:null,new(new(3.5,35.5,3.5),Vector3.UnitX,16,256));
         Assert.Equal(WorldProbeTraceOutcome.Hit,result.TraceOutcome); Assert.Equal(room.BlockId,result.Hit.BlockId);
@@ -131,7 +131,7 @@ public sealed class WorldProbeComputeTraceTests(HeadlessGLFixture fixture) : Ren
     public void ExactSurfaceEndpointMatchesCpu(double distance,bool hits)
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture(); room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions); room.Seed();
         using var assets=new BinaryShaderApiFixture(); using var batch=new WorldProbeTraceBatch(assets.Api);
         var result=Trace(batch,room.Geometry.Scene,room.Snapshot,new(new(3.25,35.5,3.5),Vector3.UnitX,distance,256));
         Assert.Equal(hits?WorldProbeTraceOutcome.Hit:WorldProbeTraceOutcome.DistanceLimit,result.TraceOutcome);

@@ -71,7 +71,7 @@ public sealed class WorldProbeCpuFallbackGpuTests(HeadlessGLFixture fixture):Ren
     [InlineData(0)] [InlineData(1)] [InlineData(2)]
     public void DelayedFallbackRejectsObsoleteOwnership(int change)
     {
-        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture();room.Seed();MakeUnsupported(room);
+        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();MakeUnsupported(room);
         var world=new ControlledVoxelWorld{MapSizeY=256};world.AddRoom((0,32,0),(7,39,7),materialId:room.BlockId);
         using var entered=new ManualResetEventSlim();using var release=new ManualResetEventSlim();
         var cpu=new ObservedScene(new BlockAccessorWorldProbeTraceScene(ControlledBlockAccessor.Create(world),false),token=>{entered.Set();release.Wait(token);});
@@ -93,7 +93,7 @@ public sealed class WorldProbeCpuFallbackGpuTests(HeadlessGLFixture fixture):Ren
     [InlineData(0)] [InlineData(32)]
     public void UnsupportedConfirmedHitResolvesSurfaceCacheLighting(int light)
     {
-        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(blockLight:light);room.Seed();MakeUnsupported(room);
+        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, blockLight:light);room.Seed();MakeUnsupported(room);
         var world=new ControlledVoxelWorld{MapSizeY=256};world.AddRoom((0,32,0),(7,39,7),materialId:room.BlockId);
         var cpu=new ObservedScene(new BlockAccessorWorldProbeTraceScene(ControlledBlockAccessor.Create(world),false));
         using var assets=new BinaryShaderApiFixture();

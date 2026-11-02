@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Actual nonzero outputs restore complete native state without dormant payload writes or stale point/blend state.</summary>
     [Theory]
@@ -37,8 +39,8 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
             Assert.Contains(current.Events, item => item.StartsWith("application:PointSize(1"));
             // The real resolve stores physical RGB at persistent scale 1/16; validity/distance alpha stays unscaled.
             Assert.Equal(new[] { .046875f, .0078125f, .03125f, 1f }, current.Pixels[0].Texture.ReadPixelsRegion(3, 4, 1, 1));
-            ImageAssertions.Inspect(current.Pixels[0].Texture).AssertFiniteRange();
-            Assert.Equal(4u, ImageAssertions.Inspect(current.Pixels[0].Texture).Nonzero);
+            ImageAssertions.Statistics.Inspect(current.Pixels[0].Texture).AssertFiniteRange();
+            Assert.Equal(4u, ImageAssertions.Statistics.Inspect(current.Pixels[0].Texture).Nonzero);
         }
         if (workload == "cloud") Assert.Contains("validated:active-blend-factors",current.Events);
         AssertDormantOutputPayloads(current.Events);
@@ -65,7 +67,7 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         if (workload == "cloud")
         {
             using var programs = new ComponentShaderPrograms();
-            using var scene = new CloudStoredVolumeViewScene(programs,8,8);
+            using var scene = new CloudStoredVolumeViewScene(ImageAssertions, programs,8,8);
             var settings=VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewSettings.Default;
             return Measure(() => { scene.PrepareDraw(settings); Assert.True(scene.DrawOnly()); }, () => scene.CaptureOutput());
         }
@@ -134,7 +136,7 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         var images = pixels();
         try
         {
-            Assert.True(Enumerable.Range(0, images.Count).Any(i => ImageAssertions.Inspect(images[i].Texture).Positive > 0));
+            Assert.True(Enumerable.Range(0, images.Count).Any(i => ImageAssertions.Statistics.Inspect(images[i].Texture).Positive > 0));
         }
         catch { images.Dispose(); throw; }
         return new(
@@ -158,4 +160,12 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         public void Dispose() => Pixels.Dispose();
         #endregion
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+    }
+    #endregion
 }

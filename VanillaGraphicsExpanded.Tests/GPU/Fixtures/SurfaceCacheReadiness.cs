@@ -41,12 +41,12 @@ internal static class SurfaceCacheReadiness
 
     #region Initialized observation
     /// <summary>Checks every requested alpha on the GPU without transferring page contents to the CPU.</summary>
-    internal static bool AllInitialized(Texture3D texture, ImmutableArray<Region> regions, Assertions.GpuImageAssertions assertions)
+    internal static bool AllInitialized(Texture3D texture, ImmutableArray<Region> regions, Assertions.GpuImageComparisons comparisons)
     {
         if (regions.IsDefaultOrEmpty) return false;
         foreach (var region in regions)
         {
-            var result = assertions.CompareConstant(texture, 1,
+            var result = comparisons.CompareConstant(texture, 1,
                 new(new(0, region.Layer), region.X, region.Y, 0, region.Width, region.Height), channelMask: 8);
             if (result.Mismatches != 0) return false;
         }

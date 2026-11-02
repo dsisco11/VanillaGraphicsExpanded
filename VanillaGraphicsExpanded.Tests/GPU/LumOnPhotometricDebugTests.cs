@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumOnPhotometricDebugTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Persistent atlas radiance previews restore the fixed storage scale at the installed sampling boundary.</summary>
     [Theory]
@@ -77,7 +79,7 @@ public sealed class LumOnPhotometricDebugTests(HeadlessGLFixture fixture) : LumO
             publication.Capture(scale);
             using var full = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [2 * scale, scale, .5f * scale, 1]);
             using var suppressed = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f * scale, .25f * scale, .125f * scale, 1]);
-            using var direct = LayeredTestTexture.Create(full, null, null);
+            using var direct = LayeredTestTexture.Create(ImageAssertions.Programs, full, null, null);
             program.DirectLighting = direct;
             program.IndirectDiffuseFull = full;
             program.WorldProbeSuppressedLighting = suppressed;
@@ -95,6 +97,14 @@ public sealed class LumOnPhotometricDebugTests(HeadlessGLFixture fixture) : LumO
             }
             earlier = actual;
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
     }
     #endregion
 }

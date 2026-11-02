@@ -75,7 +75,7 @@ public sealed partial class HeadlessGLFixture : IAsyncLifetime
     /// Ensures the GL context is valid; throws skip exception if not.
     /// Call this at the start of tests that require GPU.
     /// </summary>
-    public void EnsureContextValid(bool prepareAssertions = true)
+    public void EnsureContextValid()
     {
         Assert.SkipWhen(!_contextValid, $"OpenGL context not available: {_initializationError ?? "Unknown error"}");
         _ = bindingHooks.Value;
@@ -101,7 +101,7 @@ public sealed partial class HeadlessGLFixture : IAsyncLifetime
         // Capability discovery is fixture initialization, never part of an intercepted native operation.
         GpuSupport.EnsureCurrentContext();
         OpenGLBindingInterception.Install();
-        if (prepareAssertions) PrepareAssertionPrograms();
+
     }
 
     /// <summary>
@@ -131,7 +131,7 @@ public sealed partial class HeadlessGLFixture : IAsyncLifetime
     public void RetireResourceServices()
     {
         var failures = new System.Collections.Generic.List<Exception>();
-        AttemptCleanup(DisposeAssertionPrograms, failures);
+        AttemptCleanup(DisposeObservationPrograms, failures);
         // Upload buffers and fences must retire while their original deletion service is available.
         AttemptCleanup(TextureStreamingSystem.Dispose, failures);
         AttemptCleanup(TestUniformRing.Dispose, failures);
@@ -148,7 +148,7 @@ public sealed partial class HeadlessGLFixture : IAsyncLifetime
     public void CleanupGpuResources()
     {
         if (!_contextValid) return;
-        EnsureContextValid(prepareAssertions: false);
+        EnsureContextValid();
 
         // The fixture manager is intentionally unticked: disposal uses the current context without
         // registering an engine renderer or capturing a thread that xUnit may subsequently change.
@@ -199,6 +199,7 @@ public sealed partial class HeadlessGLFixture : IAsyncLifetime
             // Store window handle for cleanup
             _glfwWindow = windowHandle;
             Rendering.Integration.RenderContextRegistry.RegisterCurrent(this, static target => ((HeadlessGLFixture)target)._glfwWindow != null);
+            fixtureContext = Rendering.Integration.RenderContextRegistry.Current();
 
             // Query OpenGL info
             GLVersion = GL.GetString(StringName.Version);
@@ -250,7 +251,7 @@ public sealed partial class HeadlessGLFixture : IAsyncLifetime
                     GL.LoadBindings(new GLFWBindingsContext());
                     OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
                     // A failed release must not prevent the remaining original owners from retiring.
-                    AttemptCleanup(DisposeAssertionPrograms, failures);
+                    AttemptCleanup(DisposeObservationPrograms, failures);
                     AttemptCleanup(TestUniformRing.Dispose, failures);
                     AttemptCleanup(VanillaGraphicsExpanded.PBR.Materials.Energy.MicrofacetEnergyLookup.Retire, failures);
                     AttemptCleanup(GpuSamplers.Dispose, failures);
@@ -272,7 +273,7 @@ public sealed partial class HeadlessGLFixture : IAsyncLifetime
         }
         finally
         {
-            if (ReferenceEquals(currentFixture, this)) currentFixture = null;
+
             AttemptCleanup(shaderCache.Dispose, failures);
         }
         if (failures.Count != 0) throw new AggregateException("GPU fixture retirement failed.", failures);

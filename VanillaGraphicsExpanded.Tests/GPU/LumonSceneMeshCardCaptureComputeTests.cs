@@ -20,6 +20,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
 {
+
+
     public LumonSceneMeshCardCaptureComputeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     [Fact]
@@ -279,8 +281,16 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
     /// <summary>Retains the original non-NaN extrema bounds and requires at least one represented depth over the full capture tile.</summary>
     private void AssertDepthBounds(GpuTexture depth,float minimum,float maximum)
     {
-        var proof=ImageAssertions.Predicate(depth, GpuAssertionPredicate.LumonSceneMeshCardCaptureComputeTests_AssertDepthBounds,
+        var proof=ImageAssertions.Predicates.Predicate(depth, SurfacePredicates.LumonSceneMeshCardCaptureComputeTests_AssertDepthBounds,
             parameters:new(minimum,maximum,0,0));
         proof.AssertEqual();Assert.True(proof.MatchingTexels>0);
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
+    #endregion
 }

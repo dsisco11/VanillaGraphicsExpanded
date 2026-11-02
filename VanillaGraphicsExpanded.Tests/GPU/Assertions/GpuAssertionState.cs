@@ -13,8 +13,10 @@ internal sealed class GpuAssertionState : IDisposable
     private readonly int uniformGeneric = GL.GetInteger(GetPName.UniformBufferBinding);
     private readonly int uniformName;
     private readonly long uniformStart, uniformSize;
-    private readonly (int Array, int Sampler)[] textures = new (int, int)[5];
-    private readonly (int Name, int Level, int Layered, int Layer, int Access, int Format)[] images = new (int, int, int, int, int, int)[2];
+    private readonly (int Array, int Sampler)[] textures = [];
+    private readonly (int Name, int Level, int Layered, int Layer, int Access, int Format)[] images = [];
+
+    private readonly int[] samplerUnits, imageUnits;
 
     #region Public API
     /// <summary>Restores exact selectors after successful dispatch or an exception without changing foreign-context state.</summary>
@@ -29,15 +31,15 @@ internal sealed class GpuAssertionState : IDisposable
         GL.BindBuffer(BufferTarget.UniformBuffer, uniformGeneric);
         for (int unit = 0; unit < textures.Length; unit++)
         {
-            GL.ActiveTexture(TextureUnit.Texture0 + unit);
+            GL.ActiveTexture(TextureUnit.Texture0 + samplerUnits[unit]);
             GL.BindTexture(TextureTarget.Texture2DArray, textures[unit].Array);
-            GL.BindSampler(unit, textures[unit].Sampler);
+            GL.BindSampler(samplerUnits[unit], textures[unit].Sampler);
         }
         GL.ActiveTexture((TextureUnit)active);
         for (int unit = 0; unit < images.Length; unit++)
         {
             var image = images[unit];
-            GL.BindImageTexture(unit, image.Name, image.Level, image.Layered != 0, image.Layer,
+            GL.BindImageTexture(imageUnits[unit], image.Name, image.Level, image.Layered != 0, image.Layer,
                 image.Access == 0 ? TextureAccess.ReadOnly : (TextureAccess)image.Access,
                 image.Format == 0 ? SizedInternalFormat.R32ui : (SizedInternalFormat)image.Format);
         }
@@ -46,8 +48,12 @@ internal sealed class GpuAssertionState : IDisposable
 
     #region Internal API
     /// <summary>Captures the exact existing image subresources, array bindings and sampler objects before mutation.</summary>
-    internal GpuAssertionState()
+    internal GpuAssertionState(IEnumerable<int> samplerUnits, IEnumerable<int> imageUnits)
     {
+        this.samplerUnits = samplerUnits.Distinct().ToArray();
+        this.imageUnits = imageUnits.Distinct().ToArray();
+        textures = new (int, int)[this.samplerUnits.Length];
+        images = new (int, int, int, int, int, int)[this.imageUnits.Length];
         // Querying texture units changes the active selector temporarily, including on partial construction failure.
         try
         {
@@ -65,14 +71,14 @@ internal sealed class GpuAssertionState : IDisposable
             }
             for (int unit = 0; unit < textures.Length; unit++)
             {
-                GL.ActiveTexture(TextureUnit.Texture0 + unit);
-                GL.GetInteger((GetIndexedPName)All.SamplerBinding, unit, out int sampler);
+                GL.ActiveTexture(TextureUnit.Texture0 + this.samplerUnits[unit]);
+                GL.GetInteger((GetIndexedPName)All.SamplerBinding, this.samplerUnits[unit], out int sampler);
                 textures[unit] = (GL.GetInteger(GetPName.TextureBinding2DArray), sampler);
             }
             for (int unit = 0; unit < images.Length; unit++)
-                images[unit] = (Query((GetIndexedPName)All.ImageBindingName, unit), Query((GetIndexedPName)All.ImageBindingLevel, unit),
-                    Query((GetIndexedPName)All.ImageBindingLayered, unit), Query((GetIndexedPName)All.ImageBindingLayer, unit),
-                    Query((GetIndexedPName)All.ImageBindingAccess, unit), Query((GetIndexedPName)All.ImageBindingFormat, unit));
+                images[unit] = (Query((GetIndexedPName)All.ImageBindingName, this.imageUnits[unit]), Query((GetIndexedPName)All.ImageBindingLevel, this.imageUnits[unit]),
+                    Query((GetIndexedPName)All.ImageBindingLayered, this.imageUnits[unit]), Query((GetIndexedPName)All.ImageBindingLayer, this.imageUnits[unit]),
+                    Query((GetIndexedPName)All.ImageBindingAccess, this.imageUnits[unit]), Query((GetIndexedPName)All.ImageBindingFormat, this.imageUnits[unit]));
         }
         finally { GL.ActiveTexture((TextureUnit)active); }
     }

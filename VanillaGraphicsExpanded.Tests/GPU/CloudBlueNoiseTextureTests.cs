@@ -11,6 +11,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudBlueNoiseTextureTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Every temporal slice is a complete rank permutation in persistent owned storage.</summary>
     [Fact]
@@ -21,13 +23,22 @@ public sealed class CloudBlueNoiseTextureTests(HeadlessGLFixture fixture) : Rend
         int id = texture.TextureId, side = CloudBlueNoiseTexture.Side, pixels = side * side;
         Assert.Equal(TextureFormat.R32f, texture.InternalFormat);
         Assert.Equal(side, texture.Width); Assert.Equal(side * 8, texture.Height);
-        using var assertions = new GpuImageAssertions();
-        assertions.CheckRanks(texture, side, 8).AssertRanks(8);
+        var assertions = ImageAssertions;
+        assertions.Statistics.CheckRanks(texture, side, 8).AssertRanks(8);
         texture.EnsureCreated(); Assert.Equal(id, texture.TextureId);
         texture.Dispose(); Assert.True(texture.IsDisposed); Assert.False(texture.IsValid);
         Assert.Throws<ObjectDisposedException>(texture.EnsureCreated);
         using var replacement = CloudBlueNoiseTexture.Create(); Assert.True(replacement.IsValid);
     }
 
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("ranks", 0, 0);
+    }
     #endregion
 }

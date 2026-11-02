@@ -15,6 +15,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class TerrainDisplacementRasterTests : RenderTestBase
 {
+
+
     /// <summary>Uses the shared headless context.</summary>
     public TerrainDisplacementRasterTests(HeadlessGLFixture fixture):base(fixture) { }
 
@@ -148,10 +150,18 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
                 Assert.True(GpuLocalRead.Scalar(target[0],(8*16+3)*4) > .005f);
                 Assert.True(GpuLocalRead.Scalar(target[0],(8*16+12)*4) < -.005f);
             }
-            ImageAssertions.Predicate(target[0], GpuAssertionPredicate.TerrainDisplacementRasterTests_AdaptiveStagesPublishBoundedPositionAndNormal).AssertEqual();
+            ImageAssertions.Predicates.Predicate(target[0], GeometryPredicates.TerrainDisplacementRasterTests_AdaptiveStagesPublishBoundedPositionAndNormal).AssertEqual();
             if(mode<10) Assert.InRange(actual[center+3],.999f,1.001f);
         }
         finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0); OpenGlStateCache.Current.SetPatchVertices(oldPatch);  if(program!=0)GpuProgramObject.Adopt(program).Dispose();   }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-geometry", 0, 0);
     }
     #endregion
 }

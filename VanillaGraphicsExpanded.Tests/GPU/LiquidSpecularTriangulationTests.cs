@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Renders both folds of a nonplanar water quad for visual comparison.</summary>
     [Fact]
@@ -110,11 +112,11 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         using var diagonalA = Draw([0, 1, 2, 0, 2, 3], "A");
         using var diagonalB = Draw([0, 1, 3, 1, 2, 3], "B");
 
-        var common=ImageAssertions.Predicate(diagonalA.Texture, GpuAssertionPredicate.LiquidSpecularTriangulationTests_CompareFolds,diagonalB.Texture);
+        var common=ImageAssertions.Predicates.Predicate(diagonalA.Texture, WaterPredicates.LiquidSpecularTriangulationTests_CompareFolds,diagonalB.Texture);
         common.AssertEqual();
         var compared=common.MatchingTexels;
         Assert.True(compared > 100, $"Expected a shared water interior, compared {compared} pixels.");
-        var different=ImageAssertions.Predicate(diagonalA.Texture, GpuAssertionPredicate.LiquidSpecularTriangulationTests_CompareFolds_2,diagonalB.Texture).MatchingTexels;
+        var different=ImageAssertions.Predicates.Predicate(diagonalA.Texture, WaterPredicates.LiquidSpecularTriangulationTests_CompareFolds_2,diagonalB.Texture).MatchingTexels;
         TestContext.Current.TestOutputHelper!.WriteLine($"Interior highlight-change witnesses: {different} of {compared} shared pixels.");
         // The two diagonals form different surfaces when the quad is nonplanar.
         // Their difference is diagnostic only; it cannot establish a shading defect.
@@ -183,5 +185,13 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
     #region Private
     /// <summary>Converts row-vector Numerics storage into the shader's column-vector representation.</summary>
     private static float[] Flatten(Matrix4x4 value) => MemoryMarshal.Cast<Matrix4x4, float>(MemoryMarshal.CreateReadOnlySpan(ref value, 1)).ToArray();
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-water", 0, 0);
+    }
     #endregion
 }

@@ -17,6 +17,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class TerrainTessellationTests : RenderTestBase
 {
+
+
     private readonly ProvokingVertexMode previousProvokingVertex;
     private bool conventionRestored;
 
@@ -318,9 +320,9 @@ public sealed class TerrainTessellationTests : RenderTestBase
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(tessellated, "vge_displacementEnabled"), 0);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(tessellated, "vge_displacementReactive"), 0);
             GL.DrawArrays(PrimitiveType.Patches, 0, 3);
-            using var assertions=new GpuImageAssertions();
+            var assertions = ImageAssertions;
             foreach(var pair in new[]{(Image:target[0],Expected:expected),(Image:target[1],Expected:expectedCoordinates)})
-                assertions.Predicate(pair.Image, GpuAssertionPredicate.TerrainTessellationEngineDrawTests_PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw,pair.Expected.Texture).AssertEqual();
+                assertions.Predicates.Predicate(pair.Image, GeometryPredicates.TerrainTessellationEngineDrawTests_PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw,pair.Expected.Texture).AssertEqual();
             Assert.Equal(3f,GpuLocalRead.Scalar(target[0],3));
         }
         finally
@@ -332,4 +334,12 @@ public sealed class TerrainTessellationTests : RenderTestBase
     }
     #endregion
 
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-geometry", 0, 0);
+    }
+    #endregion
 }

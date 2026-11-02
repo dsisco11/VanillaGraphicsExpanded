@@ -15,7 +15,7 @@ public sealed class SurfaceTraversalRuntimeTests(HeadlessGLFixture fixture):Rend
     [Fact]
     public void ExhaustionDelaysIndirectRetriesAndGeometryChangeWakesThem()
     {
-        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true);
+        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true);
         runtime.Config.LumOn.LumonScene.RelightMaxDdaSteps=0;
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
         var renderer=(LumonSceneRelightUpdateRenderer)runtime.LightingProvider;

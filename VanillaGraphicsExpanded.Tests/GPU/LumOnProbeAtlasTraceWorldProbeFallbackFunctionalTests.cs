@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     private const uint LUMON_META_WORLDPROBE_FALLBACK = 1u << 5;
 
     private const int WorldProbeTileSize = 16;
@@ -162,11 +164,11 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
         {
 
             // Bind textures to fixed units
-            using var anchorInputs1 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs1 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs1;
             programId.PrimaryDepth = depthTex;
             programId.SurfaceAlbedo = directTex;
-            using var surfaceInput1 = LayeredTestTexture.Create(null, emissiveTex, null);
+            using var surfaceInput1 = LayeredTestTexture.Create(ImageAssertions.Programs, null, emissiveTex, null);
             programId.GBufferSurface = surfaceInput1;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
             programId.HzbDepth = hzbTex;
@@ -226,13 +228,13 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
                 Assert.True(r > 0.8f && g < 0.2f && b < 0.2f, $"Expected red first-probe radiance, got ({r:F3}, {g:F3}, {b:F3})");
             else
             {
-                var accepted=ImageAssertions.Predicate(radianceOut.Texture, GpuAssertionPredicate.LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests_RunWorldProbeTraceScenario,metaOut.Texture,parameters:new(expectedRadiance==-2?0:expectedRadiance-.002f,
+                var accepted=ImageAssertions.Predicates.Predicate(radianceOut.Texture, SurfacePredicates.LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests_RunWorldProbeTraceScenario,metaOut.Texture,parameters:new(expectedRadiance==-2?0:expectedRadiance-.002f,
                         expectedRadiance==-2?1.002f:expectedRadiance+.002f,minimumConfidence,0));
                 accepted.AssertEqual();
             }
             if(expectedRadiance==-2)
             {
-                var lit=ImageAssertions.Predicate(radianceOut.Texture, GpuAssertionPredicate.LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests_RunWorldProbeTraceScenario_2);
+                var lit=ImageAssertions.Predicates.Predicate(radianceOut.Texture, SurfacePredicates.LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests_RunWorldProbeTraceScenario_2);
                 lit.AssertEqual();Assert.True(lit.MatchingTexels>0);
             }
             // Suppressing accepted world radiance must preserve visibility and validity, rather
@@ -241,9 +243,9 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
             TestFramework.RenderQuadTo(programId, output);
             using var suppressedRadiance=new GpuImageSnapshot(output[0]);
             using var suppressedMeta=new GpuImageSnapshot(output[1]);
-            ImageAssertions.CompareHistory(suppressedMeta.Texture,metaOut).AssertEqual();
-            ImageAssertions.CompareConstant(suppressedRadiance.Texture,0,channelMask:7).AssertEqual();
-            ImageAssertions.CompareHistory(suppressedRadiance.Texture,radianceOut,channelMask:8).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(suppressedMeta.Texture,metaOut).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(suppressedRadiance.Texture,0,channelMask:7).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(suppressedRadiance.Texture,radianceOut,channelMask:8).AssertEqual();
             using var normalBranch = new ShaderLightingResources(Programs.Api);
             using var suppressedBranch = new ShaderLightingResources(Programs.Api);
             foreach (bool sh9 in runPipeline ? new[] { false, true } : Array.Empty<bool>())
@@ -252,4 +254,14 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
             }
         }
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("layer", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
+    #endregion
 }

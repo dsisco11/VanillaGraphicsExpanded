@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Source correction precedes threshold selection for both camera modes and remains optional.</summary>
     [Theory]
@@ -93,7 +95,7 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
     scope12.Run(()=>owner.Render(commands, draw, source, (null, 0), settings));
 }
             float expected = enabled ? MathF.Sqrt(.04f * .18f) : .04f;
-            ImageAssertions.Predicate(owner.Texture, GpuAssertionPredicate.BloomLocalExposureShaderTests_OwnedPyramidAppliesSourceGainOnceAndDisablesCleanly,
+            ImageAssertions.Predicates.Predicate(owner.Texture, MaterialPredicates.BloomLocalExposureShaderTests_OwnedPyramidAppliesSourceGainOnceAndDisablesCleanly,
                 parameters:new(expected-.0003f,expected+.0003f,0,0)).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -115,6 +117,14 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
     scope13.Run(()=>draw.Submit(commands, pipeline,target.PostprocessPass(), program.CaptureBindings()));
 }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-material", 0, 0);
     }
     #endregion
 }

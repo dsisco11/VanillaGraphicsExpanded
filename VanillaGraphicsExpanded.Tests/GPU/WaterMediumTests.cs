@@ -13,6 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Checks measured absorption, path monotonicity, thin paths, zero density, zero incident light and bounded anisotropy.</summary>
     [Fact]
@@ -90,11 +92,11 @@ public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFun
         foreach(var region in new (int Row,int Rows,uint Mask)[]{(0,1,15u),(1,9,7u),(10,7,3u)})
         {
             int first=region.Row*20,last=first+region.Rows*20;
-            ImageAssertions.CompareIntervals(target[0],lower[first..last],upper[first..last],
+            ImageAssertions.Comparisons.CompareIntervals(target[0],lower[first..last],upper[first..last],
                 new(new(0,0),0,region.Row,0,5,region.Rows,1),region.Mask).AssertEqual();
         }
-        ImageAssertions.Predicate(target[0], GpuAssertionPredicate.WaterMediumTests_HomogeneousTransportMatchesAnalyticReference).AssertEqual();
-        ImageAssertions.Predicate(target[0], GpuAssertionPredicate.WaterMediumTests_HomogeneousTransportMatchesAnalyticReference_2,
+        ImageAssertions.Predicates.Predicate(target[0], WaterPredicates.WaterMediumTests_HomogeneousTransportMatchesAnalyticReference).AssertEqual();
+        ImageAssertions.Predicates.Predicate(target[0], WaterPredicates.WaterMediumTests_HomogeneousTransportMatchesAnalyticReference_2,
             parameters:new(1f/12.56637061436f,0,0,0)).AssertEqual();
 
         /// <summary>Intersects every original expected interval at its authored component.</summary>
@@ -112,4 +114,13 @@ public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFun
     }
     #endregion
 
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-water", 0, 0);
+    }
+    #endregion
 }

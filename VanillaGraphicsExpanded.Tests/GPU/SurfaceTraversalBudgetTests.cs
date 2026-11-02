@@ -17,7 +17,7 @@ public sealed class SurfaceTraversalBudgetTests(HeadlessGLFixture fixture):Rende
     [Fact]
     public void ExpandedBudgetReachesSkyBeyondOldLoopCeiling()
     {
-        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:240,surfaceResolution:256);
+        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:240,surfaceResolution:256);
         floor.Geometry.Publish(900);floor.Seed();floor.SetIndirect(8,4);
         // Place the original captured floor near the corner of the expanded domain, retaining its surface identity.
         floor.Geometry.Move(TraceGeometryCoverage.Plan(new(128,128,128),true,256,240));
@@ -45,7 +45,7 @@ public sealed class SurfaceTraversalBudgetTests(HeadlessGLFixture fixture):Rende
     [Fact]
     public void LongUpwardRoutePreservesHistoryUntilKnownSky()
     {
-        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:120,surfaceResolution:256);
+        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:120,surfaceResolution:256);
         floor.Geometry.Publish(900);floor.Seed();floor.SetIndirect(8,4);
         uint frame=FrameForDirection(diagonal:false);
         var before=floor.Read(floor.Snapshot.IndirectIrradiance);

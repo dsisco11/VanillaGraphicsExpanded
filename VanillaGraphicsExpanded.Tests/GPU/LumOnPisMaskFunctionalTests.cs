@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumOnPisMaskFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     /// <summary>Uses the shared headless rendering context.</summary>
     public LumOnPisMaskFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -67,7 +69,7 @@ public sealed class LumOnPisMaskFunctionalTests : LumOnShaderFunctionalTestBase
             for (int py = 0; py < 2; py++)
             for (int px = 0; px < 2; px++)
             for (int channel = 0; channel < 3; channel++) radiance[((py * 8 + 4) * 16 + px * 8 + 4) * 4 + channel] = 1;
-            using var anchorInputs1 = LayeredTestTexture.Create(Create( 2, 2, CreateUniformColorData(2, 2, 0, 0, -5, 1)), Create( 2, 2, CreateUniformColorData(2, 2, .5f, .5f, 1, 0)));
+            using var anchorInputs1 = LayeredTestTexture.Create(ImageAssertions.Programs, Create( 2, 2, CreateUniformColorData(2, 2, 0, 0, -5, 1)), Create( 2, 2, CreateUniformColorData(2, 2, .5f, .5f, 1, 0)));
             program.ProbeAnchors = anchorInputs1;
             program.ScreenProbeAtlasHistory = Create( 16, 16, radiance);
             program.ScreenProbeAtlasMetaHistory = Create( 16, 16, CreateUniformColorData(16, 16, 1, 0, 0, 0));
@@ -93,6 +95,14 @@ public sealed class LumOnPisMaskFunctionalTests : LumOnShaderFunctionalTestBase
             textures.Add(texture);
             return texture;
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
     }
     #endregion
 }

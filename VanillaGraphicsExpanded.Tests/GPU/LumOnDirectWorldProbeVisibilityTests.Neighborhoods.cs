@@ -44,9 +44,9 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
             new Vector3(-1.5f), 4, consumer, ring: new Vector3(ringX, 0, 0));
         // Debug views tone-map physical E; a gather returns Lambertian E/pi for unit radiance.
         float expectedGreen = consumer >= 0 ? MathF.PI / (1 + MathF.PI) : 1f;
-        ImageAssertions.CompareConstant(result.Texture, 0, channelMask: 5).AssertEqual();
-        ImageAssertions.Inspect(result.Texture, expectedGreen - 0.004f, expectedGreen + 0.004f, channelMask: 2).AssertFiniteRange();
-        if (consumer < 0) ImageAssertions.Inspect(result.Texture, 0.65f, 0.73f, channelMask: 8).AssertFiniteRange();
+        ImageAssertions.Comparisons.CompareConstant(result.Texture, 0, channelMask: 5).AssertEqual();
+        ImageAssertions.Statistics.Inspect(result.Texture, expectedGreen - 0.004f, expectedGreen + 0.004f, channelMask: 2).AssertFiniteRange();
+        if (consumer < 0) ImageAssertions.Statistics.Inspect(result.Texture, 0.65f, 0.73f, channelMask: 8).AssertFiniteRange();
     }
 
     /// <summary>Diagonal paths through enclosing corner geometry must not admit an exterior probe.</summary>

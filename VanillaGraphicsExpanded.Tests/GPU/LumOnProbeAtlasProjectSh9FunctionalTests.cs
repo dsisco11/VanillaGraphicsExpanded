@@ -20,6 +20,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     private const float SH9_C0 = 0.282095f;
     private const float Pi = 3.141592654f;
 
@@ -192,7 +194,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
 
         programId.ScreenProbeAtlas = atlasTex;
         programId.ScreenProbeAtlasMeta = metaTex;
-        using var anchorInputs101 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs101 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs101;
 
         TestFramework.RenderQuadTo(programId, outSh9);
@@ -279,7 +281,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
 
         projectId.ScreenProbeAtlas = atlasTex;
         projectId.ScreenProbeAtlasMeta = metaTex;
-        using var anchorInputs102 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs102 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         projectId.ProbeAnchors = anchorInputs102;
         TestFramework.RenderQuadTo(projectId, outSh9);
 
@@ -289,15 +291,15 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         var sh9GatherId = CompileSh9GatherShader();
         SetupSh9GatherUniforms(sh9GatherId, identity, identity);
 
-        using var shInputs3 = LayeredTestTexture.Create(outSh9[0], outSh9[1], outSh9[2], outSh9[3], outSh9[4], outSh9[5], outSh9[6]);
+        using var shInputs3 = LayeredTestTexture.Create(ImageAssertions.Programs, outSh9[0], outSh9[1], outSh9[2], outSh9[3], outSh9[4], outSh9[5], outSh9[6]);
         sh9GatherId.ProbeSh9 = shInputs3;
         Assert.True(sh9GatherId.ProgramLayout.TryGetContractSamplerUnit("probeSh9", out int coefficientUnit));
         Assert.Equal(0, coefficientUnit);
 
-        using var anchorInputs1 = LayeredTestTexture.Create(anchorPosTex, anchorNormTex);
+        using var anchorInputs1 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormTex);
         sh9GatherId.ProbeAnchors = anchorInputs1;
         sh9GatherId.PrimaryDepth = depthTex;
-        using var surfaceInput1 = LayeredTestTexture.Create(gbufNormTex, null, null);
+        using var surfaceInput1 = LayeredTestTexture.Create(ImageAssertions.Programs, gbufNormTex, null, null);
         sh9GatherId.GBufferSurface = surfaceInput1;
 
         TestFramework.RenderQuadTo(sh9GatherId, outIndirectSh9);
@@ -310,10 +312,10 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         SetupAtlasGatherUniforms(atlasGatherId, identity, identity);
 
         atlasGatherId.ScreenProbeAtlas = atlasTex;
-        using var anchorInputs2 = LayeredTestTexture.Create(anchorPosTex, anchorNormTex);
+        using var anchorInputs2 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormTex);
         atlasGatherId.ProbeAnchors = anchorInputs2;
         atlasGatherId.PrimaryDepth = depthTex;
-        using var surfaceInput2 = LayeredTestTexture.Create(gbufNormTex, null, null);
+        using var surfaceInput2 = LayeredTestTexture.Create(ImageAssertions.Programs, gbufNormTex, null, null);
         atlasGatherId.GBufferSurface = surfaceInput2;
 
         TestFramework.RenderQuadTo(atlasGatherId, outIndirectAtlas);
@@ -327,4 +329,12 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         Assert.InRange(System.Math.Abs(sg - ag), 0f, 0.1f);
         Assert.InRange(System.Math.Abs(sb - ab), 0f, 0.1f);
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+    }
+    #endregion
 }

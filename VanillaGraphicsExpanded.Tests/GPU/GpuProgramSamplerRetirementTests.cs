@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Engine handoff
     /// <summary>The normal interface Stop path retires shadow comparison samplers before engine texture reuse.</summary>
     [Fact]
@@ -36,7 +38,7 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
             program.PrimaryScene = input;
             program.PrimaryDepth = depth;
             program.GBufferPosition = input;
-            using var surfaceInput1 = LayeredTestTexture.Create(input, null, null);
+            using var surfaceInput1 = LayeredTestTexture.Create(ImageAssertions.Programs, input, null, null);
             program.GBufferSurface = surfaceInput1;
             program.ShadowMapNear = depth;
             program.ShadowMapFar = depth;
@@ -88,6 +90,14 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         Assert.Equal(new[] { .2f, .4f, .6f, 1f }, target[0].ReadPixels());
         OpenGlStateCache.Current.InvalidateAll();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
     }
     #endregion
 }

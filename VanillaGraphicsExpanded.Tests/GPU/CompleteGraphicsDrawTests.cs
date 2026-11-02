@@ -17,6 +17,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisposable
 {
+    /// <summary>Borrows observation services from the explicitly supplied physical-context fixture.</summary>
+    private VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations ImageAssertions => fixture.Observations;
+
     private readonly GraphicsStateShaders stateShaders = new();
     /// <summary>Retires test-owned executable generations after state assertions complete.</summary>
     public void Dispose() => stateShaders.Dispose();
@@ -28,7 +31,8 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
     [InlineData(true)]
     public void FrontFacingIsObservableWithCullingDisabled(bool clockwise)
     {
-        fixture.MakeCurrent(); using var draw = new FullscreenDraw(facing: true);
+        fixture.MakeCurrent();
+        ImageAssertions.Programs.Prepare("compare", 0, 0); using var draw = new FullscreenDraw(ImageAssertions, facing: true);
         var cache = OpenGlStateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var baseline = Description();
         var description = new RHIGraphicsPipelineDescription(baseline.Shader, baseline.VertexLayout, baseline.Targets, baseline.Dynamics,
@@ -64,7 +68,8 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
     [InlineData(false)] [InlineData(true)]
     public void FullscreenDrawIsIndependentAndBoundaryRestores(bool fail)
     {
-        fixture.MakeCurrent(); using var draw = new FullscreenDraw();
+        fixture.MakeCurrent();
+        ImageAssertions.Programs.Prepare("compare", 0, 0); using var draw = new FullscreenDraw(ImageAssertions);
         var cache = OpenGlStateCache.Current;
         GL.UseProgram(0); GL.Disable(EnableCap.StencilTest); GL.Enable(EnableCap.RasterizerDiscard);
         GL.Enable(EnableCap.ScissorTest); GL.Scissor(0, 0, 0, 0); GL.ColorMask(false, false, false, false);
@@ -129,7 +134,8 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
     public void GlobalBlendFallbackIgnoresDormantEarlierOutputFactors()
     {
         fixture.MakeCurrent();
-        using var draw = new FullscreenDraw();
+        ImageAssertions.Programs.Prepare("compare", 0, 0);
+        using var draw = new FullscreenDraw(ImageAssertions);
         var original = GpuSupport.Graphics;
         var capabilityField = HarmonyLib.AccessTools.Field(typeof(GpuSupport), "graphics");
         var cache = OpenGlStateCache.Current;
@@ -199,6 +205,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
     /// <summary>Owns three output images and an indexed fullscreen triangle using the production draw owner.</summary>
     private sealed class FullscreenDraw : IDisposable
     {
+        private readonly GpuObservations observations;
         private readonly int program, framebuffer;
         private readonly int[] colors = new int[3];
         private readonly GpuVao vao;
@@ -207,8 +214,10 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
         internal int Submissions { get; private set; }
         #region Public API
         /// <summary>Loads deterministic binaries and creates an independent render target.</summary>
-        public FullscreenDraw(bool facing = false)
+        public FullscreenDraw(GpuObservations observations, bool facing = false)
         {
+            this.observations = observations;
+            observations.Programs.Prepare("compare");
             program = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixtureProgram(
                 "tests/complete-state.vsh", facing ? "tests/facing-state.fsh" : "tests/complete-state.fsh");
             vao = NativeResourceSetup.CreateVertexArray(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId); indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); indices.UploadIndices(new uint[] { 0, 1, 2 });
@@ -240,21 +249,21 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
         /// <summary>Checks all pixels of all outputs, independent of GL state metadata.</summary>
         public void AssertPixels()
         {
-            using var assertions=new GpuImageAssertions();
+            var assertions = observations;
             for (int target = 0; target < 3; target++)
             {
                 using var image=NativeFramebufferImage.Capture(framebuffer,target,8,8,TextureFormat.Rgba8);
                 var expected=new float[8*8*4];
                 for(int i=0;i<expected.Length;i++)expected[i]=i%4==target || i%4==3?1:0;
-                assertions.Compare(image.Texture,expected).AssertEqual();
+                assertions.Comparisons.Compare(image.Texture,expected).AssertEqual();
             }
         }
         /// <summary>Checks shader-observed facing for every covered pixel independently of native winding metadata.</summary>
         public void AssertFacingPixels(bool front)
         {
-            using var assertions=new GpuImageAssertions();
+            var assertions = observations;
             using var image=NativeFramebufferImage.Capture(framebuffer,0,8,8,TextureFormat.Rgba8);
-            assertions.Compare(image.Texture,Enumerable.Repeat(front?new[]{1f,0f,0f,1f}:new[]{0f,1f,0f,1f},64).SelectMany(x=>x).ToArray()).AssertEqual();
+            assertions.Comparisons.Compare(image.Texture,Enumerable.Repeat(front?new[]{1f,0f,0f,1f}:new[]{0f,1f,0f,1f},64).SelectMany(x=>x).ToArray()).AssertEqual();
         }
         /// <summary>Releases fixture resources while the collection context remains active.</summary>
         public void Dispose()

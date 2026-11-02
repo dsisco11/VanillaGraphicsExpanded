@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -11,32 +12,33 @@ internal sealed class GpuAssertionProgram : GpuComputeProgram
 {
     private readonly (nint Handle, long Generation) origin = RenderContextRegistry.Current();
     private readonly PackedUniformBuffer inputs;
-    private readonly string[] samplerNames, imageNames;
-    private readonly ImageAccess imageAccess;
-    private GpuTexture[] samples = [], outputs = [];
+    private (string Name, GpuTexture? Texture)[] samples = [], outputs = [];
 
     #region Internal API
     /// <summary>Adopts a completed production asset with the exact declared sampler/image interface.</summary>
-    internal GpuAssertionProgram(ComputeShaderAsset asset, string family) : base(asset)
+    internal GpuAssertionProgram(ComputeShaderAsset asset) : base(asset)
     {
         inputs = OwnUniformBuffer(new PackedUniformBuffer(160));
-        imageAccess = family == "check" ? ImageAccess.ReadWrite : ImageAccess.WriteOnly;
-        samplerNames = family == "check" ? ["actualImage", "historyImage", "expectedImage", "additionalImage", "fourthImage"]
-            : ["sourceImage", "referenceImage"];
-        imageNames = family == "check" ? ["resultImage", "histogram"]
-            : family == "layer" ? ["destination"] : ["destinationImage"];
+        var active = Shader.SelectedShader.Interface.PreparedBindings.ActiveEntries;
+        SamplerUnits = active.Where(entry => entry.Binding.Contract.Kind == ShaderBindingKind.Sampler)
+            .Select(entry => entry.Binding.Contract.Binding.Slot + entry.Element).Distinct().ToImmutableArray();
+        ImageUnits = active.Where(entry => entry.Binding.Contract.Kind == ShaderBindingKind.Image)
+            .Select(entry => entry.Binding.Contract.Binding.Slot + entry.Element).Distinct().ToImmutableArray();
+
     }
 
+    /// <summary>Retains all active sampler selectors touched by binding publication, including optional-input clearing.</summary>
+    internal ImmutableArray<int> SamplerUnits { get; }
+    /// <summary>Retains all active image selectors touched by binding publication.</summary>
+    internal ImmutableArray<int> ImageUnits { get; }
+
     /// <summary>Publishes all mutable inputs afresh before each ordinary production compute submission.</summary>
-    internal void Execute(byte[] bytes, GpuTexture[] sources, GpuTexture[] destinations, int x, int y = 1, int z = 1)
+    internal void Execute(byte[] bytes, (string Name, GpuTexture? Texture)[] sources, (string Name, GpuTexture? Texture)[] destinations, int x, int y = 1, int z = 1)
     {
         RequireContext();
         Fixtures.TestUniformRing.EnsureFrame();
-        if (sources.Length != samplerNames.Length || destinations.Length != imageNames.Length)
-            throw new ArgumentException("Observation resources must match the declared interface.");
         samples = sources; outputs = destinations;
-        inputs.SetBytes(bytes);
-        try { Dispatch(x, y, z); }
+        try { inputs.SetBytes(bytes); Dispatch(x, y, z); }
         finally { samples = []; outputs = []; }
     }
 
@@ -53,12 +55,12 @@ internal sealed class GpuAssertionProgram : GpuComputeProgram
     /// <summary>Captures the exact shader generation, numeric block and borrowed resources for this submission.</summary>
     protected override RHIResourceBindings CaptureBindingsCore()
     {
-        var samplers = samples.Select((texture, index) => new RHISamplerBinding(
-            GpuBindingEntry.Identity(ShaderBindingKind.Sampler, samplerNames[index]), texture));
-        var images = outputs.Select((texture, index) => new RHIImageInput(
-            GpuBindingEntry.Identity(ShaderBindingKind.Image, imageNames[index]),
-            new RHIImageBinding(texture, imageAccess, Layered: texture.TextureTarget == TextureDimension.TwoArray,
-                Format: texture.InternalFormat)));
+        var samplers = samples.Where(input => input.Texture != null).Select(input => new RHISamplerBinding(
+            GpuBindingEntry.Identity(ShaderBindingKind.Sampler, input.Name), input.Texture!));
+        var images = outputs.Where(input => input.Texture != null).Select(input => new RHIImageInput(
+            GpuBindingEntry.Identity(ShaderBindingKind.Image, input.Name),
+            new RHIImageBinding(input.Texture!, ImageAccess.ReadWrite, Layered: input.Texture!.TextureTarget == TextureDimension.TwoArray,
+                Format: input.Texture!.InternalFormat)));
         return new(Shader, samplers: samplers, images: images,
             uniforms: [new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock, "AssertionInputs"), inputs.Capture())]);
     }

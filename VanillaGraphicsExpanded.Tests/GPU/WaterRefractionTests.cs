@@ -20,6 +20,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+
+
     private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     private const int LavaCase = 1;
     private const int FullAlphaCase = 2;
@@ -426,7 +428,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             Assert.True(capturedReceiver.Scene.Published);
             program.RefractionColorTexture = capturedReceiver.Scene.Color;
             program.RefractionDepthTexture = capturedReceiver.Scene.Depth;
-            Assert.True(ImageAssertions.Inspect(capturedReceiver.Scene.Color!).Maximum>1);
+            Assert.True(ImageAssertions.Statistics.Inspect(capturedReceiver.Scene.Color!).Maximum>1);
         }
         var state = OpenGlStateCache.Current;
         using var framebuffer = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
@@ -542,7 +544,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         if (scenario == 0 && compatibility == 0)
         {
             // Supported edge receivers retain transmission instead of fading it by position.
-            ImageAssertions.Inspect(target[1],0,.00001f,new(new(0),8,0,0,1,8,1)).AssertFiniteRange();
+            ImageAssertions.Statistics.Inspect(target[1],0,.00001f,new(new(0),8,0,0,1,8,1)).AssertFiniteRange();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
 
@@ -871,5 +873,13 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
     /// <summary>Publishes row-vector Numerics storage as engine column-major matrix bytes.</summary>
     private static float[] Flatten(Matrix4x4 value) => [value.M11,value.M12,value.M13,value.M14,
         value.M21,value.M22,value.M23,value.M24,value.M31,value.M32,value.M33,value.M34,value.M41,value.M42,value.M43,value.M44];
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+    }
     #endregion
 }

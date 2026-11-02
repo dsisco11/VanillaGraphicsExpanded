@@ -11,6 +11,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceHitRetryRuntimeTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
+
+
     #region Missing page progress
     /// <summary>Missing hit residency can later seed and wake retained geometry from either trace backend.</summary>
     [Theory]
@@ -18,7 +20,7 @@ public sealed class SurfaceHitRetryRuntimeTests(HeadlessGLFixture fixture):Rende
     public void NewlyResidentHitPagesWakeRetainedGeometry(bool cpuFallback)
     {
         EnsureContextValid();var world=cpuFallback?new ControlledVoxelWorld{MapSizeY=256}:null;
-        using var runtime=new SurfaceCacheRuntimeFixture(requestedPages:24,enclosure:true,fallbackWorld:world);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages:24,enclosure:true,fallbackWorld:world);
         world?.AddRoom((0,32,0),(7,39,7),materialId:runtime.SourceBlock.Id);
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.VisibleFeedbackPages=1;
@@ -37,7 +39,7 @@ public sealed class SurfaceHitRetryRuntimeTests(HeadlessGLFixture fixture):Rende
         foreach(uint page in pages.Keys)
         {
             using var pixels=SurfaceLightingPageSelection.Capture(lighting.IndirectIrradiance,lighting,page);
-            nonzero |= ImageAssertions.CountMatching(pixels.Texture,
+            nonzero |= ImageAssertions.Statistics.CountMatching(pixels.Texture,
                 new(MathF.BitIncrement(.01f),float.NegativeInfinity,float.NegativeInfinity,float.Epsilon),
                 new(float.PositiveInfinity), channelMask: 9).MatchingTexels > 0;
         }
@@ -49,7 +51,7 @@ public sealed class SurfaceHitRetryRuntimeTests(HeadlessGLFixture fixture):Rende
     [InlineData("atlas")] [InlineData("world")] [InlineData("geometry")]
     public void ResourceResetRetiresMissingHitSamples(string invalidation)
     {
-        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture(requestedPages:24,enclosure:true);
+        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages:24,enclosure:true);
         runtime.VisibleFeedbackPages=1;runtime.PrimeGeometry();var renderer=(LumonSceneRelightUpdateRenderer)runtime.LightingProvider;
         runtime.RunUntil(()=>Counter(renderer,"hitPending")>0,256);
         long committed=Counter(renderer,"hitCommitted"),rejected=Counter(renderer,"hitRejected");
@@ -74,6 +76,14 @@ public sealed class SurfaceHitRetryRuntimeTests(HeadlessGLFixture fixture):Rende
         Assert.True(renderer.TryGetSelfCheckLine(out string line));
         var match=Regex.Match(line,$@"\b{name}:(\d+)");Assert.True(match.Success,line);
         return long.Parse(match.Groups[1].Value);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

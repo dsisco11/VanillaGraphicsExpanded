@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumOnWorldProbeWallVisibilityFunctionalTests : DirectWorldProbeVisibilityTestBase
 {
+
+
     private const int GridSize = 128;
     private readonly ITestOutputHelper output;
 
@@ -82,13 +84,13 @@ public sealed class LumOnWorldProbeWallVisibilityFunctionalTests : DirectWorldPr
         // Every exact segment is clear: the original contract requires zero rejected texels.
         // Therefore every confidence and RGB value must satisfy the independently authored lit interval.
         uint confidenceChannel = consumer >= 0 ? 1u : 8u;
-        var rejectedSamples = ImageAssertions.Inspect(confidence.Texture, 0.001f, double.PositiveInfinity, channelMask: confidenceChannel);
+        var rejectedSamples = ImageAssertions.Statistics.Inspect(confidence.Texture, 0.001f, double.PositiveInfinity, channelMask: confidenceChannel);
         int rejected = checked((int)rejectedSamples.OutsideRange);
         int accepted = GridSize * GridSize - rejected;
-        ImageAssertions.Inspect(confidence.Texture, trace.Confidence - 0.002f, trace.Confidence + 0.002f,
+        ImageAssertions.Statistics.Inspect(confidence.Texture, trace.Confidence - 0.002f, trace.Confidence + 0.002f,
             channelMask: confidenceChannel).AssertFiniteRange();
         float expectedLighting = consumer >= 0 ? MathF.PI / (1 + MathF.PI) : 1f;
-        ImageAssertions.Inspect(irradiance.Texture, expectedLighting - 0.003f, expectedLighting + 0.003f,
+        ImageAssertions.Statistics.Inspect(irradiance.Texture, expectedLighting - 0.003f, expectedLighting + 0.003f,
             channelMask: 7).AssertFiniteRange();
         output.WriteLine($"Consumer={consumer}, wall inset={inset}: {rejected}/{GridSize * GridSize} false rejections, {accepted} accepted; all exact segments clear.");
         Assert.True(accepted > 0, "The fixture must retain a lit control region.");
@@ -96,4 +98,12 @@ public sealed class LumOnWorldProbeWallVisibilityFunctionalTests : DirectWorldPr
     }
     #endregion
 
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+    }
+    #endregion
 }

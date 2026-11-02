@@ -28,6 +28,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     private const uint FlagValid = 1u << 0;
 
     public LumOnVelocityFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
@@ -115,7 +117,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         int identityLocation=program.ProgramLayout.GetUniformLocation(program.ProgramId,"gBufferPatchId");
         GL.GetUniform(program.ProgramId,identityLocation,out int identityUnit);Assert.Equal(1,identityUnit);
         TestFramework.RenderQuadTo(program,target);
-        ImageAssertions.Predicate(target[0], GpuAssertionPredicate.LumOnVelocityFunctionalTests_DisplacedSurfaceRejectsVelocityHistory).AssertEqual();
+        ImageAssertions.Predicates.Predicate(target[0], SurfacePredicates.LumOnVelocityFunctionalTests_DisplacedSurfaceRejectsVelocityHistory).AssertEqual();
     }
     #endregion
 
@@ -160,9 +162,9 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
             lower[index+1]=expected.Y-TestEpsilon;upper[index+1]=expected.Y+TestEpsilon;
         }
         var region=new RHITextureRegion(new(0,0),1,1,0,interiorWidth,interiorHeight,1);
-        ImageAssertions.CompareIntervals(target[0],lower,upper,region,3).AssertEqual();
+        ImageAssertions.Comparisons.CompareIntervals(target[0],lower,upper,region,3).AssertEqual();
         using var interior=new GpuImageSnapshot(target[0],region);
-        ImageAssertions.Predicate(interior.Texture, GpuAssertionPredicate.LumOnVelocityFunctionalTests_Velocity_RenderOriginMovementPreservesWorldReprojection,
+        ImageAssertions.Predicates.Predicate(interior.Texture, SurfacePredicates.LumOnVelocityFunctionalTests_Velocity_RenderOriginMovementPreservesWorldReprojection,
             parameters:new(historyValid?1:2,0,0,0)).AssertEqual();
     }
     #endregion
@@ -189,7 +191,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         programId.PrimaryDepth = depthTex;
         TestFramework.RenderQuadTo(programId, outRt);
 
-        ImageAssertions.Predicate(outRt[0], GpuAssertionPredicate.LumOnVelocityFunctionalTests_Velocity_StaticCamera_IsZero,
+        ImageAssertions.Predicates.Predicate(outRt[0], SurfacePredicates.LumOnVelocityFunctionalTests_Velocity_StaticCamera_IsZero,
             parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
@@ -220,7 +222,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(programId, outRt);
 
         // Preserve the CPU-rounded interval endpoints of the independent translation oracle.
-        ImageAssertions.Predicate(outRt[0], GpuAssertionPredicate.LumOnVelocityFunctionalTests_Velocity_PureTranslation_ProducesExpectedDirection,
+        ImageAssertions.Predicates.Predicate(outRt[0], SurfacePredicates.LumOnVelocityFunctionalTests_Velocity_PureTranslation_ProducesExpectedDirection,
             parameters:new(expectedVx-TestEpsilon,expectedVx+TestEpsilon,TestEpsilon,0)).AssertEqual();
     }
 
@@ -274,4 +276,13 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.InRange(cornerPx.vx, expectedCorner.X - TestEpsilon, expectedCorner.X + TestEpsilon);
         Assert.InRange(cornerPx.vy, expectedCorner.Y - TestEpsilon, expectedCorner.Y + TestEpsilon);
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
+    #endregion
 }

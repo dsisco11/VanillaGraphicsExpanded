@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     #region Declarations and graphics reload
     /// <summary>Repeated declarations do not allocate owners, read binaries, reset edited settings or advance epochs.</summary>
@@ -259,7 +261,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         source.UploadDataImmediate(Enumerable.Repeat(.625f, 65 * 37).ToArray());
         hierarchy.Render(source);
         for (int level = 0; level < hierarchy.Texture!.MipLevels; level++)
-            ImageAssertions.CompareConstant(hierarchy.Texture, .625f, Assertions.GpuImageSnapshot.Mip(hierarchy.Texture, level)).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(hierarchy.Texture, .625f, Assertions.GpuImageSnapshot.Mip(hierarchy.Texture, level)).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -394,6 +396,14 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         internal ComputeOwner(ComputeShaderAsset pipeline) : base(pipeline) => Block = OwnUniformBuffer(new PackedUniformBuffer(16));
         /// <summary>Uses no resources during the lifecycle-only binding probe.</summary>
         protected override VanillaGraphicsExpanded.Rendering.RHI.RHIResourceBindings CaptureBindingsCore() => new(Shader);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

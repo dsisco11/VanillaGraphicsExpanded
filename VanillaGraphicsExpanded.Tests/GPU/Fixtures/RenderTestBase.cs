@@ -44,10 +44,9 @@ public abstract class RenderTestBase : IDisposable
     private bool _disposed;
     private readonly GpuResourceCollection _targetResources = new();
     private readonly TestFrameLightingPublication frameLighting = new();
-    private Assertions.GpuImageAssertions? imageAssertions;
 
     /// <summary>Retains per-test assertion resources while borrowing the fixture's production checker owners.</summary>
-    private protected Assertions.GpuImageAssertions ImageAssertions => imageAssertions ??= new();
+    private protected Assertions.GpuObservations ImageAssertions => _fixture.Observations;
 
     /// <summary>
     /// Creates a new RenderTestBase instance.
@@ -66,6 +65,7 @@ public abstract class RenderTestBase : IDisposable
     protected void EnsureContextValid(bool beginUniformFrame = true)
     {
         _fixture.EnsureContextValid();
+        PrepareObservations(ImageAssertions.Programs);
 
         // Option B: UBO binding uses the per-thread ring allocator.
         // In production this is installed by a renderer; in tests we activate it manually.
@@ -73,6 +73,9 @@ public abstract class RenderTestBase : IDisposable
         else TestUniformRing.EnsureFrame();
         
     }
+
+    /// <summary>Prepares only suite-declared observation assets before subject execution and hostile selectors.</summary>
+    private protected virtual void PrepareObservations(Assertions.GpuObservationPrograms programs) { }
 
     #region Render Target Management
 
@@ -412,7 +415,7 @@ public abstract class RenderTestBase : IDisposable
             _quadInitialized = false;
         }
 
-        if (disposing) { imageAssertions?.Dispose(); frameLighting.Dispose(); _targetResources.Dispose(); }
+        if (disposing) { frameLighting.Dispose(); _targetResources.Dispose(); }
         _disposed = true;
     }
 

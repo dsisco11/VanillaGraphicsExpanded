@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBase
 {
+
+
     /// <summary>Uses the shared shader and render-target test owners.</summary>
     public PbrStandaloneCompositionTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -43,10 +45,10 @@ public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBas
         program.GBufferPosition = position;
         FramebufferTestSetup.BindForEngineRendering(output);
         {
-            using var directLighting = LayeredTestTexture.Create(zero, zero, emission);
+            using var directLighting = LayeredTestTexture.Create(ImageAssertions.Programs, zero, zero, emission);
             program.DirectLighting = directLighting;
             program.IndirectDiffuse = indirect; program.GBufferAlbedo = albedo;
-            using var surface = LayeredTestTexture.Create(normal, material, environment);
+            using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, material, environment);
             program.GBufferSurface = surface; program.PrimaryDepth = depth;
 
             using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
@@ -69,6 +71,14 @@ public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBas
         float reflected=(float)MicrofacetEnergyReference.NormalResponse(roughness,f0).Reflection;
         float response = lumon ? .75f * .5f : availability * ((1 - reflected) * (1 - metallic) * .5f + reflected);
         foreach (float actual in output[0].ReadTexel().Take(3)) Assert.InRange(actual, .25f + response - .001f, .25f + response + .001f);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
     }
     #endregion
 }

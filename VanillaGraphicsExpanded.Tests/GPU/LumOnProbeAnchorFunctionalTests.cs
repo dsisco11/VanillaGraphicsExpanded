@@ -43,6 +43,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     // Additional test-specific constants (those not in base class)
     private new const float TestEpsilon = 1e-3f;  // Tighter tolerance for this test
     private const float DepthDiscontinuityThreshold = 0.1f;
@@ -124,7 +126,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         SetupProbeAnchorUniforms(programId, invProjection, invView, frameIndex: 0, anchorJitterEnabled: true, anchorJitterScale: jitterScale);
 
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput1 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput1 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput1;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var pos0 = outputGBuffer[0].ReadPixelsRegion(0,0,1,1);
@@ -240,7 +242,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
     private void AssertDecodedNormals(GpuTexture image,float[] expected)
     {
         using var oracle=TestFramework.CreateTexture(ProbeGridWidth,ProbeGridHeight,TextureFormat.Rgba32f,expected);
-        ImageAssertions.Predicate(image, GpuAssertionPredicate.LumOnProbeAnchorFunctionalTests_AssertDecodedNormals,oracle,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
+        ImageAssertions.Predicates.Predicate(image, SurfacePredicates.LumOnProbeAnchorFunctionalTests_AssertDecodedNormals,oracle,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
     /// <summary>
     /// Encodes a normal to G-buffer format [-1,1] to [0,1].
@@ -357,7 +359,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Bind inputs and render
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput2 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput2 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput2;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -370,7 +372,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             expected[i]=position.X;expected[i+1]=position.Y;expected[i+2]=position.Z;
         }
         using var oracle=TestFramework.CreateTexture(ProbeGridWidth,ProbeGridHeight,TextureFormat.Rgba32f,expected);
-        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAnchorFunctionalTests_UniformDepth_ProducesCorrectWorldPositions,
+        ImageAssertions.Predicates.Predicate(outputGBuffer[0], SurfacePredicates.LumOnProbeAnchorFunctionalTests_UniformDepth_ProducesCorrectWorldPositions,
             oracle,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
@@ -415,7 +417,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Render
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput3 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput3 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput3;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -464,12 +466,12 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Render
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput4 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput4 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput4;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
-        var valid=ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAnchorFunctionalTests_ValidProbes_HaveValidityFlagSet);
+        var valid=ImageAssertions.Predicates.Predicate(outputGBuffer[0], SurfacePredicates.LumOnProbeAnchorFunctionalTests_ValidProbes_HaveValidityFlagSet);
         valid.AssertEqual();Assert.True(valid.MatchingTexels>0);
     }
 
@@ -515,12 +517,12 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Render
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput5 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput5 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput5;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
-        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAnchorFunctionalTests_SkyPixels_ProduceInvalidProbes,
+        ImageAssertions.Predicates.Predicate(outputGBuffer[0], SurfacePredicates.LumOnProbeAnchorFunctionalTests_SkyPixels_ProduceInvalidProbes,
             parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
@@ -571,12 +573,12 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Render
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput6 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput6 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput6;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
-        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAnchorFunctionalTests_DepthDiscontinuity_ProducesPartialValidity).AssertEqual();
+        ImageAssertions.Predicates.Predicate(outputGBuffer[0], SurfacePredicates.LumOnProbeAnchorFunctionalTests_DepthDiscontinuity_ProducesPartialValidity).AssertEqual();
     }
 
     #endregion
@@ -640,12 +642,12 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Render
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput7 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput7 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput7;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         // Read back results
-        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAnchorFunctionalTests_InvalidNormals_ProduceInvalidProbes).AssertEqual();
+        ImageAssertions.Predicates.Predicate(outputGBuffer[0], SurfacePredicates.LumOnProbeAnchorFunctionalTests_InvalidNormals_ProduceInvalidProbes).AssertEqual();
     }
 
     #endregion
@@ -689,7 +691,7 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Render
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput8 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput8 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput8;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -698,5 +700,14 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         AssertDecodedNormals(outputGBuffer[1],expected);
     }
 
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
     #endregion
 }

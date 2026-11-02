@@ -9,6 +9,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class ShaderSceneInputsTests : RenderTestBase
 {
+
+
     /// <summary>Uses the shared GPU context.</summary>
     public ShaderSceneInputsTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -39,8 +41,8 @@ public sealed class ShaderSceneInputsTests : RenderTestBase
                 Assert.NotEqual(current[i].TextureId,independent[i].TextureId);
             }
         }
-        ImageAssertions.CompareConstant(first.Engine.Color, .5f).AssertEqual();
-        ImageAssertions.CompareConstant(second.Engine.Color, .75f).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(first.Engine.Color, .5f).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(second.Engine.Color, .75f).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
@@ -69,5 +71,13 @@ public sealed class ShaderSceneInputsTests : RenderTestBase
     /// <summary>Observes all scene attachments without taking over their lifetime.</summary>
     private static GpuTexture[] Borrow(ShaderSceneInputs scene) =>
         [scene.Engine.Color,scene.Engine.Depth,scene.Terrain.Surface,scene.Terrain.PatchId];
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+    }
     #endregion
 }

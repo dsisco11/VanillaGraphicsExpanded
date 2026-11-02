@@ -10,6 +10,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WaterMediumAtlasTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Preserves explicit zero density, authored SI coefficients and neutral gaps through rebuild and resize.</summary>
     [Fact]
@@ -29,7 +31,7 @@ public sealed class WaterMediumAtlasTests(HeadlessGLFixture fixture) : RenderTes
         var indices = new float[16];
         for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++)
             indices[y*4+x]=x is 1 or 2 && y is 1 or 2?1:0;
-        ImageAssertions.Compare(page!.Indices,indices).AssertEqual();
+        ImageAssertions.Comparisons.Compare(page!.Indices,indices).AssertEqual();
         var records = page.Records.ReadPixelsRegion(0,0,2,1);
         Assert.Equal(medium.AbsorptionPerMetre.X, records[0]);
         Assert.Equal(medium.AbsorptionPerMetre.Y, records[1]);
@@ -76,6 +78,14 @@ public sealed class WaterMediumAtlasTests(HeadlessGLFixture fixture) : RenderTes
         Assert.Equal(2, page.Records.Height);
         Assert.Equal(129, Assertions.GpuLocalRead.Scalar(page.Indices, 128));
         Assert.Equal(128, Assertions.GpuLocalRead.Scalar(page.Records, 128 * 8 + 4));
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

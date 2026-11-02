@@ -16,7 +16,7 @@ public sealed class SurfaceCaptureAdmissionRuntimeTests(HeadlessGLFixture fixtur
     [Fact]
     public void RecoveredBacklogMakesBoundedProgressWhileVisibilityChanges()
     {
-        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture(requestedPages:64);
+        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages:64);
         runtime.Config.LumOn.LumonScene.TraceScene.ClipmapResolution=64;
         bool materialReady=false;
         runtime.TransformVoxel=(x,y,z,voxel)=>!materialReady&&x==0?voxel with {Geometry=2u}:voxel;
@@ -43,7 +43,7 @@ public sealed class SurfaceCaptureAdmissionRuntimeTests(HeadlessGLFixture fixtur
     [Fact]
     public void DeferredResidentsDoNotStarveEligiblePages()
     {
-        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture(requestedPages:64);
+        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages:64);
         runtime.PrimeGeometry();
         runtime.RunUntil(()=>CaptureStateCounts(runtime)==(64,16));
         var before=CaptureCounts(runtime);Assert.Equal(0,before.Failures);Assert.Equal(16,before.Attempts);
@@ -55,7 +55,7 @@ public sealed class SurfaceCaptureAdmissionRuntimeTests(HeadlessGLFixture fixtur
     [Fact]
     public void MissingMaterialWaitsForRelevantSourceChange()
     {
-        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture();
+        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions);
         bool materialReady=false;
         runtime.TransformVoxel=(x,y,z,voxel)=>!materialReady&&x==0?voxel with {Geometry=2u}:voxel;
         runtime.PrimeGeometry();
@@ -79,7 +79,7 @@ public sealed class SurfaceCaptureAdmissionRuntimeTests(HeadlessGLFixture fixtur
     [Fact]
     public void UnpublishedSourceDefersUntilPublicationAndRetiresOnWorldLeave()
     {
-        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture {GeometryAvailable=false};
+        EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions) {GeometryAvailable=false};
         for(int frame=0;frame<16;frame++)runtime.Frame();
         Assert.False(runtime.AllRequestedCaptured());Assert.Equal((0L,0L),CaptureCounts(runtime));
         AssertPendingResident(runtime);

@@ -17,6 +17,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AmbientOcclusionCompositeTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Occlusion suppresses only ambient lighting; mismatched depth and first-person receiver metadata bypass it.</summary>
     [Theory]
@@ -71,9 +73,9 @@ public sealed class AmbientOcclusionCompositeTests(HeadlessGLFixture fixture) : 
         using var depth = TestFramework.CreateTexture(1,1,TextureFormat.R32f,[.75f]);
         using var visibility = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[ao,2f,0f,0f]);
         using var wrongDepth = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[ao,20f,0f,0f]);
-        using var lighting = LayeredTestTexture.Create(direct,specular,emission);
-        using var surface = LayeredTestTexture.Create(normal,material,indirect);
-        using var proxySurface = LayeredTestTexture.Create(proxyNormal,material,indirect);
+        using var lighting = LayeredTestTexture.Create(ImageAssertions.Programs, direct,specular,emission);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal,material,indirect);
+        using var proxySurface = LayeredTestTexture.Create(ImageAssertions.Programs, proxyNormal,material,indirect);
         using var target = TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f,3);
         using var positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); positions.UploadData(new float[] {-1,-1,0, 3,-1,0, -1,3,0});
         using var uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); uv.UploadData(new float[] {0,0, 2,0, 0,2});
@@ -131,6 +133,14 @@ public sealed class AmbientOcclusionCompositeTests(HeadlessGLFixture fixture) : 
         shader.GBufferSurface=proxySurface;shader.SetAmbientOcclusion(visibility);float[] proxy=Render();
         for(int c=0;c<3;c++)Assert.InRange(proxy[c],baseline[c]-.001f,baseline[c]+.001f);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
     }
     #endregion
 }

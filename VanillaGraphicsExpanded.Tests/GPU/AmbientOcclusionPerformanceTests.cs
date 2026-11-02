@@ -17,6 +17,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, ITestOutputHelper log) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Public API
     /// <summary>Covers odd and collapsed mip axes, receiver selection, contact, corners, transmission and native quality.</summary>
@@ -89,13 +91,13 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
         string? directory = Environment.GetEnvironmentVariable("VGE_AO_CAPTURE_INPUT_DIR");
         Assert.SkipUnless(directory is not null, "Exported RenderDoc AO inputs required.");
         EnsureShaderTestAvailable();
-        using var inputs = new CapturedAmbientOcclusionFixture(Programs, TestAssetSnapshot.CaptureDirectory(directory!));
+        using var inputs = new CapturedAmbientOcclusionFixture(ImageAssertions, Programs, TestAssetSnapshot.CaptureDirectory(directory!));
         using var draw = new PostprocessDraw();
         using var referenceTarget = TestFramework.CreateTestGBuffer((inputs.Width + 1) / 2, (inputs.Height + 1) / 2, TextureFormat.Rgba16f);
         using var currentTarget = TestFramework.CreateTestGBuffer((inputs.Width + 1) / 2, (inputs.Height + 1) / 2, TextureFormat.Rgba16f);
         var actions = inputs.PrepareComparison(Programs.Create<AoHorizonReferenceProgram>(), draw, referenceTarget, currentTarget);
         actions.Reference();
-        ImageAssertions.Compare(referenceTarget[0],inputs.CapturedOutput,bitwise:true).AssertEqual();
+        ImageAssertions.Comparisons.Compare(referenceTarget[0],inputs.CapturedOutput,bitwise:true).AssertEqual();
         VerifyAndMeasure(actions, referenceTarget, currentTarget, inputs.Width, inputs.Height, inputs.Quality, -1,
             Environment.GetEnvironmentVariable("VGE_RUN_AO_MEASUREMENTS") == "1", "Restored captured scene at event 7091");
     }
@@ -107,7 +109,7 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
     {
         // A narrow vertical field of view makes the one-row case descend through coarser mips,
         // rather than merely covering collapsed axes at level zero.
-        using var inputs = new AmbientOcclusionSceneFixture(TestFramework, Programs, width, height, scene,
+        using var inputs = new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework, Programs, width, height, scene,
             verticalFov: height == 1 ? 1 : 90,
             occluderTransmission: .3f, receiverTransmission: .2f);
         using var draw = new PostprocessDraw();
@@ -123,8 +125,8 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
     {
         actions.Reference(); actions.Current();
         using var expected=new GpuImageSnapshot(referenceTarget[0]);
-        ImageAssertions.CompareHistory(currentTarget[0],expected,bitwise:true).AssertEqual();
-        ImageAssertions.Inspect(currentTarget[0]).AssertFiniteRange();
+        ImageAssertions.Comparisons.CompareHistory(currentTarget[0],expected,bitwise:true).AssertEqual();
+        ImageAssertions.Statistics.Inspect(currentTarget[0]).AssertFiniteRange();
         if (!measure) return;
 
         var referenceGpu = new List<double>(); var currentGpu = new List<double>();
@@ -166,5 +168,15 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
     /// <summary>Uses the midpoint of sorted samples rather than selecting the fastest run.</summary>
     private static double Median(List<double> samples) => samples.Order().Skip(samples.Count / 2 - 1).Take(2).Average();
 
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-observation", 0, 0);
+    }
     #endregion
 }

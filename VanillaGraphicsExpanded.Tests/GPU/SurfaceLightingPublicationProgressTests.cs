@@ -25,7 +25,7 @@ public sealed class SurfaceLightingPublicationProgressTests : RenderTestBase
     {
         EnsureContextValid();
         // Keep the authored face inside both logical domains when crossing the ring boundary.
-        using var runtime = new SurfaceCacheRuntimeFixture(feedbackPlaneX: firstBlock == 15 ? 8 : 0);
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions, feedbackPlaneX: firstBlock == 15 ? 8 : 0);
         runtime.Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = 4;
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.CameraX = firstBlock;
@@ -62,7 +62,7 @@ public sealed class SurfaceLightingPublicationProgressTests : RenderTestBase
     public void GrowingResidency_PreservesPartialAndPublishedPages()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceCacheRuntimeFixture(requestedPages: 48);
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages: 48);
         runtime.VisibleFeedbackPages = 1;
         runtime.Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = 4;
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
@@ -92,7 +92,7 @@ public sealed class SurfaceLightingPublicationProgressTests : RenderTestBase
     public void FiniteWorkingSet_EventuallyPublishes(int texelsPerEdge)
     {
         EnsureContextValid();
-        using var runtime = new SurfaceCacheRuntimeFixture(requestedPages: 48);
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages: 48);
         runtime.Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = texelsPerEdge;
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.PrimeGeometry();

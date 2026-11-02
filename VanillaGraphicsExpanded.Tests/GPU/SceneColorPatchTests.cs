@@ -15,6 +15,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Actual imported sky/cloud noise leaves HDR RGB and coverage unchanged while preserving offscreen display noise.</summary>
     [Theory]
@@ -47,7 +49,7 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
                 int scalar=(y*4+x)*4+channel;
                 lower[scalar]=expected-1e-7f;upper[scalar]=expected+1e-7f;
             }
-            ImageAssertions.CompareIntervals(target[cloud?3:0],lower,upper).AssertEqual();
+            ImageAssertions.Comparisons.CompareIntervals(target[cloud?3:0],lower,upper).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -166,5 +168,13 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
     private static float Decode(float value) => value <= .04045f ? value / 12.92f : MathF.Pow((value + .055f) / 1.055f, 2.4f);
     /// <summary>Encodes the independent shoulder result for the perceptual metric.</summary>
     private static float Encode(float value) => value <= .0031308f ? value * 12.92f : 1.055f * MathF.Pow(value, 1f / 2.4f) - .055f;
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+    }
     #endregion
 }

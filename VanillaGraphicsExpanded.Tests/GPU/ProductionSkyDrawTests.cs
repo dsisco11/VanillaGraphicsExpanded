@@ -15,6 +15,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>The actual opaque callback orders all four pass slots and submits their real five-program MRT work once.</summary>
     [Fact]
@@ -39,7 +41,7 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
         scene.AssertRestored();
         using var actual = scene.CaptureOutput();
         for (int image = 0; image < 2; image++)
-            ImageAssertions.CompareHistory(actual[image].Texture, expected[image], bitwise: true).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(actual[image].Texture, expected[image], bitwise: true).AssertEqual();
     }
 
     /// <summary>Actual simultaneous sky/glow results remain bit-exact while repeated native and fixed-state handoffs decrease.</summary>
@@ -55,10 +57,10 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
         scene.Draw(false);
         Assert.Equal(5, scene.PrefixImages.Count);
         // Independently demonstrate each executable changes its output before comparing the two scheduling paths.
-        Assert.True(ImageAssertions.Inspect(scene.PrefixImages[0][0].Texture).Positive > 0);
+        Assert.True(ImageAssertions.Statistics.Inspect(scene.PrefixImages[0][0].Texture).Positive > 0);
         for (int index = 1; index < 5; index++)
-            Assert.True(ImageAssertions.CompareHistory(scene.PrefixImages[index][0].Texture, scene.PrefixImages[index - 1][0]).Mismatches > 0, "Inactive program index " + index);
-        Assert.True(ImageAssertions.Inspect(scene.PrefixImages[3][1].Texture, channelMask: 2).Positive > 0);
+            Assert.True(ImageAssertions.Comparisons.CompareHistory(scene.PrefixImages[index][0].Texture, scene.PrefixImages[index - 1][0]).Mismatches > 0, "Inactive program index " + index);
+        Assert.True(ImageAssertions.Statistics.Inspect(scene.PrefixImages[3][1].Texture, channelMask: 2).Positive > 0);
         scene.AssertRestored();
         scene.ReadPrefixes = false;
         scene.Initialize();
@@ -96,8 +98,8 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
         using var actual = scene.CaptureOutput();
         for (int image = 0; image < 2; image++)
         {
-            ImageAssertions.CompareHistory(actual[image].Texture, expected[image], bitwise: true).AssertEqual();
-            ImageAssertions.Inspect(actual[image].Texture).AssertFiniteRange();
+            ImageAssertions.Comparisons.CompareHistory(actual[image].Texture, expected[image], bitwise: true).AssertEqual();
+            ImageAssertions.Statistics.Inspect(actual[image].Texture).AssertFiniteRange();
         }
 #if DEBUG
         Assert.True(sharedFixed < standaloneFixed, $"Fixed setters: {sharedFixed} vs {standaloneFixed}");
@@ -119,6 +121,17 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
             colorPixels = actual[0].Texture.Width * actual[0].Texture.Height,
             bitExactMrt = true
         }));
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 2, 0);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-observation", 0, 0);
     }
     #endregion
 }

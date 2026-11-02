@@ -13,6 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Composes registered cache, screen-probe and worker-driven world-probe consumers against controlled engine inputs.</summary>
 internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposable
 {
+    private readonly VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations;
     private static readonly System.Reflection.FieldInfo surfaceQueriesField =
         typeof(LumOnWorldProbeUpdateRenderer).GetField("surfaceQueries",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)
@@ -50,9 +51,9 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
     /// <summary>Checks every component for finiteness and returns peak RGB magnitude with a bounded GPU reduction.</summary>
     internal float Energy(GpuTexture texture, string? observation = null)
     {
-        var all = Cache.ImageAssertions.Inspect(texture);
+        var all = Cache.ImageAssertions.Statistics.Inspect(texture);
         Assert.True(all.NonFinite == 0, $"{observation ?? "Lighting output"}: {all}");
-        var rgb = Cache.ImageAssertions.Inspect(texture, channelMask: 7);
+        var rgb = Cache.ImageAssertions.Statistics.Inspect(texture, channelMask: 7);
         return (float)Math.Max(Math.Abs(rgb.Minimum), Math.Abs(rgb.Maximum));
     }
     /// <summary>Supplies authored receiver pixels before any registered lighting callback runs.</summary>
@@ -77,11 +78,13 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
 
     #region Composition
     /// <summary>Registers real consumers with the producer's engine events and injects real publication providers.</summary>
-    public SurfaceLightingConsumerRuntimeFixture(bool sh9, SpatialLightingScene? spatial = null, bool pbrComposition = false, bool shortProbeRange = false)
+    public SurfaceLightingConsumerRuntimeFixture(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations, bool sh9, SpatialLightingScene? spatial = null, bool pbrComposition = false, bool shortProbeRange = false)
     {
+        this.observations = observations;
+        observations.Programs.Prepare("inspection", 0, 0);
         // The engine Stop method is sealed; run its production ownership hook alongside native geometry submission.
         this.spatial=spatial; edge=spatial==null?2:4;
-        Cache = new(requestedPages:24,enclosure:true,spatial:spatial,productionOwned:true);
+        Cache = new(observations, requestedPages:24,enclosure:true,spatial:spatial,productionOwned:true);
         World = new(Cache.SourceBlock,spatial);
         var cfg=Cache.Config.LumOn;
         cfg.ProbeSpacingPx=1; cfg.ProbeAtlasTexelsPerFrame=8; cfg.RayMaxDistance=16;
@@ -186,7 +189,7 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
     /// <summary>Finds published confidence across physical slots; the interior probe need not occupy slot zero.</summary>
     public float WorldConfidence => WorldBuffers.Resources is { } resources
         // The former packed RG scan selected scalar indices divisible by four: red from even physical slots.
-        ? (float)Cache.ImageAssertions.Inspect(resources.ProbeMeta0, channelMask: 1, pixelStride: 2).Maximum : 0;
+        ? (float)Cache.ImageAssertions.Statistics.Inspect(resources.ProbeMeta0, channelMask: 1, pixelStride: 2).Maximum : 0;
 
     /// <summary>Submits the currently bound production shader through a real GPU fullscreen primitive.</summary>
     private void Draw()

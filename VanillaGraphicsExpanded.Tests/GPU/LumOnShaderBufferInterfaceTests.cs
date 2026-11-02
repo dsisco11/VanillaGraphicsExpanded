@@ -15,6 +15,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
 {
+
+
     /// <summary>Uses the mandatory graphics context and production uniform-ring lifecycle.</summary>
     public LumOnShaderBufferInterfaceTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -156,38 +158,38 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
 
     #region Production consumers and driver observations
     /// <summary>Supplies valid required samplers for binding-only tests that issue no draw.</summary>
-    private static GpuResourceCollection AssignRequiredTextures(LumOnShaderProgram program, GpuTexture texture)
+    private GpuResourceCollection AssignRequiredTextures(LumOnShaderProgram program, GpuTexture texture)
     {
         var inputs = new GpuResourceCollection();
         // These cases exercise the actual production declaration while buffer contents stay irrelevant.
         switch (program)
         {
             case LumOnScreenProbeAtlasTraceShaderProgram trace:
-                trace.PrimaryDepth = texture; var surfaceInput1 = inputs.Own(LayeredTestTexture.Create(null, texture, null));
+                trace.PrimaryDepth = texture; var surfaceInput1 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, null, texture, null));
         trace.GBufferSurface = surfaceInput1;
-                var anchorInputs1 = inputs.Own(LayeredTestTexture.Create(texture, texture));
+                var anchorInputs1 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, texture));
         trace.ProbeAnchors = anchorInputs1;
                 trace.SurfaceAlbedo = texture; trace.ScreenProbeAtlasHistory = texture;
                 trace.HzbDepth = texture; trace.ScreenProbeAtlasMetaHistory = texture;
                 trace.ProbeTraceMask = texture;
                 break;
             case LumOnScreenProbeAtlasGatherShaderProgram gather:
-                gather.PrimaryDepth = texture; var surfaceInput2 = inputs.Own(LayeredTestTexture.Create(texture, null, null));
+                gather.PrimaryDepth = texture; var surfaceInput2 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, null, null));
         gather.GBufferSurface = surfaceInput2;
-                var anchorInputs2 = inputs.Own(LayeredTestTexture.Create(texture, texture));
+                var anchorInputs2 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, texture));
         gather.ProbeAnchors = anchorInputs2;
                 gather.ScreenProbeAtlas = texture;
                 break;
             case LumOnProbeSh9GatherShaderProgram sh9:
-                sh9.PrimaryDepth = texture; var surfaceInput3 = inputs.Own(LayeredTestTexture.Create(texture, null, null));
+                sh9.PrimaryDepth = texture; var surfaceInput3 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, null, null));
         sh9.GBufferSurface = surfaceInput3;
-                var anchorInputs3 = inputs.Own(LayeredTestTexture.Create(texture, texture));
+                var anchorInputs3 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, texture));
         sh9.ProbeAnchors = anchorInputs3;
-                var shInputs4 = inputs.Own(LayeredTestTexture.Create(texture, texture, texture, texture, texture, texture, texture));
+                var shInputs4 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, texture, texture, texture, texture, texture, texture));
         sh9.ProbeSh9 = shInputs4;
                 break;
             case LumOnDebugShaderProgram debug:
-                debug.PrimaryDepth = texture; var surfaceInput4 = inputs.Own(LayeredTestTexture.Create(texture, null, null));
+                debug.PrimaryDepth = texture; var surfaceInput4 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, null, null));
         debug.GBufferSurface = surfaceInput4;
                 break;
         }
@@ -235,6 +237,14 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
         GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)offset, bytes.Length, bytes);
         return bytes;
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
     }
     #endregion
 }

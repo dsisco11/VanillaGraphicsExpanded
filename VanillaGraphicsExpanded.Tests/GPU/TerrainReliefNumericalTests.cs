@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class TerrainReliefNumericalTests : RenderTestBase
 {
+
+
     /// <summary>Uses the shared headless context.</summary>
     public TerrainReliefNumericalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -68,8 +70,16 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
             float expected=amplitude*(1f+scale/64f)/(Math.Abs(scale)*distance);
             Assert.InRange(pixels[center]*direction,expected*.92f,expected*1.02f);
         }
-        ImageAssertions.Predicate(target[0], GpuAssertionPredicate.TerrainReliefNumericalTests_ReliefUsesAuthoredMetric).AssertEqual();
+        ImageAssertions.Predicates.Predicate(target[0], GeometryPredicates.TerrainReliefNumericalTests_ReliefUsesAuthoredMetric).AssertEqual();
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-geometry", 0, 0);
     }
     #endregion
 }

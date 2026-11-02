@@ -38,7 +38,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         Assert.Equal(TextureFormat.Rgba8, fixture.Scene.Light.InternalFormat);
         Assert.Equal(TextureFormat.Rgba8, fixture.Scene.Materials.InternalFormat);
         Assert.Equal(TextureFormat.R8ui, fixture.Scene.Regions.InternalFormat);
-        ImageAssertions.Inspect(fixture.Scene.Regions,0,0).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(fixture.Scene.Regions,0,0).AssertFiniteRange();
         fixture.Publish(new ControlledVoxelWorld());
         var previousOrigin = fixture.Scene.Origin;
         var center = new VectorInt3(axis == 0 || axis == 3 ? distance : 0,
@@ -59,7 +59,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
             int sz = ((z / 16) % size + size) % size;
             expected[(sz * size + sy) * size + sx] = 1;
         }
-        ImageAssertions.CompareBits(fixture.Scene.Regions,expected.Select(value=>(uint)value).ToArray()).AssertEqual();
+        ImageAssertions.Comparisons.CompareBits(fixture.Scene.Regions,expected.Select(value=>(uint)value).ToArray()).AssertEqual();
 
         // A current-version completion for an evicted region still cannot claim its reused slot.
         int oldX = distance > 0 ? previousOrigin.X : previousOrigin.X + resolution - 16;
@@ -72,16 +72,16 @@ public sealed partial class LumOnNearFieldFunctionalTests
         Assert.False(fixture.Scene.ClaimCell(request));
         Assert.False(fixture.Scene.PublishCell(request, new ControlledTraceVoxel[4096], new TraceGeometryMaterials()));
         Assert.Equal(revision, fixture.Scene.Revision);
-        ImageAssertions.CompareBits(fixture.Scene.Regions,expected.Select(value=>(uint)value).ToArray()).AssertEqual();
+        ImageAssertions.Comparisons.CompareBits(fixture.Scene.Regions,expected.Select(value=>(uint)value).ToArray()).AssertEqual();
 
         fixture.Publish(new ControlledVoxelWorld());
-        ImageAssertions.Inspect(fixture.Scene.Regions,1,1).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(fixture.Scene.Regions,1,1).AssertFiniteRange();
         var traceOffset = new VectorInt3((int)Math.Ceiling(center.X / 32d) * 32,
             (int)Math.Ceiling(center.Y / 32d) * 32,
             (int)Math.Ceiling(center.Z / 32d) * 32);
         // Keep the clear segment inside this deliberately small ring; coverage policy is tested separately.
         var result = Trace(fixture, worldOffset: traceOffset, cacheSpacing: 2);
-        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsCache_ParallaxNeighborhood_PreservesConstantRadiance).AssertEqual();
+        ObserveTrace(result, SurfacePredicates.LumOnNearFieldFunctionalTestsCache_ParallaxNeighborhood_PreservesConstantRadiance).AssertEqual();
     }
 
     /// <summary>Compact 3D uploads preserve non-four-byte row data and the caller's unpack alignment.</summary>
@@ -98,7 +98,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
             scene.Regions.UploadDataImmediate(data, 0, 0, 0, 3, 3, 3);
             GL.GetInteger(GetPName.UnpackAlignment, out int alignment);
             Assert.Equal(8, alignment);
-            ImageAssertions.CompareBits(scene.Regions,data.Select(value=>(uint)value).ToArray()).AssertEqual();
+            ImageAssertions.Comparisons.CompareBits(scene.Regions,data.Select(value=>(uint)value).ToArray()).AssertEqual();
         }
         finally { GL.PixelStore(PixelStoreParameter.UnpackAlignment, originalAlignment); }
     }

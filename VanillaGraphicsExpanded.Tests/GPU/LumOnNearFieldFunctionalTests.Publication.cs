@@ -55,13 +55,13 @@ public sealed partial class LumOnNearFieldFunctionalTests
         fixture.Pump();
         Assert.Equal(revision, fixture.Scene.Revision);
         var result = Trace(fixture);
-        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsPublication_StaleArtifact_CannotReplaceCurrentRegion).AssertEqual();
+        ObserveTrace(result, SurfacePredicates.LumOnNearFieldFunctionalTestsPublication_StaleArtifact_CannotReplaceCurrentRegion).AssertEqual();
     }
 
     /// <summary>Requires darkness and unavailable confidence, not merely a zero-valued RGB buffer.</summary>
     private void AssertUnresolved(TraceImages result)
     {
-        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsLighting_RawEmission_RemainsUnavailableWithoutSurfaceCache).AssertEqual();
+        ObserveTrace(result, SurfacePredicates.LumOnNearFieldFunctionalTestsLighting_RawEmission_RemainsUnavailableWithoutSurfaceCache).AssertEqual();
     }
     #endregion
 }

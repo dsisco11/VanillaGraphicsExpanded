@@ -14,6 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Owns an analytically projected AO workload, its input textures and the shared hierarchy for component validation.</summary>
 internal sealed class AmbientOcclusionSceneFixture : IDisposable
 {
+    private readonly VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations;
     private readonly ShaderTestFramework framework;
     private readonly PostSsaoShaderProgram horizon;
     private readonly AmbientOcclusionFilterShaderProgram filter;
@@ -39,10 +40,12 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
 
     #region Input ownership
     /// <summary>Projects planes and exact corner intersections using the same camera later borrowed by AO and lighting.</summary>
-    internal AmbientOcclusionSceneFixture(ShaderTestFramework framework,ComponentShaderPrograms programs,int width,int height,int scene,
+    internal AmbientOcclusionSceneFixture(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations, ShaderTestFramework framework,ComponentShaderPrograms programs,int width,int height,int scene,
         float receiverDistance=3,float verticalFov=90,float edgeFraction=.5f,float roughness=.5f,float metallic=0,float availability=.5f,
         float occluderTransmission=0,float receiverTransmission=0)
     {
+        this.observations = observations;
+        observations.Programs.Prepare("layer", 0, 0);
         this.framework=framework;Width=width;Height=height;this.availability=availability;
         horizon=programs.Create<PostSsaoShaderProgram>();filter=programs.Create<AmbientOcclusionFilterShaderProgram>();compute=programs.CreateDepthHierarchy();
         maskShader=programs.Create<MinimumChildMaskShaderProgram>();
@@ -80,7 +83,7 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
         environment=framework.CreateTexture(width,height,TextureFormat.Rgba32f,EnvironmentData(availability));
         Albedo=framework.CreateTexture(width,height,TextureFormat.Rgba32f,colors);
         Position=framework.CreateTexture(width,height,TextureFormat.Rgba32f,positions);
-        Surface=LayeredTestTexture.Create(normal,material,environment);
+        Surface=LayeredTestTexture.Create(observations.Programs, normal,material,environment);
         hierarchy.Prepare(width,height,compute);
     }
 

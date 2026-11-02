@@ -8,12 +8,14 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Scenario", "HeadlessRuntime")]
 public sealed class WorldProbeTraceRoutingRuntimeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     /// <summary>Switching from CPU queries to compute retains atlas values; both routing changes allow replacement work.</summary>
     [Fact]
     public void FlagChangesRetirePendingWorkWithoutClearingDisplayedAtlas()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         runtime.RunUntil(()=>runtime.Energy(runtime.WorldImage)>.001f);
         var resources=runtime.WorldBuffers.Resources;
@@ -31,11 +33,19 @@ public sealed class WorldProbeTraceRoutingRuntimeTests(HeadlessGLFixture fixture
                 Assert.Same(resources,runtime.WorldBuffers.Resources);
                 Assert.False(runtime.HasPendingSurfaceLightingQueries);
                 Assert.False(runtime.HasPendingGpuTrace);
-                ImageAssertions.CompareHistory(runtime.WorldImage, retained).AssertEqual();
+                ImageAssertions.Comparisons.CompareHistory(runtime.WorldImage, retained).AssertEqual();
             }
             config.TraceMaxProbesPerFrame=traceBudget;config.UploadBudgetBytesPerFrame=uploadBudget;
             runtime.RunUntil(()=>config.EnableGpuTracing?runtime.HasPendingGpuTrace:runtime.HasPendingSurfaceLightingQueries);
             Assert.True(runtime.Energy(runtime.WorldImage)>.001f);
         }
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+    }
+    #endregion
 }

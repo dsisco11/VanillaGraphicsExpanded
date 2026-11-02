@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITestOutputHelper output):LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     private bool recordTimings;
 
     #region Public API
@@ -215,6 +217,14 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
         for(int i=0;i<fields.Domain.Blocks;i++)
         {values[i*3]=read.Span[i*16+10];values[i*3+1]=read.Span[i*16+11];values[i*3+2]=read.Span[i*16+15];}
         return values;
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

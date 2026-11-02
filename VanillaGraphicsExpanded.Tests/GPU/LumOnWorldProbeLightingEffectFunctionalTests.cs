@@ -15,6 +15,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     #region Construction
     /// <summary>Uses the shared headless OpenGL context.</summary>
     public LumOnWorldProbeLightingEffectFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
@@ -58,9 +60,17 @@ public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFu
             float brightness = magnitude / (1 + magnitude);
             float[] expected = !ready ? [0.5f, 0, 0.5f]
                 : luminance >= 0 ? [brightness, brightness * 0.35f, 0] : [0, brightness * 0.35f, brightness];
-            ImageAssertions.Predicate(output[0], GpuAssertionPredicate.LumOnWorldProbeLightingEffectFunctionalTests_LightingEffect_MapsSignedLuminance_AndIndicatesMissingPair,
+            ImageAssertions.Predicates.Predicate(output[0], SurfacePredicates.LumOnWorldProbeLightingEffectFunctionalTests_LightingEffect_MapsSignedLuminance_AndIndicatesMissingPair,
                 parameters:new(expected[0],expected[1],expected[2],TestEpsilon)).AssertEqual();
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-surface", 0, 0);
     }
     #endregion
 }

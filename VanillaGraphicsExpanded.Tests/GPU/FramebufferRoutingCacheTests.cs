@@ -13,6 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     #region Normalized routes
     /// <summary>Per-target mappings ignore trailing None and cannot alias caller arrays or captured snapshots.</summary>
@@ -190,8 +192,8 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         Initialize();
         var cached = Run(false);
         using var actual = new Assertions.GpuImageSet([target[0], target[1]]);
-        ImageAssertions.CompareHistory(actual[0].Texture, expected[0]).AssertEqual();
-        ImageAssertions.CompareHistory(actual[1].Texture, expected[1]).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(actual[0].Texture, expected[0]).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(actual[1].Texture, expected[1]).AssertEqual();
         Assert.Equal(.75f, Assertions.GpuLocalRead.Scalar(actual[0].Texture, 0));
         Assert.Equal(.5f, Assertions.GpuLocalRead.Scalar(actual[1].Texture, 0));
         Assert.True(cached.Count(call => call.StartsWith("Routing")) < uncached.Count(call => call.StartsWith("Routing")));
@@ -203,5 +205,13 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
     #region Private
     /// <summary>Creates a three-output dynamic target so sparse route changes remain valid native configurations.</summary>
     private DynamicGpuFramebuffer Target() => (DynamicGpuFramebuffer)CreateMRTRenderTarget(2, 2, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+    }
     #endregion
 }

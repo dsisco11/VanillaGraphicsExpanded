@@ -10,6 +10,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
 {
+
+
     /// <summary>Uses the shared material-isolated graphics context.</summary>
     public SurfaceLightingConsumerRuntimeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -19,7 +21,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     public void InsufficientTraceRange_DoesNotPublishFalseSky()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, shortProbeRange: true);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false, shortProbeRange: true);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         bool ready = false;
         for (int frame = 0; frame < 96; frame++)
@@ -27,7 +29,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
             runtime.Frame();
             ready |= runtime.Cache.TryGetLighting(out _);
             Assert.InRange(runtime.Energy(runtime.WorldImage), 0, .0001f);
-            ImageAssertions.CompareConstant(runtime.WorldImage, 0).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(runtime.WorldImage, 0).AssertEqual();
             Assert.Equal(0, runtime.WorldConfidence);
             Thread.Yield();
         }
@@ -40,7 +42,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     public void WorldProbePublication_DoesNotReadVanillaHitLighting()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         runtime.RunUntil(() => runtime.Energy(runtime.WorldImage) > .001f);
         Assert.True(runtime.World.WorkerReads > 0);
@@ -52,7 +54,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     public void MissingSurfaceLighting_ContinuesTracingAndRetriesUntilReady()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         runtime.WorldRenderer.SetSurfaceLightingProvider(null, null);
         runtime.Cache.Config.LumOn.DebugMode = VanillaGraphicsExpanded.LumOn.LumOnDebugMode.WorldProbeOrbsPoints;
@@ -80,7 +82,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene();
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, scene);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false, scene);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         runtime.Cache.Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge = 4;
         bool published = false;
@@ -101,7 +103,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     public void RegisteredConsumersPropagateLightingAcrossLifetime(bool sh9,bool gpu)
     {
         EnsureContextValid();
-        using var runtime=new SurfaceLightingConsumerRuntimeFixture(sh9);
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=gpu;
         runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.HasPublishedIndirect
             && runtime.Energy(runtime.FinalImage)>.001f
@@ -117,7 +119,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         Assert.Contains("lumon_upsample",runtime.LoadedPrograms);
         // Resident GPU commits do not load the CPU-only raster upload program.
         if(!gpu)Assert.Contains("lumon_worldprobe_radiance_tile_resolve",runtime.LoadedPrograms);
-        Assert.True(ImageAssertions.Inspect(runtime.Screen.ProbeAnchors!, selection: new(new(0, 0), 0, 0, 0, runtime.Screen.ProbeAnchors!.Width, runtime.Screen.ProbeAnchors.Height), channelMask: 8).Maximum > .5f);
+        Assert.True(ImageAssertions.Statistics.Inspect(runtime.Screen.ProbeAnchors!, selection: new(new(0, 0), 0, 0, 0, runtime.Screen.ProbeAnchors!.Width, runtime.Screen.ProbeAnchors.Height), channelMask: 8).Maximum > .5f);
         foreach(int light in new[]{0,32})
         {
             runtime.Cache.ChangeBlockLight(light);
@@ -162,19 +164,19 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     public void MinimumDirectionalUploadBudgetDefersPendingQueries(bool gpu)
     {
         EnsureContextValid();
-        using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=gpu;
         runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && runtime.Energy(runtime.WorldImage)>.001f);
         runtime.WorldBuffers.RequestRecreate("verify atomic upload admission with a ready cache");
         runtime.Frame();
         if(!gpu)runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
         runtime.Cache.Config.WorldProbeClipmap.UploadBudgetBytesPerFrame=63;
-        runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 0).AssertEqual();
+        runtime.Cache.ImageAssertions.Comparisons.CompareConstant(runtime.WorldImage, 0).AssertEqual();
         Assert.Equal(0,runtime.WorldConfidence);
         for(int frame=0;frame<8;frame++)
         {
             runtime.Frame();
-            runtime.Cache.ImageAssertions.CompareConstant(runtime.WorldImage, 0).AssertEqual();
+            runtime.Cache.ImageAssertions.Comparisons.CompareConstant(runtime.WorldImage, 0).AssertEqual();
             Assert.Equal(0,runtime.WorldConfidence);
         }
         Assert.False(runtime.HasPendingSurfaceLightingQueries);
@@ -187,7 +189,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     public void PendingGpuQueriesCannotRepopulateInvalidatedAtlases()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && runtime.Energy(runtime.WorldImage)>.001f);
         runtime.RunUntil(()=>runtime.HasPendingSurfaceLightingQueries);
@@ -209,7 +211,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     public void DelayedWorkerCompletionCannotRestoreObsoleteLighting()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceLightingConsumerRuntimeFixture(true);
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, true);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
         runtime.RunUntil(()=>runtime.WorldBuffers.Resources!=null && runtime.Energy(runtime.WorldImage)>.001f);
         runtime.World.HoldWorker();
@@ -233,7 +235,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
     public void ConsumerDisposalUnregistersCallbacks()
     {
         EnsureContextValid();
-        var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);
         var events=runtime.Cache.Events;
         Assert.Contains(events.Registrations,r=>r.Name=="lumon");
         Assert.Contains(events.Registrations,r=>r.Name=="vge_worldprobe_update");
@@ -241,6 +243,15 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         Assert.Empty(events.Registrations);
         Assert.Equal(0,events.SubscriptionCount("LeaveWorld"));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

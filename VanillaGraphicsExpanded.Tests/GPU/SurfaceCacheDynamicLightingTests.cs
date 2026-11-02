@@ -11,6 +11,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
 {
+
+
     /// <summary>Uses the material-isolated GPU context.</summary>
     public SurfaceCacheDynamicLightingTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -70,7 +72,7 @@ public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
         Assert.True(fixture.Page.Capture(scene));
         for (int update = 0; update < 4; update++) Assert.True(fixture.Page.Relight(scene, steps: 256));
         using var open = new GpuImageSnapshot(fixture.Page.IrradianceAtlas);
-        var observation = ImageAssertions.Predicate(open.Texture, GpuAssertionPredicate.SurfaceCacheDynamicLightingTests_DoorwayClosureAndReopeningRetainStaleIllumination);
+        var observation = ImageAssertions.Predicates.Predicate(open.Texture, SurfacePredicates.SurfaceCacheDynamicLightingTests_DoorwayClosureAndReopeningRetainStaleIllumination);
         observation.AssertEqual(); Assert.True(observation.MatchingTexels>0);
 
         foreach (bool isOpen in new[] { false, true })
@@ -84,14 +86,14 @@ public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
             Assert.True(scene.InvalidationRevision > before);
             Assert.True(fixture.History.TrySynchronize(scene, fixture.Page.IrradianceAtlas, out bool invalidated));
             Assert.False(invalidated);
-            ImageAssertions.CompareHistory(fixture.Page.IrradianceAtlas,open).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(fixture.Page.IrradianceAtlas,open).AssertEqual();
             Assert.False(fixture.Page.Relight(scene));
-            ImageAssertions.CompareHistory(fixture.Page.IrradianceAtlas,open).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(fixture.Page.IrradianceAtlas,open).AssertEqual();
             fixture.Geometry.Publish();
             Assert.Equal(isOpen ? 1u : 2u, fixture.Geometry.ReadGeometry(4, 33, 1) & 3u);
             Assert.Equal(capturedWall, fixture.Geometry.ReadGeometry(0, 33, 1));
             Assert.True(fixture.History.TrySynchronize(scene, fixture.Page.IrradianceAtlas, out _));
-            ImageAssertions.CompareHistory(fixture.Page.IrradianceAtlas,open).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(fixture.Page.IrradianceAtlas,open).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -99,8 +101,17 @@ public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
     private void AssertLighting(VanillaGraphicsExpanded.Rendering.GpuTexture image, float radiance, float weight)
     {
         Assert.Equal(8,image.Width);Assert.Equal(8,image.Height);
-        ImageAssertions.Predicate(image, GpuAssertionPredicate.SurfaceCacheDynamicLightingTests_AssertLighting,
+        ImageAssertions.Predicates.Predicate(image, SurfacePredicates.SurfaceCacheDynamicLightingTests_AssertLighting,
             parameters:new(radiance-.01f,radiance+.01f,weight,0)).AssertEqual();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
     }
     #endregion
 }

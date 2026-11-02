@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     #region Configuration and lifetime
     /// <summary>Only the dynamic subclass exposes mutable factories; the shared base cannot be constructed.</summary>
@@ -43,7 +45,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         target.Bind();
         Assert.Throws<InvalidOperationException>(() => OpenGLFramebufferRouting.SetDrawBuffer(OpenGlStateCache.Current, DrawBufferMode.None));
         texture.UploadDataImmediate(Enumerable.Repeat(.375f, 16).ToArray());
-        ImageAssertions.CompareConstant(texture, .375f).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(texture, .375f).AssertEqual();
         target.Dispose();
         Assert.True(texture.Resize(3, 3));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -231,5 +233,13 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+    }
     #endregion
 }

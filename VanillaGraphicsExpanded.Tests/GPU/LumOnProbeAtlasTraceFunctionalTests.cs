@@ -52,6 +52,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     // Ray tracing defaults
     private const int RaySteps = 16;
     private const float RayMaxDistance = 50f;
@@ -337,7 +339,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             ambientColor: (0.3f, 0.4f, 0.5f));
 
         // Bind inputs
-        using var anchorInputs1 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs1 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs1;
         programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
@@ -347,7 +349,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         // Render to atlas
         TestFramework.RenderQuadTo(programId, outputAtlas);
 
-        ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_ValidProbe_TracesRaysToAtlas).AssertEqual();
+        ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTraceFunctionalTests_ValidProbe_TracesRaysToAtlas).AssertEqual();
     }
 
     #endregion
@@ -409,7 +411,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             sunColor: (0f, 0f, 0f),  // No sun contribution for cleaner test
             sunPosition: (0f, 1f, 0f));
 
-        using var anchorInputs2 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs2 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs2;
         programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
@@ -506,7 +508,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             invView: invView,
             texelsPerFrame: 64);
 
-        using var anchorInputs3 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs3 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs3;
         programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
@@ -514,7 +516,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var distance=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_HitDistance_EncodedCorrectly,parameters:new(RayMaxDistance,RayMaxDistance*.1f,0,0));
+        var distance=ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTraceFunctionalTests_HitDistance_EncodedCorrectly,parameters:new(RayMaxDistance,RayMaxDistance*.1f,0,0));
         distance.AssertEqual();Assert.Equal(16u,distance.MatchingTexels);
     }
 
@@ -567,7 +569,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             invView: invView,
             texelsPerFrame: 64);
 
-        using var anchorInputs4 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs4 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs4;
         programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
@@ -575,7 +577,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_InvalidProbe_OutputsZero,
+        ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTemporalFunctionalTests_InvalidProbe_OutputsZero,
             parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
@@ -641,7 +643,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             frameIndex: 0,
             ambientColor: (0.5f, 0.5f, 0.5f));
 
-        using var anchorInputs5 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs5 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs5;
         programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
@@ -649,7 +651,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var classified=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_TemporalDistribution_OnlyTracesSubset);
+        var classified=ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTraceFunctionalTests_TemporalDistribution_OnlyTracesSubset);
         classified.AssertEqual();
         int historyTexels=checked((int)classified.MatchingTexels);
         int tracedTexels=AtlasWidth*AtlasHeight-historyTexels;
@@ -728,7 +730,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             ambientColor: (0f, 1f, 1f),  // Cyan ambient - will show in sky miss
             sunColor: (0f, 0f, 0f));
 
-        using var anchorInputs6 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs6 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs6;
         programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
@@ -736,7 +738,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var cyan=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_RayHit_ReturnsSceneColor);
+        var cyan=ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTraceFunctionalTests_RayHit_ReturnsSceneColor);
         cyan.AssertEqual();Assert.True(cyan.MatchingTexels>0);
     }
 
@@ -793,7 +795,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invView: invView,
                 texelsPerFrame: 64);
 
-            using var anchorInputs7 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs7 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs7;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -801,7 +803,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var count=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_RaySteps_AffectsTraceQuality);
+            var count=ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTraceFunctionalTests_RaySteps_AffectsTraceQuality);
             count.AssertEqual();lowNonZero=checked((int)count.MatchingTexels);
         }
 
@@ -831,7 +833,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invView: invView,
                 texelsPerFrame: 64);
 
-            using var anchorInputs8 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs8 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs8;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -839,7 +841,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var count=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_RaySteps_AffectsTraceQuality);
+            var count=ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTraceFunctionalTests_RaySteps_AffectsTraceQuality);
             count.AssertEqual();highNonZero=checked((int)count.MatchingTexels);
         }
 
@@ -895,7 +897,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Bind meta history sampler (used for non-traced texels; harmless here since we trace all)
 
-        using var anchorInputs9 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs9 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs9;
         programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
@@ -905,9 +907,9 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
 
-        var hit=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_Meta_HitHigherThanSky,
+        var hit=ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTraceFunctionalTests_Meta_HitHigherThanSky,
             parameters:new(RayMaxDistance-.5f,0,0,0));
-        var sky=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_Meta_HitHigherThanSky_2,
+        var sky=ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTraceFunctionalTests_Meta_HitHigherThanSky_2,
             parameters:new(RayMaxDistance-.05f,0,0,0));
         hit.AssertEqual();sky.AssertEqual();
         Assert.True(hit.MatchingTexels>0,"Expected at least one hit texel in the atlas");
@@ -959,7 +961,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             texelsPerFrame: 64,
             sunColor: (0f, 0f, 0f));
 
-        using var anchorInputs10 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs10 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs10;
         programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
@@ -968,7 +970,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        var confidence=ImageAssertions.Inspect(outputAtlas[1],channelMask:1);
+        var confidence=ImageAssertions.Statistics.Inspect(outputAtlas[1],channelMask:1);
         confidence.AssertFiniteRange();
         float minConf=(float)confidence.Minimum,maxConf=(float)confidence.Maximum;
         Assert.True(minConf < maxConf, $"Expected some rays to exit screen (minConf={minConf:F3}, maxConf={maxConf:F3})");
@@ -1023,7 +1025,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             frameIndex: 0,
             sunColor: (0f, 0f, 0f));
 
-        using var anchorInputs11 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs11 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs11;
         programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
@@ -1084,7 +1086,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 sunColor: (1f, 0f, 0f),
                 sunPosition: (0f, 1f, 0f));
 
-            using var anchorInputs12 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs12 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs12;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -1092,7 +1094,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            withSunRed = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic);
+            withSunRed = ImageAssertions.Statistics.OrderedFloatSum(outputAtlas[0], ObservationProjections.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic);
         }
 
         // Without sun
@@ -1124,7 +1126,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 sunColor: (0f, 0f, 0f),
                 sunPosition: (0f, 1f, 0f));
 
-            using var anchorInputs13 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs13 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs13;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -1132,7 +1134,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            withoutSunRed = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic);
+            withoutSunRed = ImageAssertions.Statistics.OrderedFloatSum(outputAtlas[0], ObservationProjections.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic);
         }
 
         // docs/PBR.Atmosphere.md: hemispherical sky replaces the former fabricated solar halo.
@@ -1197,7 +1199,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 sunColor: (0f, 0f, 0f),
                 indirectTint: (1f, 1f, 1f));
 
-            using var anchorInputs14 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs14 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs14;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -1205,7 +1207,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            fullTintBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
+            fullTintBrightness = ImageAssertions.Statistics.OrderedFloatSum(outputAtlas[0], ObservationProjections.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
         }
 
         // Half tint
@@ -1237,7 +1239,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 sunColor: (0f, 0f, 0f),
                 indirectTint: (0.5f, 0.5f, 0.5f));
 
-            using var anchorInputs15 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs15 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs15;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -1245,7 +1247,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            halfTintBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
+            halfTintBrightness = ImageAssertions.Statistics.OrderedFloatSum(outputAtlas[0], ObservationProjections.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
         }
 
         Assert.True(halfTintBrightness < fullTintBrightness * 0.8f,
@@ -1308,7 +1310,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 ambientColor: (0f, 0f, 0f),
                 sunColor: (0f, 0f, 0f));
 
-            using var anchorInputs16 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs16 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs16;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -1316,7 +1318,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            nearHitBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
+            nearHitBrightness = ImageAssertions.Statistics.OrderedFloatSum(outputAtlas[0], ObservationProjections.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
         }
 
         // Far geometry (depth 0.99 - farther)
@@ -1349,7 +1351,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 ambientColor: (0f, 0f, 0f),
                 sunColor: (0f, 0f, 0f));
 
-            using var anchorInputs17 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs17 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs17;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -1357,7 +1359,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            farHitBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
+            farHitBrightness = ImageAssertions.Statistics.OrderedFloatSum(outputAtlas[0], ObservationProjections.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
         }
 
         // Near hits should produce different radiance than far hits due to distance encoding
@@ -1424,7 +1426,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invView: invView,
                 frameIndex: 0);
 
-            using var anchorInputs18 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs18 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs18;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -1461,7 +1463,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invView: invView,
                 frameIndex: 1);
 
-            using var anchorInputs19 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs19 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs19;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -1472,7 +1474,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             frame1Output = new(outputAtlas[0]);
         }
 
-        var differences=ImageAssertions.Predicate(frame0Output!.Texture, GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_FrameIndex_JittersTexelSelection,
+        var differences=ImageAssertions.Predicates.Predicate(frame0Output!.Texture, SurfacePredicates.LumOnProbeAtlasTraceFunctionalTests_FrameIndex_JittersTexelSelection,
             frame1Output!.Texture);
         differences.AssertEqual();Assert.True(differences.MatchingTexels>0);
         }
@@ -1532,7 +1534,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 view: view,
                 invView: invView);
 
-            using var anchorInputs20 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs20 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs20;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -1540,7 +1542,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var count=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_TexelsPerFrame_AffectsTemporalDistribution);
+            var count=ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTraceFunctionalTests_TexelsPerFrame_AffectsTemporalDistribution);
             count.AssertEqual();lowTexelsNonZero=checked((int)count.MatchingTexels);
         }
 
@@ -1569,7 +1571,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 view: view,
                 invView: invView);
 
-            using var anchorInputs21 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs21 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs21;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -1577,7 +1579,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            var count=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_TexelsPerFrame_AffectsTemporalDistribution);
+            var count=ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTraceFunctionalTests_TexelsPerFrame_AffectsTemporalDistribution);
             count.AssertEqual();highTexelsNonZero=checked((int)count.MatchingTexels);
         }
 
@@ -1637,7 +1639,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             texelsPerFrame: 64,
             ambientColor: (0.2f, 0.2f, 0.3f));  // Ambient for sky miss
 
-        using var anchorInputs22 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+        using var anchorInputs22 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs22;
         programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
@@ -1645,8 +1647,8 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         programId.ScreenProbeAtlasHistory = historyTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        ImageAssertions.Inspect(outputAtlas[0],channelMask:7).AssertFiniteRange();
-        var lit=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTraceFunctionalTests_RaySteps_AffectsTraceQuality);
+        ImageAssertions.Statistics.Inspect(outputAtlas[0],channelMask:7).AssertFiniteRange();
+        var lit=ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTraceFunctionalTests_RaySteps_AffectsTraceQuality);
         lit.AssertEqual();Assert.True(lit.MatchingTexels>0);
     }
 
@@ -1705,7 +1707,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invView: invView,
                 texelsPerFrame: 64);
 
-            using var anchorInputs23 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs23 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs23;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -1713,7 +1715,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            identityBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
+            identityBrightness = ImageAssertions.Statistics.OrderedFloatSum(outputAtlas[0], ObservationProjections.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
         }
 
         // Rotated view (90 degrees around Y)
@@ -1755,7 +1757,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 invView: rotatedInvView,
                 texelsPerFrame: 64);
 
-            using var anchorInputs24 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
+            using var anchorInputs24 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs24;
             programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
@@ -1763,7 +1765,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
             programId.ScreenProbeAtlasHistory = historyTex;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
-            rotatedBrightness = ImageAssertions.OrderedFloatSum(outputAtlas[0], GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
+            rotatedBrightness = ImageAssertions.Statistics.OrderedFloatSum(outputAtlas[0], ObservationProjections.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic_2);
         }
 
         // Both should produce valid output
@@ -1771,5 +1773,17 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         Assert.True(rotatedBrightness > 0.001f, "Rotated view should produce output");
     }
 
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("layer", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
+        programs.Prepare("projection-observation", 0, 0);
+        programs.Prepare("statistics", 0, 0);
+    }
     #endregion
 }

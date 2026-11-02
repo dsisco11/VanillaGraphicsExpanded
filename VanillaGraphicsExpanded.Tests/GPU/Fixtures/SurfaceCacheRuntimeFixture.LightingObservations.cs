@@ -54,8 +54,8 @@ internal sealed partial class SurfaceCacheRuntimeFixture
         float Peak(Texture3D texture, SurfaceCacheReadiness.Region region, out float maximumWeight)
         {
             var selection = new RHITextureRegion(new(0, region.Layer), region.X, region.Y, 0, region.Width, region.Height);
-            var rgb = ImageAssertions.Inspect(texture, selection: selection, channelMask: 7);
-            var alpha = ImageAssertions.Inspect(texture, selection: selection, channelMask: 8);
+            var rgb = ImageAssertions.Statistics.Inspect(texture, selection: selection, channelMask: 7);
+            var alpha = ImageAssertions.Statistics.Inspect(texture, selection: selection, channelMask: 8);
             rgb.AssertFiniteRange(); alpha.AssertFiniteRange();
             maximumWeight = (float)Math.Max(0, alpha.Maximum);
             return (float)(Math.Max(Math.Abs(rgb.Minimum), Math.Abs(rgb.Maximum)) / LightingStorage.PersistentScale);

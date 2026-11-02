@@ -11,6 +11,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class ShaderLightingResourcesTests : RenderTestBase
 {
+
+
     /// <summary>Uses the shared mandatory OpenGL context.</summary>
     public ShaderLightingResourcesTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -47,7 +49,7 @@ public sealed class ShaderLightingResourcesTests : RenderTestBase
             Assert.All(BorrowScreen(screen), texture => Assert.DoesNotContain(texture, other));
             Assert.All(BorrowPasses(screen), pass => Assert.Contains(pass, framebuffers));
             Assert.Same(independentHistory, independent.ScreenProbeAtlasHistoryTex);
-            ImageAssertions.CompareConstant(independentHistory, .75f).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(independentHistory, .75f).AssertEqual();
             Assert.All(worldTextures, texture => Assert.True(texture.IsValid));
             Assert.NotEqual(world.ProbeRadianceAtlas.TextureId, otherWorld.ProbeRadianceAtlas.TextureId);
         }
@@ -126,5 +128,13 @@ public sealed class ShaderLightingResourcesTests : RenderTestBase
     /// <summary>Observes the complete world-probe texture family owned by the production topology.</summary>
     private static GpuTexture[] BorrowWorld(LumOnWorldProbeClipmapGpuResources world) =>
         [world.ProbeRadianceAtlas, world.ProbeVis0, world.ProbeDist0, world.ProbeMeta0, world.ProbeDebugState0];
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+    }
     #endregion
 }

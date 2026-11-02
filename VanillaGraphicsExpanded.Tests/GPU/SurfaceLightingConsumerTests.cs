@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
 {
+
+
     /// <summary>Uses the isolated material registry and headless GPU context.</summary>
     public SurfaceLightingConsumerTests(HeadlessGLFixture fixture):base(fixture) { }
 
@@ -22,7 +24,7 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
     public void FacesAndChunkBoundariesConsumeOutgoingRadiance(int offset)
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture(.25f,xOffset:offset); room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, .25f,xOffset:offset); room.Seed();
         var hits=new SurfaceLightingQuery[]
         {
             new(new(offset,35,3),new(1,0,0),new(1,.5f,.5f)),
@@ -45,7 +47,7 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
     public void ValidBlackIsDistinctFromUnavailableOrStale()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture(0); room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, 0); room.Seed();
         SurfaceLightingQuery hit=new(new(0,35,3),new(1,0,0),new(1,.5f,.5f));
         Assert.Equal(new Vector4(0,0,0,1),Query(room,[hit])[0].Result);
         var wrong=hit; wrong.BlockId=int.MaxValue;
@@ -59,7 +61,7 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
     public void WithheldPagesRejectPreviouslyBrightLighting()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture(); room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions); room.Seed();
         SurfaceLightingQuery hit=new(new(0,35,3),new(1,0,0),new(1,.5f,.5f));
         Assert.True(Query(room,[hit])[0].Result.X>1);
         room.WithholdPages();
@@ -73,7 +75,7 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
     public void AliasedPageMappingIsUnavailable()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         SurfaceLightingQuery hit=new(new(0,35,3),new(1,0,0),new(1,.5f,.5f));
         Assert.Equal(1,Query(room,[hit])[0].Result.W);
         room.AliasFirstPage();
@@ -85,7 +87,7 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
     public void QueryBatchReuseRetainsExactAdmissionBounds()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         using var assets=new BinaryShaderApiFixture();
         using var batch=new SurfaceLightingQueryBatch(assets.Api);
         SurfaceLightingQuery hit=new(new(0,35,3),new(1,0,0),new(1,.5f,.5f));
@@ -108,18 +110,18 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
     public void ScreenProbesConsumePublishedCache(float albedo,int surfaceResolution)
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture(albedo,surfaceResolution:surfaceResolution); room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, albedo,surfaceResolution:surfaceResolution); room.Seed();
         using var placeholder=new NearFieldVoxelFixture();
         var lit=Trace(placeholder,shared:room.Geometry.Scene,surfaceLighting:room.Snapshot,anchorPosition:new(4,36,4));
 
         float expected=32*GgxHemisphereReference.CapturedDiffuse(albedo)/MathF.PI;
-        var hitObservation=ObserveTrace(lit, GpuAssertionPredicate.SurfaceLightingConsumerTests_ScreenProbesConsumePublishedCache,
+        var hitObservation=ObserveTrace(lit, SurfacePredicates.SurfaceLightingConsumerTests_ScreenProbesConsumePublishedCache,
             parameters:new(expected-.02f,expected+.02f,0,0));
         hitObservation.AssertEqual(); uint hits=hitObservation.MatchingTexels;
         Assert.True(hits>32);
         room.WithholdPages();
         var missing=Trace(placeholder,shared:room.Geometry.Scene,surfaceLighting:room.Snapshot,anchorPosition:new(4,36,4));
-        ObserveTrace(missing, GpuAssertionPredicate.SurfaceLightingConsumerTests_ScreenProbesConsumePublishedCache_2,lit).AssertEqual();
+        ObserveTrace(missing, SurfacePredicates.SurfaceLightingConsumerTests_ScreenProbesConsumePublishedCache_2,lit).AssertEqual();
     }
     #endregion
 
@@ -129,7 +131,7 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
     public void ScreenHitsPreserveCachedEmissionExactlyOnce()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture(0,32,12){EmissionPolicy=true};room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, 0,32,12){EmissionPolicy=true};room.Seed();
         using var placeholder=new NearFieldVoxelFixture();
         var projection=LumOnTestInputFactory.CreateRealisticProjection();
         float z=-8, depth=(projection[10]*z+projection[14])/(projection[11]*z+projection[15])*.5f+.5f;
@@ -137,7 +139,7 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
         var actual=Trace(placeholder,screenDepth:depth,screenEmission:8,emissionBoost:3,
             shared:room.Geometry.Scene,surfaceLighting:room.Snapshot,worldOffset:new(0,32,0),matrixRemainder:new(4,4,9));
 
-        var hitObservation=ObserveTrace(actual, GpuAssertionPredicate.SurfaceLightingConsumerTests_ScreenHitsPreserveCachedEmissionExactlyOnce,control);
+        var hitObservation=ObserveTrace(actual, SurfacePredicates.SurfaceLightingConsumerTests_ScreenHitsPreserveCachedEmissionExactlyOnce,control);
         hitObservation.AssertEqual(); uint hits=hitObservation.MatchingTexels;
         Assert.True(hits>0);
     }
@@ -149,7 +151,7 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
     public void CpuWorldProbeHitsResolveThroughPublishedCache()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         var world=new VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes.ControlledVoxelWorld();
         world.AddRoom((0,32,0),(7,39,7),materialId:room.BlockId);
         var request=new VanillaGraphicsExpanded.LumOn.WorldProbes.LumOnWorldProbeUpdateRequest(0,new(),new(),0);
@@ -183,6 +185,14 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
         GpuTestFence.WaitForGpuOrSkip("Surface hit queries");
         Assert.True(batch.TryRead(out var answers));
         return answers;
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-surface", 0, 0);
     }
     #endregion
 }

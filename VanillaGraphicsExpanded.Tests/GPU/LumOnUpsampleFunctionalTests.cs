@@ -38,6 +38,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     // Default bilateral filter parameters
     private const float DefaultDepthSigma = 0.1f;
     private const float DefaultNormalSigma = 16.0f;
@@ -171,10 +173,10 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
     /// <summary>Retains float brightness, product rounding and ordered accumulation, returning only the original scalar variance.</summary>
     private float BrightnessVariance(GpuTexture image)
     {
-        using var transform=new GpuImageTransform();
-        using var brightness=transform.Apply(image, GpuImageProjection.LumOnUpsampleFunctionalTests_BrightnessVariance);
-        float sum=ImageAssertions.OrderedFloatSum(brightness, GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic);
-        float sumSq=ImageAssertions.OrderedFloatSum(brightness, GpuImageProjection.LumOnUpsampleFunctionalTests_BrightnessVariance_2);
+        var transform = ImageAssertions.Projections;
+        using var brightness=transform.Apply(image, SurfaceProjections.LumOnUpsampleFunctionalTests_BrightnessVariance);
+        float sum=ImageAssertions.Statistics.OrderedFloatSum(brightness, ObservationProjections.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic);
+        float sumSq=ImageAssertions.Statistics.OrderedFloatSum(brightness, SurfaceProjections.LumOnUpsampleFunctionalTests_BrightnessVariance_2);
         int count=image.Width*image.Height;
         float mean=sum/count;
         return sumSq/count-mean*mean;
@@ -237,12 +239,12 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         // Bind inputs
         programId.IndirectHalf = halfResTex;
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput1 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput1 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput1;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnCombineFunctionalTests_AssertRgb,
+        ImageAssertions.Predicates.Predicate(outputGBuffer[0], SurfacePredicates.LumOnCombineFunctionalTests_AssertRgb,
             parameters:new(inputColor.r,inputColor.g,inputColor.b,TestEpsilon)).AssertEqual();
     }
 
@@ -302,7 +304,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             // Bind inputs
             programId.IndirectHalf = halfResTex;
             programId.PrimaryDepth = depthTex;
-            using var surfaceInput2 = LayeredTestTexture.Create(normalTex, null, null);
+            using var surfaceInput2 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
             programId.GBufferSurface = surfaceInput2;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
@@ -379,13 +381,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.IndirectHalf = halfResTex;
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput3 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput3 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput3;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
         var outputData=outputGBuffer[0];
-        ImageAssertions.Predicate(outputData, GpuAssertionPredicate.LumOnUpsampleFunctionalTests_GradientInput_SmoothUpsample).AssertEqual();
+        ImageAssertions.Predicates.Predicate(outputData, SurfacePredicates.LumOnUpsampleFunctionalTests_GradientInput_SmoothUpsample).AssertEqual();
         // DESIRED: Left edge should be darker than right edge
         var (leftR, _, _, _) = ReadPixelFullRes(outputData, 0, ScreenHeight / 2);
         var (rightR, _, _, _) = ReadPixelFullRes(outputData, ScreenWidth - 1, ScreenHeight / 2);
@@ -461,12 +463,12 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.IndirectHalf = halfResTex;
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput4 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput4 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput4;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnUpsampleFunctionalTests_DepthEdge_PreservesSharpness).AssertEqual();
+        ImageAssertions.Predicates.Predicate(outputGBuffer[0], SurfacePredicates.LumOnUpsampleFunctionalTests_DepthEdge_PreservesSharpness).AssertEqual();
     }
 
     #endregion
@@ -515,12 +517,12 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.IndirectHalf = halfResTex;
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput5 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput5 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput5;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnCombineFunctionalTests_AssertRgb,
+        ImageAssertions.Predicates.Predicate(outputGBuffer[0], SurfacePredicates.LumOnCombineFunctionalTests_AssertRgb,
             parameters:new(inputColor.r,inputColor.g,inputColor.b,.05f)).AssertEqual();
     }
 
@@ -565,12 +567,12 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.IndirectHalf = halfResTex;
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput6 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput6 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput6;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        ImageAssertions.Predicate(outputGBuffer[0], GpuAssertionPredicate.LumOnProbeAtlasGatherFunctionalTests_SkyPixels_ProduceZeroIrradiance,
+        ImageAssertions.Predicates.Predicate(outputGBuffer[0], SurfacePredicates.LumOnProbeAtlasGatherFunctionalTests_SkyPixels_ProduceZeroIrradiance,
             parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
@@ -620,7 +622,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
             programId.IndirectHalf = halfResTex;
             programId.PrimaryDepth = depthTex;
-            using var surfaceInput7 = LayeredTestTexture.Create(normalTex, null, null);
+            using var surfaceInput7 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
             programId.GBufferSurface = surfaceInput7;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
@@ -644,7 +646,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
             programId.IndirectHalf = halfResTex;
             programId.PrimaryDepth = depthTex;
-            using var surfaceInput8 = LayeredTestTexture.Create(normalTex, null, null);
+            using var surfaceInput8 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
             programId.GBufferSurface = surfaceInput8;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
@@ -701,7 +703,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
             programId.IndirectHalf = halfResTex;
             programId.PrimaryDepth = depthTex;
-            using var surfaceInput9 = LayeredTestTexture.Create(normalTex, null, null);
+            using var surfaceInput9 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
             programId.GBufferSurface = surfaceInput9;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
@@ -723,7 +725,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
             programId.IndirectHalf = halfResTex;
             programId.PrimaryDepth = depthTex;
-            using var surfaceInput10 = LayeredTestTexture.Create(normalTex, null, null);
+            using var surfaceInput10 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
             programId.GBufferSurface = surfaceInput10;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
@@ -785,7 +787,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.IndirectHalf = halfResTex;
         programId.PrimaryDepth = depthTex;
-        using var surfaceInput11 = LayeredTestTexture.Create(normalTex, null, null);
+        using var surfaceInput11 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, null, null);
         programId.GBufferSurface = surfaceInput11;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
@@ -800,5 +802,18 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             $"Depth edge should prevent cross-blending: left={lR:F3}, right={rR:F3}");
     }
 
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("layer", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
+        programs.Prepare("projection-observation", 0, 0);
+        programs.Prepare("projection-surface", 0, 0);
+        programs.Prepare("statistics", 0, 0);
+    }
     #endregion
 }

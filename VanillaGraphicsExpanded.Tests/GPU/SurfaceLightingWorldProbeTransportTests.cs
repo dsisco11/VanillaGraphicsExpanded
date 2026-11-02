@@ -15,6 +15,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHitTestBase
 {
+
+
     /// <summary>Uses the shared material-isolated GPU context.</summary>
     public SurfaceLightingWorldProbeTransportTests(HeadlessGLFixture fixture):base(fixture) { }
 
@@ -25,7 +27,7 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
     {
         EnsureShaderTestAvailable();
         using var engine=new EngineShaderPlatformScope();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         using var atlas=new SurfaceLightingWorldProbeFixture();
         var world=new ControlledVoxelWorld();world.AddRoom((0,32,0),(7,39,7),materialId:room.BlockId);
         var traced=TraceWorker(world,64,0,new(4,36,4));
@@ -49,7 +51,7 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
     {
         EnsureShaderTestAvailable();
         using var engine=new EngineShaderPlatformScope();
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true){GeometryAvailable=false};
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true){GeometryAvailable=false};
         runtime.RunUntil(()=>runtime.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _) && mapping.Count==1);
         Assert.False(runtime.TryGetLighting(out _));
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var resident,out var mirror));
@@ -75,7 +77,7 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
     {
         EnsureShaderTestAvailable();
         using var engine=new EngineShaderPlatformScope();
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true);
         runtime.PrimeGeometry();runtime.RunUntil(()=>runtime.TryGetLighting(out _));
         var world=new ControlledVoxelWorld();world.AddRoom((0,32,0),(7,39,7),materialId:runtime.BlockId);
         // Select a real scheduled single-direction update hitting the one feedback-requested +X patch.
@@ -115,7 +117,7 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
     /// <summary>Retains finite RGB, peak lighting and exact dark-domain requirements without reading directional images.</summary>
     private void AssertAtlasEnergy(GpuTexture image, bool lit, string boundary)
     {
-        var result = ImageAssertions.Inspect(image, lit ? double.NegativeInfinity : -.0001f,
+        var result = ImageAssertions.Statistics.Inspect(image, lit ? double.NegativeInfinity : -.0001f,
             lit ? double.PositiveInfinity : .0001f, channelMask: 7);
         Assert.True(result.NonFinite == 0 && result.OutsideRange == 0, $"{boundary}: {result}");
         if (lit) Assert.True(result.Maximum > .001f, $"{boundary}: {result}");
@@ -136,8 +138,8 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
             * reference * VanillaGraphicsExpanded.PBR.LightingStorage.PersistentScale;
         if(!runtime.TryGetLighting(out var snapshot) || !runtime.Feedback.TryGetNearDispatchState(out _,out _,out var pages,out _)) return false;
         using var pixels=SurfaceLightingPageSelection.Capture(snapshot.DirectIrradiance,snapshot,pages.Single().Key);
-        return runtime.ImageAssertions.CompareConstant(pixels.Texture, 1, channelMask: 8).Mismatches == 0 &&
-            runtime.ImageAssertions.CompareConstant(pixels.Texture, storedExpected, channelMask: 1, tolerance: .01f).Mismatches == 0;
+        return runtime.ImageAssertions.Comparisons.CompareConstant(pixels.Texture, 1, channelMask: 8).Mismatches == 0 &&
+            runtime.ImageAssertions.Comparisons.CompareConstant(pixels.Texture, storedExpected, channelMask: 1, tolerance: .01f).Mismatches == 0;
 
     }
 
@@ -158,6 +160,15 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
         queries.Submit(geometry,snapshot,traced.AtlasSamples.Select(s=>s.SurfaceHit!.Value).ToArray());
         GpuTestFence.WaitForGpuOrSkip("World cache consumer query");Assert.True(queries.TryRead(out var answers));
         int index=0;return WorldProbeSurfaceLighting.Resolve(traced,answers,ref index);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

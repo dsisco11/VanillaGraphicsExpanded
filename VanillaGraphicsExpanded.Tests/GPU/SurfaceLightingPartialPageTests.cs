@@ -11,6 +11,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Partial seed publication
     /// <summary>Partial lighting support never relaxes the requirement for a coherent complete material capture.</summary>
     [Fact]
@@ -18,7 +20,7 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
     public void UnresolvedCapturedSourceKeepsEntirePageUnavailable()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true);
         runtime.TransformVoxel=(x,y,z,voxel)=>x==0 && y>=34 ? voxel with { Geometry=0 } : voxel;
         runtime.PrimeGeometry();
         for(int frame=0;frame<16;frame++) runtime.Frame();
@@ -36,7 +38,7 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
     public void ReadySeedTexelsPublishWhileUnresolvedNeighborsRetry(int density)
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true);
         runtime.Config.LumOn.LumonScene.NearTexelsPerVoxelFaceEdge=density;
         runtime.Config.LumOn.LumonScene.RelightTexelsPerPagePerFrame=density*density<<2;
         runtime.TransformVoxel=(x,y,z,voxel)=>x==1 && y>=34 ? voxel with { Geometry=3 } : voxel;
@@ -50,9 +52,9 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
         var pixels=pixelsOwner.Texture;
         Assert.Equal((density*density)<<3,CountValidity(pixels,1));
         Assert.Equal((density*density)<<3,CountValidity(pixels,0));
-        ImageAssertions.Inspect(pixels).AssertFiniteRange();
-        ImageAssertions.InspectCoverage(pixels, MathF.BitIncrement(.001f), double.PositiveInfinity, channelMask: 1).AssertFiniteRange();
-        ImageAssertions.InspectCoverage(pixels, double.NegativeInfinity, double.PositiveInfinity, channelMask: 6).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(pixels).AssertFiniteRange();
+        ImageAssertions.Statistics.InspectCoverage(pixels, MathF.BitIncrement(.001f), double.PositiveInfinity, channelMask: 1).AssertFiniteRange();
+        ImageAssertions.Statistics.InspectCoverage(pixels, double.NegativeInfinity, double.PositiveInfinity, channelMask: 6).AssertFiniteRange();
         using var queries=new SurfaceLightingQueryBatch(runtime.Api);
         queries.Submit(runtime.Geometry.Resources!,snapshot,
             [new(new(0,33,1),new(1,0,0),new(1,.5f,.5f),runtime.BlockId),
@@ -69,7 +71,7 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
     public void SourceChangeCannotExposePriorValidTexelsInNewPartialPage()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(exposedWall:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, exposedWall:true);
         runtime.PrimeGeometry();runtime.RunUntil(()=>runtime.TryGetLighting(out _));
         Assert.True(runtime.TryGetLighting(out var before));
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var pages,out _));
@@ -85,7 +87,7 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
         var pixels=pixelsOwner.Texture;
         Assert.Equal(8,CountValidity(pixels,1));
         Assert.Equal(8,CountValidity(pixels,0));
-        ImageAssertions.CompareConstant(pixels, 0, channelMask: 7).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(pixels, 0, channelMask: 7).AssertEqual();
     }
     #endregion
 
@@ -96,7 +98,7 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
     public void MixedIndirectTraceOutcomesPublishSuccessfulTexels()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceCacheRuntimeFixture(requestedPages:24,enclosure:true);
+        using var runtime=new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages:24,enclosure:true);
         runtime.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         runtime.Config.LumOn.LumonScene.RelightMaxDdaSteps=3;
         runtime.PrimeGeometry();runtime.RunUntil(runtime.AllRequestedLightingReady);
@@ -112,10 +114,10 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
             var direct=directOwner.Texture;
             using var indirectOwner=SurfaceLightingPageSelection.Capture(snapshot.IndirectIrradiance,snapshot,physical);
             var indirect=indirectOwner.Texture;
-            ImageAssertions.CompareConstant(outgoing, 1, channelMask: 8).AssertEqual();
-            ImageAssertions.CompareRelation(outgoing, direct, GgxHemisphereReference.CapturedDiffuse(1),
+            ImageAssertions.Comparisons.CompareConstant(outgoing, 1, channelMask: 8).AssertEqual();
+            ImageAssertions.Comparisons.CompareRelation(outgoing, direct, GgxHemisphereReference.CapturedDiffuse(1),
                 -.01f, float.PositiveInfinity, channelMask: 1, divisor: MathF.PI).AssertEqual();
-            publishedBounce |= ImageAssertions.CountExcess(outgoing, direct, indirect,
+            publishedBounce |= ImageAssertions.Statistics.CountExcess(outgoing, direct, indirect,
                 GgxHemisphereReference.CapturedDiffuse(1), .001f, .001f, divisor: MathF.PI).MatchingTexels > 0;
         }
         ((LumonSceneRelightUpdateRenderer)runtime.LightingProvider).TryGetSelfCheckLine(out string diagnostics);
@@ -127,7 +129,7 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
     #region Atlas observations
     /// <summary>Counts the exact authored validity value over the complete captured page.</summary>
     private int CountValidity(GpuTexture image, float value) =>
-        checked((int)ImageAssertions.CompareConstant(image, value, channelMask: 8).ConstantMatches);
+        checked((int)ImageAssertions.Comparisons.CompareConstant(image, value, channelMask: 8).ConstantMatches);
     /// <summary>Captures one real resident tile independently of later producer writes.</summary>
     private static Assertions.GpuImageSnapshot CaptureFirstPage(SurfaceCacheRuntimeFixture runtime,Texture3D texture,in SurfaceLightingSnapshot snapshot)
     {
@@ -135,5 +137,14 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
         return SurfaceLightingPageSelection.Capture(texture,snapshot,mapping.Keys.Min());
     }
 
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+    }
     #endregion
 }

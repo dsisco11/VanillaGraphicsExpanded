@@ -24,6 +24,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     public LumOnProbeAtlasFilterFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     private LumOnScreenProbeAtlasFilterShaderProgram CompileProbeAtlasFilterShader() => Programs.Create<LumOnScreenProbeAtlasFilterShaderProgram>();
@@ -144,7 +146,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
         programId.ScreenProbeAtlas = atlasTex;
         programId.ScreenProbeAtlasMeta = metaTex;
-        using var anchorInputs101 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs101 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs101;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
@@ -193,7 +195,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
         programId.ScreenProbeAtlas = atlasTex;
         programId.ScreenProbeAtlasMeta = metaTex;
-        using var anchorInputs102 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs102 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs102;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
@@ -245,7 +247,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
             programId.ScreenProbeAtlas = atlasTex;
             programId.ScreenProbeAtlasMeta = metaTex;
-            using var anchorInputs103 = LayeredTestTexture.Create(anchorPosTex, null);
+            using var anchorInputs103 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
             programId.ProbeAnchors = anchorInputs103;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
@@ -280,7 +282,7 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
 
             programId.ScreenProbeAtlas = atlasTex;
             programId.ScreenProbeAtlasMeta = metaTex;
-            using var anchorInputs104 = LayeredTestTexture.Create(anchorPosTex, null);
+            using var anchorInputs104 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
             programId.ProbeAnchors = anchorInputs104;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
@@ -291,4 +293,12 @@ public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBas
                 $"Expected edge-stopped result to remain near center; got ({r:F3},{g:F3},{b:F3})");
         }
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+    }
+    #endregion
 }

@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>The owned writer discards invalid color, alpha and glow without modifying any destination attachment.</summary>
     [Fact]
@@ -69,8 +71,8 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         using var framework = new ShaderTestFramework();
         using var output = CreateMRTRenderTarget(5, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
         framework.RenderQuadTo(program.ProgramId, output, (.125f,.125f,.125f,.125f));
-        ImageAssertions.Predicate(output[1], GpuAssertionPredicate.OitStorageArithmeticTests_PatchedDepthGuardUsesActualRoundedLogInput,output[2]).AssertEqual();
-        for(int bin=0;bin<3;bin++)ImageAssertions.Inspect(output[3+bin]).AssertFiniteRange();
+        ImageAssertions.Predicates.Predicate(output[1], MaterialPredicates.OitStorageArithmeticTests_PatchedDepthGuardUsesActualRoundedLogInput,output[2]).AssertEqual();
+        for(int bin=0;bin<3;bin++)ImageAssertions.Statistics.Inspect(output[3+bin]).AssertFiniteRange();
     }
     /// <summary>Actual additive blending keeps large native accumulators finite while invalid submissions preserve all attachments.</summary>
     [Fact]
@@ -170,7 +172,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
                     : channel == 3 ? 1 : column == 0 ? 0 : 65504;
                 expectedPixels[column*4+channel]=expected;
             }
-        ImageAssertions.Compare(output[0],expectedPixels).AssertEqual();
+        ImageAssertions.Comparisons.Compare(output[0],expectedPixels).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     /// <summary>The installed resolve uses a strict cutoff and preserves admitted large numerator/weight ratios.</summary>
@@ -205,7 +207,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
             }
             lower[column*4+3]=upper[column*4+3]=.375f;
         }
-        ImageAssertions.CompareIntervals(output[0],lower,upper).AssertEqual();
+        ImageAssertions.Comparisons.CompareIntervals(output[0],lower,upper).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -258,6 +260,16 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
             void main(){gl_Position=vec4(position,0,1);v_texcoord=vec2(.5);}
             """;
         return GpuProgramObject.Adopt(TestShaderCache.CreateGraphics(vertex, fragment));
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-material", 0, 0);
     }
     #endregion
 }

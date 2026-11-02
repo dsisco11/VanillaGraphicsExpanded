@@ -10,6 +10,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SceneColorParticleSsaoTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Capture and receiver separation preserve the underlying material metadata for deferred lighting.</summary>
     [Fact]
@@ -24,14 +26,14 @@ public sealed class SceneColorParticleSsaoTests(HeadlessGLFixture fixture) : Lum
         using var originalPositions=new GpuImageSnapshot(scene.Position);
         scene.CaptureUploadedSamples();
         Assert.True(scene.Targets.Captured);
-        ImageAssertions.CompareHistory(scene.Normal,originalNormals).AssertEqual();
-        ImageAssertions.CompareHistory(scene.Position,originalPositions).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(scene.Normal,originalNormals).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(scene.Position,originalPositions).AssertEqual();
 
         scene.ResolveReceivers(Programs.Create<SceneColorParticleShaderProgram>(), TestFramework);
 
-        ImageAssertions.CompareConstant(scene.Targets.MaterialDepth,.75f).AssertEqual();
-        ImageAssertions.CompareHistory(scene.Normal,originalNormals).AssertEqual();
-        ImageAssertions.CompareHistory(scene.Position,originalPositions).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(scene.Targets.MaterialDepth,.75f).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(scene.Normal,originalNormals).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(scene.Position,originalPositions).AssertEqual();
     }
 
     /// <summary>SSAO restoration selects metadata by surviving depth, including zero-alpha writes and discard paths.</summary>
@@ -43,7 +45,7 @@ public sealed class SceneColorParticleSsaoTests(HeadlessGLFixture fixture) : Lum
         scene.CaptureUploadedSamples();
         scene.ReplaceForegroundReceiver();
         scene.ResolveReceivers(Programs.Create<SceneColorParticleShaderProgram>(), TestFramework);
-        ImageAssertions.Compare(scene.Targets.MaterialDepth,new[]{.75f,.75f,.25f,.75f}).AssertEqual();
+        ImageAssertions.Comparisons.Compare(scene.Targets.MaterialDepth,new[]{.75f,.75f,.25f,.75f}).AssertEqual();
 
         scene.RestoreMetadata(Programs.Create<SceneColorParticleSsaoShaderProgram>(), TestFramework);
 
@@ -85,10 +87,10 @@ public sealed class SceneColorParticleSsaoTests(HeadlessGLFixture fixture) : Lum
         scene.Targets.BeginCapture();
         scene.Targets.EndCapture();
 
-        ImageAssertions.CompareConstant(scene.Targets.DrawTarget[2], 0).AssertEqual();
-        ImageAssertions.CompareConstant(scene.Targets.DrawTarget[3], 0).AssertEqual();
-        ImageAssertions.CompareHistory(scene.Normal,originalNormals).AssertEqual();
-        ImageAssertions.CompareHistory(scene.Position,originalPositions).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(scene.Targets.DrawTarget[2], 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(scene.Targets.DrawTarget[3], 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(scene.Normal,originalNormals).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(scene.Position,originalPositions).AssertEqual();
     }
 
     /// <summary>Retiring capture storage leaves borrowed engine images live and readable after the disposal queue drains.</summary>
@@ -110,9 +112,17 @@ public sealed class SceneColorParticleSsaoTests(HeadlessGLFixture fixture) : Lum
         Assert.True(scene.Material.IsValid);
         Assert.True(scene.Glow.IsValid);
         Assert.True(scene.Depth.IsValid);
-        ImageAssertions.CompareHistory(scene.Normal,originalNormals).AssertEqual();
-        ImageAssertions.CompareHistory(scene.Position,originalPositions).AssertEqual();
-        ImageAssertions.CompareConstant(scene.Depth,.75f).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(scene.Normal,originalNormals).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(scene.Position,originalPositions).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(scene.Depth,.75f).AssertEqual();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

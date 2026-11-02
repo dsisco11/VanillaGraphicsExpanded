@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Checks moving edges and palette changes against independent spatial reconstruction and display references.</summary>
     [Theory]
@@ -53,7 +55,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
             double[] reference = ReferenceBase(pixels, width, height, 8, 4);
             var expectedBase=new double[reference.Length*2];
             for(int i=0;i<reference.Length;i++)expectedBase[i*2]=reference[i];
-            ImageAssertions.CompareDouble(baseImage,expectedBase,.00003,channelMask:1).AssertEqual();
+            ImageAssertions.Comparisons.CompareDouble(baseImage,expectedBase,.00003,channelMask:1).AssertEqual();
             final.SceneImage = source; final.LocalBase = baseImage;
             final.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(ev, 1, 0, MathF.Log2(.18f))); final.CaptureLocal(policy);
             var pipeline = draw.Prepare(final,target.PostprocessPass());
@@ -74,8 +76,8 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
                     expectedDisplay[i*4+c]=FilmicGradingReference.Quantize(expected[c],i%width,i/width);
                 }
             }
-            ImageAssertions.Inspect(target[0],channelMask:7).AssertFiniteRange();
-            ImageAssertions.CompareDouble(target[0],expectedDisplay,1.001/255,channelMask:7).AssertEqual();
+            ImageAssertions.Statistics.Inspect(target[0],channelMask:7).AssertFiniteRange();
+            ImageAssertions.Comparisons.CompareDouble(target[0],expectedDisplay,1.001/255,channelMask:7).AssertEqual();
             if (scenario.StartsWith("uniform")) Assert.InRange(Math.Abs(corrections.Max()-corrections.Min()),0,.00001);
             QualifySpatialShape(scenario, pixels, corrections, width, height);
             output.WriteLine($"Synthetic {scenario}, logical {(indirectSource ? "indirect-added" : "direct-only")} source: display error bounded by 1.001 codes, stops=[{minStops:F3},{maxStops:F3}]. No image history, physical source/curve unchanged.");
@@ -273,5 +275,14 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
         }
     }
     #endregion
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+    }
     #endregion
 }

@@ -19,6 +19,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 {
+
+
     private readonly HeadlessGLFixture fixture;
 
     public PbrPoissonMultigridVCycleTests(HeadlessGLFixture fixture) : base(fixture)
@@ -56,7 +58,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         });
 
         float[] cpu = ComputeResidualCpu(hData, bData, w, h);
-        ImageAssertions.Compare(rTex, cpu, 1e-4f).AssertEqual();
+        ImageAssertions.Comparisons.Compare(rTex, cpu, 1e-4f).AssertEqual();
     }
 
     [Fact]
@@ -88,7 +90,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         });
 
         float[] cpu = ComputeRestrictCpu(fine, fineW, fineH, coarseW, coarseH);
-        ImageAssertions.Compare(coarseTex, cpu, 1e-4f).AssertEqual();
+        ImageAssertions.Comparisons.Compare(coarseTex, cpu, 1e-4f).AssertEqual();
     }
 
     [Fact]
@@ -123,7 +125,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         });
 
         float[] cpu = ComputeProlongateAddCpu(fineHData, coarseE, fineW, fineH, coarseW, coarseH);
-        ImageAssertions.Compare(outTex, cpu, 1e-4f).AssertEqual();
+        ImageAssertions.Comparisons.Compare(outTex, cpu, 1e-4f).AssertEqual();
     }
 
     public static IEnumerable<object[]> VCycleCases()
@@ -596,7 +598,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
     /// <summary>Computes the same double-squared RMS over every residual texel with a compact GPU reduction.</summary>
     private float Rms(GpuTexture image)
     {
-        var result = ImageAssertions.Statistics(image);
+        var result = ImageAssertions.Statistics.Statistics(image);
         result.AssertFiniteRange();
         return (float)Math.Sqrt(result.SumSquares(0) / (image.Width * image.Height));
     }
@@ -655,4 +657,14 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
     }
 
     public readonly record struct RhsCase(int Width, int Height, float[] Data);
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("statistics", 0, 0);
+    }
+    #endregion
 }

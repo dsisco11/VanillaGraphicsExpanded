@@ -17,6 +17,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
 {
+
+
     /// <summary>Uses the shared graphics context.</summary>
     public PbrCompositeHdrTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -47,9 +49,9 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         using var position = TestFramework.CreateTexture(count, 1, TextureFormat.Rgba32f,
             Enumerable.Range(0, count).SelectMany(_ => new[] { 0f, 0f, -2f, 1f }).ToArray());
         using var output = CreateMRTRenderTarget(count, 1, TextureFormat.Rgba32f, TextureFormat.Rgba16f, TextureFormat.R32f);
-        using var receiverDirectLighting = LayeredTestTexture.Create(color, zero, zero);
+        using var receiverDirectLighting = LayeredTestTexture.Create(ImageAssertions.Programs, color, zero, zero);
         program.DirectLighting = receiverDirectLighting;
-        using var surface = LayeredTestTexture.Create(normal, zero, zero);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, zero, zero);
         program.GBufferSurface = surface;
         program.IndirectDiffuse = zero; program.GBufferAlbedo = zero;
         program.GBufferPosition = position;
@@ -72,9 +74,9 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
             expectedColor[pixel*4+3]=valid?1f:0f;
             expectedColor[pixel*4]=valid?red[pixel]:0;
         }
-        ImageAssertions.Compare(output[2],expectedDepth).AssertEqual();
-        ImageAssertions.Compare(output[1],expectedColor,channelMask:9).AssertEqual();
-        ImageAssertions.Inspect(output[1]).AssertFiniteRange();
+        ImageAssertions.Comparisons.Compare(output[2],expectedDepth).AssertEqual();
+        ImageAssertions.Comparisons.Compare(output[1],expectedColor,channelMask:9).AssertEqual();
+        ImageAssertions.Statistics.Inspect(output[1]).AssertFiniteRange();
     }
 
     /// <summary>Radiance remains linear through composition, physical aerial transport, enclosure gating and decoded engine fog.</summary>
@@ -111,8 +113,8 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         var snapshot = new AtmosphereLighting(Vector3.UnitY, Vector3.One, Vector3.Zero, Vector3.Zero, Vector3.Zero, ImmutableArray.Create(0f,0f,0f,1f))
         { Width=1, Height=1, AerialRadiance=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>scatter)), AerialAttenuation=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>loss)) };
         atmosphereOwner.Publish(snapshot);
-        using var surface = LayeredTestTexture.Create(normal, unused, environment);
-        using var fogDirectLighting = LayeredTestTexture.Create(direct, specular, emission);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, unused, environment);
+        using var fogDirectLighting = LayeredTestTexture.Create(ImageAssertions.Programs, direct, specular, emission);
         FramebufferTestSetup.BindForEngineRendering(output);
         {
             program.DirectLighting = fogDirectLighting;
@@ -211,9 +213,9 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
             AerialAttenuation = ImmutableArray.CreateRange(new float[96]) };
         atmosphereOwner.Publish(snapshot);
         FramebufferTestSetup.BindForEngineRendering(output);
-        using var waterDirectLighting = LayeredTestTexture.Create(direct, zero, zero);
+        using var waterDirectLighting = LayeredTestTexture.Create(ImageAssertions.Programs, direct, zero, zero);
         program.DirectLighting = waterDirectLighting;
-        using var surface = LayeredTestTexture.Create(normal, zero, zero);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, zero, zero);
         program.GBufferSurface = surface;
         program.IndirectDiffuse = zero; program.GBufferAlbedo = sky ? direct : zero;
         program.GBufferPosition = zero; program.PrimaryDepth = depth;
@@ -223,7 +225,7 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         program.SetAtmosphere(AtmosphereModSystem.Lighting);
         program.SetUnderwater(underwater);
         program.RefractionSourceEnabled = true;
-        using var waterArray = LayeredTestTexture.Create(optical, source);
+        using var waterArray = LayeredTestTexture.Create(ImageAssertions.Programs, optical, source);
         program.SetWaterVolume(new WaterVolumeFrame(waterArray, underwater && mappedCamera ? medium : null,
             SourceUpper: Vector3.One));
         var cpuParameters = ((IPBRCompositeShaderProgramBindings)program).Parameters.Bytes.ToArray();
@@ -267,5 +269,15 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
     #region Transfer reference
     /// <summary>Decodes the documented sRGB fog input independently.</summary>
     private static float Linear(float value) => value <= .04045f ? value / 12.92f : MathF.Pow((value + .055f) / 1.055f, 2.4f);
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("layer", 0, 0);
+    }
     #endregion
 }

@@ -19,7 +19,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
     public void PersistentDestinationsUseFixedScaleWithoutScalingMetadata()
     {
         EnsureContextValid();
-        using var room = new SurfaceLightingEnclosureFixture(.25f);
+        using var room = new SurfaceLightingEnclosureFixture(ImageAssertions, .25f);
         room.Seed();
         float rho = GgxHemisphereReference.CapturedDiffuse(.25f);
         AssertClose(32 * LightingStorage.PersistentScale, room.ReadStored(room.Snapshot.DirectIrradiance)[0]);
@@ -40,7 +40,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
     public void UnsupportedIndirectEstimateRetainsPreviousHistory(float incidentRadiance)
     {
         EnsureContextValid();
-        using var room = new SurfaceLightingEnclosureFixture(.25f);
+        using var room = new SurfaceLightingEnclosureFixture(ImageAssertions, .25f);
         room.Seed();
         room.SetIndirect(32, 4);
         room.SetIncidentRadiance(incidentRadiance);
@@ -56,7 +56,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
     public void HiddenEmissiveFacesPublishValidZero()
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture(0,0,12);
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, 0,0,12);
         room.EmissionPolicy=true;room.Seed();
         Assert.Equal(new float[]{0,0,0,1},room.Read(room.Snapshot.OutgoingRadiance,linear:0));
         AssertClose(12,room.Read(room.Snapshot.OutgoingRadiance,linear:27)[0]);
@@ -72,7 +72,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
     public void DirectAlbedoAndValidDarkness(float albedo)
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture(albedo);
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, albedo);
         room.Seed();
         float rho=GgxHemisphereReference.CapturedDiffuse(albedo);
         AssertClose(32,room.Read(room.Snapshot.DirectIrradiance)[0]);
@@ -88,7 +88,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
     {
         EnsureContextValid();
         using var atmosphere = new ScopedAtmosphereLighting(new System.Numerics.Vector3(32 / MathF.PI));
-        using var room=new SurfaceLightingEnclosureFixture(0,32,12);
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, 0,32,12);
         room.EmissionPolicy=true; room.Seed();
         AssertClose(0,room.Read(room.Snapshot.DirectIrradiance)[0]);
         AssertClose(12,room.Read(room.Snapshot.OutgoingRadiance)[0]);
@@ -105,7 +105,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
     public void IndirectUsesPreviousOutgoingGenerationAndRemainsBounded()
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture(.25f);
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, .25f);
         room.Seed();
         float rho=GgxHemisphereReference.CapturedDiffuse(.25f), expected=32*rho/MathF.PI;
         for(int bounce=0;bounce<6;bounce++)
@@ -127,7 +127,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
     public void LightChangesDiscardIndirectHistoryAndPublishValidBlack()
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);
         room.Seed();room.Bounce();
         Assert.True(room.Read(room.Snapshot.IndirectIrradiance)[0]>0);
         room.BlockLight=0;room.Geometry.Dirty();room.Geometry.Publish();room.Seed();
@@ -144,7 +144,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
     public void MissingPagesDoNotPublishPartialBounceOrAddWeight()
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);
         room.Seed();
         var prior=room.Snapshot;
         float[] before=room.Read(prior.OutgoingRadiance);

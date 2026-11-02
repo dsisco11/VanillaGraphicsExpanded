@@ -21,6 +21,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderTestBase
 {
+
+
     public LumonSceneMultiSlotMaterialCaptureConvergenceTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     [Fact]
@@ -241,7 +243,7 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
             pool.PagePool.DecodePhysicalId(physicalPageId,out ushort atlasIdx,out ushort tileX,out ushort tileY);
             positions.Add((tileX*tileSize,tileY*tileSize,atlasIdx));
         }
-        var proof=ImageAssertions.PredicateAt(materialAtlas,positions, GpuAssertionPredicate.LumonSceneMaterialAtlasMultiFramePopulationTests_MaterialAtlas_MultiFrame_SingleChunk_EventuallyPopulatesAllAllocatedTiles);
+        var proof=ImageAssertions.Predicates.PredicateAt(materialAtlas,positions, SurfacePredicates.LumonSceneMaterialAtlasMultiFramePopulationTests_MaterialAtlas_MultiFrame_SingleChunk_EventuallyPopulatesAllAllocatedTiles);
         proof.AssertEqual();Assert.Equal((uint)virtualToPhysical.Count,proof.MatchingTexels);
     }
 
@@ -306,4 +308,12 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
         GL.BindTexture(TextureTarget.Texture2DArray, 0);
     }
 
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
+    #endregion
 }

@@ -17,6 +17,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     private PostprocessDraw? draw;
 
     #region Public API
@@ -93,7 +95,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
             if(mode is 2 or 3)shader.CaptureGaussian(4,mode==3);
             else shader.Capture(new(4,0,mode,mode==4?1:0),mode==4?new(.25f,.25f,.25f,0):Vector4.Zero);
             Draw(shader,target);
-            ImageAssertions.Predicate(target[0], GpuAssertionPredicate.OwnedPostprocessShaderTests_BloomThresholdAndConstantEnergyAreDefined).AssertEqual();
+            ImageAssertions.Predicates.Predicate(target[0], LightingPredicates.OwnedPostprocessShaderTests_BloomThresholdAndConstantEnergyAreDefined).AssertEqual();
         }
     }
 
@@ -125,8 +127,8 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
             float tolerance=256*(wx*ey+wy*ex+ex*ey)+.00001f;
             int scalar=(y*33+x)*4;lower[scalar]=expected-tolerance;upper[scalar]=expected+tolerance;
         }
-        ImageAssertions.CompareIntervals(result[0],lower,upper,channelMask:1).AssertEqual();
-        var mass=ImageAssertions.Statistics(result[0],channelMask:1);mass.AssertFiniteRange();
+        ImageAssertions.Comparisons.CompareIntervals(result[0],lower,upper,channelMask:1).AssertEqual();
+        var mass=ImageAssertions.Statistics.Statistics(result[0],channelMask:1);mass.AssertFiniteRange();
         Assert.InRange(mass.Sum(0),255.99,256.01);
         Assert.True(GpuLocalRead.Scalar(result[0],(8*33+16)*4)>1);
         Assert.True(GpuLocalRead.Scalar(result[0],(6*33+14)*4)>0);
@@ -184,11 +186,11 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
                 lower[x*4]=expected-tolerance;upper[x*4]=expected+tolerance;
             }
             var row=new RHITextureRegion(new(0),0,8,0,33,1,1);
-            ImageAssertions.CompareIntervals(target[0],lower,upper,row,1).AssertEqual();
-            var massProof=ImageAssertions.Statistics(target[0],row,1);massProof.AssertFiniteRange();
-            using var transform=new GpuImageTransform();
-            using var weighted=transform.Apply(target[0], GpuImageProjection.OwnedPostprocessShaderTests_BloomGaussianFootprintHasNoSparseTapTroughs);
-            var momentProof=ImageAssertions.Statistics(weighted,row,1);momentProof.AssertFiniteRange();
+            ImageAssertions.Comparisons.CompareIntervals(target[0],lower,upper,row,1).AssertEqual();
+            var massProof=ImageAssertions.Statistics.Statistics(target[0],row,1);massProof.AssertFiniteRange();
+            var transform = ImageAssertions.Projections;
+            using var weighted=transform.Apply(target[0], LightingProjections.OwnedPostprocessShaderTests_BloomGaussianFootprintHasNoSparseTapTroughs);
+            var momentProof=ImageAssertions.Statistics.Statistics(weighted,row,1);momentProof.AssertFiniteRange();
             double mass=massProof.Sum(0),moment=momentProof.Sum(0);
             Assert.InRange(mass,.9999,1.0001);Assert.InRange(moment/mass,16+phase-.0001,16+phase+.0001);
             if(phase==0)
@@ -200,7 +202,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
                 Assert.InRange(actualRatio,Math.Max(0,expectedRatio-ratioTolerance),expectedRatio+ratioTolerance);
                 output.WriteLine($"Gaussian radius={radius} boundary/center={actualRatio:G9}, ideal={expectedRatio:G9}, absolute bound={ratioTolerance:G9}");
             }
-            var monotone=ImageAssertions.Predicate(target[0], GpuAssertionPredicate.OwnedPostprocessShaderTests_BloomGaussianFootprintHasNoSparseTapTroughs_2,parameters:new(phase==0?0:1,0,0,0));
+            var monotone=ImageAssertions.Predicates.Predicate(target[0], LightingPredicates.OwnedPostprocessShaderTests_BloomGaussianFootprintHasNoSparseTapTroughs_2,parameters:new(phase==0?0:1,0,0,0));
             monotone.AssertEqual();Assert.Equal(phase==0?10u:9u,monotone.MatchingTexels);
         }
     }
@@ -232,7 +234,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     using var scope64=commands.EnterBoundary(new("Tests.BloomOwner",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope64.Run(()=>owner.Render(commands,submission,source,(null,-20),settings));
 }
-        ImageAssertions.Predicate(first, GpuAssertionPredicate.OwnedPostprocessShaderTests_BloomOwnerPreservesConstantGainAndLifetime).AssertEqual();
+        ImageAssertions.Predicates.Predicate(first, LightingPredicates.OwnedPostprocessShaderTests_BloomOwnerPreservesConstantGainAndLifetime).AssertEqual();
         owner.Prepare(assets.Api,submission,width,height,levels);
         Assert.Same(first,owner.Texture);
         {
@@ -275,11 +277,11 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     scope66.Run(()=>owner.Render(commands,submission,source,(null,0),settings));
 }
             Assert.Equal(129,owner.Texture.Width);Assert.Equal(65,owner.Texture.Height);
-            var halo=ImageAssertions.Predicate(owner.Texture, GpuAssertionPredicate.OwnedPostprocessShaderTests_BloomOwnerReconstructsSymmetricMultiscaleImpulse);
+            var halo=ImageAssertions.Predicates.Predicate(owner.Texture, LightingPredicates.OwnedPostprocessShaderTests_BloomOwnerReconstructsSymmetricMultiscaleImpulse);
             halo.AssertEqual();int support=checked((int)halo.MatchingTexels);
             if(levels==3)narrowSupport=support;else Assert.True(support>narrowSupport);
         }
-        ImageAssertions.Compare(source,pixels).AssertEqual();
+        ImageAssertions.Comparisons.Compare(source,pixels).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
@@ -347,6 +349,18 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     {
         if(disposing){draw?.Dispose();draw=null;}
         base.Dispose(disposing);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-lighting", 0, 0);
+        programs.Prepare("projection-lighting", 0, 0);
+        programs.Prepare("statistics", 0, 0);
     }
     #endregion
 }

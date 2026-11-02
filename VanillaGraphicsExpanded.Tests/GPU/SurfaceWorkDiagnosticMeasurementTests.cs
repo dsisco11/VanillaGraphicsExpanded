@@ -31,7 +31,7 @@ public sealed class SurfaceWorkDiagnosticMeasurementTests(HeadlessGLFixture fixt
             for(int block=0;block<3;block++)foreach(bool enabled in new[]{false,true,true,false})
             {
                 // A new fixture gives every leg the same captured data, lighting and empty history.
-                using var room=new SurfaceLightingEnclosureFixture(skyFloor:unresolved,worldHeight:unresolved?256:40);
+                using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:unresolved,worldHeight:unresolved?256:40);
                 room.Diagnostics.Enabled=enabled;room.Seed();
                 if(unresolved&&stage!=SurfaceWorkStage.Indirect)
                 {

@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumOnTemporalRendererTests : RenderTestBase
 {
+
+
     /// <summary>Uses the shared material-isolated graphics context.</summary>
     public LumOnTemporalRendererTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -25,7 +27,7 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene();
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, scene);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false, scene);
         runtime.Cache.Config.LumOn.DebugMode = debug ? LumOnDebugMode.WorldProbeConfidence : LumOnDebugMode.Off;
         Type type = debug ? typeof(LumOnDebugRenderer) : typeof(LumOnRenderer);
         object renderer = Assert.Single(runtime.Cache.Events.Registrations.Select(item => item.Renderer).Distinct(), type.IsInstanceOfType);
@@ -50,7 +52,7 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
     public void RendererHzbSubmissionBuildsEveryMipUnderHostileState()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, new SpatialLightingScene());
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false, new SpatialLightingScene());
         for (int frame = 0; frame < 8; frame++) runtime.Frame();
         var renderer = (DepthHierarchyRenderer)Assert.Single(runtime.Cache.Events.Registrations.Select(item => item.Renderer).Distinct(),
             item => item is DepthHierarchyRenderer);
@@ -66,7 +68,7 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
             hostile.AssertRestored();
             Assert.Same(hzb,DepthHierarchyRenderer.Texture);
             for (int mip = 0; mip < hzb.MipLevels; mip++)
-                ImageAssertions.Inspect(hzb, depth - .0001f, depth + .0001f, Assertions.GpuImageSnapshot.Mip(hzb, mip)).AssertFiniteRange();
+                ImageAssertions.Statistics.Inspect(hzb, depth - .0001f, depth + .0001f, Assertions.GpuImageSnapshot.Mip(hzb, mip)).AssertFiniteRange();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -78,7 +80,7 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene();
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, scene);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false, scene);
         for (int frame = 0; frame < 8; frame++) runtime.Frame();
         var renderer = (LumOnRenderer)Assert.Single(runtime.Cache.Events.Registrations.Select(item => item.Renderer).Distinct(),
             item => item is LumOnRenderer);
@@ -107,6 +109,14 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
         Assert.True(runtime.Screen.HasPublishedIndirect);
         Assert.True(MemoryMarshal.Read<uint>(VgeFrameRenderer.Current.Bytes[396..]) > previousIndex);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

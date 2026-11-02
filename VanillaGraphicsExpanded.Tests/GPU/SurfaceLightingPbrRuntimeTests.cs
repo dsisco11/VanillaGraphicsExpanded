@@ -26,7 +26,7 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene { Position = new(playerX, 36, 5), Bob = 1.6f + bob, EyeOffsetX = .125f, Yaw = yaw };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, scene, pbrComposition: true);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false, scene, pbrComposition: true);
         var material = new RuntimeReceiverSurface(new(.5f, .25f, .125f), Transmission: 0);
         runtime.Receiver = (_, _) => material;
         var light = new Vector3(.5f, 1.35f, -.25f);
@@ -76,7 +76,7 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene { SourceAlbedo = new(.125f, .25f, .5f) };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene, pbrComposition: true);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene, pbrComposition: true);
         runtime.Receiver = Receiver;
         SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
         var incident = SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene);
@@ -108,7 +108,7 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
         atmosphere.Publish(new(Vector3.UnitZ, Vector3.One, Vector3.Zero, Vector3.Zero, Vector3.Zero,
             System.Collections.Immutable.ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1 });
         var scene = new SpatialLightingScene { SourceAlbedo = new(.125f, .25f, .5f) };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene, pbrComposition: true);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene, pbrComposition: true);
         // One neutral nit keeps packed-scene quantization below this arithmetic test's
         // existing absolute tolerance while still detecting omitted or repeated emission.
         var receiver = new RuntimeReceiverSurface(new(.5f, .25f, .125f), Emission: 1f/32, Transmission: 0);

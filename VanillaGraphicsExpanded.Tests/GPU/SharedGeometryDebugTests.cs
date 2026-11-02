@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
 {
+
+
     /// <summary>Uses the mandatory graphics context.</summary>
     public SharedGeometryDebugTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -72,7 +74,7 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
         AssertColor(Render(scene.Scene, 70, 0, .5f), 0, 0, 0);
         // The same ray must hit that wall when using the larger surface domain.
         var surface = Render(scene.Scene, 67, 0, .5f);
-        ImageAssertions.Predicate(surface, GpuAssertionPredicate.SharedGeometryDebugTests_NearViewerClipsToLogicalWindow).AssertEqual();
+        ImageAssertions.Predicates.Predicate(surface, LightingPredicates.SharedGeometryDebugTests_NearViewerClipsToLogicalWindow).AssertEqual();
     }
     #endregion
 
@@ -110,8 +112,16 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
     /// <summary>Checks every rendered pixel, including opaque alpha, against the diagnostic legend.</summary>
     private void AssertColor(GpuTexture image,float r,float g,float b)
     {
-        ImageAssertions.Predicate(image, GpuAssertionPredicate.SharedGeometryDebugTests_AssertColor,
+        ImageAssertions.Predicates.Predicate(image, LightingPredicates.SharedGeometryDebugTests_AssertColor,
             parameters:new(r,g,b,1)).AssertEqual();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-lighting", 0, 0);
     }
     #endregion
 }

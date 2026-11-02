@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrModeLifecycleTests : RenderTestBase
 {
+
+
     /// <summary>Uses the shared headless context.</summary>
     public PbrModeLifecycleTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -205,9 +207,17 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         Assert.NotEqual(0, gbuffer.SurfaceTextureId);
         gbuffer.SurfaceTexture!.UploadDataImmediate(Enumerable.Repeat(1f, 16).ToArray(), 0, 0, 2, 2, 2, 1);
         gbuffer.ClearGBuffer(EnumFrameBuffer.Primary);
-        ImageAssertions.CompareConstant(gbuffer.SurfaceTexture!,0,new(new(0,2),0,0,0,2,2,1)).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(gbuffer.SurfaceTexture!,0,new(new(0,2),0,0,0,2,2,1)).AssertEqual();
         declarations.AssertReusable();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

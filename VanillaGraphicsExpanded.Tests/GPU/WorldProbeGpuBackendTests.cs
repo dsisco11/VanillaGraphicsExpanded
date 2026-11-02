@@ -17,7 +17,7 @@ public sealed class WorldProbeGpuBackendTests(HeadlessGLFixture fixture) : Rende
     public void LaterCompletionRejectsChangedLifetime(int change)
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         using var assets=new BinaryShaderApiFixture();
         bool geometryAvailable=true;
         int claims=0;
@@ -40,7 +40,7 @@ public sealed class WorldProbeGpuBackendTests(HeadlessGLFixture fixture) : Rende
     public void MissingCacheDoesNotStopGeometryTracing()
     {
         EnsureContextValid();
-        using var room=new SurfaceLightingEnclosureFixture();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);
         using var assets=new BinaryShaderApiFixture();
         using var backend=new LumOnWorldProbeGpuTraceBackend(assets.Api,256,()=>room.Geometry.Scene,()=>null,(_,_)=>true,new VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes.UnexpectedWorldProbeTraceScene(),_=>true);
         var item=new LumOnWorldProbeTraceWorkItem(1,new(0,new(),new(),0,Ticket:11),new(3.5,35.5,3.5),16,8,8,false,.25f,-1,1e-6f,0,true,-1);
@@ -58,7 +58,7 @@ public sealed class WorldProbeGpuBackendTests(HeadlessGLFixture fixture) : Rende
     public void DefaultComputePathPublishesWithoutCpuTraversal()
     {
         EnsureContextValid();
-        using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);
+        using var runtime=new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);
         Assert.True(runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing);
         runtime.RunUntil(()=>runtime.Energy(runtime.WorldImage)>.001f,maximumFrames:256);
         Assert.Equal(0,runtime.World.WorkerReads); Assert.Equal(0,runtime.World.VanillaLightReads);

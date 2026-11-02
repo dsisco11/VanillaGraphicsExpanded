@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     private PostprocessDraw? draw;
     private VgeFrameUniformBuffer? camera;
 
@@ -46,7 +48,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         Assert.InRange(actual[0],expected-.0001f,expected+.0001f);
         Assert.InRange(actual[1]/actual[0],.49999f,.50001f);
         Assert.InRange(actual[2]/actual[0],.24999f,.25001f);
-        Assert.Equal(1,actual[3]);ImageAssertions.Compare(scene,radiance).AssertEqual();
+        Assert.Equal(1,actual[3]);ImageAssertions.Comparisons.Compare(scene,radiance).AssertEqual();
     }
 
     /// <summary>Near geometry occludes distance visibility and solar extraction while publication keeps RGB and visibility independent.</summary>
@@ -109,7 +111,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         shader.Capture(new(0,0,1,32),new(.75f,0,0,0),new(.5f,.5f,1,(float)width/height));Draw(shader,target);
         Assert.True(target[0].ReadPixelsRegion(38,16,1,1)[0]>0);
         Assert.True(target[0].ReadPixelsRegion(32,22,1,1)[0]>0);
-        ImageAssertions.Predicate(target[0], GpuAssertionPredicate.LightShaftShaderTests_RadialFilterProducesBoundedSpatialHalo).AssertEqual();
+        ImageAssertions.Predicates.Predicate(target[0], LightingPredicates.LightShaftShaderTests_RadialFilterProducesBoundedSpatialHalo).AssertEqual();
     }
     /// <summary>Reports the active fragment sampler requirement and verifies the executing device supports it.</summary>
     [Fact]
@@ -193,6 +195,15 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
     {
         if(disposing){draw?.Dispose();draw=null;camera?.Dispose();camera=null;}
         base.Dispose(disposing);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-lighting", 0, 0);
     }
     #endregion
 }

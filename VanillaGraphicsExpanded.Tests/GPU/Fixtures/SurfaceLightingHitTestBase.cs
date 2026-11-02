@@ -5,6 +5,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Isolates cached outgoing-radiance hit semantics; it does not assemble downstream lighting passes.</summary>
 public abstract class SurfaceLightingHitTestBase : NearFieldShaderTestBase
 {
+
+
     /// <summary>Uses the material-isolated graphics context.</summary>
     protected SurfaceLightingHitTestBase(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -24,10 +26,10 @@ public abstract class SurfaceLightingHitTestBase : NearFieldShaderTestBase
     /// <summary>Checks finite RGB and exact darkness at a component boundary.</summary>
     private protected float AssertEnergy(TraceImages pixels,bool lit,string boundary)
     {
-        var observation=ImageAssertions.Inspect(pixels.Radiance, channelMask:7);
+        var observation=ImageAssertions.Statistics.Inspect(pixels.Radiance, channelMask:7);
         Assert.True(observation.NonFinite==0,boundary+": "+observation);
         float maximum=Math.Max(0,(float)observation.Maximum)*pixels.RgbDecode;
-        if(!lit) ImageAssertions.Inspect(pixels.Radiance,-.0001f/pixels.RgbDecode,.0001f/pixels.RgbDecode,
+        if(!lit) ImageAssertions.Statistics.Inspect(pixels.Radiance,-.0001f/pixels.RgbDecode,.0001f/pixels.RgbDecode,
             channelMask:7).AssertFiniteRange();
         if(lit) Assert.True(maximum>.001f,$"{boundary}: expected lighting, maximum={maximum}");
         return maximum;
@@ -37,7 +39,15 @@ public abstract class SurfaceLightingHitTestBase : NearFieldShaderTestBase
     private protected void AssertHits(TraceImages pixels,bool lit)
     {
         AssertEnergy(pixels,lit,"hit radiance");
-        ImageAssertions.Inspect(pixels.Meta,0,1,channelMask:1).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(pixels.Meta,0,1,channelMask:1).AssertFiniteRange();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

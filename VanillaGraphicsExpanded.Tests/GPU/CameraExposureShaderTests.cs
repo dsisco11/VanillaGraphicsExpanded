@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Admission accepts the exact minimum contract and rejects every missing capability or insufficient limit.</summary>
     [Fact]
@@ -109,7 +111,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         AssertClose(384, histogram.Where((_, i) => i % 2 == 0).Sum(), .001f);
         AssertClose(384 * MathF.Log2(.18f), histogram.Where((_, i) => i % 2 == 1).Sum(), .06f);
         // The exact checker retains numeric equality and the authored NaN expectations over all 128x72 texels.
-        ImageAssertions.Compare(source,pixels).AssertEqual();
+        ImageAssertions.Comparisons.Compare(source,pixels).AssertEqual();
         AssertClose(0, rig.Adapt(Settings(), 3, 0, true));
         using var empty=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[0f,0f,0f,1f]);
         rig.Meter(empty,Settings());
@@ -501,6 +503,14 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
             }
             return decoded;
         }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

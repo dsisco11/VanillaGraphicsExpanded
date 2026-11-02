@@ -10,7 +10,7 @@ internal static class LayeredTestTexture
 {
     #region Public API
     /// <summary>Copies matching fixture images into separate array layers without changing their float precision.</summary>
-    internal static Texture3D Create(params GpuTexture?[] images)
+    internal static Texture3D Create(GpuObservationPrograms programs, params GpuTexture?[] images)
     {
         if (images.Length == 0) throw new ArgumentException("At least one fixture layer is required.", nameof(images));
         int width = images.Max(image => image?.Width ?? 1), height = images.Max(image => image?.Height ?? 1);
@@ -18,8 +18,6 @@ internal static class LayeredTestTexture
         try
         {
             GpuLayerCopy? conversion = null;
-            try
-            {
                 for (int layer = 0; layer < images.Length; layer++)
                 {
                     var image = images[layer];
@@ -33,10 +31,9 @@ internal static class LayeredTestTexture
                         RHICommandContext.Current.CopyTexture(image, new(new(0, 0), 0, 0, 0, width, height, 1),
                             texture, new(new(0, layer), 0, 0, 0, width, height, 1));
                     else
-                        (conversion ??= new GpuLayerCopy()).Copy(image, texture, layer);
+                        (conversion ??= new GpuLayerCopy(programs)).Copy(image, texture, layer);
                 }
-                }
-            finally { conversion?.Dispose(); }
+
             return texture;
         }
         catch { texture.Dispose(); throw; }

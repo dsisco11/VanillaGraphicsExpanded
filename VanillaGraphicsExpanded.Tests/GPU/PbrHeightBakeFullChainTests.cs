@@ -23,6 +23,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 {
+
+
     private readonly HeadlessGLFixture fixture;
 
     public PbrHeightBakeFullChainTests(HeadlessGLFixture fixture) : base(fixture)
@@ -441,9 +443,9 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             });
 
             // The original maxima exceed their thresholds exactly when at least one corresponding component does.
-            Assert.True(ImageAssertions.Predicate(outAtlas1, GpuAssertionPredicate.PbrHeightBakeFullChainTests_FullChain_ScaleUniforms_ChangeFinalPackedOutput,
+            Assert.True(ImageAssertions.Predicates.Predicate(outAtlas1, MaterialPredicates.PbrHeightBakeFullChainTests_FullChain_ScaleUniforms_ChangeFinalPackedOutput,
                 outAtlas2).MatchingTexels>0,"Expected alpha to change with depthScale.");
-            Assert.True(ImageAssertions.Predicate(outAtlas1, GpuAssertionPredicate.PbrHeightBakeFullChainTests_FullChain_ScaleUniforms_ChangeFinalPackedOutput_2,
+            Assert.True(ImageAssertions.Predicates.Predicate(outAtlas1, MaterialPredicates.PbrHeightBakeFullChainTests_FullChain_ScaleUniforms_ChangeFinalPackedOutput_2,
                 outAtlas2).MatchingTexels>0,"Expected RGB to change with normalScale.");
         }
     }
@@ -612,8 +614,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 });
             });
 
-            ImageAssertions.Predicate(outAtlasFlat, GpuAssertionPredicate.PbrHeightBakeFullChainTests_FullChain_NormalScaleZero_FlattensPackedNormalsRgb).AssertEqual();
-            Assert.True(ImageAssertions.Predicate(outAtlasFlat, GpuAssertionPredicate.PbrHeightBakeFullChainTests_FullChain_ScaleUniforms_ChangeFinalPackedOutput_2,
+            ImageAssertions.Predicates.Predicate(outAtlasFlat, MaterialPredicates.PbrHeightBakeFullChainTests_FullChain_NormalScaleZero_FlattensPackedNormalsRgb).AssertEqual();
+            Assert.True(ImageAssertions.Predicates.Predicate(outAtlasFlat, MaterialPredicates.PbrHeightBakeFullChainTests_FullChain_ScaleUniforms_ChangeFinalPackedOutput_2,
                 outAtlasScaled).MatchingTexels>0,"Expected normalScale=0 vs 1 to change RGB.");
         }
     }
@@ -738,13 +740,13 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
     /// <summary>Returns the mean of every original scalar through a bounded double GPU sum.</summary>
     private float MeanR32f(DynamicTexture2D tex)
     {
-        return (float)(ImageAssertions.Statistics(tex,channelMask:1).Sum(0)/(tex.Width*tex.Height));
+        return (float)(ImageAssertions.Statistics.Statistics(tex,channelMask:1).Sum(0)/(tex.Width*tex.Height));
     }
 
     /// <summary>Derives authored normalization inputs from complete-domain extrema without downloading the height field.</summary>
     private (float invNeg, float invPos) ComputeAsymmetricInvScales(DynamicTexture2D tex, float center)
     {
-        var extrema=ImageAssertions.Inspect(tex,channelMask:1);
+        var extrema=ImageAssertions.Statistics.Inspect(tex,channelMask:1);
         float min=(float)extrema.Minimum,max=(float)extrema.Maximum;
 
         const float eps = 1e-6f;
@@ -782,7 +784,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
     /// <summary>Checks the original first-channel finite values and variance, retaining float products with double sums.</summary>
     private void AssertFiniteAndHasVariance(DynamicTexture2D tex, int channels, string name)
     {
-        var moments=ImageAssertions.Statistics(tex,channelMask:1,squareInFloat:true);
+        var moments=ImageAssertions.Statistics.Statistics(tex,channelMask:1,squareInFloat:true);
         Assert.True(moments.NonFinite==0,name+": "+moments);
         int count=tex.Width*tex.Height;
         double mean=moments.Sum(0)/count;
@@ -793,15 +795,26 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
     /// <summary>Checks the original first-channel finite contract over the complete image.</summary>
     private void AssertFinite(DynamicTexture2D tex, int channels, string name)
     {
-        var observation=ImageAssertions.Inspect(tex,channelMask:1);
+        var observation=ImageAssertions.Statistics.Inspect(tex,channelMask:1);
         Assert.True(observation.NonFinite==0,name+": "+observation);
     }
 
     /// <summary>Retains every alpha value's finite classification, extrema and strict white-saturation threshold.</summary>
     private (float minA, float maxA, int nanA, int ones) AlphaStats(GpuTexture image)
     {
-        var observation=ImageAssertions.Inspect(image,channelMask:8);
-        uint ones=ImageAssertions.Predicate(image, GpuAssertionPredicate.PbrHeightBakeFullChainTests_AlphaStats).MatchingTexels;
+        var observation=ImageAssertions.Statistics.Inspect(image,channelMask:8);
+        uint ones=ImageAssertions.Predicates.Predicate(image, MaterialPredicates.PbrHeightBakeFullChainTests_AlphaStats).MatchingTexels;
         return ((float)observation.Minimum,(float)observation.Maximum,(int)observation.NonFinite,(int)ones);
     }
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-material", 0, 0);
+        programs.Prepare("projection-observation", 0, 0);
+        programs.Prepare("statistics", 0, 0);
+    }
+    #endregion
 }

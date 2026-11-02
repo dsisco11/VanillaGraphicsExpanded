@@ -20,6 +20,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 {
+
+
     public LumonSceneVoxelCaptureComputeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     [Fact]
@@ -84,7 +86,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         GpuTestFence.WaitForGpuOrSkip("VoxelCapture dispatch (single)");
 
-        var bounds=ImageAssertions.Predicate(depthAtlas, GpuAssertionPredicate.LumonSceneVoxelCaptureComputeTests_CaptureVoxel_SingleWorkItem_WritesDepthZero_AndExpectedMaterial);
+        var bounds=ImageAssertions.Predicates.Predicate(depthAtlas, SurfacePredicates.LumonSceneVoxelCaptureComputeTests_CaptureVoxel_SingleWorkItem_WritesDepthZero_AndExpectedMaterial);
         bounds.AssertEqual();Assert.True(bounds.MatchingTexels>0);
 
         var material=materialAtlas;
@@ -378,4 +380,12 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         return (r, g, b, a);
     }
 
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
+    #endregion
 }

@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Sparse output routes clear the intended attachment with its numeric type and leave holes untouched.</summary>
     [Theory]
@@ -50,11 +52,11 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
             using var signedContents = Assertions.GpuImageSnapshot.FromAttachment(signed);
             using var unsignedContents = Assertions.GpuImageSnapshot.FromAttachment(unsigned);
             using var floatContents = Assertions.GpuImageSnapshot.FromAttachment(floats);
-            ImageAssertions.CompareBits(signedContents.Texture,
+            ImageAssertions.Comparisons.CompareBits(signedContents.Texture,
                 Enumerable.Range(0,16).SelectMany(_ => new int[] {-3,7,-16777217,19}).Select(value => unchecked((uint)value)).ToArray()).AssertEqual();
-            ImageAssertions.CompareBits(unsignedContents.Texture,
+            ImageAssertions.Comparisons.CompareBits(unsignedContents.Texture,
                 Enumerable.Range(0,16).SelectMany(_ => new uint[] {3,7,4294967294,19}).ToArray()).AssertEqual();
-            ImageAssertions.Compare(floatContents.Texture,
+            ImageAssertions.Comparisons.Compare(floatContents.Texture,
                 Enumerable.Range(0,16).SelectMany(_ => new float[] {.25f,.5f,.75f,1}).ToArray()).AssertEqual();
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest));
             bool[] mask = new bool[4]; GL.GetBoolean(GetPName.ColorWritemask, mask); Assert.All(mask, Assert.False);
@@ -84,8 +86,8 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
                     DepthLoad: clearDepth ? AttachmentLoad.Clear : AttachmentLoad.Preserve, ClearDepth: .75f,
                     StencilLoad: clearDepth ? AttachmentLoad.Preserve : AttachmentLoad.Clear, ClearStencil: 0x59)));
             });
-            ImageAssertions.Inspect(texture, clearDepth ? .749f : .249f, clearDepth ? .751f : .251f).AssertFiniteRange();
-            ImageAssertions.CompareStencil(texture,clearDepth ? (byte)0x36 : (byte)0x59).AssertEqual();
+            ImageAssertions.Statistics.Inspect(texture, clearDepth ? .749f : .249f, clearDepth ? .751f : .251f).AssertFiniteRange();
+            ImageAssertions.Comparisons.CompareStencil(texture,clearDepth ? (byte)0x36 : (byte)0x59).AssertEqual();
             Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
             Assert.Equal(0, GL.GetInteger(GetPName.StencilWritemask));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -111,12 +113,12 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
                     Clear:discard ? null : ColorClearValue.Float(1, 1, 1, 1)), new(AttachmentIndex:1)], area: new(1, 1, 2, 2)));
             Assert.Equal(2, boundary.PassViewport.Width); Assert.Equal(2, boundary.PassViewport.Height);
         });
-        ImageAssertions.CompareConstant(target[1], .75f).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(target[1], .75f).AssertEqual();
         foreach (var border in new RHITextureRegion[] {
             new(new(0),0,0,0,4,1), new(new(0),0,3,0,4,1),
             new(new(0),0,1,0,1,2), new(new(0),3,1,0,1,2) })
-            ImageAssertions.CompareConstant(target[0], .25f, border).AssertEqual();
-        if (!discard) ImageAssertions.CompareConstant(target[0], 1, new(new(0),1,1,0,2,2)).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(target[0], .25f, border).AssertEqual();
+        if (!discard) ImageAssertions.Comparisons.CompareConstant(target[0], 1, new(new(0),1,1,0,2,2)).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -142,9 +144,20 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
                 StencilStore: discardDepth ? AttachmentStore.Preserve : AttachmentStore.Discard)));
         });
         // Only the retained aspect has a defined value under a discard contract.
-        if (discardDepth) ImageAssertions.CompareStencil(texture,0x47).AssertEqual();
-        else ImageAssertions.Inspect(texture, .624f, .626f).AssertFiniteRange();
+        if (discardDepth) ImageAssertions.Comparisons.CompareStencil(texture,0x47).AssertEqual();
+        else ImageAssertions.Statistics.Inspect(texture, .624f, .626f).AssertFiniteRange();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 2, 0);
+        programs.Prepare("compare", 1, 0);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

@@ -19,7 +19,7 @@ public sealed class SurfaceWorkDiagnosticTests(HeadlessGLFixture fixture):Render
         var observed=new List<float[]>();
         foreach(bool enabled in new[]{false,true})
         {
-            using var room=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:35);
+            using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:35);
             room.Diagnostics.Enabled=enabled;room.Seed();
             Assert.Equal(!unresolved,room.BounceSample(steps:unresolved?0u:256u));
             observed.Add(room.Read(room.Snapshot.DirectIrradiance)
@@ -34,7 +34,7 @@ public sealed class SurfaceWorkDiagnosticTests(HeadlessGLFixture fixture):Render
     [Fact]
     public void StagesSeparateUnchangedSeedFromCompletedWrites()
     {
-        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         GpuTestFence.WaitForGpuOrSkip("Stage setup counters");room.Diagnostics.Poll();
         (uint Operation,SurfaceWorkStage Stage)[] stages=[(0u,SurfaceWorkStage.Seed),(4u,SurfaceWorkStage.Direct),(2u,SurfaceWorkStage.Combine),(3u,SurfaceWorkStage.Reset)];
         foreach(var entry in stages)
@@ -61,7 +61,7 @@ public sealed class SurfaceWorkDiagnosticTests(HeadlessGLFixture fixture):Render
     [InlineData("unseeded",(int)SurfaceWorkCounter.Unseeded,false)]
     public void SingleTexelClassifiesItsActualOutcome(string scenario,int counter,bool completed)
     {
-        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:35);
+        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:35);
         if(scenario!="unseeded")floor.Seed();
         else floor.DispatchDiagnosticWork(3); // New GPU storage is undefined until explicitly reset.
         if(scenario=="origin-unpublished")floor.Geometry.Dirty();
@@ -90,7 +90,7 @@ public sealed class SurfaceWorkDiagnosticTests(HeadlessGLFixture fixture):Render
     [Fact]
     public void MissingHitLightingSeparatesAttemptFromCompletion()
     {
-        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture();room.Seed();room.WithholdPages();
+        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();room.WithholdPages();
         Assert.False(room.BounceSample(rays:1));
         GpuTestFence.WaitForGpuOrSkip("Missing hit lighting counters");room.Diagnostics.Poll();
         var counters=room.Diagnostics.Snapshot(SurfaceWorkStage.Indirect).Counters;
@@ -103,7 +103,7 @@ public sealed class SurfaceWorkDiagnosticTests(HeadlessGLFixture fixture):Render
     [InlineData(false)] [InlineData(true)]
     public void CaptureClassifiesOutsideAndUnpublishedSources(bool unpublished)
     {
-        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:35);
+        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:35);
         if(unpublished)floor.Geometry.Dirty();
         else
         {
@@ -121,7 +121,7 @@ public sealed class SurfaceWorkDiagnosticTests(HeadlessGLFixture fixture):Render
     [Fact]
     public void CaptureReportsMissingMaterialOnPublishedSolid()
     {
-        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(skyFloor:true,worldHeight:35);
+        EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:35);
         floor.Geometry.Sample=(_,_,_)=>new(2,0,0);floor.Geometry.Dirty();floor.Geometry.Publish();
         var measurement=floor.Capture(diagnostics:true,expectComplete:false);
         Assert.Equal(256ul,measurement.Counters[(int)SurfaceWorkCounter.CaptureMaterial]);
@@ -136,7 +136,7 @@ public sealed class SurfaceWorkDiagnosticTests(HeadlessGLFixture fixture):Render
     [Fact]
     public void CollectorIsBoundedAndSnapshotsAreIndependent()
     {
-        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         GpuTestFence.WaitForGpuOrSkip("Diagnostics setup");room.Diagnostics.Poll();
         var saved=room.Diagnostics.Snapshot(SurfaceWorkStage.Indirect);
         for(int dispatch=0;dispatch<32;dispatch++)

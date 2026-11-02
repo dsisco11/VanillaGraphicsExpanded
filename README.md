@@ -232,23 +232,38 @@ separate tests.
 
 ### Compact GPU assertions
 
-`GPU/Assertions/GpuImageAssertions` compares complete selected image domains against independent CPU
-expectations or a retained `GpuImageSnapshot`. It also provides finite/range/extrema/positive counters,
-double sums and squared sums, channel ratios, coverage predicates and rank-permutation/slice checks.
+`HeadlessGLFixture.Observations` supplies explicit comparison, statistics, predicate, selection and
+projection services. `Comparisons` checks complete selected image domains against independent CPU
+expectations or retained `GpuImageSnapshot` histories. `Statistics` provides finite/range/extrema/count
+facts, double moments and rank-permutation checks; `Predicates` executes independently authored domain
+contracts. Results expose operation-specific counts and moments rather than interpreting one counter
+as constant matches, flag matches, witnesses and statistics completion. Comparisons report exact
+compared-component totals. Only a failed comparison reads its nominated native tuple for expected/actual
+value diagnostics; passing images stay on the GPU.
 Selections retain their original extent, mip, region, channels, explicit sparse coordinates and layers or
 cube faces. Packed stencil comparisons change the sampling mode only on an owned GPU copy and retain
 the source depth aspect and selector. The checker returns thirty-two words containing counters, moments and failure coordinates/rank identities; it does not download
-image pixels. Keep existing local tuple reads and tests of readback APIs independent from this checker.
+complete image buffers. Keep existing local tuple reads and tests of readback APIs independent from this checker.
 
-Generic/statistics, authored-predicate, projection and layer-conversion programs are declared test shader assets compiled by the normal
-shader build. Authored predicates and projections select finite declared operations; changing numeric inputs
-are data, rather than runtime shader source. The fixture retains production compute shader owners and
-disposes them before their originating manager/context retires. Each observation explicitly supplies its
-own resources, uniform bytes and initialized results; snapshots remain caller-owned within that context.
+Comparison/statistics, domain-owned predicate/projection and layer-conversion programs are declared
+test shader assets compiled by the normal shader build. Cloud, water, surface and other domain assets
+own their independent numerical policies; generic kernels share execution and transport mechanics.
+Changing numeric inputs are data, rather than runtime shader source. Context validation loads no
+observation programs. Suites explicitly prepare their required programs during ordinary setup, before
+hostile selectors, active passes or native observation callbacks. Observation rejects a missing
+preparation instead of loading it implicitly. Services and composite fixtures receive dependencies
+explicitly, without thread-static fixture discovery.
+The fixture retains production compute shader owners and disposes them before their originating
+manager/context retires. Retiring the manager invalidates its original preparations. Each observation
+supplies its own resources, uniform bytes and initialized results; result images and rank/statistics
+scratch belong to the immediate operation, and snapshots remain caller-owned within that context.
+Ordinary comparison/predicate operations allocate no placeholder image or unused histogram.
 There is no additional test executable cache or global native-name cache. Explicit native compiler failure
 subjects remain fresh native operations outside this ordinary checker preparation path.
 Integer image outputs leave SSBO base/range bindings untouched, preserve program/texture/sampler/image
-selectors, restore the checker uniform-buffer binding and restore pixel-pack state. A completion
+selectors, restore the checker uniform-buffer binding with its exact base/range semantics and restore
+pixel-pack state. Restoration covers the prepared executable's active binding footprint, including slots
+cleared when an optional input is absent. A completion
 marker and exact processed-texel count reject absent or partial dispatch; histogram validation and both
 statistics reduction stages have independent completion evidence. Synchronous result transfer supplies
 completion without a blanket `Finish`. Exact float comparisons equate signed zero and NaNs deliberately;

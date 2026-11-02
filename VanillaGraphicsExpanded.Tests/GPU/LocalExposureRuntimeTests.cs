@@ -20,6 +20,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Scenario", "HeadlessRuntime")]
 public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     private FinalDisplayShaderProgram? finalProgram;
     #region Public API
     #region Spatial reduction
@@ -41,10 +43,10 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         double[] expected = Reduce(colors, 13, 7, 2, 2);
         var logarithms = expected.SelectMany(value => new[] { value, 1d }).ToArray();
         var filtered = Enumerable.Range(0,4).SelectMany(i => new[] { Filter(expected,2,2,i), 1d }).ToArray();
-        ImageAssertions.CompareDouble(owner.Logarithms, logarithms, .000008, channelMask: 1).AssertEqual();
-        ImageAssertions.CompareConstant(owner.Logarithms, 1, channelMask: 2).AssertEqual();
-        ImageAssertions.CompareDouble(result, filtered, .000008, channelMask: 1).AssertEqual();
-        ImageAssertions.CompareConstant(result, 1, channelMask: 2).AssertEqual();
+        ImageAssertions.Comparisons.CompareDouble(owner.Logarithms, logarithms, .000008, channelMask: 1).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(owner.Logarithms, 1, channelMask: 2).AssertEqual();
+        ImageAssertions.Comparisons.CompareDouble(result, filtered, .000008, channelMask: 1).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(result, 1, channelMask: 2).AssertEqual();
         Assert.Equal(1, owner.Generation);
     }
 
@@ -62,10 +64,10 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         owner.Render(Programs.Api, scene, Candidate());
         foreach (var actual in new[] { owner.Logarithms, owner.BaseTexture })
         {
-            ImageAssertions.CompareConstant(actual, 0, new(new(0),0,0,0,2,1)).AssertEqual();
-            ImageAssertions.CompareConstant(actual, 0, new(new(0),0,1,0,1,1)).AssertEqual();
-            ImageAssertions.Inspect(actual, -6.000001f, -5.999999f, new(new(0),1,1,0,1,1), channelMask: 1).AssertFiniteRange();
-            ImageAssertions.CompareConstant(actual, 1, new(new(0),1,1,0,1,1), channelMask: 2).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(actual, 0, new(new(0),0,0,0,2,1)).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(actual, 0, new(new(0),0,1,0,1,1)).AssertEqual();
+            ImageAssertions.Statistics.Inspect(actual, -6.000001f, -5.999999f, new(new(0),1,1,0,1,1), channelMask: 1).AssertFiniteRange();
+            ImageAssertions.Comparisons.CompareConstant(actual, 1, new(new(0),1,1,0,1,1), channelMask: 2).AssertEqual();
         }
     }
     #endregion
@@ -86,7 +88,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         for (int i = 0; i < 3; i++) Assert.Same(first, owner.Render(Programs.Api, scene, Candidate()));
         Assert.Equal(1, owner.Generation);
         Assert.Same(first, owner.Render(Programs.Api, black, Candidate()));
-        ImageAssertions.CompareConstant(first, 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(first, 0).AssertEqual();
         var resized = owner.Render(Programs.Api, scene, Candidate() with { Width = 3, Height = 2 });
         Assert.NotSame(first, resized); Assert.False(first.IsValid); Assert.False(logs.IsValid);
         Assert.Equal(2, owner.Generation);
@@ -179,11 +181,11 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         {
             history.UploadData(new[] { 6f, 0f, metered, validity, 20f, 1f, 0f, 0f });
             using var missing = Final(source, glare, empty, baseImage, history, lookup, Candidate(), automatic);
-            ImageAssertions.CompareHistory(missing.Texture,local).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(missing.Texture,local).AssertEqual();
         }
         history.UploadData(new[] { 6f, 0f, metered, 1f, 20f, 1f, 0f, 0f });
         using var disabledVariant = Final(source, glare, empty, baseImage, history, lookup, Candidate() with { Enabled = false }, automatic, optionalVariant: false);
-        ImageAssertions.CompareHistory(disabledVariant.Texture,global).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(disabledVariant.Texture,global).AssertEqual();
         Assert.Equal(1, grading.Generation);
     }
 
@@ -257,8 +259,8 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         using var grading = new ColorGradingLut(); var lookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
         using var baseline = Final(scene, glare, empty, spatial, history, lookup, Candidate() with { Enabled = false }, true);
         using var local = Final(scene, glare, empty, spatial, history, lookup, Candidate(), true);
-        ImageAssertions.CompareHistory(local.Texture,baseline).AssertEqual();
-        Assert.True(ImageAssertions.Inspect(local.Texture,channelMask:7).Maximum>0);
+        ImageAssertions.Comparisons.CompareHistory(local.Texture,baseline).AssertEqual();
+        Assert.True(ImageAssertions.Statistics.Inspect(local.Texture,channelMask:7).Maximum>0);
     }
     #endregion
     #endregion
@@ -338,6 +340,15 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         return numerator / denominator;
     }
     #endregion
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+    }
     #endregion
 }
 

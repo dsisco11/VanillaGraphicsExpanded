@@ -8,6 +8,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBase
 {
+
+
     /// <summary>Uses the shared material-isolated GPU context.</summary>
     public SurfaceLightingHitComponentTests(HeadlessGLFixture fixture):base(fixture) { }
 
@@ -17,15 +19,15 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
     public void OffscreenLightRemovalAndRestorationReachHitRadiance()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         var bright=RenderHits(room);AssertHits(bright,true);
         room.BlockLight=0;room.Geometry.Dirty();room.Geometry.Publish();room.Seed();
         var dark=RenderHits(room);AssertHits(dark,false);
-        var hits=ObserveTrace(dark, GpuAssertionPredicate.SurfaceLightingHitComponentTests_OffscreenLightRemovalAndRestorationReachHitRadiance);
+        var hits=ObserveTrace(dark, SurfacePredicates.SurfaceLightingHitComponentTests_OffscreenLightRemovalAndRestorationReachHitRadiance);
         hits.AssertEqual(); Assert.True(hits.MatchingTexels>32);
         room.BlockLight=32;room.Geometry.Dirty();room.Geometry.Publish();room.Seed();
         var restored=RenderHits(room);AssertHits(restored,true);
-        ImageAssertions.Predicate(bright.Radiance, GpuAssertionPredicate.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5,restored.Radiance).AssertEqual();
+        ImageAssertions.Predicates.Predicate(bright.Radiance, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5,restored.Radiance).AssertEqual();
     }
 
     /// <summary>Bright exterior fields cannot illuminate a sealed dark enclosure at the hit boundary.</summary>
@@ -33,10 +35,10 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
     public void SealedRoomRejectsBrightExterior()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture(blockLight:0){ExteriorBlockLight=32};
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, blockLight:0){ExteriorBlockLight=32};
         room.Geometry.Dirty();room.Geometry.Publish();room.Seed();room.Bounce();
         var dark=RenderHits(room);AssertHits(dark,false);
-        var hits=ObserveTrace(dark, GpuAssertionPredicate.SurfaceLightingHitComponentTests_OffscreenLightRemovalAndRestorationReachHitRadiance);
+        var hits=ObserveTrace(dark, SurfacePredicates.SurfaceLightingHitComponentTests_OffscreenLightRemovalAndRestorationReachHitRadiance);
         hits.AssertEqual(); Assert.True(hits.MatchingTexels>32);
     }
 
@@ -45,7 +47,7 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
     public void EmissiveOnlyCacheLightsHitRadiance()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture(0,0,4){EmissionPolicy=true};room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions, 0,0,4){EmissionPolicy=true};room.Seed();
         var pixels=RenderHits(room);AssertHits(pixels,true);
         Assert.InRange(AssertEnergy(pixels,true,"emission"),3.99f,4.01f);
         room.EmissionPolicy=false;room.Seed();AssertHits(RenderHits(room),false);
@@ -56,7 +58,7 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
     public void MultipleBouncesReachHitRadiance()
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
         var seed=RenderHits(room);room.Bounce();
         var bounce=RenderHits(room);room.Bounce();
         var second=RenderHits(room);
@@ -73,10 +75,10 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
     public void InvalidPagesDoNotReachHitRadiance(bool stale)
     {
         EnsureShaderTestAvailable();
-        using var room=new SurfaceLightingEnclosureFixture();room.Seed();AssertHits(RenderHits(room),true);
+        using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();AssertHits(RenderHits(room),true);
         if(stale) room.StaleSlots();else room.WithholdPages();
         var missing=RenderHits(room);AssertHits(missing,false);
-        ImageAssertions.CompareConstant(missing.Meta,0,channelMask:1).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(missing.Meta,0,channelMask:1).AssertEqual();
     }
 
     /// <summary>Replacing all geometry and cache resources cannot retain illumination from the retired enclosure.</summary>
@@ -84,9 +86,19 @@ public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBas
     public void RecreatedDarkCacheDoesNotReuseBrightLighting()
     {
         EnsureShaderTestAvailable();
-        using(var bright=new SurfaceLightingEnclosureFixture()) { bright.Seed();AssertHits(RenderHits(bright),true); }
-        using(var dark=new SurfaceLightingEnclosureFixture(blockLight:0)) { dark.Seed();AssertHits(RenderHits(dark),false); }
-        using(var restored=new SurfaceLightingEnclosureFixture()) { restored.Seed();AssertHits(RenderHits(restored),true); }
+        using(var bright=new SurfaceLightingEnclosureFixture(ImageAssertions)) { bright.Seed();AssertHits(RenderHits(bright),true); }
+        using(var dark=new SurfaceLightingEnclosureFixture(ImageAssertions, blockLight:0)) { dark.Seed();AssertHits(RenderHits(dark),false); }
+        using(var restored=new SurfaceLightingEnclosureFixture(ImageAssertions)) { restored.Seed();AssertHits(RenderHits(restored),true); }
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-cloud", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
     }
     #endregion
 }

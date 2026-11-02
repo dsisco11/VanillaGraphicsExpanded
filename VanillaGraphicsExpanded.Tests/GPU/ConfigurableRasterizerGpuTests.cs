@@ -200,13 +200,16 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         private readonly PackedUniformBuffer inputs = new(16);
         private readonly RHIUniformRingFrameController frame;
         private readonly GpuUniformRingBuffer? previousRing;
-        private readonly GpuImageAssertions assertions=new();
+        private readonly GpuObservationPrograms observationPrograms = new();
+        private readonly GpuObservations assertions;
         private GpuImageSnapshot? lastImage;
         /// <summary>Reads only the originally nominated RGBA8 green component in normalized form.</summary>
         public float LastGreen => GpuLocalRead.Scalar(lastImage!.Texture,(4*32+16)*4+1);
         /// <summary>Creates a 32-square target and vertex-ID geometry for compatibility raster checks.</summary>
         public RasterDraw()
         {
+            observationPrograms.Prepare("predicate-lighting");
+            assertions = new(observationPrograms);
             program = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixtureProgram("tests/rasterizer.vsh", "tests/rasterizer.fsh");
             vao = GL.GenVertexArray(); framebuffer = GL.GenFramebuffer(); color = GL.GenRenderbuffer();
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer); GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, color);
@@ -235,13 +238,13 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             GL.DrawArrays(lines ? PrimitiveType.Lines : PrimitiveType.Triangles, 0, lines ? 2 : 3);
             lastImage?.Dispose();lastImage=null;
             lastImage=NativeFramebufferImage.Capture(framebuffer,0,32,32,TextureFormat.Rgba8);
-            var result=assertions.Predicate(lastImage.Texture, GpuAssertionPredicate.ConfigurableRasterizerGpuTests_Count);
+            var result=assertions.Predicates.Predicate(lastImage.Texture, LightingPredicates.ConfigurableRasterizerGpuTests_Count);
             result.AssertEqual();return checked((int)result.MatchingTexels);
         }
         /// <summary>Deletes native fixture resources before their context is destroyed.</summary>
         public void Dispose()
         {
-            lastImage?.Dispose();assertions.Dispose();
+            lastImage?.Dispose();observationPrograms.Dispose();
             inputs.Dispose();
             try { frame.EndFrame(); }
             finally

@@ -20,6 +20,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
 {
+
+
     /// <summary>Uses the shared headless context.</summary>
     public TerrainTessellationEngineDrawTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -95,8 +97,8 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             if (ordinaryDraw) platform.RenderMesh(mesh);
             else platform.RenderMesh(mesh, offsets, counts, 1, false);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
-            using var assertions=new GpuImageAssertions();
-            assertions.Predicate(target[0], GpuAssertionPredicate.TerrainTessellationEngineDrawTests_PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw,expected.Texture).AssertEqual();
+            var assertions = ImageAssertions;
+            assertions.Predicates.Predicate(target[0], GeometryPredicates.TerrainTessellationEngineDrawTests_PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw,expected.Texture).AssertEqual();
             Assert.Equal(new[] { 12, 0 }, offsets); Assert.Equal(new[] { 3 }, counts);
             Assert.Equal(PrimitiveType.Triangles, mesh.drawMode);
             Assert.Equal(5, GL.GetInteger(GetPName.PatchVertices));
@@ -191,5 +193,13 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
         layout(location=0) out vec4 color;
         void main() { color=rgba; }
         """;
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-geometry", 0, 0);
+    }
     #endregion
 }

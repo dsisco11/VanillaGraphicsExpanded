@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceCacheRuntimeTests : RenderTestBase
 {
+
+
     /// <summary>Uses the material-isolated graphics context.</summary>
     public SurfaceCacheRuntimeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -49,7 +51,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
     public void RegisteredCallbacksDriveSurfaceCacheAcrossRecreationAndWorldRestart()
     {
         EnsureContextValid();
-        var runtime = new SurfaceCacheRuntimeFixture();
+        var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions);
         try
         {
             runtime.PrimeGeometry();
@@ -89,7 +91,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
     public void RuntimePublishedGeometrySupportsSurfaceCapture()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceCacheRuntimeFixture();
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions);
         for (int frame = 0; frame < 20; frame++) runtime.Frame();
         TraceGeometryGpuScene scene = Assert.IsType<TraceGeometryGpuScene>(runtime.Geometry.Resources);
         using var page = new SharedSurfacePageFixture();
@@ -102,7 +104,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
     public void PublicationRejectsChangedSettingsAndResourcesBeforeReuse()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceCacheRuntimeFixture();
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions);
         runtime.PrimeGeometry();
         runtime.RunUntil(() => runtime.TryGetLighting(out _));
         Assert.True(runtime.TryGetLighting(out var first));
@@ -125,7 +127,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
     public void PartialPagePublicationCarriesForwardUnchangedTiles()
     {
         EnsureContextValid();
-        using var runtime = new SurfaceCacheRuntimeFixture(requestedPages:2,exposedWall:true);
+        using var runtime = new SurfaceCacheRuntimeFixture(ImageAssertions, requestedPages:2,exposedWall:true);
         runtime.Config.LumOn.LumonScene.RelightTexelsPerPagePerFrame=4;
         runtime.PrimeGeometry();
         runtime.RunUntil(() => runtime.TryGetLighting(out _));
@@ -143,7 +145,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
         }
         using var before=CaptureTile(first,firstId);
         Assert.True(GpuLocalRead.Scalar(before.Texture,0)>0);
-        var initialized=ImageAssertions.Predicate(before.Texture, GpuAssertionPredicate.SurfaceCacheRuntimeTests_PartialPagePublicationCarriesForwardUnchangedTiles);
+        var initialized=ImageAssertions.Predicates.Predicate(before.Texture, SurfacePredicates.SurfaceCacheRuntimeTests_PartialPagePublicationCarriesForwardUnchangedTiles);
         initialized.AssertEqual();Assert.Equal(4u,initialized.MatchingTexels);
         runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var second));
@@ -152,7 +154,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
         using (var ready=second.Readiness.MapRange<uint>(0,readCount,BufferMapAccess.Read))
         { Assert.True(ready.IsMapped);Assert.Equal(1u,ready.Span[(int)ids[0]]);Assert.Equal(1u,ready.Span[(int)ids[1]]); }
         using var after=CaptureTile(second,firstId);
-        ImageAssertions.CompareHistory(after.Texture,before).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(after.Texture,before).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
@@ -163,6 +165,15 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
         int local=(int)((id-1)%(uint)snapshot.TilesPerAtlas),layer=(int)((id-1)/(uint)snapshot.TilesPerAtlas);
         int x=local%snapshot.TilesPerAxis*snapshot.TileSize,y=local/snapshot.TilesPerAxis*snapshot.TileSize;
         return new(atlas,new(new(0,layer),x,y,0,snapshot.TileSize,snapshot.TileSize,1));
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
     }
     #endregion
 }

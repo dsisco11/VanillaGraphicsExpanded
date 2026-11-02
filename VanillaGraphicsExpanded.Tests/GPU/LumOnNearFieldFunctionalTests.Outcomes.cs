@@ -39,7 +39,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
         if (scenario != "unpublished") fixture.Publish(world);
         var result = Trace(fixture, budget: scenario == "budget" ? 1 : 256,
             nearFieldTracing: scenario != "sky", worldCache: scenario != "sky");
-        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldFunctionalTestsOutcomes_TraceOutcome_RecordsActualSourceAndAvailability, parameters:new(expectedOutcome,confidence,scenario is "solid" or "lit" or "dark" ? 1 : 0,scenario=="sky" ? 1 : 0)).AssertEqual();
+        ObserveTrace(result, SurfacePredicates.LumOnNearFieldFunctionalTestsOutcomes_TraceOutcome_RecordsActualSourceAndAvailability, parameters:new(expectedOutcome,confidence,scenario is "solid" or "lit" or "dark" ? 1 : 0,scenario=="sky" ? 1 : 0)).AssertEqual();
     }
     #endregion
 }

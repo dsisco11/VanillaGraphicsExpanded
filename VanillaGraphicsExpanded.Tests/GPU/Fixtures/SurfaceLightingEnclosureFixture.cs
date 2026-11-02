@@ -17,6 +17,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Reusable voxel enclosure or open floor with real captured pages and two outgoing lighting generations.</summary>
 internal sealed class SurfaceLightingEnclosureFixture : IDisposable
 {
+    private readonly VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations publicationAssertions;
     private const int Edge = 8, AtlasEdge = 64, TilesPerAxis = 8;
     private readonly ScopedPbrMaterialFixture material = new();
     private readonly BinaryShaderApiFixture assets = new();
@@ -29,7 +30,6 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     private readonly Texture3D[] outgoing;
     private readonly LumonSceneCaptureWorkGpu[] captureItems;
     private readonly LumonSceneRelightWorkGpu[] lightingItems;
-    private readonly Assertions.GpuImageAssertions publicationAssertions=new();
     private DynamicTexture2D? publicationSelection;
     private float[]? incidentPixels;
     private int generation;
@@ -58,8 +58,10 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
 
     #region Setup
     /// <summary>Captures the authored enclosure faces or an open floor within configurable authoritative geometry coverage.</summary>
-    public SurfaceLightingEnclosureFixture(float reflectance = .25f, int blockLight = 32, float emission = 0f, int xOffset = 0, bool dividedRoom = false, bool skyFloor = false, int worldHeight = 256, int surfaceResolution = 32)
+    public SurfaceLightingEnclosureFixture(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations, float reflectance = .25f, int blockLight = 32, float emission = 0f, int xOffset = 0, bool dividedRoom = false, bool skyFloor = false, int worldHeight = 256, int surfaceResolution = 32)
     {
+        publicationAssertions = observations;
+        observations.Programs.Prepare("predicate-surface", 0, 0);
         DividedRoom=dividedRoom; this.skyFloor=skyFloor;
         offsetX=xOffset; firstChunk=xOffset>>5; chunkCount=((xOffset+7)>>5)-firstChunk+1;
         BlockLight = blockLight;
@@ -269,7 +271,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
             try { selected.UploadDataImmediate(mask);publicationSelection=selected; }
             catch { selected.Dispose();throw; }
         }
-        var proof=publicationAssertions.Predicate(Snapshot.OutgoingRadiance, GpuAssertionPredicate.SurfaceLightingEnclosureFixture_Predicate,publicationSelection);
+        var proof=publicationAssertions.Predicates.Predicate(Snapshot.OutgoingRadiance, SurfacePredicates.SurfaceLightingEnclosureFixture_Predicate,publicationSelection);
         proof.AssertEqual();
         Assert.Equal((uint)(lightingItems.Select(item=>item.PhysicalPageId).Distinct().Count()*Edge*Edge),proof.MatchingTexels);
     }
@@ -352,7 +354,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     /// <summary>Releases fixture resources in producer-before-input order.</summary>
     public void Dispose()
     {
-        publicationAssertions.Dispose();publicationSelection?.Dispose();
+        publicationSelection?.Dispose();
         producer.Dispose(); lightingFrame.Dispose(); work.Dispose();metadata.Dispose();slots.Dispose();readiness.Dispose();
         textures.Dispose(); pageStorage.Dispose();
         Geometry.Dispose(); assets.Dispose(); material.Dispose();

@@ -10,6 +10,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
 {
+
+
     /// <summary>Uses the exclusive material and graphics context.</summary>
     public SurfaceLightingRuntimeScenariosTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -21,14 +23,14 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene { Reflectance = .25f };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene);
         runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame = 8;
         runtime.Cache.Config.LumOn.TemporalAlpha = .9f;
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
         // Validate the exact snapshot retained as the comparison baseline.
         using var reference = new Assertions.GpuImageSnapshot(runtime.FinalImage);
-        Assert.True(ImageAssertions.Inspect(reference.Texture, channelMask: 7).Minimum > .001f);
+        Assert.True(ImageAssertions.Statistics.Inspect(reference.Texture, channelMask: 7).Minimum > .001f);
         long revision = runtime.Screen.HistoryRevision;
         runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
         for (int i=0;i<8;i++) runtime.Frame();
@@ -43,7 +45,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
             SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
             Assert.True(runtime.Screen.HistoryRevision > revision);
             AssertBoundaries(runtime, light != 0);
-            if (light != 0) ImageAssertions.CompareHistory(runtime.FinalImage, reference).AssertEqual();
+            if (light != 0) ImageAssertions.Comparisons.CompareHistory(runtime.FinalImage, reference).AssertEqual();
         }
     }
 
@@ -54,7 +56,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene { Reflectance = 0, Emission = 4, BlockLight = 0 };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene);
         runtime.Cache.Config.LumOn.LumonScene.SurfaceLightingMaterialEmission = true;
         Settle(runtime, true);
         AssertBoundaries(runtime, true);
@@ -75,7 +77,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene { Reflectance = .5f };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene);
         SeedAndPause(runtime);
         Settle(runtime, true);
         long revision = runtime.Screen.HistoryRevision;
@@ -100,14 +102,14 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene { Position = new(0,36,3), DividedRoom = true, Reflectance = .25f };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene);
         runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame = 8;
         runtime.Cache.Config.LumOn.TemporalAlpha = .9f;
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
         // Validate the exact snapshot retained as the comparison baseline.
         using var reference = new Assertions.GpuImageSnapshot(runtime.FinalImage);
-        Assert.True(ImageAssertions.Inspect(reference.Texture, channelMask: 7).Minimum > .001f);
+        Assert.True(ImageAssertions.Statistics.Inspect(reference.Texture, channelMask: 7).Minimum > .001f);
         foreach (bool open in new[] { false, true })
         {
             long revision = runtime.Screen.HistoryRevision;
@@ -134,7 +136,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene { Reflectance = .25f };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene);
         var config = runtime.Cache.Config.LumOn.LumonScene;
         int pages = scene.Feedback().Length;
         Assert.InRange(pages, 1, 256);
@@ -152,7 +154,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
             scene.Unloaded.TryAdd(VanillaGraphicsExpanded.Voxels.ChunkProcessing.ChunkKey.FromChunkCoords(page.Chunk.X,page.Chunk.Y,page.Chunk.Z),0);
         runtime.Frame();
         runtime.RunUntil(() => IsDark(runtime.FinalImage) && IsDark(runtime.WorldImage));
-        ImageAssertions.CompareConstant(runtime.WorldBuffers.Resources!.ProbeMeta0, 0, channelMask: 1).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(runtime.WorldBuffers.Resources!.ProbeMeta0, 0, channelMask: 1).AssertEqual();
         int reloadFrame = runtime.Cache.Frames;
         scene.BlockLight = 0;
         scene.Unloaded.Clear();
@@ -205,7 +207,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
             SurfaceLightingConsumerRuntimeFixture.FrameBudget - (runtime.Cache.Frames - reloadFrame));
         AssertBoundaries(runtime, false);
         Assert.True(IsDark(runtime.WorldImage));
-        Assert.True(ImageAssertions.Inspect(runtime.WorldBuffers.Resources!.ProbeMeta0, channelMask: 1).Maximum >= .25f);
+        Assert.True(ImageAssertions.Statistics.Inspect(runtime.WorldBuffers.Resources!.ProbeMeta0, channelMask: 1).Maximum >= .25f);
         TestContext.Current.TestOutputHelper?.WriteLine($"Dark reload: retainedIndirect={retainedPeak}, finalIndirect={previous.Indirect}, completedSweeps={completedSweeps}/{maximumSweeps}, reloadFrames={runtime.Cache.Frames - reloadFrame}/{SurfaceLightingConsumerRuntimeFixture.FrameBudget}.");
     }
     /// <summary>A dark replacement cache cannot reuse populated final lighting, and restoring its source restores the seeded image.</summary>
@@ -215,7 +217,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
     {
         EnsureContextValid();
         var scene = new SpatialLightingScene { Reflectance = .25f };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene);
+        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene);
         // The production material atlas stores albedo in RGBA8 UNORM before lighting.
         var albedo = scene.SourceAlbedo ?? new Vector3(scene.Reflectance);
         var capturedAlbedo = GgxHemisphereReference.CapturedDiffuse(albedo);
@@ -272,7 +274,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
     /// <summary>Preserves the previous per-pixel restoration tolerance at the real runtime output.</summary>
     private void AssertClose(Assertions.GpuImageSnapshot expected, VanillaGraphicsExpanded.Rendering.GpuTexture actual, float tolerance)
     {
-        ImageAssertions.CompareHistory(actual, expected, tolerance: tolerance, channelMask: 7).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(actual, expected, tolerance: tolerance, channelMask: 7).AssertEqual();
     }
 
     /// <summary>Requires complete cache readiness and valid world data within the shared 160-frame transition budget.</summary>
@@ -280,7 +282,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
     {
         runtime.RunUntil(() => runtime.Cache.AllRequestedLightingReady() && runtime.Screen.IndirectFullTex != null
             && runtime.WorldBuffers.Resources != null
-            && ImageAssertions.Inspect(runtime.WorldBuffers.Resources.ProbeMeta0, channelMask: 1).Maximum >= .25f
+            && ImageAssertions.Statistics.Inspect(runtime.WorldBuffers.Resources.ProbeMeta0, channelMask: 1).Maximum >= .25f
             && (lit ? AllLit(runtime.FinalImage) : IsDark(runtime.FinalImage) && IsDark(runtime.WorldImage)), SurfaceLightingConsumerRuntimeFixture.FrameBudget - 8);
         // Complete a directional sweep so intermediate assertions cannot pass on a transient final output.
         for (int frame=0;frame<8;frame++) runtime.Frame();
@@ -296,22 +298,31 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
             if (lit) Assert.True(peak>.001f); else Assert.InRange(peak,0,.0001f);
         }
         Assert.True(lit ? AllLit(runtime.FinalImage) : IsDark(runtime.FinalImage));
-        Assert.True(ImageAssertions.Inspect(runtime.Screen.ScreenProbeAtlasMetaHistoryTex!, channelMask: 1).Maximum > .5f);
+        Assert.True(ImageAssertions.Statistics.Inspect(runtime.Screen.ScreenProbeAtlasMetaHistoryTex!, channelMask: 1).Maximum > .5f);
     }
 
     /// <summary>Requires finite nonzero illumination in every final RGB channel.</summary>
     private bool AllLit(VanillaGraphicsExpanded.Rendering.GpuTexture image)
     {
-        var result = ImageAssertions.Inspect(image, channelMask: 7);
+        var result = ImageAssertions.Statistics.Inspect(image, channelMask: 7);
         return result.NonFinite == 0 && result.Minimum > .001f;
     }
 
     /// <summary>Requires finite darkness across every RGB channel.</summary>
     private bool IsDark(VanillaGraphicsExpanded.Rendering.GpuTexture image)
     {
-        var result = ImageAssertions.Inspect(image, -.0001f, .0001f, channelMask: 7);
+        var result = ImageAssertions.Statistics.Inspect(image, -.0001f, .0001f, channelMask: 7);
         return result.NonFinite == 0 && result.OutsideRange == 0;
     }
 
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+    }
     #endregion
 }

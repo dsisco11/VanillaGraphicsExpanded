@@ -155,7 +155,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
         using var output = TestFramework.CreateTestGBuffer(ProbeGridWidth, ProbeGridHeight, Enumerable.Repeat(TextureFormat.Rgba16f, 7).ToArray());
         var program = CompileProjectShader();
         SetupProjectUniforms(program);
-        program.ScreenProbeAtlas = atlasTexture; program.ScreenProbeAtlasMeta = metadata; using var projectAnchors = LayeredTestTexture.Create(anchors, null);
+        program.ScreenProbeAtlas = atlasTexture; program.ScreenProbeAtlasMeta = metadata; using var projectAnchors = LayeredTestTexture.Create(ImageAssertions.Programs, anchors, null);
         program.ProbeAnchors = projectAnchors;
         TestFramework.RenderQuadTo(program, output);
         var result = new float[28];
@@ -188,10 +188,10 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
         var program = CompileSh9GatherShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupSh9GatherUniforms(program, identity, identity);
-        using var shInputs2 = LayeredTestTexture.Create(packed[0], packed[1], packed[2], packed[3], packed[4], packed[5], packed[6]);
+        using var shInputs2 = LayeredTestTexture.Create(ImageAssertions.Programs, packed[0], packed[1], packed[2], packed[3], packed[4], packed[5], packed[6]);
         program.ProbeSh9 = shInputs2;
-        using var anchorInputs1 = LayeredTestTexture.Create(anchors, normals);
-        program.ProbeAnchors = anchorInputs1; program.PrimaryDepth = depth; using var surfaceInput1 = LayeredTestTexture.Create(guides, null, null);
+        using var anchorInputs1 = LayeredTestTexture.Create(ImageAssertions.Programs, anchors, normals);
+        program.ProbeAnchors = anchorInputs1; program.PrimaryDepth = depth; using var surfaceInput1 = LayeredTestTexture.Create(ImageAssertions.Programs, guides, null, null);
         program.GBufferSurface = surfaceInput1;
         TestFramework.RenderQuadTo(program, output);
         var result = output[0].ReadPixelsRegion(0,0,1,1);

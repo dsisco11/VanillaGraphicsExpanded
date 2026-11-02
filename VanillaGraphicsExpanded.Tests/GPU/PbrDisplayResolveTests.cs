@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
 {
+
+
     /// <summary>Uses the shared graphics context.</summary>
     public PbrDisplayResolveTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -37,7 +39,7 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
         }
         float[] expected = [Transfer(0, 4), Transfer(1, 4), Transfer(4, 4), .5f,
             Transfer(-.5f, 16), Transfer(.125f, 16), Transfer(16, 16), 1, .125f, .5f, .75f, .25f];
-        ImageAssertions.CompareIntervals(output[0],expected.Select(v=>(double)(v-.0041f)).ToArray(),expected.Select(v=>(double)(v+.0041f)).ToArray()).AssertEqual();
+        ImageAssertions.Comparisons.CompareIntervals(output[0],expected.Select(v=>(double)(v-.0041f)).ToArray(),expected.Select(v=>(double)(v+.0041f)).ToArray()).AssertEqual();
         var actual=GpuLocalRead.Tuple(output[0],0,0);Assert.True(actual[2]>actual[1]);
     }
     /// <summary>Night, twilight and daylight retain linear RGB ratios under the common exposure and shoulder.</summary>
@@ -120,7 +122,7 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
                 expectedBytes[offset+channel]=(byte)expected;
             expectedBytes[offset+3]=73;
         }
-        ImageAssertions.CompareRgba8(output[0],expectedBytes).AssertEqual();
+        ImageAssertions.Comparisons.CompareRgba8(output[0],expectedBytes).AssertEqual();
     }
 
     /// <summary>Sub-code-value ramps occupy both neighboring codes with balanced neutral noise, unchanged alpha and deterministic output.</summary>
@@ -151,30 +153,30 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
         using var precise = Render(preciseOutput);
         using var first = Render();
         using var second = Render();
-        ImageAssertions.CompareHistory(second.Texture,first).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(second.Texture,first).AssertEqual();
         // An explicit reference matrix keeps the check independent of the shader's bit-interleaving loop.
         int[] ranks = [0,32,8,40,2,34,10,42, 48,16,56,24,50,18,58,26,
             12,44,4,36,14,46,6,38, 60,28,52,20,62,30,54,22,
             3,35,11,43,1,33,9,41, 51,19,59,27,49,17,57,25,
             15,47,7,39,13,45,5,37, 63,31,55,23,61,29,53,21];
-        using var projection=new GpuImageTransform();
+        var projection = ImageAssertions.Projections;
         // Preserve the original float multiply/subtract and row-major float summation order.
-        using var offsets=projection.Apply(precise.Texture, GpuImageProjection.PbrDisplayResolveTests_QuantizedRampIsBalancedNeutralAndDeterministic);
-        using var codes=projection.Apply(first.Texture, GpuImageProjection.GpuImageAssertionsPredicates_CompareRgba8);
+        using var offsets=projection.Apply(precise.Texture, MaterialProjections.PbrDisplayResolveTests_QuantizedRampIsBalancedNeutralAndDeterministic);
+        using var codes=projection.Apply(first.Texture, ObservationProjections.GpuImageAssertionsPredicates_CompareRgba8);
         var expectedOffsets=new float[width*height*4];
         for(int y=0;y<height;y++)for(int x=0;x<width;x++)
             expectedOffsets[(y*width+x)*4]=(ranks[y*8+x%8]+.5f)/64f-.5f;
-        ImageAssertions.Compare(offsets,expectedOffsets,.0001f,channelMask:1).AssertEqual();
-        ImageAssertions.Inspect(offsets,-.493f,.493f,channelMask:1).AssertFiniteRange();
-        ImageAssertions.Inspect(codes,100,101,channelMask:1).AssertFiniteRange();
-        ImageAssertions.Predicate(first.Texture, GpuAssertionPredicate.PbrDisplayResolveTests_QuantizedRampIsBalancedNeutralAndDeterministic_2).AssertEqual();
+        ImageAssertions.Comparisons.Compare(offsets,expectedOffsets,.0001f,channelMask:1).AssertEqual();
+        ImageAssertions.Statistics.Inspect(offsets,-.493f,.493f,channelMask:1).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(codes,100,101,channelMask:1).AssertFiniteRange();
+        ImageAssertions.Predicates.Predicate(first.Texture, MaterialPredicates.PbrDisplayResolveTests_QuantizedRampIsBalancedNeutralAndDeterministic_2).AssertEqual();
         int previousUpperCodes=-1;
         for(int tile=0;tile<8;tile++)
         {
             var region=new RHITextureRegion(new(0,0),tile*8,0,0,8,height,1);
-            int upperCodes=checked((int)ImageAssertions.Statistics(codes,region,1).Sum(0))-100*64;
+            int upperCodes=checked((int)ImageAssertions.Statistics.Statistics(codes,region,1).Sum(0))-100*64;
             using var selectedOffsets=new GpuImageSnapshot(offsets,region);
-            float offsetSum=ImageAssertions.OrderedFloatSum(selectedOffsets.Texture, GpuImageProjection.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic);
+            float offsetSum=ImageAssertions.Statistics.OrderedFloatSum(selectedOffsets.Texture, ObservationProjections.GpuImageAssertionTests_OrderedFloatReductionRetainsOriginalArithmetic);
             Assert.InRange(MathF.Abs(offsetSum/64f),0f,.0001f);
             Assert.True(upperCodes>previousUpperCodes);previousUpperCodes=upperCodes;
             Assert.InRange(MathF.Abs(upperCodes/64f-(tile+.5f)/8f),0f,1f/16f);
@@ -206,5 +208,18 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
     }
     /// <summary>Decodes display values to verify linear hue independently of sRGB encoding.</summary>
     private static float Decode(float value) => value <= .04045f ? value / 12.92f : MathF.Pow((value + .055f) / 1.055f, 2.4f);
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-material", 0, 0);
+        programs.Prepare("projection-material", 0, 0);
+        programs.Prepare("projection-observation", 0, 0);
+        programs.Prepare("statistics", 0, 0);
+    }
     #endregion
 }

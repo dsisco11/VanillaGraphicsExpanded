@@ -54,6 +54,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestBase
 {
+
+
     // Default temporal parameters
     private const float DefaultTemporalAlpha = 0.9f;
     private const float DefaultHitDistanceRejectThreshold = 0.3f;  // 30% relative difference
@@ -84,12 +86,12 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         SetupOctahedralTemporalUniforms(program);
         program.ScreenProbeAtlasCurrent = current;
         program.ScreenProbeAtlasHistory = history;
-        using var grouped = LayeredTestTexture.Create(anchors, null);
+        using var grouped = LayeredTestTexture.Create(ImageAssertions.Programs, anchors, null);
         program.ProbeAnchors = grouped;
         TestFramework.RenderQuadTo(program, output);
-        ImageAssertions.CompareConstant(output[0],validHistory?oldStored:0,channelMask:7).AssertEqual();
-        ImageAssertions.CompareConstant(output[1],validHistory?1:0,channelMask:1).AssertEqual();
-        ImageAssertions.Inspect(output[0],channelMask:8).AssertFiniteRange();
+        ImageAssertions.Comparisons.CompareConstant(output[0],validHistory?oldStored:0,channelMask:7).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(output[1],validHistory?1:0,channelMask:1).AssertEqual();
+        ImageAssertions.Statistics.Inspect(output[0],channelMask:8).AssertFiniteRange();
     }
 
     private static float[] CreateUniformMetaAtlas(float confidence, float flagsBitsAsFloat)
@@ -369,7 +371,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        using var anchorInputs101 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs101 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs101;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -402,7 +404,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         // A blended radiance retains the current trace classification; combining encoded
         // outcomes with bitwise OR would manufacture invalid outcome 7 from 2 and 5.
-        ImageAssertions.Predicate(outputAtlas[1], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_Temporal_MetaReducesHistoryWeight).AssertEqual();
+        ImageAssertions.Predicates.Predicate(outputAtlas[1], SurfacePredicates.LumOnProbeAtlasTemporalFunctionalTests_Temporal_MetaReducesHistoryWeight).AssertEqual();
     }
 
     /// <summary>
@@ -453,7 +455,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        using var anchorInputs102 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs102 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs102;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -533,13 +535,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        using var anchorInputs103 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs103 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs103;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_InvalidProbe_OutputsZero,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
+        ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTemporalFunctionalTests_InvalidProbe_OutputsZero,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
@@ -596,7 +598,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        using var anchorInputs104 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs104 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs104;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -609,7 +611,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             if(!WasTracedThisFrame(x,y,0,0,8)){mask[y*AtlasWidth+x]=1;nonTracedTotal++;}
         Assert.Equal(56,nonTracedTotal);
         using var selection=TestFramework.CreateTexture(AtlasWidth,AtlasHeight,TextureFormat.R32f,mask);
-        var preserved=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_NonTracedTexels_PreserveCurrentOutput,selection);
+        var preserved=ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTemporalFunctionalTests_NonTracedTexels_PreserveCurrentOutput,selection);
         preserved.AssertEqual();Assert.Equal((uint)nonTracedTotal,preserved.MatchingTexels);
     }
 
@@ -670,7 +672,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        using var anchorInputs105 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs105 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs105;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -763,13 +765,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        using var anchorInputs106 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs106 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs106;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_Disocclusion_ResetsToCurrentFrame,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
+        ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTemporalFunctionalTests_Disocclusion_ResetsToCurrentFrame,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
@@ -832,7 +834,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            using var anchorInputs107 = LayeredTestTexture.Create(anchorPosTex, null);
+            using var anchorInputs107 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
             programId.ProbeAnchors = anchorInputs107;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -870,7 +872,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            using var anchorInputs108 = LayeredTestTexture.Create(anchorPosTex, null);
+            using var anchorInputs108 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
             programId.ProbeAnchors = anchorInputs108;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -952,7 +954,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        using var anchorInputs109 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs109 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs109;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -963,7 +965,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         if(budget==1)
         {
-            var rejected=ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_VelocityInvalid_RejectsHistory,outputAtlas[1]);
+            var rejected=ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTemporalFunctionalTests_VelocityInvalid_RejectsHistory,outputAtlas[1]);
             rejected.AssertEqual();Assert.True(rejected.MatchingTexels>0);
             return;
         }
@@ -1031,7 +1033,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            using var anchorInputs110 = LayeredTestTexture.Create(anchorPosTex, null);
+            using var anchorInputs110 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
             programId.ProbeAnchors = anchorInputs110;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -1066,7 +1068,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            using var anchorInputs111 = LayeredTestTexture.Create(anchorPosTex, null);
+            using var anchorInputs111 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
             programId.ProbeAnchors = anchorInputs111;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -1075,7 +1077,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             frame1Output = new(outputAtlas[0]);
         }
 
-        var differences=ImageAssertions.Predicate(frame0Output!.Texture, GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_FrameIndex_AffectsTracedTexels,frame1Output!.Texture);
+        var differences=ImageAssertions.Predicates.Predicate(frame0Output!.Texture, SurfacePredicates.LumOnProbeAtlasTemporalFunctionalTests_FrameIndex_AffectsTracedTexels,frame1Output!.Texture);
         differences.AssertEqual();Assert.True(differences.MatchingTexels>0);
         }
         finally { frame1Output?.Dispose();frame0Output?.Dispose(); }
@@ -1143,7 +1145,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            using var anchorInputs112 = LayeredTestTexture.Create(anchorPosTex, null);
+            using var anchorInputs112 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
             programId.ProbeAnchors = anchorInputs112;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -1182,7 +1184,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            using var anchorInputs113 = LayeredTestTexture.Create(anchorPosTex, null);
+            using var anchorInputs113 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
             programId.ProbeAnchors = anchorInputs113;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -1251,13 +1253,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        using var anchorInputs114 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs114 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs114;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_Disocclusion_ResetsToCurrentFrame,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
+        ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTemporalFunctionalTests_Disocclusion_ResetsToCurrentFrame,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
@@ -1324,7 +1326,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            using var anchorInputs115 = LayeredTestTexture.Create(anchorPosTex, null);
+            using var anchorInputs115 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
             programId.ProbeAnchors = anchorInputs115;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -1366,7 +1368,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            using var anchorInputs116 = LayeredTestTexture.Create(anchorPosTex, null);
+            using var anchorInputs116 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
             programId.ProbeAnchors = anchorInputs116;
             programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
             programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -1432,7 +1434,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        using var anchorInputs117 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs117 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs117;
         programId.ScreenProbeAtlasMetaCurrent = metaCurrentTex;
         programId.ScreenProbeAtlasMetaHistory = metaHistoryTex;
@@ -1492,11 +1494,11 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        using var anchorInputs118 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs118 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs118;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
-        ImageAssertions.Predicate(outputAtlas[0], GpuAssertionPredicate.LumOnProbeAtlasTemporalFunctionalTests_InvalidProbe_OutputsCurrentWithoutBlending,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
+        ImageAssertions.Predicates.Predicate(outputAtlas[0], SurfacePredicates.LumOnProbeAtlasTemporalFunctionalTests_InvalidProbe_OutputsCurrentWithoutBlending,parameters:new(TestEpsilon,0,0,0)).AssertEqual();
     }
 
     #endregion
@@ -1545,7 +1547,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        using var anchorInputs119 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs119 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs119;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
@@ -1601,7 +1603,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         programId.ScreenProbeAtlasCurrent = currentAtlasTex;
         programId.ScreenProbeAtlasHistory = historyAtlasTex;
-        using var anchorInputs120 = LayeredTestTexture.Create(anchorPosTex, null);
+        using var anchorInputs120 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
         programId.ProbeAnchors = anchorInputs120;
 
         TestFramework.RenderQuadTo(programId, outputAtlas);
@@ -1669,7 +1671,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            using var anchorInputs121 = LayeredTestTexture.Create(anchorPosTex, null);
+            using var anchorInputs121 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
             programId.ProbeAnchors = anchorInputs121;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
@@ -1703,7 +1705,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             programId.ScreenProbeAtlasCurrent = currentAtlasTex;
             programId.ScreenProbeAtlasHistory = historyAtlasTex;
-            using var anchorInputs122 = LayeredTestTexture.Create(anchorPosTex, null);
+            using var anchorInputs122 = LayeredTestTexture.Create(ImageAssertions.Programs, anchorPosTex, null);
             programId.ProbeAnchors = anchorInputs122;
 
             TestFramework.RenderQuadTo(programId, outputAtlas);
@@ -1717,5 +1719,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             $"Large distance diff should reject more: accepted={acceptedBlue:F3}, rejected={rejectedBlue:F3}");
     }
 
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("layer", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
     #endregion
 }

@@ -101,7 +101,7 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                 }
                 gathered[branch] = output.Colors[0].Image!.Value.Texture.Resource as GpuTexture ?? throw new InvalidOperationException("Expected fixture-owned gather storage.");
             }
-            ImageAssertions.Predicate(gathered[0], GpuAssertionPredicate.LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTestsPipeline_AssertPairedHistoryReachesGather,gathered[1],parameters:new(expectLighting?1:0,0,0,0)).AssertEqual();
+            ImageAssertions.Predicates.Predicate(gathered[0], SurfacePredicates.LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTestsPipeline_AssertPairedHistoryReachesGather,gathered[1],parameters:new(expectLighting?1:0,0,0,0)).AssertEqual();
             var normalOutput = normalBranch.EnsureScreen(ScreenWidth, ScreenHeight, ProbeSpacing).IndirectHalfTex!;
             var suppressedOutput = suppressedBranch.EnsureScreen(ScreenWidth, ScreenHeight, ProbeSpacing).IndirectHalfTex!;
             suppressedBranch.Scene.EnsureSize(HalfResWidth, HalfResHeight);

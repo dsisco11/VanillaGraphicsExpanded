@@ -35,6 +35,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Scenario", "HeadlessRuntime")]
 public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Prepared sky radiance survives primary while reused programs reset on offscreen and final boundaries.</summary>
     [Theory]
@@ -203,7 +205,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
                 commands.EndRenderPass();
             });
 }
-            ImageAssertions.CompareConstant(depthStorage,1).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(depthStorage,1).AssertEqual();
             Assert.Equal(inheritedScissorEnabled, GL.IsEnabled(EnableCap.ScissorTest));
             int[] restoredScissor = new int[4];
             GL.GetInteger(GetPName.ScissorBox, restoredScissor);
@@ -538,5 +540,13 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
     #endregion
 
     #region Private
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+    }
     #endregion
 }

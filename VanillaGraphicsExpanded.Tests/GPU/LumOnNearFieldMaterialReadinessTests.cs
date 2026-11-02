@@ -17,6 +17,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBase
 {
+
+
     #region Construction
     /// <summary>Uses an exclusive GPU context while temporarily changing the singleton registry.</summary>
     public LumOnNearFieldMaterialReadinessTests(HeadlessGLFixture fixture) : base(fixture) { }
@@ -101,13 +103,23 @@ public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBa
     /// <summary>Checks actual trace lighting, hit classification, confidence, and the green versus magenta diagnostic code.</summary>
     private void AssertLighting(TraceImages result, bool lit, bool opaque)
     {
-        ObserveTrace(result, GpuAssertionPredicate.LumOnNearFieldMaterialReadinessTests_AssertLighting, parameters:new(lit?1:0,opaque?1:0,0,0)).AssertEqual();
+        ObserveTrace(result, SurfacePredicates.LumOnNearFieldMaterialReadinessTests_AssertLighting, parameters:new(lit?1:0,opaque?1:0,0,0)).AssertEqual();
     }
 
     /// <summary>Proves all captured regions remain GPU-ready even when their material identities are unresolved.</summary>
     private void AssertPublished(ControlledTraceGpuScene scene)
     {
-        ImageAssertions.Inspect(scene.Regions, 1, 1).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(scene.Regions, 1, 1).AssertFiniteRange();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 2, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
     }
     #endregion
 }

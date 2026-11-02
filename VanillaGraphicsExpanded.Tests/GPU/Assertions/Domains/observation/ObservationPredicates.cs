@@ -1,0 +1,30 @@
+namespace VanillaGraphicsExpanded.Tests.GPU.Assertions;
+
+/// <summary>Names independently authored observation predicate contracts.</summary>
+internal static class ObservationPredicates
+{
+    private static readonly GpuObservationDomain Declaration = new("observation", [(8, 1u), (9, 1u), (47, 3u), (48, 1u), (49, 27u), (50, 3u), (51, 1u), (52, 3u), (180, 5u), (181, 5u)]);
+
+    #region Internal API
+    /// <summary>Preserves the independent GpuImageAssertionsSelection observation.</summary>
+    internal static readonly GpuAssertionPredicate GpuImageAssertionsSelection_Extremum = new(Declaration, 8);
+    /// <summary>Preserves the independent GpuImageAssertionsSelection observation.</summary>
+    internal static readonly GpuAssertionPredicate GpuImageAssertionsSelection_Brightest_2 = new(Declaration, 9);
+    /// <summary>Preserves the independent GpuImageAssertionTests observation.</summary>
+    internal static readonly GpuAssertionPredicate GpuImageAssertionTests_SparsePredicatesRetainEveryNominatedPoint = new(Declaration, 47);
+    /// <summary>Preserves the independent GpuImageAssertionTests observation.</summary>
+    internal static readonly GpuAssertionPredicate GpuImageAssertionTests_SparsePredicatesRetainEveryNominatedPoint_2 = new(Declaration, 48);
+    /// <summary>Preserves the independent GpuImageAssertionTests observation.</summary>
+    internal static readonly GpuAssertionPredicate GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses = new(Declaration, 49);
+    /// <summary>Preserves the independent GpuImageAssertionTests observation.</summary>
+    internal static readonly GpuAssertionPredicate GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_2 = new(Declaration, 50);
+    /// <summary>Preserves the independent GpuImageAssertionTests observation.</summary>
+    internal static readonly GpuAssertionPredicate GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_3 = new(Declaration, 51);
+    /// <summary>Preserves the independent GpuImageAssertionTests observation.</summary>
+    internal static readonly GpuAssertionPredicate GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4 = new(Declaration, 52);
+    /// <summary>Preserves the independent GpuImageAssertionsComparisons observation.</summary>
+    internal static readonly GpuAssertionPredicate GpuImageAssertionsComparisons_CompareBits = new(Declaration, 180);
+    /// <summary>Preserves the independent GpuImageAssertionsPredicates observation.</summary>
+    internal static readonly GpuAssertionPredicate GpuImageAssertionsPredicates_CompareFloating = new(Declaration, 181);
+    #endregion
+}

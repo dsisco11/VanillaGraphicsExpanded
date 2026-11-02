@@ -20,6 +20,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>GUI and offscreen use skip absent world publication, while nested solar scopes admit the real shared camera.</summary>
     [Theory]
@@ -77,7 +79,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             framework.RenderQuadTo(program.ProgramId,target);
             engine.Use();
             Assert.Equal(ErrorCode.NoError,GL.GetError());
-            ImageAssertions.CompareConstant(target[0], 1f).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(target[0], 1f).AssertEqual();
             Assert.Equal(0,Binding().Buffer);
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             using var foreign = new PackedUniformBuffer(VgeFrameUniformBuffer.PackedSize);
@@ -247,6 +249,14 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             if(route>=0)uniformLocations["vge_pbrRoute"]=route;
         }
         #endregion
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

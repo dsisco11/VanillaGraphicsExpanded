@@ -18,6 +18,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Lookup reconstruction
     /// <summary>Physical distance, angular direction, identity and enclosure gates select the intended volume coordinates.</summary>
     [Fact]
@@ -103,10 +105,18 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Lum
     scope8.Run(()=>draw.Submit(commands,pipeline,target.PostprocessPass(), program.CaptureBindings()));
 }
             float[] expected=availability>0?new[]{2.6f,1.6f,1.1f,1f,.6f,.6f,.6f,1f}:Enumerable.Repeat(1f,8).ToArray();
-            ImageAssertions.CompareIntervals(target[0],expected.Select(value=>(double)(value-.002f)).ToArray(),
+            ImageAssertions.Comparisons.CompareIntervals(target[0],expected.Select(value=>(double)(value-.002f)).ToArray(),
                 expected.Select(value=>(double)(value+.002f)).ToArray()).AssertEqual();
         }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

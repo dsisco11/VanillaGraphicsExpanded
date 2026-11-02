@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>All radiance attachments and alpha match for background, diffuse, metal, lights and explicit position.</summary>
     [Theory]
@@ -40,7 +42,7 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
             int drawFbo = GL.GetInteger(GetPName.DrawFramebufferBinding), readFbo = GL.GetInteger(GetPName.ReadFramebufferBinding);
             Assert.True(scene.Candidate.RenderLighting(scene.Actual)); Assert.Equal(before + 1, scene.Draws);
             Compare(scene, kind == 0);
-            if(kind==2)Assert.True(ImageAssertions.Inspect(scene.Actual.Radiance,selection:new(new(0,DirectLightingTargets.EmissiveLayer),0,0,0,scene.Actual.Radiance.Width,scene.Actual.Radiance.Height,1)).Maximum>.01f);
+            if(kind==2)Assert.True(ImageAssertions.Statistics.Inspect(scene.Actual.Radiance,selection:new(new(0,DirectLightingTargets.EmissiveLayer),0,0,0,scene.Actual.Radiance.Width,scene.Actual.Radiance.Height,1)).Maximum>.01f);
             AssertHostile(width, height, drawFbo, readFbo);
             Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
             if (kind is 3 or 6)
@@ -50,7 +52,7 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
                 scene.Uniforms.DropShadowIntensity = 0;
                 Assert.True(scene.Candidate.RenderLighting(scene.Actual));
                 using var unshadowed=new GpuImageSnapshot(scene.Actual.Radiance,selection);
-                var brighter=ImageAssertions.Predicate(unshadowed.Texture, GpuAssertionPredicate.DirectLightingSubmissionTests_ProductionMatchesReferenceAcrossFrozenReceivers,shadowed.Texture);
+                var brighter=ImageAssertions.Predicates.Predicate(unshadowed.Texture, LightingPredicates.DirectLightingSubmissionTests_ProductionMatchesReferenceAcrossFrozenReceivers,shadowed.Texture);
                 brighter.AssertEqual();Assert.True(brighter.MatchingTexels>0);
                 scene.Uniforms.DropShadowIntensity = 1;
                 Assert.True(scene.Candidate.RenderLighting(scene.Actual));
@@ -62,7 +64,7 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
         {
             var selection=new RHITextureRegion(new(0,attachment),0,0,0,scene.Actual.Radiance.Width,scene.Actual.Radiance.Height,1);
             using var expected=new GpuImageSnapshot(Assert.IsType<Texture3D>(scene.Normal.Colors[attachment].Image!.Value.Texture.Resource),selection);
-            ImageAssertions.CompareHistory(scene.Actual.Radiance,expected,selection).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(scene.Actual.Radiance,expected,selection).AssertEqual();
         }
         var unchangedPipeline = scene.Candidate.PrepareBoundaryPipeline();
         // Publish the changed inputs through the candidate first, so reference activation cannot hide skipped updates.
@@ -119,7 +121,7 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
             var selection=new RHITextureRegion(new(0,attachment),0,0,0,scene.Actual.Radiance.Width,scene.Actual.Radiance.Height,1);
             using var expected=new GpuImageSnapshot(scene.Expected.Radiance,selection);
             using var actual=new GpuImageSnapshot(scene.Actual.Radiance,selection);
-            var proof=ImageAssertions.Predicate(actual.Texture, GpuAssertionPredicate.DirectLightingSubmissionTests_Compare,expected.Texture,parameters:new(zero?1:0,0,0,0));
+            var proof=ImageAssertions.Predicates.Predicate(actual.Texture, LightingPredicates.DirectLightingSubmissionTests_Compare,expected.Texture,parameters:new(zero?1:0,0,0,0));
             proof.AssertEqual();output.WriteLine($"attachment {attachment}: {proof}");
         }
     }
@@ -144,6 +146,16 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
         GL.Enable(EnableCap.RasterizerDiscard); GL.Enable(EnableCap.ScissorTest); GL.Scissor(0, 0, 0, 0);
         GL.Enable(EnableCap.SampleCoverage); GL.SampleCoverage(0, false);
         GL.Enable(EnableCap.ClipDistance0); OpenGlStateCache.Current.InvalidateAll();
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-lighting", 0, 0);
     }
     #endregion
 }

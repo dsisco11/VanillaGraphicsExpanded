@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>The actual buffer owner clears all temporal roles and restores the caller without issuing draws.</summary>
     [Fact]
@@ -55,8 +57,8 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
             {
                 buffers.ClearHistory();
                 hostile.AssertRestored();
-                Assert.All(images, image => ImageAssertions.CompareConstant(image, 0).AssertEqual());
-                ImageAssertions.CompareConstant(coefficients,0).AssertEqual();
+                Assert.All(images, image => ImageAssertions.Comparisons.CompareConstant(image, 0).AssertEqual());
+                ImageAssertions.Comparisons.CompareConstant(coefficients,0).AssertEqual();
             }
             Assert.False(buffers.HasPublishedIndirect);
             Assert.True(buffers.HistoryRevision > revision);
@@ -94,11 +96,19 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
         }
         if (fail) Assert.Same(expected, Assert.Throws<ArithmeticException>(() => Run())); else Assert.True(Run());
         hostile.AssertRestored();
-        ImageAssertions.Compare(target[0],Enumerable.Repeat(new[]{.25f,.5f,.75f,1f},16).SelectMany(x=>x).ToArray()).AssertEqual();
+        ImageAssertions.Comparisons.Compare(target[0],Enumerable.Repeat(new[]{.25f,.5f,.75f,1f},16).SelectMany(x=>x).ToArray()).AssertEqual();
 #if DEBUG
         Assert.Equal(draws, OpenGlStateCache.Current.DrawSubmissions);
 #endif
         Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

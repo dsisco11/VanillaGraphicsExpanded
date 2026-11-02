@@ -13,6 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Ordered radiance survives without overwriting material data; later opaque depth owns replacement pixels.</summary>
     [Theory]
@@ -104,7 +106,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         capture.BeginCapture();
         capture.EndCapture();
         Assert.Equal(retainedColor, capture.ParticleColor);
-        ImageAssertions.CompareConstant(capture.DrawTarget[0], 0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(capture.DrawTarget[0], 0).AssertEqual();
         Assert.Equal(ReadDepth(capture.BeforeDepth.TextureId), ReadDepth(capture.AfterDepth.TextureId));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -285,8 +287,16 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
     {
         using var image=new BorrowedTexture(texture);
         float selected=GpuLocalRead.Tuple(image,0,0)[0];
-        ImageAssertions.CompareConstant(image,selected).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(image,selected).AssertEqual();
         return selected;
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

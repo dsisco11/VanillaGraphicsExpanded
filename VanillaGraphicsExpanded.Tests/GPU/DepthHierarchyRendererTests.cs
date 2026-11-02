@@ -17,6 +17,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     private static GpuTexture? suppliedReceiver;
     #region Public API
     /// <summary>Explicit enablement shares one current-view chain and retires it immediately when disabled.</summary>
@@ -60,9 +62,9 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
             Assert.False(DepthHierarchyRenderer.TryGetCurrent(alternateView,7,3,out borrowed));Assert.Null(borrowed);
             Assert.False(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,8,3,out borrowed));Assert.Null(borrowed);
             Assert.False(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,7,4,out borrowed));Assert.Null(borrowed);
-            for(int mip=0;mip<first.MipLevels;mip++)ImageAssertions.CompareConstant(first, .4f, Assertions.GpuImageSnapshot.Mip(first, mip)).AssertEqual();
+            for(int mip=0;mip<first.MipLevels;mip++)ImageAssertions.Comparisons.CompareConstant(first, .4f, Assertions.GpuImageSnapshot.Mip(first, mip)).AssertEqual();
             terrain.Depth.UploadDataImmediate(Enumerable.Repeat(.7f,21).ToArray());events.Render(EnumRenderStage.Opaque);
-            ImageAssertions.CompareConstant(first, .4f, Assertions.GpuImageSnapshot.Mip(first, 0)).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(first, .4f, Assertions.GpuImageSnapshot.Mip(first, 0)).AssertEqual();
             // Mutating a reused view buffer cannot make the old depth generation current again.
             VgeFrameRenderer.Current.Capture(identity,identity,identity,identity,identity,identity,new(7,3),0,
                 DepthHierarchyRenderer.FrameIndex!.Value+1,default,default,0);
@@ -70,7 +72,7 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
             events.Render(EnumRenderStage.Before);Assert.Null(DepthHierarchyRenderer.Texture);
             Assert.False(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,7,3,out borrowed));Assert.Null(borrowed);
             events.Render(EnumRenderStage.Opaque); Assert.Same(first,DepthHierarchyRenderer.Texture);
-            ImageAssertions.CompareConstant(first, .7f, Assertions.GpuImageSnapshot.Mip(first, 0)).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(first, .7f, Assertions.GpuImageSnapshot.Mip(first, 0)).AssertEqual();
             owner.SetEnabled(false);
             Assert.Null(DepthHierarchyRenderer.Texture);Assert.False(first.IsValid);
             events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
@@ -90,13 +92,13 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
             framebuffers[(int)EnumFrameBuffer.Primary]=replacement.Primary;
             events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
             Assert.Same(third,DepthHierarchyRenderer.Texture);
-            ImageAssertions.CompareConstant(third, .3f, Assertions.GpuImageSnapshot.Mip(third, 0)).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(third, .3f, Assertions.GpuImageSnapshot.Mip(third, 0)).AssertEqual();
             // A failed rebuild cannot expose the preceding frame's chain; restoring the owner recovers.
             int replacementDepth=replacement.Primary.DepthTextureId;
             suppliedReceiver=replacement.Depth;
             replacement.Primary.DepthTextureId=0;
             events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
-            ImageAssertions.CompareConstant(DepthHierarchyRenderer.Texture!, .3f, Assertions.GpuImageSnapshot.Mip(DepthHierarchyRenderer.Texture!, 0)).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(DepthHierarchyRenderer.Texture!, .3f, Assertions.GpuImageSnapshot.Mip(DepthHierarchyRenderer.Texture!, 0)).AssertEqual();
             suppliedReceiver=null;
             replacement.Primary.DepthTextureId=replacementDepth;
             events.Render(EnumRenderStage.Before);
@@ -117,7 +119,7 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
             events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
             var fourth=DepthHierarchyRenderer.Texture!;Assert.Equal(9,fourth.Width);Assert.Equal(5,fourth.Height);
             Assert.NotSame(third,fourth);
-            for(int mip=0;mip<fourth.MipLevels;mip++)ImageAssertions.CompareConstant(fourth, .2f, Assertions.GpuImageSnapshot.Mip(fourth, mip)).AssertEqual();
+            for(int mip=0;mip<fourth.MipLevels;mip++)ImageAssertions.Comparisons.CompareConstant(fourth, .2f, Assertions.GpuImageSnapshot.Mip(fourth, mip)).AssertEqual();
             events.LeaveWorld();Assert.Null(DepthHierarchyRenderer.Texture);Assert.False(fourth.IsValid);
             owner.Dispose();Assert.DoesNotContain(events.Registrations,r=>ReferenceEquals(r.Renderer,owner));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
@@ -130,6 +132,14 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
     {
         if(suppliedReceiver is null)return true;
         __result=suppliedReceiver;return false;
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

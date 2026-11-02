@@ -16,6 +16,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>World loading has no ordinary frame ring; the generation uses and closes a bounded private epoch.</summary>
     [Fact]
@@ -31,7 +33,7 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
             Assert.Same(source, result.Source);
             Assert.False(RHIUniformRingSystem.TryGetCurrent(out _));
             using var face=new GpuImageSnapshot(result.Galaxy,new(new(),0,0,0,result.Galaxy.Width,result.Galaxy.Height));
-            ImageAssertions.Inspect(face.Texture,float.Epsilon,double.PositiveInfinity,channelMask:7).AssertFiniteRange();
+            ImageAssertions.Statistics.Inspect(face.Texture,float.Epsilon,double.PositiveInfinity,channelMask:7).AssertFiniteRange();
         }
         finally { RHIUniformRingSystem.SetCurrent(previous); }
     }
@@ -84,13 +86,13 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
         using var second = Generate(source);
         Assert.Equal(TextureFormat.R11fG11fB10f, first.Galaxy.InternalFormat);
         Vector3 reference=Vector3.Zero,stored=Vector3.Zero;float maximum=0;
-        using var projection=new GpuImageTransform();
+        var projection = ImageAssertions.Projections;
         using(var weights=CreateSolidAngleWeights(64))
         for(int face=0;face<6;face++)
         {
             using var actual=new GpuImageSnapshot(first.Galaxy,new(new(0,face),0,0,0,64,64));
             using var repeated=new GpuImageSnapshot(second.Galaxy,new(new(0,face),0,0,0,64,64));
-            ImageAssertions.CompareHistory(repeated.Texture,actual,channelMask:7).AssertEqual();
+            ImageAssertions.Comparisons.CompareHistory(repeated.Texture,actual,channelMask:7).AssertEqual();
             var expectedPixels=new float[64*64*4];
             for(int y=0;y<64;y++)for(int x=0;x<64;x++)
             {
@@ -101,9 +103,9 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
                 reference+=expected*CelestialCubeGeometry.SolidAngle(x,y,64);
             }
             using var oracle=TestFramework.CreateTexture(64,64,TextureFormat.Rgba32f,expectedPixels);
-            ImageAssertions.Predicate(actual.Texture, GpuAssertionPredicate.CelestialGalaxyGenerationTests_PackedCubePreservesSourceAndMipEnergy,oracle,parameters:new(source.StorageScale,source.MaximumNits,0,0)).AssertEqual();
+            ImageAssertions.Predicates.Predicate(actual.Texture, AtmospherePredicates.CelestialGalaxyGenerationTests_PackedCubePreservesSourceAndMipEnergy,oracle,parameters:new(source.StorageScale,source.MaximumNits,0,0)).AssertEqual();
             stored+=IntegrateFace(actual.Texture,weights,projection,source.StorageScale);
-            maximum=Math.Max(maximum,(float)ImageAssertions.Inspect(actual.Texture,channelMask:7).Maximum/source.StorageScale);
+            maximum=Math.Max(maximum,(float)ImageAssertions.Statistics.Inspect(actual.Texture,channelMask:7).Maximum/source.StorageScale);
         }
         AssertEnergy(reference,stored,.01f);
         for(int mip=1;mip<first.Galaxy.StorageMipLevels;mip++)
@@ -113,7 +115,7 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
             for(int face=0;face<6;face++)
             {
                 using var image=new GpuImageSnapshot(first.Galaxy,new(new(mip,face),0,0,0,size,size));
-                ImageAssertions.Inspect(image.Texture,0,maximum*1.02f*source.StorageScale,channelMask:7).AssertFiniteRange();
+                ImageAssertions.Statistics.Inspect(image.Texture,0,maximum*1.02f*source.StorageScale,channelMask:7).AssertFiniteRange();
                 integrated+=IntegrateFace(image.Texture,weights,projection,source.StorageScale);
             }
             AssertEnergy(stored,integrated,.01f);
@@ -228,8 +230,8 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
     /// <summary>Rounds each physical RGB quadrature product to float, then uses double GPU sums for stable full-face integration.</summary>
     private Vector3 IntegrateFace(GpuTexture image,GpuTexture weights,GpuImageTransform projection,float scale)
     {
-        using var products=projection.Apply(image, GpuImageProjection.CelestialGalaxyGenerationTests_IntegrateFace,new(scale,0,0,0),weights);
-        var integrated=ImageAssertions.Statistics(products,channelMask:7);
+        using var products=projection.Apply(image, AtmosphereProjections.CelestialGalaxyGenerationTests_IntegrateFace,new(scale,0,0,0),weights);
+        var integrated=ImageAssertions.Statistics.Statistics(products,channelMask:7);
         return new((float)integrated.Sum(0),(float)integrated.Sum(1),(float)integrated.Sum(2));
     }
     /// <summary>Checks each physical channel rather than accepting a finite value produced by a hidden safety clamp.</summary>
@@ -251,6 +253,18 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
         long bytes = 0;
         for (int mip = 0; mip < cube.StorageMipLevels; mip++) { long size = Math.Max(1, cube.Width >> mip); bytes += size * size * 6 * 4; }
         return bytes;
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-atmosphere", 0, 0);
+        programs.Prepare("projection-atmosphere", 0, 0);
+        programs.Prepare("statistics", 0, 0);
     }
     #endregion
 }

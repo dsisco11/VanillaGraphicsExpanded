@@ -14,6 +14,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Complete admission alone neither captures native parameters nor grants arbitrary setter authority.</summary>
     [Fact]
@@ -149,7 +151,7 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
             var expected=new float[4*4*4];
             for(int y=0;y<4;y++)for(int x=0;x<4;x++)for(int component=0;component<4;component++)
                 expected[(y*4+x)*4+component]=x is 1 or 2 && y is 1 or 2?new[]{1f,.5f,.75f,1f}[component]:.25f;
-            ImageAssertions.Compare(target[0],expected).AssertEqual();
+            ImageAssertions.Comparisons.Compare(target[0],expected).AssertEqual();
         }
         finally
         {
@@ -187,7 +189,7 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
             Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
             bool[] mask = new bool[4]; GL.GetBoolean(GetIndexedPName.ColorWritemask, 0, mask);
             Assert.Equal(new[] { false, true, false, true }, mask);
-            if (load == AttachmentLoad.Preserve) ImageAssertions.CompareConstant(target[0], .375f).AssertEqual();
+            if (load == AttachmentLoad.Preserve) ImageAssertions.Comparisons.CompareConstant(target[0], .375f).AssertEqual();
         }
         finally
         {
@@ -241,6 +243,14 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
     {
         EnsureContextValid(); var cache = OpenGlStateCache.Current; cache.InvalidateAll(); _ = cache.MaxDrawBuffers;
         Assert.Equal(ErrorCode.NoError, GL.GetError()); return cache;
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
     }
     #endregion
 }

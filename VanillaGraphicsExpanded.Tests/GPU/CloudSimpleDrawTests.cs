@@ -22,6 +22,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Recorded submission consumes native cloud streams only inside their live synchronous borrowing interval.</summary>
     [Fact]
@@ -31,7 +33,7 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         using var immediate = Draw(.125f, .25f, 2);
         using var recorded = Draw(.125f, .25f, 2, record: true);
         Assert.Equal(immediate.Radiance, recorded.Radiance);
-        ImageAssertions.CompareHistory(recorded.RevealPixels.Texture, immediate.RevealPixels).AssertEqual();
+        ImageAssertions.Comparisons.CompareHistory(recorded.RevealPixels.Texture, immediate.RevealPixels).AssertEqual();
         Assert.Equal(immediate.BucketAlpha, recorded.BucketAlpha);
     }
 
@@ -99,7 +101,7 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         using var shifted = Draw(1,0,0,tileX:20);
         Assert.True(ordinary.VisiblePixels>0); Assert.Equal(0,shifted.VisiblePixels);
         using var warped = Draw(1,0,0,perception:4);
-        Assert.True(ImageAssertions.CompareHistory(warped.RevealPixels.Texture, ordinary.RevealPixels).Mismatches > 0);
+        Assert.True(ImageAssertions.Comparisons.CompareHistory(warped.RevealPixels.Texture, ordinary.RevealPixels).Mismatches > 0);
         using var bright = Draw(1,0,0,brightness:0);
         Assert.Equal(ordinary.Radiance,bright.Radiance);
     }
@@ -123,10 +125,10 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         using var ordinary = Draw(1,0,0);
         using var thick = Draw(1,0,0,thickness:.4f);
         using var thin = Draw(1,0,0,thickness:.4f,thin:1);
-        Assert.True(ImageAssertions.CompareHistory(thick.RevealPixels.Texture, ordinary.RevealPixels).Mismatches > 0);
-        ImageAssertions.CompareHistory(thin.RevealPixels.Texture, ordinary.RevealPixels).AssertEqual();
+        Assert.True(ImageAssertions.Comparisons.CompareHistory(thick.RevealPixels.Texture, ordinary.RevealPixels).Mismatches > 0);
+        ImageAssertions.Comparisons.CompareHistory(thin.RevealPixels.Texture, ordinary.RevealPixels).AssertEqual();
         using var animated = Draw(1,0,0,undulation:1);
-        Assert.True(ImageAssertions.CompareHistory(animated.RevealPixels.Texture, ordinary.RevealPixels).Mismatches > 0);
+        Assert.True(ImageAssertions.Comparisons.CompareHistory(animated.RevealPixels.Texture, ordinary.RevealPixels).Mismatches > 0);
     }
 
     /// <summary>Observed native edits expire existing declarations without transferring engine mesh ownership.</summary>
@@ -235,14 +237,14 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         Assert.Equal(priorVao,GL.GetInteger(GetPName.VertexArrayBinding)); Assert.Equal(priorDepth,GL.IsEnabled(EnableCap.DepthTest));
         Assert.False(native.Mesh.Disposed); Assert.True(GL.IsBuffer(native.Mesh.customDataShortVboId));
         foreach (var image in new[] {a0, overall, glow, a1, a2, reveal})
-            ImageAssertions.Inspect(image, 0).AssertFiniteRange();
-        ImageAssertions.Inspect(overall, 0, 1).AssertFiniteRange();
+            ImageAssertions.Statistics.Inspect(image, 0).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(overall, 0, 1).AssertFiniteRange();
         float[] accumulation = a0.ReadPixelsRegion(size/2, size/2, 1, 1);
         float[] glows = glow.ReadPixelsRegion(size/2, size/2, 1, 1);
         float alpha = accumulation[3];
         Vector3 radiance = alpha > 0 ? new Vector3(accumulation[0],accumulation[1],accumulation[2])/alpha : Vector3.Zero;
         float[] bucketReveal = reveal.ReadPixelsRegion(size/2, size/2, 1, 1);
-        int visible = (int)ImageAssertions.Inspect(overall, double.NegativeInfinity, MathF.BitDecrement(.999f)).InsideRange;
+        int visible = (int)ImageAssertions.Statistics.Inspect(overall, double.NegativeInfinity, MathF.BitDecrement(.999f)).InsideRange;
         Assert.Equal(ErrorCode.NoError,GL.GetError());
         return new(radiance, overall.ReadPixelsRegion(size/2,size/2,1,1)[0], glows, visible, new(overall),
             new(bucketReveal[0],bucketReveal[1],bucketReveal[2]),
@@ -284,6 +286,15 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         /// <summary>Deletes only test-owned allocations after borrowed production geometry has expired.</summary>
         public void Dispose() { vao.Dispose(); indices.Dispose(); foreach(var stream in streams) stream.Dispose(); }
         #endregion
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }

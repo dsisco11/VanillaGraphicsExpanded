@@ -22,6 +22,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>Solar callbacks retain ownership across empty startup, resize, reload and world reset until disposal.</summary>
     [Fact]
@@ -54,7 +56,7 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
         using var result = Draw(lighting, scale, 1);
         for (int channel = 0; channel < 3; channel++)
             Assert.InRange(Math.Abs(result.Power[channel] / lighting.Solar[channel] - 1), 0, .025f);
-        Assert.True(ImageAssertions.Inspect(result.Glow,channelMask:2).Maximum>.99f);
+        Assert.True(ImageAssertions.Statistics.Inspect(result.Glow,channelMask:2).Maximum>.99f);
         AssertMetadataChannels(result);
     }
 
@@ -73,8 +75,8 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
             _ => Lighting()
         };
         using var result = Draw(lighting, .001f, 1, validStorage: scenario != 4);
-        ImageAssertions.CompareConstant(result.Color,0).AssertEqual();
-        ImageAssertions.CompareConstant(result.Glow,0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(result.Color,0).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(result.Glow,0).AssertEqual();
     }
 
     /// <summary>The explicit CPU storage limit caps visible radiance before multiplication while preserving RGB ratios.</summary>
@@ -86,10 +88,10 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
         float maximumScale = AtmosphereSolarDiskStorage.MaximumScale(AtmosphereSolarDisk.Radiance(lighting), 2, 2);
         using var result = Draw(lighting, 8, maximumScale);
         var radiance = AtmosphereSolarDisk.Radiance(lighting) * maximumScale;
-        float peak=(float)ImageAssertions.Inspect(result.Color,channelMask:1).Maximum;
+        float peak=(float)ImageAssertions.Statistics.Inspect(result.Color,channelMask:1).Maximum;
         Assert.InRange(peak, radiance.X * .999f, radiance.X * 1.001f);
         Assert.InRange(peak, 15999f, 16000f);
-        ImageAssertions.Predicate(result.Color, GpuAssertionPredicate.SunDiskDrawTests_VisibleDiskStorageLimitIsFiniteAndChromatic).AssertEqual();
+        ImageAssertions.Predicates.Predicate(result.Color, AtmospherePredicates.SunDiskDrawTests_VisibleDiskStorageLimitIsFiniteAndChromatic).AssertEqual();
         AssertMetadataChannels(result);
     }
 
@@ -103,8 +105,8 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
         using var moved = Draw(Lighting(), .001f, 1, translated);
         for (int channel = 0; channel < 3; channel++)
             Assert.InRange(Math.Abs(moved.Power[channel] / baseline.Power[channel] - 1), 0, .001f);
-        float peak=(float)ImageAssertions.Inspect(baseline.Color).Maximum;
-        ImageAssertions.Predicate(baseline.Color, GpuAssertionPredicate.SunDiskDrawTests_SolarDiskIgnoresCameraTranslation,moved.Color,parameters:new(peak*.002f,0,0,0)).AssertEqual();
+        float peak=(float)ImageAssertions.Statistics.Inspect(baseline.Color).Maximum;
+        ImageAssertions.Predicates.Predicate(baseline.Color, AtmospherePredicates.SunDiskDrawTests_SolarDiskIgnoresCameraTranslation,moved.Color,parameters:new(peak*.002f,0,0,0)).AssertEqual();
     }
     #endregion
 
@@ -129,11 +131,11 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
     /// <summary>Asserts additive alpha neutrality and the sole green solar-coverage metadata channel.</summary>
     private void AssertMetadataChannels(RasterResult result)
     {
-        ImageAssertions.Inspect(result.Color,0).AssertFiniteRange();
-        ImageAssertions.Inspect(result.Glow).AssertFiniteRange();
-        ImageAssertions.CompareConstant(result.Color,0,channelMask:8).AssertEqual();
-        ImageAssertions.Inspect(result.Glow,0,1,channelMask:2).AssertFiniteRange();
-        ImageAssertions.CompareConstant(result.Glow,0,channelMask:13).AssertEqual();
+        ImageAssertions.Statistics.Inspect(result.Color,0).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(result.Glow).AssertFiniteRange();
+        ImageAssertions.Comparisons.CompareConstant(result.Color,0,channelMask:8).AssertEqual();
+        ImageAssertions.Statistics.Inspect(result.Glow,0,1,channelMask:2).AssertFiniteRange();
+        ImageAssertions.Comparisons.CompareConstant(result.Glow,0,channelMask:13).AssertEqual();
     }
     /// <summary>Renders actual owned solar shaders and integrates independent perspective pixel solid angles.</summary>
     private RasterResult Draw(AtmosphereLighting lighting, float scale, float maximumScale, float[]? view = null, bool validStorage = true)
@@ -171,7 +173,7 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
 }
         Assert.Equal(depth, GL.IsEnabled(EnableCap.DepthTest));
         GL.GetBoolean(GetPName.DepthWritemask, out bool restoredWrites); Assert.Equal(writes, restoredWrites);
-        ImageAssertions.Inspect(depthImage, .349999f, .350001f).AssertFiniteRange();
+        ImageAssertions.Statistics.Inspect(depthImage, .349999f, .350001f).AssertFiniteRange();
         var areas=new double[size*size];var cosines=new double[areas.Length];
         for(int y=0;y<size;y++)for(int x=0;x<size;x++)
         {
@@ -180,14 +182,27 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
             areas[y*size+x]=CornerArea(b,d)-CornerArea(a,d)-CornerArea(b,c)+CornerArea(a,c);
             cosines[y*size+x]=1/Math.Sqrt(1+Math.Pow((a+b)/2,2)+Math.Pow((c+d)/2,2));
         }
-        using var imageProjection=new GpuImageTransform();
-        using var physical=imageProjection.Apply(color, GpuImageProjection.MoonDiskDrawTests_Draw,new(scale,0,0,0));
-        var power=ImageAssertions.WeightedStatistics(physical,areas,channelMask:7,secondaryWeights:cosines);
+        var imageProjection = ImageAssertions.Projections;
+        using var physical=imageProjection.Apply(color, AtmosphereProjections.MoonDiskDrawTests_Draw,new(scale,0,0,0));
+        var power=ImageAssertions.Statistics.WeightedStatistics(physical,areas,channelMask:7,secondaryWeights:cosines);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
         return new(new GpuImageSet([color,glow]),new((float)power.Sum(0),(float)power.Sum(1),(float)power.Sum(2)));
     }
 
     /// <summary>Integrates one perspective rectangle without using production disk helpers.</summary>
     private static double CornerArea(double x, double y) => Math.Atan2(x*y, Math.Sqrt(1+x*x+y*y));
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-atmosphere", 0, 0);
+        programs.Prepare("projection-atmosphere", 0, 0);
+        programs.Prepare("statistics", 0, 0);
+        programs.Prepare("statistics", 0, 3);
+    }
     #endregion
 }

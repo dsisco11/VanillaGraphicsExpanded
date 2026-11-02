@@ -19,6 +19,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class EngineOitAccumulationFormatTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+
+
     #region Public API
     /// <summary>The installed allocation changes exactly one internal-format operand and retains every other instruction.</summary>
     [Fact]
@@ -67,14 +69,14 @@ public sealed class EngineOitAccumulationFormatTests(HeadlessGLFixture fixture) 
             int first = (int)AccessTools.Field(typeof(SystemRenderOITLayers), "accumTextureId").GetValue(null)!;
             AssertStorage(first, 3, 2);
             ClearLayers(frames[1].FboId);
-            using(var image=CaptureArray(first))ImageAssertions.CompareConstant(image.Texture,0).AssertEqual();
+            using(var image=CaptureArray(first))ImageAssertions.Comparisons.CompareConstant(image.Texture,0).AssertEqual();
             frames[1].Width = 7;
             frames[1].Height = 3;
             rebuild.Invoke(owner, null);
             int current = (int)AccessTools.Field(typeof(SystemRenderOITLayers), "accumTextureId").GetValue(null)!;
             AssertStorage(current, 7, 3);
             ClearLayers(frames[1].FboId);
-            using(var image=CaptureArray(current))ImageAssertions.CompareConstant(image.Texture,0).AssertEqual();
+            using(var image=CaptureArray(current))ImageAssertions.Comparisons.CompareConstant(image.Texture,0).AssertEqual();
             // Use the real bucket attachments and indexed additive factors. Each output uses
             // the installed depth-zero bell weight;
             // Alpha remains unscaled beside HDR RGB.
@@ -103,7 +105,7 @@ public sealed class EngineOitAccumulationFormatTests(HeadlessGLFixture fixture) 
             {
                 Assert.Equal(128000,GpuLocalRead.Scalar(sums.Texture,0));
                 Assert.Equal(8,GpuLocalRead.Scalar(sums.Texture,3));
-                ImageAssertions.Inspect(sums.Texture).AssertFiniteRange();
+                ImageAssertions.Statistics.Inspect(sums.Texture).AssertFiniteRange();
             }
             sample = CompileProgram("""
                 #version 330 core
@@ -194,6 +196,15 @@ public sealed class EngineOitAccumulationFormatTests(HeadlessGLFixture fixture) 
     {
         string vertex = "#version 330 core\nvoid main(){vec2 p=vec2((gl_VertexID<<1)&2,gl_VertexID&2);gl_Position=vec4(p*2-1,0,1);}";
         return TestShaderCache.CreateGraphics(vertex, fragment);
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
     }
     #endregion
 }
