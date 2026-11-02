@@ -53,15 +53,13 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
             using var source = Scene(pixels, width, height, scale);
             var baseImage = owner.Render(Programs.Api, source, policy);
             double[] reference = ReferenceBase(pixels, width, height, 8, 4);
-            var expectedBase=new double[reference.Length*2];
-            for(int i=0;i<reference.Length;i++)expectedBase[i*2]=reference[i];
-            ImageAssertions.Comparisons.CompareDouble(baseImage,expectedBase,.00003,channelMask:1).AssertEqual();
+            ImageAssertions.Comparisons.CompareComponentDoubles(baseImage,reference,.00003,1).AssertEqual();
             final.SceneImage = source; final.LocalBase = baseImage;
             final.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(ev, 1, 0, MathF.Log2(.18f))); final.CaptureLocal(policy);
             var pipeline = draw.Prepare(final,target.PostprocessPass());
             Submit(draw, pipeline, target,final.CaptureBindings());
             double minStops = 0, maxStops = 0;
-            var expectedDisplay=new double[pixels.Length*4];
+            var expectedDisplay=new double[pixels.Length*3];
             double[] corrections = new double[pixels.Length];
             for (int i = 0; i < pixels.Length; i++)
             {
@@ -73,11 +71,11 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
                 Vector3 expected = FilmicGradingReference.Lookup(pixels[i] * (float)Math.Pow(2, ev + stops), controls);
                 for (int c = 0; c < 3; c++)
                 {
-                    expectedDisplay[i*4+c]=FilmicGradingReference.Quantize(expected[c],i%width,i/width);
+                    expectedDisplay[i*3+c]=FilmicGradingReference.Quantize(expected[c],i%width,i/width);
                 }
             }
             ImageAssertions.Statistics.Inspect(target[0],channelMask:7).AssertFiniteRange();
-            ImageAssertions.Comparisons.CompareDouble(target[0],expectedDisplay,1.001/255,channelMask:7).AssertEqual();
+            ImageAssertions.Comparisons.CompareComponentDoubles(target[0],expectedDisplay,1.001/255,7).AssertEqual();
             if (scenario.StartsWith("uniform")) Assert.InRange(Math.Abs(corrections.Max()-corrections.Min()),0,.00001);
             QualifySpatialShape(scenario, pixels, corrections, width, height);
             output.WriteLine($"Synthetic {scenario}, logical {(indirectSource ? "indirect-added" : "direct-only")} source: display error bounded by 1.001 codes, stops=[{minStops:F3},{maxStops:F3}]. No image history, physical source/curve unchanged.");

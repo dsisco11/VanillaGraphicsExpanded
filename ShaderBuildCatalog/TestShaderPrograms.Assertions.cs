@@ -30,6 +30,9 @@ internal static partial class TestShaderPrograms
         programs.Add(Assertion("predicate-surface", 0, 0, 27));
         programs.Add(Assertion("predicate-water", 0, 0, 27));
         programs.Add(Assertion("predicate-geometry", 0, 0, 11));
+        foreach (string domain in new[] { "observation", "surface" })
+        for (int dimension = 1; dimension <= 4; dimension++)
+            programs.Add(Assertion($"predicate-{domain}-points{dimension}", 0, 0, 31));
         programs.Add(Assertion("statistics-poisson", 0, 0));
         programs.Add(Assertion("layer", 0, 0));
     }
@@ -49,12 +52,13 @@ internal static partial class TestShaderPrograms
         for (int unit = 0; unit < images.Length; unit++) bindings.RegisterImageUnit(images[unit], unit, required: false);
         string identity = $"tests/assertion-{family}-{kind}-{expression}";
         string source = family == "statistics-poisson" ? "observe-poisson-statistics"
-            : family.StartsWith("predicate-") ? "observe-" + family[10..] + "-predicate"
+            : family.StartsWith("predicate-") ? "observe-" + family[10..].Split("-points")[0] + "-predicate"
             : family.StartsWith("projection-") ? "observe-" + family[11..] + "-projection"
             : family == "layer" ? "assertion-layer" : "assertion-check";
         var stage = new ShaderStageContract(identity + ".csh", $"tests/{source}.csh",
             ShaderStageKind.Compute, bindings, fixedDefines: new Dictionary<string, ShaderScalar>
-            { ["KIND"] = ShaderScalar.From(kind), ["STATISTIC_EXPRESSION"] = ShaderScalar.From(expression),
+            { ["POINT_SOURCE"] = ShaderScalar.From(family.Contains("-points") ? int.Parse(family[^1..]) : 0),
+                ["KIND"] = ShaderScalar.From(kind), ["STATISTIC_EXPRESSION"] = ShaderScalar.From(expression),
                 ["AUTHORED_PROGRAM"] = ShaderScalar.From(family.StartsWith("predicate-") ? 1 : 0),
                 ["AUTHORED_STATISTIC"] = ShaderScalar.From(family == "statistics-poisson" ? 1 : 0),
                 ["PREDICATE_INPUTS"] = ShaderScalar.From(predicateInputs),

@@ -148,10 +148,14 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest));
             int[] box = new int[4]; GL.GetInteger(GetPName.ScissorBox, box); Assert.Equal(new[] { 0, 0, 1, 1 }, box);
             bool[] mask = new bool[4]; GL.GetBoolean(GetIndexedPName.ColorWritemask, 0, mask); Assert.All(mask, Assert.False);
-            var expected=new float[4*4*4];
-            for(int y=0;y<4;y++)for(int x=0;x<4;x++)for(int component=0;component<4;component++)
-                expected[(y*4+x)*4+component]=x is 1 or 2 && y is 1 or 2?new[]{1f,.5f,.75f,1f}[component]:.25f;
-            ImageAssertions.Comparisons.Compare(target[0],expected).AssertEqual();
+            ImageAssertions.Comparisons.CompareRegions(target[0],
+            [
+                new(new(new(0),0,0,0,4,1),new(.25f)),
+                new(new(new(0),0,3,0,4,1),new(.25f)),
+                new(new(new(0),0,1,0,1,2),new(.25f)),
+                new(new(new(0),3,1,0,1,2),new(.25f)),
+                new(new(new(0),1,1,0,2,2),new(1,.5f,.75f,1))
+            ]).AssertEqual();
         }
         finally
         {

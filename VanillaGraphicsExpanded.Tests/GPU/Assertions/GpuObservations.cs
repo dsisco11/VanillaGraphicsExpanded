@@ -22,7 +22,7 @@ internal sealed class GpuObservations
     {
         Programs = programs;
         Projections = new(programs);
-        Comparisons = new(programs, Projections);
+        Comparisons = new(programs);
         Statistics = new(programs, Projections);
         Predicates = new(programs);
         Selection = new(programs, Statistics, Predicates, Projections);

@@ -253,9 +253,9 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
             for (int target = 0; target < 3; target++)
             {
                 using var image=NativeFramebufferImage.Capture(framebuffer,target,8,8,TextureFormat.Rgba8);
-                var expected=new float[8*8*4];
-                for(int i=0;i<expected.Length;i++)expected[i]=i%4==target || i%4==3?1:0;
-                assertions.Comparisons.Compare(image.Texture,expected).AssertEqual();
+                var expected = new System.Numerics.Vector4(0,0,0,1);
+                expected[target] = 1;
+                assertions.Comparisons.CompareVector(image.Texture,expected).AssertEqual();
             }
         }
         /// <summary>Checks shader-observed facing for every covered pixel independently of native winding metadata.</summary>
@@ -263,7 +263,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
         {
             var assertions = observations;
             using var image=NativeFramebufferImage.Capture(framebuffer,0,8,8,TextureFormat.Rgba8);
-            assertions.Comparisons.Compare(image.Texture,Enumerable.Repeat(front?new[]{1f,0f,0f,1f}:new[]{0f,1f,0f,1f},64).SelectMany(x=>x).ToArray()).AssertEqual();
+            assertions.Comparisons.CompareVector(image.Texture, front ? new(1,0,0,1) : new(0,1,0,1)).AssertEqual();
         }
         /// <summary>Releases fixture resources while the collection context remains active.</summary>
         public void Dispose()

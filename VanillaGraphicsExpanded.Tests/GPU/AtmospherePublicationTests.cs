@@ -221,7 +221,6 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
     {
         base.PrepareObservations(programs);
         programs.Prepare("compare", 0, 0);
-        programs.Prepare("predicate-observation", 0, 0);
     }
     #endregion
 }

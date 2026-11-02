@@ -48,26 +48,26 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         Vector3[] colors = Enumerable.Range(0, 128).Select(i => new Vector3(.00003f * MathF.Pow(2, (i % 16) * .15f), .00002f, .00001f)).ToArray();
         using var result = Pipeline(colors, 16, 8, storage, 13, new(.4f, .7f), new(3, 2));
         double[] logs = colors.Select(Luminance).Select(Math.Log2).ToArray();
-        var expectedLogs=new double[colors.Length*2];
-        var expectedBaseValues=new double[colors.Length*2];
-        var expectedStops=new double[colors.Length*4];
-        var expectedGain=new double[colors.Length*4];
+        var expectedLogs=new double[colors.Length];
+        var expectedBaseValues=new double[colors.Length];
+        var expectedStops=new double[colors.Length];
+        var expectedGain=new double[colors.Length*3];
         for (int i = 0; i < colors.Length; i++)
         {
             double expectedBase = Filter(logs, 16, 8, i, 1);
             double stops = Stops(expectedBase, 13, new(.4f, .7f), new(3, 2));
-            expectedLogs[i*2]=logs[i];expectedBaseValues[i*2]=expectedBase;expectedStops[i*4+3]=stops;
+            expectedLogs[i]=logs[i];expectedBaseValues[i]=expectedBase;expectedStops[i]=stops;
             for (int channel = 0; channel < 3; channel++)
-                expectedGain[i*4+channel]=Math.Pow(2,stops);
+                expectedGain[i*3+channel]=Math.Pow(2,stops);
         }
-        ImageAssertions.Comparisons.CompareDouble(result[0].Texture,expectedLogs,.000003,channelMask:1).AssertEqual();
-        ImageAssertions.Comparisons.CompareDouble(result[1].Texture,expectedBaseValues,.000005,channelMask:1).AssertEqual();
-        ImageAssertions.Comparisons.CompareDouble(result[2].Texture,expectedStops,.000005,channelMask:8).AssertEqual();
+        ImageAssertions.Comparisons.CompareComponentDoubles(result[0].Texture,expectedLogs,.000003,1).AssertEqual();
+        ImageAssertions.Comparisons.CompareComponentDoubles(result[1].Texture,expectedBaseValues,.000005,1).AssertEqual();
+        ImageAssertions.Comparisons.CompareComponentDoubles(result[2].Texture,expectedStops,.000005,8).AssertEqual();
         // Round each quotient to float before the original independent double-reference comparison.
         using var divisors=TestFramework.CreateTexture(16,8,TextureFormat.Rgba32f,colors.SelectMany(c=>new[]{c.X,c.Y,c.Z,1f}).ToArray());
         var transform = ImageAssertions.Projections;
         using var gains=transform.Apply(result[2].Texture, MaterialProjections.LocalExposurePrototypeTests_FilterMatchesPhysicalReferenceAcrossStorageScales,second:divisors);
-        ImageAssertions.Comparisons.CompareDouble(gains,expectedGain,.00002,channelMask:7).AssertEqual();
+        ImageAssertions.Comparisons.CompareComponentDoubles(gains,expectedGain,.00002,7).AssertEqual();
     }
 
     /// <summary>Black, negative, NaN and infinity samples are invalid and acquire no correction or borrowed illumination.</summary>
@@ -157,7 +157,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         EnsureShaderTestAvailable();
         using var metadata = TestFramework.CreateTexture(6, 1, TextureFormat.R32f, [-151, 129, 1e30f, -1e30f, float.NaN, float.PositiveInfinity]);
         using var result = DrawImage("float q=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(q,0.0,0.0,vec2(1),vec2(8)),VgeLocalExposureStops(0.0,q,0.0,vec2(.5),vec2(8)),0,1);", 6, 1, metadata);
-        ImageAssertions.Comparisons.Compare(result.Texture,Enumerable.Repeat(new[]{0f,0f,0f,1f},6).SelectMany(x=>x).ToArray()).AssertEqual();
+        ImageAssertions.Comparisons.CompareVector(result.Texture,new(0,0,0,1)).AssertEqual();
     }
 
     /// <summary>A nonfinite display pivot cannot create local gain even with otherwise valid scene metadata.</summary>
@@ -167,7 +167,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         EnsureShaderTestAvailable();
         using var metadata=TestFramework.CreateTexture(3,1,TextureFormat.R32f,[float.NaN,float.PositiveInfinity,float.NegativeInfinity]);
         using var result=DrawImage("float q=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(-12.0,2.0,q,vec2(.5),vec2(4)),0,0,1);",3,1,metadata);
-        ImageAssertions.Comparisons.Compare(result.Texture,Enumerable.Repeat(new[]{0f,0f,0f,1f},3).SelectMany(x=>x).ToArray()).AssertEqual();
+        ImageAssertions.Comparisons.CompareVector(result.Texture,new(0,0,0,1)).AssertEqual();
     }
 
     /// <summary>Nontrivial guided interpolation agrees with normalized independent double spatial and range weights.</summary>
@@ -198,11 +198,11 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         using var values = TestFramework.CreateTexture(9, 1, TextureFormat.R32f, [-100, -4, -1, -.0001f, 0, .0001f, 1, 4, 100]);
         using var result = DrawImage("float b=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;float s=VgeLocalExposureStops(b,0.0,0.0,strengths,bounds);outColor=vec4(s,b+s,(b+.25)+s,1);", 9, 1, values, null, 1, 0, new(.5f, .25f), new(3, 2));
         float[] samples = [-100, -4, -1, -.0001f, 0, .0001f, 1, 4, 100];
-        var expectedStops=new double[samples.Length*4];
+        var expectedStops=new double[samples.Length];
         for (int i = 0; i < samples.Length; i++)
-            expectedStops[i*4]=Stops(samples[i],0,new(.5f,.25f),new(3,2));
+            expectedStops[i]=Stops(samples[i],0,new(.5f,.25f),new(3,2));
         ImageAssertions.Statistics.Inspect(result.Texture,-2,3,channelMask:1).AssertFiniteRange();
-        ImageAssertions.Comparisons.CompareDouble(result.Texture,expectedStops,.00001,channelMask:1).AssertEqual();
+        ImageAssertions.Comparisons.CompareComponentDoubles(result.Texture,expectedStops,.00001,1).AssertEqual();
         ImageAssertions.Predicates.Predicate(result.Texture, MaterialPredicates.LocalExposurePrototypeTests_BoundsAndSmoothJoinPreserveBaseDetail).AssertEqual();
         Assert.InRange(Math.Abs(GpuLocalRead.Scalar(result.Texture,3*4)-GpuLocalRead.Scalar(result.Texture,5*4)),0,.0002);
         using var identity = DrawImage("float b=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(b,0.0,0.0,vec2(1),vec2(8)),0,0,1);", 9, 1, values);

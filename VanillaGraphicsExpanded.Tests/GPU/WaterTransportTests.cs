@@ -32,8 +32,7 @@ public sealed class WaterTransportTests(HeadlessGLFixture fixture) : LumOnShader
         using var target = CreateMRTRenderTarget(4, 13, TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         // Independently author the original double intervals; only bounded comparison results return to the CPU.
-        var lower=Enumerable.Range(0,2).Select(_=>Enumerable.Repeat(double.NegativeInfinity,4*13*4).ToArray()).ToArray();
-        var upper=Enumerable.Range(0,2).Select(_=>Enumerable.Repeat(double.PositiveInfinity,4*13*4).ToArray()).ToArray();
+        var expectations = new List<Assertions.GpuScalarInterval>[] { [], [] };
         double[] weights = [0, .25, .5, 1], fallback = [2,4,8], receiver = [16,8,4];
         double[] background = [8,4,2], extinction = [.3,.5,.7], scattering = [.2,.3,.4];
         for (int x = 0; x < 4; x++)
@@ -82,17 +81,16 @@ public sealed class WaterTransportTests(HeadlessGLFixture fixture) : LumOnShader
         }
         foreach(var selected in new (int Target,int Row,int Rows,uint Mask)[]{(0,0,1,15u),(0,1,1,7u),(0,2,10,15u),(0,12,1,7u),(1,3,9,15u)})
         {
-            int first=selected.Row*16,last=first+selected.Rows*16;
-            ImageAssertions.Comparisons.CompareIntervals(target[selected.Target],lower[selected.Target][first..last],upper[selected.Target][first..last],
-                new(new(0,0),0,selected.Row,0,4,selected.Rows,1),selected.Mask).AssertEqual();
+            var samples = expectations[selected.Target].Where(item => item.Pixel / 4 >= selected.Row &&
+                item.Pixel / 4 < selected.Row + selected.Rows && (selected.Mask & (1u << item.Channel)) != 0).ToArray();
+            ImageAssertions.Comparisons.CompareIntervals(target[selected.Target], samples).AssertEqual();
         }
 
         /// <summary>Retains the original per-component double tolerance without narrowing expected values.</summary>
         void Expect(double expected,int attachment,int component)
         {
             double tolerance=2e-5*Math.Max(1,Math.Abs(expected));
-            lower[attachment][component]=expected-tolerance;
-            upper[attachment][component]=expected+tolerance;
+            expectations[attachment].Add(new(component / 4, component % 4, expected - tolerance, expected + tolerance));
         }
     }
     #endregion

@@ -147,7 +147,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(program, target);
         // Compute independent CPU bounds for every original interior pixel.
         int interiorWidth=ScreenWidth-2,interiorHeight=ScreenHeight-2;
-        var lower=new double[interiorWidth*interiorHeight*4];
+        var lower=new double[interiorWidth*interiorHeight*2];
         var upper=new double[lower.Length];
         for (int y = 1; y < ScreenHeight - 1; y++)
         for (int x = 1; x < ScreenWidth - 1; x++)
@@ -157,12 +157,12 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
             Vector4 oldRelative = new(uv.X * 2 - 1 + .0625f, uv.Y * 2 - 1 + .125f, -.03125f, 1);
             Vector4 clip = MulMat4Vec4(previous, oldRelative);
             Vector2 expected = historyValid ? uv - new Vector2(clip.X / clip.W, clip.Y / clip.W) * .5f - new Vector2(.5f) : Vector2.Zero;
-            int index = ((y-1)*interiorWidth+x-1)*4;
+            int index = ((y-1)*interiorWidth+x-1)*2;
             lower[index]=expected.X-TestEpsilon;upper[index]=expected.X+TestEpsilon;
             lower[index+1]=expected.Y-TestEpsilon;upper[index+1]=expected.Y+TestEpsilon;
         }
         var region=new RHITextureRegion(new(0,0),1,1,0,interiorWidth,interiorHeight,1);
-        ImageAssertions.Comparisons.CompareIntervals(target[0],lower,upper,region,3).AssertEqual();
+        ImageAssertions.Comparisons.CompareComponentIntervals(target[0],lower,upper,3,region).AssertEqual();
         using var interior=new GpuImageSnapshot(target[0],region);
         ImageAssertions.Predicates.Predicate(interior.Texture, SurfacePredicates.LumOnVelocityFunctionalTests_Velocity_RenderOriginMovementPreservesWorldReprojection,
             parameters:new(historyValid?1:2,0,0,0)).AssertEqual();

@@ -3,9 +3,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Assertions;
 /// <summary>Names independently authored observation predicate contracts.</summary>
 internal static class ObservationPredicates
 {
-    private static readonly GpuObservationDomain Declaration = new("observation", [(8, 1u), (9, 1u), (47, 3u), (48, 1u), (49, 27u), (50, 3u), (51, 1u), (52, 3u), (180, 5u), (181, 5u)]);
+    private static readonly GpuObservationDomain Declaration = new("observation", [(187,3u), (8, 1u), (9, 1u), (47, 3u), (48, 1u), (49, 27u), (50, 3u), (51, 1u), (52, 3u)]);
 
     #region Internal API
+    /// <summary>Verifies stored byte codes at integer-nominated X coordinates, independently of sampling decode.</summary>
+    internal static readonly GpuAssertionPredicate StoredRedByte = new(Declaration,187);
     /// <summary>Preserves the independent GpuImageAssertionsSelection observation.</summary>
     internal static readonly GpuAssertionPredicate GpuImageAssertionsSelection_Extremum = new(Declaration, 8);
     /// <summary>Preserves the independent GpuImageAssertionsSelection observation.</summary>
@@ -22,9 +24,5 @@ internal static class ObservationPredicates
     internal static readonly GpuAssertionPredicate GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_3 = new(Declaration, 51);
     /// <summary>Preserves the independent GpuImageAssertionTests observation.</summary>
     internal static readonly GpuAssertionPredicate GpuImageAssertionTests_AuthoredPredicatesRetainCorrespondingImagesAndWitnesses_4 = new(Declaration, 52);
-    /// <summary>Preserves the independent GpuImageAssertionsComparisons observation.</summary>
-    internal static readonly GpuAssertionPredicate GpuImageAssertionsComparisons_CompareBits = new(Declaration, 180);
-    /// <summary>Preserves the independent GpuImageAssertionsPredicates observation.</summary>
-    internal static readonly GpuAssertionPredicate GpuImageAssertionsPredicates_CompareFloating = new(Declaration, 181);
     #endregion
 }

@@ -113,7 +113,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         shader.SourceImage=source; shader.SecondaryImage=source;
         shader.CaptureGaussian(4,false); Draw(shader,horizontal);
         shader.SourceImage=horizontal[0]; shader.CaptureGaussian(4,true); Draw(shader,result);
-        var lower=new double[33*17*4];var upper=new double[lower.Length];
+        var lower=new double[33*17];var upper=new double[lower.Length];
         float normalization=Enumerable.Range(-4,9).Sum(t=>MathF.Exp(-16.7f*t*t/16));
         float[] coefficients=Enumerable.Range(0,5).Select(t=>MathF.Exp(-16.7f*t*t/16)/normalization).ToArray();
 
@@ -125,9 +125,9 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
             float wx=Math.Abs(dx)<=4?coefficients[Math.Abs(dx)]:0,wy=Math.Abs(dy)<=4?coefficients[Math.Abs(dy)]:0;
             float ex=GaussianInterpolationError(coefficients,dx),ey=GaussianInterpolationError(coefficients,dy);
             float tolerance=256*(wx*ey+wy*ex+ex*ey)+.00001f;
-            int scalar=(y*33+x)*4;lower[scalar]=expected-tolerance;upper[scalar]=expected+tolerance;
+            int scalar=y*33+x;lower[scalar]=expected-tolerance;upper[scalar]=expected+tolerance;
         }
-        ImageAssertions.Comparisons.CompareIntervals(result[0],lower,upper,channelMask:1).AssertEqual();
+        ImageAssertions.Comparisons.CompareComponentIntervals(result[0],lower,upper,1).AssertEqual();
         var mass=ImageAssertions.Statistics.Statistics(result[0],channelMask:1);mass.AssertFiniteRange();
         Assert.InRange(mass.Sum(0),255.99,256.01);
         Assert.True(GpuLocalRead.Scalar(result[0],(8*33+16)*4)>1);
@@ -170,7 +170,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
             using var source=TestFramework.CreateTexture(33,17,TextureFormat.Rgba32f,pixels);
             shader.SourceImage=source;shader.SecondaryImage=source;
             shader.CaptureGaussian(radius,false);Draw(shader,target);
-            var lower=new double[33*4];var upper=new double[lower.Length];
+            var lower=new double[33];var upper=new double[lower.Length];
             float[] kernel=Enumerable.Range(-radius,2*radius+1).Select(x=>MathF.Exp(-16.7f*x*x/(radius*radius))).ToArray();
             float normalization=kernel.Sum();
             float[] coefficients=kernel.Skip(radius).Select(v=>v/normalization).ToArray();
@@ -183,10 +183,10 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
 
                 float tolerance=(1-phase)*GaussianInterpolationError(coefficients,first)
                     +phase*GaussianInterpolationError(coefficients,second)+.00001f;
-                lower[x*4]=expected-tolerance;upper[x*4]=expected+tolerance;
+                lower[x]=expected-tolerance;upper[x]=expected+tolerance;
             }
             var row=new RHITextureRegion(new(0),0,8,0,33,1,1);
-            ImageAssertions.Comparisons.CompareIntervals(target[0],lower,upper,row,1).AssertEqual();
+            ImageAssertions.Comparisons.CompareComponentIntervals(target[0],lower,upper,1,row).AssertEqual();
             var massProof=ImageAssertions.Statistics.Statistics(target[0],row,1);massProof.AssertFiniteRange();
             var transform = ImageAssertions.Projections;
             using var weighted=transform.Apply(target[0], LightingProjections.OwnedPostprocessShaderTests_BloomGaussianFootprintHasNoSparseTapTroughs);
@@ -205,6 +205,25 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
             var monotone=ImageAssertions.Predicates.Predicate(target[0], LightingPredicates.OwnedPostprocessShaderTests_BloomGaussianFootprintHasNoSparseTapTroughs_2,parameters:new(phase==0?0:1,0,0,0));
             monotone.AssertEqual();Assert.Equal(phase==0?10u:9u,monotone.MatchingTexels);
         }
+    }
+
+    /// <summary>The independent Gaussian monotonicity oracle selects only its authored row/columns and exposes a nominated defect.</summary>
+    [Theory]
+    [InlineData(0)] [InlineData(1)]
+    public void GaussianWitnessMaskRetainsAuthoredRowAndColumns(int phase)
+    {
+        EnsureShaderTestAvailable();
+        var pixels = new float[33*17*4];
+        using var source = TestFramework.CreateTexture(33,17,TextureFormat.Rgba32f,pixels);
+        var predicate = LightingPredicates.OwnedPostprocessShaderTests_BloomGaussianFootprintHasNoSparseTapTroughs_2;
+        var result = ImageAssertions.Predicates.Predicate(source,predicate,parameters:new(phase,0,0,0));
+        result.AssertEqual(); Assert.Equal((uint)(10-phase),result.MatchingTexels);
+        Assert.Equal(8*33+17+phase,result.FirstWitnessIndex);
+        pixels[(8*33+23)*4]=1;
+        source.UploadDataImmediate(pixels);
+        var failure = ImageAssertions.Predicates.Predicate(source,predicate,parameters:new(phase,0,0,0));
+        Assert.Equal(1u,failure.Mismatches); Assert.Equal((uint)(10-phase),failure.MatchingTexels);
+        Assert.Contains("(23,8,0)",failure.ToString());
     }
 
     /// <summary>The production graph normalizes every selected scale and replaces retired images on resize or explicit teardown.</summary>

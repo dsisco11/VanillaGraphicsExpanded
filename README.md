@@ -234,7 +234,12 @@ separate tests.
 
 `HeadlessGLFixture.Observations` supplies explicit comparison, statistics, predicate, selection and
 projection services. `Comparisons` checks complete selected image domains against independent CPU
-expectations or retained `GpuImageSnapshot` histories. `Statistics` provides finite/range/extrema/count
+expectations or retained `GpuImageSnapshot` histories. Use `CompareVector`/`CompareIntegerVector` for
+uniform tuples and `CompareRegions` for small authored region tables; overlapping regions retain every
+expectation. `CompareComponents`, `CompareComponentDoubles`, `CompareComponentFloating` and
+`CompareComponentIntervals` accept only the channels named by their mask, ordered by pixel then channel.
+Independent numerical references retain their original float/double arithmetic and bounds. Scalar reference
+storage omits unselected lanes and interleaves double words rather than allocating separate RGBA bands. `Statistics` provides finite/range/extrema/count
 facts, double moments and rank-permutation checks; `Predicates` executes independently authored domain
 contracts. Results expose operation-specific counts and moments rather than interpreting one counter
 as constant matches, flag matches, witnesses and statistics completion. Comparisons report exact
@@ -277,8 +282,15 @@ inputs at independently authored coordinates. `GpuImageTransform` authors histor
 on the GPU; expectations remain separate. When an oracle requires float products with double sums,
 products round into RGBA32F storage before the double reduction. `OrderedFloatSum` retains explicitly
 required sequential float addition; `WeightedStatistics` retains independent double quadrature weights.
-`PredicateAt` checks every nominated coordinate and layer, while `CompareRgba8` reconstructs normalized
-metadata bytes before comparing independently authored values. Local float, integer and byte tuples use
+`CompareSelected` uploads integer texel/RGB records and dispatches only nominated samples. Sparse interval
+records preserve duplicate/intersecting bounds. Sparse results prove nominated visits/components and report
+original source coordinates; they do not expose uncomputed whole-image statistics. Comparison source
+snapshots remain explicit implementation cost. `PredicateAt` uploads integer coordinates and borrows
+completed 2D, array and 3D sources synchronously. Stored sRGB bytes, packed depth/stencil aspects and cube
+faces use copies of only the nominated texels into owned interpretation storage; source selectors remain
+unchanged. It never copies the enclosing source solely for point checks. `CompareRgba8` compares the
+original byte expectations directly, reconstructing normalized bytes in the checker without a float
+projection/reference round trip. Local float, integer and byte tuples use
 the selected RHI readback region directly, preserving their original representations. Shared surface
 fixtures publish their authored CPU cell/table inputs directly into production scene storage; history
 seeding and later comparisons stay on the GPU.

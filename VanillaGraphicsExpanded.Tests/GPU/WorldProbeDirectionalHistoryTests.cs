@@ -119,26 +119,25 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
         }
         finally { GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true); }
         // Author expected coordinates independently of the invalidation shader, including every direction.
-        var radiance=new float[resources.ProbeRadianceAtlas.Width*resources.ProbeRadianceAtlas.Height*4];
-        var metadata=new float[resources.ProbeMeta0.Width*resources.ProbeMeta0.Height*2];
-        var visibility=new float[resources.ProbeVis0.Width*resources.ProbeVis0.Height*4];
-        var distance=new float[resources.ProbeDist0.Width*resources.ProbeDist0.Height*2];
-        for(int level=0;level<2;level++)for(int z=0;z<4;z++)for(int y=0;y<4;y++)for(int x=0;x<4;x++)
+        var radiance = new List<Assertions.GpuVectorRegion>();
+        var metadata = new List<Assertions.GpuVectorRegion>();
+        for(int level=0;level<2;level++)for(int y=0;y<4;y++)for(int z=0;z<4;z++)
         {
-            bool cleared=level==1 && x!=2 && y>=2 && z>=1 && z<=2;
-            float expected=cleared?0:1;
-            int scalar=((level*4+y)*16+z*4+x)*4;
-            metadata[scalar>>1]=expected;visibility[scalar]=expected;distance[scalar>>1]=expected;
-            for(int v=0;v<4;v++)for(int u=0;u<4;u++)
+            // Contiguous runs encode the same independent slot-membership oracle without repeated directional pixels.
+            for (int x=0;x<4;)
             {
-                int pixel=(((level*4+y)*4+v)*64+(z*4+x)*4+u)*4;
-                for(int c=0;c<4;c++)radiance[pixel+c]=expected;
+                bool cleared=level==1 && x!=2 && y>=2 && z>=1 && z<=2;
+                int first=x++;
+                while(x<4 && (level==1 && x!=2 && y>=2 && z>=1 && z<=2)==cleared)x++;
+                var value=new System.Numerics.Vector4(cleared?0:1);
+                radiance.Add(new(new(new(0),(z*4+first)*4,(level*4+y)*4,0,(x-first)*4,4),value));
+                metadata.Add(new(new(new(0),z*4+first,level*4+y,0,x-first,1),value,1));
             }
         }
-        ImageAssertions.Comparisons.Compare(resources.ProbeRadianceAtlas,radiance).AssertEqual();
-        ImageAssertions.Comparisons.Compare(resources.ProbeMeta0,metadata,channelMask:1).AssertEqual();
-        ImageAssertions.Comparisons.Compare(resources.ProbeVis0,visibility,channelMask:1).AssertEqual();
-        ImageAssertions.Comparisons.Compare(resources.ProbeDist0,distance,channelMask:1).AssertEqual();
+        ImageAssertions.Comparisons.CompareRegions(resources.ProbeRadianceAtlas,radiance).AssertEqual();
+        ImageAssertions.Comparisons.CompareRegions(resources.ProbeMeta0,metadata).AssertEqual();
+        ImageAssertions.Comparisons.CompareRegions(resources.ProbeVis0,metadata).AssertEqual();
+        ImageAssertions.Comparisons.CompareRegions(resources.ProbeDist0,metadata).AssertEqual();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

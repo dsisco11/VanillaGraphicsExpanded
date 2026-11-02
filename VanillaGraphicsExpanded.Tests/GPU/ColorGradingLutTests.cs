@@ -157,14 +157,14 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         Vector4 controls = new(1, 1, 1, contrast);
         Vector3[] colors = Enumerable.Range(0, 65).Select(i => new Vector3(MathF.Pow(2, -16 + i * .375f))).ToArray();
         using var actual=Final(colors,owner.Prepare(Programs.Api,controls),controls,0);
-        var expected=new float[colors.Length*4];var tolerances=new float[expected.Length];
+        var expected=new float[colors.Length];var tolerances=new float[expected.Length];
         for(int pixel=0;pixel<colors.Length;pixel++)
         {
             float reference=FilmicGradingReference.Display(colors[pixel],controls).X;
-            expected[pixel*4]=FilmicGradingReference.Quantize(reference,pixel);
-            tolerances[pixel*4]=6.001f/255;
+            expected[pixel]=FilmicGradingReference.Quantize(reference,pixel);
+            tolerances[pixel]=6.001f/255;
         }
-        ImageAssertions.Comparisons.CompareFloating(actual.Texture,expected,tolerances,channelMask:1).AssertEqual();
+        ImageAssertions.Comparisons.CompareComponentFloating(actual.Texture,expected,tolerances,1).AssertEqual();
         ImageAssertions.Predicates.Predicate(actual.Texture, MaterialPredicates.ColorGradingLutTests_NeutralGradientHasBoundedInterpolationError,parameters:new(1.001f/255,0,0,0)).AssertEqual();
         output.WriteLine($"Neutral ramp remains monotonic within 6.001/255 reference and 1.001/255 chroma tolerances at contrast {contrast:R}.");
     }

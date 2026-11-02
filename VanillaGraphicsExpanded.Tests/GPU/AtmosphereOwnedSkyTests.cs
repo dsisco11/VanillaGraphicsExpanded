@@ -525,7 +525,6 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
     {
         base.PrepareObservations(programs);
         programs.Prepare("compare", 0, 0);
-        programs.Prepare("predicate-observation", 0, 0);
     }
     #endregion
 }

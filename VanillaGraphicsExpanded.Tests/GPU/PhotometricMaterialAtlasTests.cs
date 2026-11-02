@@ -34,9 +34,9 @@ public sealed class PhotometricMaterialAtlasTests(HeadlessGLFixture fixture) : R
             TextureStreamingSystem.TickOnRenderThread();
         Assert.Equal(0, TextureStreamingSystem.Manager.PendingCount);
         Assert.True(store.TryGetPageTextures(7, out var page));
-        var expected=new float[64*4];
-        for(int pixel=0;pixel<64;pixel++)expected[pixel*4+2]=(float)(Half)loaded[pixel*3+2];
-        ImageAssertions.Comparisons.Compare(page.MaterialParamsTexture,expected,channelMask:6).AssertEqual();
+        var expected=new float[64*2];
+        for(int pixel=0;pixel<64;pixel++)expected[pixel*2+1]=(float)(Half)loaded[pixel*3+2];
+        ImageAssertions.Comparisons.CompareComponents(page.MaterialParamsTexture,expected,6).AssertEqual();
         Assert.Equal(LightingCalibration.EmissionReferenceNits, store.MaximumEmissionNits);
     }
 

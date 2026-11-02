@@ -314,6 +314,7 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
     {
         base.PrepareObservations(programs);
         programs.Prepare("predicate-surface", 0, 0);
+        programs.Prepare("predicate-surface-points1");
     }
     #endregion
 }

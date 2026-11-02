@@ -62,10 +62,10 @@ return bvec2(true,a.r>0.01 || a.g>0.01 || a.b>0.01);
 bvec2 predicate64(ivec3 coordinate,uint index,vec4 a,vec4 b,vec4 c,vec4 d,ivec3 selected,vec4 value,uint flags) {
 {
 ivec2 origin=coordinate.xy*2;
-vec4 block=vec4(texelFetch(historyImage,ivec3(origin,0),0).r,
-    texelFetch(historyImage,ivec3(origin+ivec2(1,0),0),0).r,
-    texelFetch(historyImage,ivec3(origin+ivec2(0,1),0),0).r,
-    texelFetch(historyImage,ivec3(origin+ivec2(1,1),0),0).r);
+vec4 block=vec4(historyAt(ivec3(origin,0),0).r,
+    historyAt(ivec3(origin+ivec2(1,0),0),0).r,
+    historyAt(ivec3(origin+ivec2(0,1),0),0).r,
+    historyAt(ivec3(origin+ivec2(1,1),0),0).r);
 float expected=min(min(block.x,block.y),min(block.z,block.w));
 precise float difference=abs(a.r-expected);
 return bvec2(!any(isnan(block)) && difference<multipliers.x,false);
@@ -681,8 +681,20 @@ return bvec2(true,a.a==0);
 bvec2 authored(ivec3 coordinate,uint index,vec4 a,vec4 b,vec4 c,vec4 d) {
     // Decode only trace observations; ordinary bit predicates must not perform arithmetic on metadata.
 if(evaluation.w>=2.0){a.rgb*=evaluation.x;if(evaluation.w==2.0)c.rgb*=evaluation.y;else d.rgb*=evaluation.z;}uint flags=floatBitsToUint(b.g);
-ivec3 selected=ivec3(0);vec4 value=a;if(evaluation.w==1.0){selected=ivec3(a.xyz);value=texelFetch(historyImage,selected,0);}
+ivec3 selected=ivec3(0);vec4 value=a;
+#if POINT_SOURCE != 0
+if(mode==26){selected=ivec3(expectedWord(index*3u),expectedWord(index*3u+1u),expectedWord(index*3u+2u));
+#if POINT_SOURCE == 4
+value=historyAt(ivec3(int(index)%historySize().x,int(index)/historySize().x,0),0);
+#else
+value=historyAt(selected,0);
+#endif
+}
+else
+#endif
+if(evaluation.w==1.0){selected=ivec3(a.xyz);value=historyAt(selected,0);}
 switch(predicateChoice){
+case 186: return predicate88(coordinate,index,a,vec4(multipliers.yzw,0),c,d,selected,value,flags);
 case 46: return predicate46(coordinate,index,a,b,c,d,selected,value,flags);
 case 58: return predicate58(coordinate,index,a,b,c,d,selected,value,flags);
 case 59: return predicate59(coordinate,index,a,b,c,d,selected,value,flags);

@@ -52,12 +52,10 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
             using var signedContents = Assertions.GpuImageSnapshot.FromAttachment(signed);
             using var unsignedContents = Assertions.GpuImageSnapshot.FromAttachment(unsigned);
             using var floatContents = Assertions.GpuImageSnapshot.FromAttachment(floats);
-            ImageAssertions.Comparisons.CompareBits(signedContents.Texture,
-                Enumerable.Range(0,16).SelectMany(_ => new int[] {-3,7,-16777217,19}).Select(value => unchecked((uint)value)).ToArray()).AssertEqual();
-            ImageAssertions.Comparisons.CompareBits(unsignedContents.Texture,
-                Enumerable.Range(0,16).SelectMany(_ => new uint[] {3,7,4294967294,19}).ToArray()).AssertEqual();
-            ImageAssertions.Comparisons.Compare(floatContents.Texture,
-                Enumerable.Range(0,16).SelectMany(_ => new float[] {.25f,.5f,.75f,1}).ToArray()).AssertEqual();
+            ImageAssertions.Comparisons.CompareIntegerVector(signedContents.Texture,
+                unchecked((uint)-3),7,unchecked((uint)-16777217),19).AssertEqual();
+            ImageAssertions.Comparisons.CompareIntegerVector(unsignedContents.Texture,3,7,4294967294,19).AssertEqual();
+            ImageAssertions.Comparisons.CompareVector(floatContents.Texture,new(.25f,.5f,.75f,1)).AssertEqual();
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest));
             bool[] mask = new bool[4]; GL.GetBoolean(GetPName.ColorWritemask, mask); Assert.All(mask, Assert.False);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

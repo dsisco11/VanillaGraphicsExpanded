@@ -41,11 +41,11 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         Assert.Equal(TextureFormat.Rg32f, result.InternalFormat);
         Assert.Equal(2, result.Width); Assert.Equal(2, result.Height);
         double[] expected = Reduce(colors, 13, 7, 2, 2);
-        var logarithms = expected.SelectMany(value => new[] { value, 1d }).ToArray();
-        var filtered = Enumerable.Range(0,4).SelectMany(i => new[] { Filter(expected,2,2,i), 1d }).ToArray();
-        ImageAssertions.Comparisons.CompareDouble(owner.Logarithms, logarithms, .000008, channelMask: 1).AssertEqual();
+        var logarithms = expected;
+        var filtered = Enumerable.Range(0,4).Select(i => Filter(expected,2,2,i)).ToArray();
+        ImageAssertions.Comparisons.CompareComponentDoubles(owner.Logarithms, logarithms, .000008, 1).AssertEqual();
         ImageAssertions.Comparisons.CompareConstant(owner.Logarithms, 1, channelMask: 2).AssertEqual();
-        ImageAssertions.Comparisons.CompareDouble(result, filtered, .000008, channelMask: 1).AssertEqual();
+        ImageAssertions.Comparisons.CompareComponentDoubles(result, filtered, .000008, 1).AssertEqual();
         ImageAssertions.Comparisons.CompareConstant(result, 1, channelMask: 2).AssertEqual();
         Assert.Equal(1, owner.Generation);
     }

@@ -21,19 +21,47 @@ void main() {
     }
 #endif
 
+#if OBSERVATION_FAMILY == 0
+    // Sparse completion counts records, while failures retain original image coordinates.
+    if(mode==16 || mode==28) {
+        if(index>=constantValue)return;
+        if(index==0u)imageStore(resultImage,ivec2(0,0),uvec4(0x47505541u));
+        imageAtomicAdd(resultImage,ivec2(1,0),1u);
+        uint address=index*(mode==16?4u:6u),pixel=expectedWord(address);
+        ivec3 point=ivec3(int(pixel)%extent.x,int(pixel)/extent.x%extent.y,int(pixel)/(extent.x*extent.y));
+        uvec4 actual=fetchBits(point,false);
+        uint channel=mode==16?0u:expectedWord(address+1u),count=mode==16?3u:1u;
+        for(uint lane=0u;lane<count;lane++) {
+            uint c=channel+lane;
+            bool valid;
+            if(mode==16)valid=equalBits(actual[c],expectedWord(address+1u+lane));
+            else valid=finiteBits(actual[c]) && number(actual[c])>=packDouble2x32(uvec2(expectedWord(address+2u),expectedWord(address+3u)))
+                && number(actual[c])<=packDouble2x32(uvec2(expectedWord(address+4u),expectedWord(address+5u)));
+            if(!valid)fail(pixel*4u+c,2);
+        }
+        imageAtomicAdd(resultImage,ivec2(19,0),count);
+        return;
+    }
+#endif
     if(index>=total)return;
     if(index==0u)imageStore(resultImage,ivec2(0,0),uvec4(0x47505541u));
     imageAtomicAdd(resultImage,ivec2(1,0),1u);
     if(index%uint(pixelStride)!=uint(pixelOffset))return;
     ivec3 p=ivec3(int(index)%extent.x,(int(index)/extent.x)%extent.y,int(index)/(extent.x*extent.y));
     #if KIND == 0 && AUTHORED_PROGRAM
-    if(mode==21) {
+    if(mode==21 || mode==26) {
         // Retain the executed selector in otherwise unused result words for request provenance.
         if(index==0u) { imageStore(resultImage,ivec2(16,0),uvec4(uint(predicateChoice))); imageStore(resultImage,ivec2(17,0),uvec4(constantValue)); }
-        bvec2 result=authored(p,index,texelFetch(actualImage,p,0),
+        vec4 actualValue;
+#if POINT_SOURCE != 0
+        if(mode==26)actualValue=vec4(expectedWord(index*3u),expectedWord(index*3u+1u),expectedWord(index*3u+2u),0);
+        else
+#endif
+        actualValue=texelFetch(actualImage,p,0);
+        bvec2 result=authored(p,index,actualValue,
             
 #if PREDICATE_INPUTS & 2
-        ((constantValue&2u)!=0u ? texelFetch(historyImage,min(p,textureSize(historyImage,0)-1),0) : texelFetch(actualImage,p,0)),
+        ((constantValue&2u)!=0u ? historyAt(min(p,historySize()-1),0) : texelFetch(actualImage,p,0)),
 #else
         texelFetch(actualImage,p,0),
 #endif
@@ -57,22 +85,38 @@ void main() {
     #if !AUTHORED_PROGRAM
     uvec4 value=fetchBits(p,false);
     #if OBSERVATION_FAMILY == 0
-    uvec4 expected=(mode==2||mode==6||mode==7||mode==19)?fetchBits(p,true):(mode==1||mode==8||mode==10||mode==16)?texelFetch(expectedImage,p,0):uvec4(constantValue);
+    if(mode==29) {
+        uint compared=0u;
+        for(uint region=0u;region<constantValue;region++) {
+            uint address=region*12u;
+            ivec3 lower=ivec3(expectedWord(address),expectedWord(address+1u),expectedWord(address+2u));
+            ivec3 upper=ivec3(expectedWord(address+3u),expectedWord(address+4u),expectedWord(address+5u));
+            if(any(lessThan(p,lower)) || any(greaterThanEqual(p,upper)))continue;
+            uint mask=expectedWord(address+6u);
+            for(uint c=0u;c<4u;c++)if((mask&(1u<<c))!=0u) {
+                compared++;
+                if(!equalBits(value[c],expectedWord(address+8u+c)))fail(index*4u+c,2);
+            }
+        }
+        imageAtomicAdd(resultImage,ivec2(19,0),compared);
+        return;
+    }
+    uvec4 expected=(mode==2||mode==6||mode==7||mode==19)?fetchBits(p,true):(mode==1||mode==8||mode==10||mode==23)?expectedTuple(index):mode==24?texelFetch(expectedImage,p,0):mode==25?channelMinimum:uvec4(constantValue);
     #elif OBSERVATION_FAMILY == 1
     uvec4 expected=mode==20?fetchBits(p,true):uvec4(constantValue);
     #else
     uvec4 expected=uvec4(constantValue);
     #endif
     #if OBSERVATION_FAMILY == 0
-    uvec4 doubleLow=uvec4(0),doubleHigh=uvec4(0);
-    if(mode==15){doubleLow=texelFetch(expectedImage,ivec3(p.xy,p.z*2),0);doubleHigh=texelFetch(expectedImage,ivec3(p.xy,p.z*2+1),0);}
-    uvec4 upperLow=uvec4(0),upperHigh=uvec4(0);
-    if(mode==17) {
-        doubleLow=texelFetch(expectedImage,ivec3(p.xy,p.z*4),0);doubleHigh=texelFetch(expectedImage,ivec3(p.xy,p.z*4+1),0);
-        upperLow=texelFetch(expectedImage,ivec3(p.xy,p.z*4+2),0);upperHigh=texelFetch(expectedImage,ivec3(p.xy,p.z*4+3),0);
+    uvec4 doubleLow=uvec4(0),doubleHigh=uvec4(0),upperLow=uvec4(0),upperHigh=uvec4(0);
+    if(mode==15 || mode==17)for(uint c=0u;c<4u;c++)if((channels&(1u<<c))!=0u) {
+        uint address=expectedScalar(index,c)*(mode==15?2u:4u);
+        doubleLow[c]=expectedWord(address);doubleHigh[c]=expectedWord(address+1u);
+        if(mode==17){upperLow[c]=expectedWord(address+2u);upperHigh[c]=expectedWord(address+3u);}
     }
     #endif
     bool matching=constantValue!=0u;
+    bool authoredValid=true;
 #if OBSERVATION_FAMILY == 0
     uint compared=0u;
 #endif
@@ -133,14 +177,17 @@ void main() {
             if(clearCoverage ? n!=0.0 : n<bounds.x || n>bounds.y)fail(scalar,4);
         }
         #if OBSERVATION_FAMILY == 0
-        if((mode==1||mode==2||mode==5||mode==10||mode==13)&&!equalBits(bits,expected[c]))fail(scalar,2);
+        if((mode==1||mode==2||mode==5||mode==10||mode==13||mode==25)&&!equalBits(bits,expected[c]))fail(scalar,2);
         if(mode==15&&(!finiteBits(bits)||abs(number(bits)-packDouble2x32(uvec2(doubleLow[c],doubleHigh[c])))>tolerance))fail(scalar,2);
         if(mode==17&&(!finiteBits(bits)||number(bits)<packDouble2x32(uvec2(doubleLow[c],doubleHigh[c]))||
             number(bits)>packDouble2x32(uvec2(upperLow[c],upperHigh[c]))))fail(scalar,2);
-        if(mode==16&&(expected.a&(1u<<c))!=0u) {
-            imageAtomicAdd(resultImage,ivec2(14,0),1u);
-            if(!equalBits(bits,expected[c]))fail(scalar,2);
+        if(mode==22) {
+            uint address=expectedScalar(index,c)*2u;
+            precise float difference=abs(uintBitsToFloat(bits)-uintBitsToFloat(expectedWord(address)));
+            authoredValid=authoredValid && difference<=uintBitsToFloat(expectedWord(address+1u));
         }
+        if(mode==23)authoredValid=authoredValid && bits==expected[c];
+        if(mode==24 && roundEven(uintBitsToFloat(bits)*255.0)!=float(expected[c]))fail(scalar,2);
         if(mode==5&&equalBits(bits,expected[c]))imageAtomicAdd(resultImage,ivec2(14,0),1u);
         if(mode==6&&bits!=expected[c])fail(scalar,2);
         if(mode==7&&number(expected[c])!=0.0&&!equalBits(bits,expected[c]))fail(scalar,2);
@@ -149,6 +196,7 @@ void main() {
     }
     #if OBSERVATION_FAMILY == 0
     imageAtomicAdd(resultImage,ivec2(19,0),mode==8?3u:compared);
+    if((mode==22 || mode==23) && !authoredValid)fail(index*4u,2);
     #endif
     #if OBSERVATION_FAMILY == 1
     if(mode==18&&matching)imageAtomicAdd(resultImage,ivec2(14,0),1u);

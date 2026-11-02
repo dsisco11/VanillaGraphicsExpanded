@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Qualifies the compact GPU oracle against authored data, deliberate failures and hostile native state.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
-public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
+public sealed partial class GpuImageAssertionTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
 
 
@@ -450,7 +450,7 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture, ITestOutpu
         var region=new RHITextureRegion(new(0,dimension==TextureDimension.Three?0:layers-1),0,0,
             dimension==TextureDimension.Three?layers-1:0,2,2);
         using var snapshot=new GpuImageSnapshot(image,region);using var plane=snapshot.ToPlane();
-        assertions.Comparisons.Compare(plane,Enumerable.Range(0,4).SelectMany(_=>new[]{0f,(float)layers,0f,1f}).ToArray()).AssertEqual();
+        assertions.Comparisons.CompareVector(plane,new(0,layers,0,1)).AssertEqual();
     }
 
     /// <summary>Neither incomplete partial sums nor a missing final reduction may report a successful aggregate.</summary>
@@ -814,6 +814,10 @@ public sealed class GpuImageAssertionTests(HeadlessGLFixture fixture, ITestOutpu
         programs.Prepare("inspection", 2, 0);
         programs.Prepare("layer", 0, 0);
         programs.Prepare("predicate-observation", 0, 0);
+        programs.Prepare("predicate-observation-points1");
+        programs.Prepare("predicate-observation-points2");
+        programs.Prepare("predicate-observation-points3");
+        programs.Prepare("predicate-observation-points4");
         programs.Prepare("projection-ao", 0, 0);
         programs.Prepare("projection-ao", 2, 0);
         programs.Prepare("projection-observation", 0, 0);

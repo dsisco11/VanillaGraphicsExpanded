@@ -96,11 +96,10 @@ internal static class SurfaceLightingRefreshSynchronization
                     (sx + sz * resolution) * worldTile, sy * worldTile, 0, worldTile, worldTile);
                 var confidence = runtime.Cache.ImageAssertions.Statistics.Inspect(runtime.WorldImage, selection: selection, channelMask: 8);
                 Assert.True(confidence.NonFinite == 0 && confidence.Minimum > 0, $"Missing world direction: slot={slot}; {confidence}");
-                float[] encoded = Enumerable.Range(0, worldTile * worldTile)
-                    .SelectMany(_ => new[] { expected.X / 16, expected.Y / 16, expected.Z / 16, 0f }).ToArray();
                 // The independently authored physical bound is scaled exactly by the power-of-two persistent encoding.
-                runtime.Cache.ImageAssertions.Comparisons.Compare(runtime.WorldImage, encoded, .01f / 16,
-                    selection, channelMask: 7).AssertEqual();
+                runtime.Cache.ImageAssertions.Comparisons.CompareVector(runtime.WorldImage,
+                    new(expected.X / 16, expected.Y / 16, expected.Z / 16, 0),
+                    selection, channelMask: 7, tolerance: .01f / 16).AssertEqual();
                 runtime.Cache.ImageAssertions.Statistics.Inspect(runtime.WorldImage, 0, 65504, selection, channelMask: 7).AssertFiniteRange();
             }
         }

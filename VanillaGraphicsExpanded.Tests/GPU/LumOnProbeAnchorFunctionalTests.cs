@@ -421,8 +421,8 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         programId.GBufferSurface = surfaceInput3;
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
-        var expected=Enumerable.Repeat(new[]{0f,1f,0f,0f},ProbeGridWidth*ProbeGridHeight).SelectMany(x=>x).ToArray();
-        AssertDecodedNormals(outputGBuffer[1],expected);
+        ImageAssertions.Predicates.Predicate(outputGBuffer[1],SurfacePredicates.ConstantDecodedNormal,
+            parameters:new(TestEpsilon,0,1,0)).AssertEqual();
     }
 
     #endregion

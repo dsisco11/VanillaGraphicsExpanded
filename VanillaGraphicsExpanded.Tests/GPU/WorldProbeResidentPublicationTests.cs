@@ -52,8 +52,7 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeVis0, expectedVisibility).AssertEqual();
         ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeDist0, expectedDistance).AssertEqual();
         ImageAssertions.Comparisons.CompareHistory(atlas.Resources.ProbeMeta0, expectedMetadata).AssertEqual();
-        var lower = Enumerable.Repeat(double.NegativeInfinity, pixels.Width * pixels.Height * 4).ToArray();
-        var upper = Enumerable.Repeat(double.PositiveInfinity, lower.Length).ToArray();
+        var intervals = new Dictionary<int, GpuScalarInterval>();
         foreach (var sample in reference.AtlasSamples)
         {
             int index = ((sample.OctY << 3) + sample.OctX) << 2;
@@ -62,11 +61,17 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
                 sample.AlphaEncodedDistSigned];
             for (int c = 0; c < 4; c++)
             {
-                lower[index+c] = Math.Max(lower[index+c], expected[c] - (double).003f);
-                upper[index+c] = Math.Min(upper[index+c], expected[c] + (double).003f);
+                var prior = intervals.GetValueOrDefault(index + c, new(index / 4, c, double.NegativeInfinity, double.PositiveInfinity));
+                intervals[index + c] = prior with
+                {
+                    Lower = Math.Max(prior.Lower, expected[c] - (double).003f),
+                    Upper = Math.Min(prior.Upper, expected[c] + (double).003f)
+                };
             }
         }
-        ImageAssertions.Comparisons.CompareIntervals(pixels, lower, upper).AssertEqual();
+        ImageAssertions.Comparisons.CompareIntervals(pixels, intervals.Values.ToArray()).AssertEqual();
+        // Previously the unbounded dense intervals also rejected nonfinite RGB outside nominated samples.
+        ImageAssertions.Statistics.Inspect(pixels).AssertFiniteRange();
         var alpha = ImageAssertions.Statistics.Inspect(pixels, channelMask: 8);
         Assert.True(alpha.NonFinite == 0 && alpha.Minimum > 0);
     }

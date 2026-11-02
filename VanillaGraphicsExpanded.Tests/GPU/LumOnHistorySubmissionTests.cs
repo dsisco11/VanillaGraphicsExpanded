@@ -96,7 +96,7 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
         }
         if (fail) Assert.Same(expected, Assert.Throws<ArithmeticException>(() => Run())); else Assert.True(Run());
         hostile.AssertRestored();
-        ImageAssertions.Comparisons.Compare(target[0],Enumerable.Repeat(new[]{.25f,.5f,.75f,1f},16).SelectMany(x=>x).ToArray()).AssertEqual();
+        ImageAssertions.Comparisons.CompareVector(target[0],new(.25f,.5f,.75f,1f)).AssertEqual();
 #if DEBUG
         Assert.Equal(draws, OpenGlStateCache.Current.DrawSubmissions);
 #endif

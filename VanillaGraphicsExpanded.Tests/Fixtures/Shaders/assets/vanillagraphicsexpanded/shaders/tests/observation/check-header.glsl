@@ -27,7 +27,13 @@ layout(binding=0) uniform usampler2DArray actualImage;
 #endif
 #if OBSERVATION_FAMILY == 0 || OBSERVATION_FAMILY == 1 || (AUTHORED_PROGRAM && (PREDICATE_INPUTS & 2))
 #if KIND == 0
+#if POINT_SOURCE == 2
+layout(binding=1) uniform sampler2D historyImage;
+#elif POINT_SOURCE == 3
+layout(binding=1) uniform sampler3D historyImage;
+#else
 layout(binding=1) uniform sampler2DArray historyImage;
+#endif
 #elif KIND == 1
 layout(binding=1) uniform isampler2DArray historyImage;
 #else
@@ -94,6 +100,24 @@ uint ordered(uint bits) {
     return bits;
 #endif
 }
+#if KIND == 0 && (OBSERVATION_FAMILY == 0 || OBSERVATION_FAMILY == 1 || (AUTHORED_PROGRAM && (PREDICATE_INPUTS & 2)))
+/// Samples the explicitly declared history dimension without a source copy or selector mutation.
+vec4 historyAt(ivec3 p,int level) {
+#if POINT_SOURCE == 2
+    return texelFetch(historyImage,p.xy,level);
+#else
+    return texelFetch(historyImage,p,level);
+#endif
+}
+/// Preserves the original history extent for corresponding-domain clamping.
+ivec3 historySize() {
+#if POINT_SOURCE == 2
+    return ivec3(textureSize(historyImage,0),1);
+#else
+    return textureSize(historyImage,0);
+#endif
+}
+#endif
 /// Reads original components without changing the represented numeric kind.
 uvec4 fetchBits(ivec3 p,bool history) {
 #if OBSERVATION_FAMILY == 2 || OBSERVATION_FAMILY == 3
@@ -103,7 +127,7 @@ uvec4 fetchBits(ivec3 p,bool history) {
     return uvec4(texelFetch(actualImage,p,0));
 #endif
 #elif KIND == 0
-    return floatBitsToUint(history?texelFetch(historyImage,p,0):texelFetch(actualImage,p,0));
+    return floatBitsToUint(history?historyAt(p,0):texelFetch(actualImage,p,0));
 #else
     return uvec4(history?texelFetch(historyImage,p,0):texelFetch(actualImage,p,0));
 #endif
@@ -113,3 +137,21 @@ void fail(uint index,int counter) {
     imageAtomicAdd(resultImage,ivec2(counter,0),1u);
     imageAtomicMin(resultImage,ivec2(6,0),index);
 }
+
+#if OBSERVATION_FAMILY == 0 || (AUTHORED_PROGRAM && POINT_SOURCE != 0)
+/// Addresses tightly packed independently authored scalar records.
+uint expectedWord(uint index) {
+    int width=textureSize(expectedImage,0).x;
+    return texelFetch(expectedImage,ivec3(int(index)%width,int(index)/width,0),0).r;
+}
+/// Maps an original channel to the tightly packed selected-channel scalar record.
+uint expectedScalar(uint index,uint channel) {
+    return index*uint(referenceChannel)+uint(bitCount(channels&((1u<<channel)-1u)));
+}
+/// Reads represented channels without padding each scalar image to RGBA.
+uvec4 expectedTuple(uint index) {
+    uvec4 result=uvec4(0);
+    for(uint c=0u;c<4u;c++)if(((mode==8?7u:channels)&(1u<<c))!=0u)result[c]=expectedWord(mode==8?index*3u+c:expectedScalar(index,c));
+    return result;
+}
+#endif

@@ -15,18 +15,23 @@ internal sealed class GpuObservationDispatch
     /// <summary>Executes a complete image domain with no unused histogram or placeholder image allocations.</summary>
     internal GpuObservationData Observe(GpuImageSnapshot actual, GpuAssertionProgram program, byte[] inputs,
         (string Name, GpuTexture? Texture)[] sources)
+        => Observe(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth, actual.Kind,
+            checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth), program, inputs, sources);
+
+    /// <summary>Executes nominated records while retaining the original source extent for failure coordinates.</summary>
+    internal GpuObservationData Observe(int width, int height, int depth, int kind, int records,
+        GpuAssertionProgram program, byte[] inputs, (string Name, GpuTexture? Texture)[] sources)
     {
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         using var state = new GpuAssertionState(program.SamplerUnits, program.ImageUnits);
         using var output = CreateResult();
         Initialize(output);
-        int texels = checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth);
-        int groups = checked((texels + 63) / 64), x = Math.Min(groups, 65535);
+        int groups = checked((records + 63) / 64), x = Math.Min(groups, 65535);
         program.Execute(inputs, sources, [("resultImage", output)], x, (groups + x - 1) / x);
         program.RequireContext();
         Barrier();
         program.RequireContext();
-        return Read(actual, output);
+        return Read(width, height, depth, kind, records, output);
     }
 
     /// <summary>Creates one explicitly sized integer result or operation-owned reduction scratch image.</summary>
@@ -55,16 +60,20 @@ internal sealed class GpuObservationDispatch
 
     /// <summary>Reads bounded counters independently through native GL and requires complete-domain dispatch proof.</summary>
     internal static GpuObservationData Read(GpuImageSnapshot actual, DynamicTexture2D output)
+        => Read(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth, actual.Kind,
+            checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth), output);
+
+    /// <summary>Requires every nominated invocation independently of the original image extent.</summary>
+    private static GpuObservationData Read(int width, int height, int depth, int kind, int count, DynamicTexture2D output)
     {
         uint[] counters = new uint[32];
         using (OpenGlStateCache.Current.BindBufferScope(OpenTK.Graphics.OpenGL.BufferTarget.PixelPackBuffer, 0))
         using (OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new OpenGlStateCache.PixelPackState(4)))
             GL.GetTextureImage(output.TextureId, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, 128, counters);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        int count = checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth);
         if (counters[0] != 0x47505541 || counters[1] != (uint)count)
             throw new InvalidOperationException($"GPU observation did not complete: magic={counters[0]:x}, texels={counters[1]}/{count}.");
-        return new(counters, actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth, actual.Kind);
+        return new(counters, width, height, depth, kind);
     }
 
     #endregion

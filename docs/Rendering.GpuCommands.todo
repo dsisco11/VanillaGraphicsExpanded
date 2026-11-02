@@ -2809,7 +2809,7 @@ Phase 10.8: Reconcile qualification corrections and residual test cleanup
 Phase 10.9: Attribute remaining test costs and agree on the runtime-reduction design
   Status: complete as the original analysis/design boundary. Checkpoint 10.9.1 is complete by user
     acceptance; 10.9.2 design and coverage mapping is complete by user approval. Implementation subphases
-    10.9.3 and 10.9.4 are complete by user acceptance; 10.9.5–10.9.7 remain open and await selection. Batching is
+    10.9.3–10.9.5 are complete by user acceptance; 10.9.6–10.9.7 await selection. Batching is
     deferred and Phase 10 remains open.
   Depends on 10.8. Governing constraints: Phase 10/10.2's coverage and isolation map, 10.7's cache policy,
     Rendering.ShaderBindingState.md (Verification boundary) and Rendering.GpuCommands.Contracts.md
@@ -3626,17 +3626,88 @@ Phase 10.9.5: Supply compact independent expectations and direct sparse observat
   Depends on 10.9.4. Replaces the former compact-expectations 10.9.2; separate implementation/commit boundary.
   Outcome: expectation representation and dispatch scale with the authored contract, not unused image extent.
 
-  ☐ Migrate regular expectations to constant vectors, authored row/region/scenario tables or independent
+  Status: complete by explicit user metrics acceptance on 2026-11-01, after focused verification,
+    second review and independent completion audit passed.
+
+  Implementation traceability:
+    - Task 1 -> approved 10.9.2 routes/coverage map and Phase 10/10.2 VGE-only isolation/independent-oracle
+      constraints -> vector/integer constants, intersecting region tables, selected-channel float/double
+      references and interleaved scalar words replace repeated RGBA data and double-band encoding.
+      CompleteGraphicsDraw, typed clears, SparseStateCoverage, uniform probe normals, surface refresh and
+      directional-history checks retain their original domains. Gaussian, velocity, local-exposure,
+      grading, water and resident-lighting formulas retain original arithmetic/bounds. Resident interval
+      intersections remain explicit and whole-domain finite RGB coverage remains independently checked.
+    - Task 2 -> 10.9.2 sparse/source-interpretation routes, Rendering.GpuResources.md (Shader executable
+      ownership) and Rendering.ShaderBindingState.md (Shader ownership and publication) -> CompareSelected
+      uses integer texel/RGB records; scalar interval records retain all duplicate/intersecting conditions.
+      Only nominated records dispatch; visited/compared counts reject suppressed/partial execution and
+      failures report original coordinates. PredicateAt borrows original 2D/array/3D sources, using
+      integer coordinates without a coordinate-image snapshot. Stored sRGB/depth-aspect/cube cases copy
+      nominated texels only. Comparison source snapshots remain for 10.9.7; no claim of their removal.
+    - Task 3 -> the same interpretation requirements plus Rendering.GpuCommands.Contracts.md (Executable
+      and pipeline contracts; Submission and failure rules) -> RGBA8 compares original byte inputs in one
+      checker, retaining roundEven reconstruction. Generic exact-bit and float-tolerance kernels replace
+      obsolete observation predicates 180/181. Existing decoded-byte projection remains for its separate
+      PbrDisplayResolve numerical input. Production preparation/cache/context owners, explicit setup,
+      fresh subject ownership and independent native oracles remain; no batching or runtime redesign.
+    - Task 4 -> 10.9 agreed metrics/acceptance boundary and Rendering.ShaderBindingState.md (Verification
+      boundary) -> delegated normal builds/focused VGE checks, original/final bounded helper selections,
+      source/DLL receipts and operation upload/construction measurements. Full suite/Release runtime,
+      installed appearance and a percentage speedup remain unqualified; user acceptance is still required.
+
+
+  Verification and bounded metrics:
+    - Delegated normal shader-enabled Debug build passed with zero errors and 224 existing warnings;
+      final build wall 14.521s, separate from execution. 343 unique focused cases passed, zero skips,
+      across retained applicable receipts: 53 helper cases, 288 existing affected-family rows and two new
+      synthetic Gaussian-witness rows. Original numerical inputs, masks, rows and tolerances are retained.
+      The ten members split into Constants/ComponentReferences/Regions/Sparse partial files were independently
+      checked for exact body/signature identity; final source/DLL freeze checks reported zero drift.
+      Final test DLL SHA256: CDA3FD5569E51CED3017827395B0037427038E6E2CB25970E4F10994D6B23EBD.
+    - The first affected selection exposed a missing indirect Brightest preparation in grading and
+      impossible Gaussian witness counts (249/266 for a mask that can select at most 9/10). Both Brightest
+      dependencies are restored. Predicate 137 now expresses the exact same Boolean conditions using
+      integer masks, with unchanged .00001 tolerance and row/column domain. Its full 24-row Gaussian
+      matrix plus independent constant/mutated-field witness count, first-location and failure proofs pass.
+      This establishes a compiled-path discrepancy, not a proven driver/compiler-internal root cause.
+      Other valid passing receipts were reused; only affected classes/cases and final build were repeated.
+    - Source parity: 180 of 185 inherited predicate bodies remain whitespace-identical; 50/64 use equivalent
+      history sampling helper syntax, 137 has the equivalent Boolean-mask representation, and 180/181 move
+      into focused generic exact-bit/float-tolerance operations. Existing projection bodies are unchanged.
+      Independent Gaussian, grading, water, exposure and quadrature/residual reference math remains authored
+      separately from production algorithms. No tests or parameter rows were removed.
+    - The 195-texel scalar-bound check constructs/uploads 3,120 bytes rather than the former padded
+      12,480 bytes. Recorded CPU construction 0.860ms and complete observation 1.565ms are bounded samples,
+      not isolated GPU time. A two-point RGB helper uploads 32 bytes and visits two records, not 390 texels.
+      The 64-cubed grading case's 4,913 samples require 81,920 uploaded bytes (including final-row packing)
+      versus the old 4,194,304-byte dense reference; comparison source snapshots still remain.
+      Vector constants upload no reference image. RGBA8 reference payload is four bytes/texel rather than
+      sixteen, with no decoded projection/float-reference round trip. Ordinary point predicates copy zero
+      source texels; exceptional byte/depth/cube interpretations copy only nominated tuples, including duplicates.
+    - Identical three-case names passed before/after in 16.748s/7.292s process wall (runner 16.005s/6.364s).
+      Fixture preparation, changed asset identities and uncontrolled driver-cache state are included;
+      neither an isolated algorithm improvement nor a matched whole-suite speedup is established.
+      Helpers ran in 10.111s process wall; original affected-family selection 80.988s; corrected two-family
+      selection 8.661s, followed by the final remaining case in 6.772s. These overlap and must not be summed
+      as a unique-suite runtime. Full Debug/Release qualification remains in 10.10; batching stays deferred.
+    - Receipts: TestResults/GpuTests1095/{build-closeout,helper-final,families-final,correction-families,
+      closeout-galaxy,baseline-compact,after-compact} logs/TRX/commands/results, final source/DLL manifests,
+      member-split-independent-proof.csv and accepted-candidate-case-outcomes.csv (a unique passing-case
+      inventory, not user acceptance). Required second source/document review and independent completion
+      audit passed with no unresolved material findings. The user explicitly accepted the resulting metrics
+      and stated limitations on 2026-11-01. No whole-suite speedup is claimed. No staging or commits.
+
+  ☑ Migrate regular expectations to constant vectors, authored row/region/scenario tables or independent
     domain-specific predicates. Preserve masks, selected mips/layers, exact float/double bounds and
     intersecting expectations. Remove image-sized repetition, unnecessary padding and double-band copies.
-  ☐ Replace CompareSelected's dense expansion with nominated coordinate/value records and a sparse dispatch.
+  ☑ Replace CompareSelected's dense expansion with nominated coordinate/value records and a sparse dispatch.
     PredicateAt must not copy the enclosing source just to inspect nominated points. Preserve every original
     point/layer, compared-component totals and negative/completion proof; no broader domain is silently lost.
-  ☐ Replace CompareRgba8's decode/projection/float-reference round trip with exact independently authored
+  ☑ Replace CompareRgba8's decode/projection/float-reference round trip with exact independently authored
     byte expectations. Preserve normalized rounding, nonfinite, signed-zero, subnormal and bitwise policies.
     Retain necessary independent CPU arrays/quadrature/residual oracles; do not generate expected answers
     through the production algorithm under test. Reuse unchanged inputs only within their explicit owner/domain.
-  ☐ Delegate affected helper/family checks and record CPU construction, upload sizes and focused timings
+  ☑ Delegate affected helper/family checks and record CPU construction, upload sizes and focused timings
     separately from suite runtime. Remove superseded representations and satisfy shared review/acceptance.
 
 Phase 10.9.6: Compute only requested facts and reduce counters within workgroups
@@ -3704,6 +3775,9 @@ Phase 10.10: Qualify combined correctness and review final metrics, then remove 
       utilities (*.cjs, refactor.py, bitload.csh, precision-probe/, source-before-regions/ and policy-map.json). Preserve required
       numerical/source-parity decisions and build/TRX/metric evidence above before removing those utilities.
       Keep the qualification receipts; utility removal is not permission to remove acceptance evidence.
+      Also review TestResults/GpuTests1095's compact-*.py edit utilities, compact-callers.txt inventory
+      and source-before-split/ snapshot;
+      preserve source-parity decisions, build/TRX/source identities and bounded metrics before removing tools.
 
   ☐ Diagnose the outstanding water-state/exception failures recorded in 10.1 against the resulting source.
     Preserve expected contracts and tolerances; do not treat an unexplained failure as redundancy or

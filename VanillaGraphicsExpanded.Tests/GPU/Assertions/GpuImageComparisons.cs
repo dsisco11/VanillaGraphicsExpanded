@@ -7,14 +7,12 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Assertions;
 /// <summary>Owns comparisons observation policy with explicit fixture dependencies.</summary>
 internal sealed partial class GpuImageComparisons : GpuObservationService
 {
-    private readonly GpuImageTransform projections;
 
     #region Internal API
     #region Dependencies
     /// <summary>Borrows prepared executables and related observation services from the fixture owner.</summary>
-    internal GpuImageComparisons(GpuObservationPrograms programs, GpuImageTransform projections) : base(programs)
+    internal GpuImageComparisons(GpuObservationPrograms programs) : base(programs)
     {
-        this.projections = projections;
     }
 
     #endregion
@@ -48,9 +46,10 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
         int count = checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth);
         if (expected.Length != checked(count * actual.Channels) || expected.Any(value => !double.IsFinite(value)))
             throw new ArgumentException("Finite double expectations must cover the complete selected domain.", nameof(expected));
-        using var input = CreateDoubleInput(actual, [expected]);
+        using var input = CreateDoubleInput(actual.Channels, [expected], channelMask);
         var inputs = DomainInputs(actual, channelMask, tolerance, double.NegativeInfinity, double.PositiveInfinity);
         GpuAssertionInputs.Integer(inputs, 12, (uint)ComparisonOperation.DoubleExpected);
+        GpuAssertionInputs.Integer(inputs, 80, (uint)BitOperations.PopCount(channelMask ?? ((1u << actual.Channels) - 1)));
         return new(CompareDomain(actual, "compare", inputs, [("actualImage", actual.Texture), ("expectedImage", input)], (pixel, channel, value) => expected[pixel * actual.Channels + channel].ToString("R")));
     }
 
@@ -66,37 +65,11 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
         for (int index = 0; index < count; index++)
             if (double.IsNaN(lower[index]) || double.IsNaN(upper[index]) || lower[index] > upper[index])
                 throw new ArgumentException("Expected intervals must be ordered and contain no NaN bounds.");
-        using var input = CreateDoubleInput(actual, [lower, upper]);
+        using var input = CreateDoubleInput(actual.Channels, [lower, upper], channelMask);
         var inputs = DomainInputs(actual, channelMask, 0, double.NegativeInfinity, double.PositiveInfinity);
         GpuAssertionInputs.Integer(inputs, 12, (uint)ComparisonOperation.Intervals);
+        GpuAssertionInputs.Integer(inputs, 80, (uint)BitOperations.PopCount(channelMask ?? ((1u << actual.Channels) - 1)));
         return new(CompareDomain(actual, "compare", inputs, [("actualImage", actual.Texture), ("expectedImage", input)], (pixel, channel, value) => $"[{lower[pixel * actual.Channels + channel]:R},{upper[pixel * actual.Channels + channel]:R}]"));
-    }
-
-    /// <summary>Compares exactly the authored sparse RGB coordinates while retaining whole-domain completion evidence.</summary>
-    internal GpuSparseComparisonResult CompareSelected(GpuTexture image, IReadOnlyDictionary<int, System.Numerics.Vector3> expected,
-        double tolerance)
-    {
-        Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image);
-        if (actual.Kind != 0 || actual.Channels < 3 || expected.Count == 0)
-            throw new ArgumentException("Selected comparisons require authored floating RGB coordinates.", nameof(expected));
-        int count = checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth);
-        uint[] bits = new uint[checked(count * 4)];
-        foreach (var (pixel, value) in expected)
-        {
-            if ((uint)pixel >= (uint)count) throw new ArgumentOutOfRangeException(nameof(expected));
-            bits[pixel * 4] = BitConverter.SingleToUInt32Bits(value.X);
-            bits[pixel * 4 + 1] = BitConverter.SingleToUInt32Bits(value.Y);
-            bits[pixel * 4 + 2] = BitConverter.SingleToUInt32Bits(value.Z);
-            bits[pixel * 4 + 3] = 7;
-        }
-        using var input = CreateArray(TextureFormat.Rgba32ui, actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth);
-        input.UploadDataImmediate(bits, 0, 0, 0, input.Width, input.Height, input.Depth);
-        var inputs = DomainInputs(actual, 7, tolerance, double.NegativeInfinity, double.PositiveInfinity);
-        GpuAssertionInputs.Integer(inputs, 12, (uint)ComparisonOperation.SelectedExpected);
-        var result = new GpuSparseComparisonResult(CompareDomain(actual, "compare", inputs, [("actualImage", actual.Texture), ("expectedImage", input)], (pixel, channel, value) => expected[pixel].ToString()));
-        Assert.Equal(checked((uint)expected.Count * 3), result.ComparedComponents);
-        return result;
     }
 
     #endregion
@@ -152,11 +125,7 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
         using var actual = new GpuImageSnapshot(image, selection);
         int count = checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth);
         if (expected.Length != checked(count * actual.Channels)) throw new ArgumentException("Expected data must cover the entire selected domain.", nameof(expected));
-        uint[] expanded = new uint[checked(count * 4)];
-        for (int pixel = 0; pixel < count; pixel++)
-            Array.Copy(expected, pixel * actual.Channels, expanded, pixel * 4, actual.Channels);
-        using var input = CreateArray(TextureFormat.Rgba32ui, actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth);
-        input.UploadDataImmediate(expanded, 0, 0, 0, input.Width, input.Height, input.Depth);
+        using var input = CreateWords(SelectedWords(expected, actual.Channels, vectorDistance ? 7u : channelMask));
         using var layers = additiveLayers is null ? null : new GpuImageSnapshot(additiveLayers);
         if (layers is not null && (actual.Kind != 0 || layers.Kind != 0 || actual.Texture.Depth != 1 ||
             layers.Texture.Depth != 3 || layers.Texture.Width != actual.Texture.Width || layers.Texture.Height != actual.Texture.Height))
@@ -164,15 +133,9 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
         if (vectorDistance && (actual.Kind != 0 || actual.Channels < 3)) throw new ArgumentException("Vector distance needs floating RGB.");
         if (layers is not null && vectorDistance) throw new ArgumentException("Select a scalar or vector comparison independently.");
         if(bitwise && (vectorDistance || layers is not null || tolerance!=0))throw new ArgumentException("Bitwise expectations do not have a numeric tolerance or derived expectation.");
-        if(bitwise && actual.Kind==0)
-        {
-        var bitInputs = DomainInputs(actual, channelMask, 0, double.NegativeInfinity, double.PositiveInfinity);
-        GpuAssertionInputs.Integer(bitInputs, 12, (uint)ComparisonOperation.Authored);
-        GpuAssertionInputs.Integer(bitInputs, 92, (uint)ObservationPredicates.GpuImageAssertionsComparisons_CompareBits.Choice);
-        return new(CompareDomain(actual, "predicate-" + ObservationPredicates.GpuImageAssertionsComparisons_CompareBits.Domain, bitInputs, [("actualImage", actual.Texture), ("expectedImage", input)], (pixel, channel, value) => FormatTuple(expected.Skip(pixel * actual.Channels).Take(actual.Channels), actual.Kind) + (layers is null ? string.Empty : $" + layers {FormatTuple(ReadDiagnosticTuple(layers.Texture, pixel, 0), 0)}, {FormatTuple(ReadDiagnosticTuple(layers.Texture, pixel + actual.Texture.Width * actual.Texture.Height, 0), 0)}, {FormatTuple(ReadDiagnosticTuple(layers.Texture, pixel + 2 * actual.Texture.Width * actual.Texture.Height, 0), 0)}")));
-        }
         var inputs = DomainInputs(actual, channelMask, tolerance, double.NegativeInfinity, double.PositiveInfinity);
-        GpuAssertionInputs.Integer(inputs, 12, (uint)(layers is not null ? ComparisonOperation.AdditiveLayers : vectorDistance ? ComparisonOperation.VectorDistance : ComparisonOperation.ExpectedBits));
+        GpuAssertionInputs.Integer(inputs, 12, (uint)(bitwise && actual.Kind == 0 ? ComparisonOperation.ExactBits : layers is not null ? ComparisonOperation.AdditiveLayers : vectorDistance ? ComparisonOperation.VectorDistance : ComparisonOperation.ExpectedBits));
+        GpuAssertionInputs.Integer(inputs, 80, (uint)BitOperations.PopCount(vectorDistance ? 7u : channelMask ?? ((1u << actual.Channels) - 1)));
         return new(CompareDomain(actual, "compare", inputs, [("actualImage", actual.Texture), ("historyImage", layers?.Texture), ("expectedImage", input)], (pixel, channel, value) => FormatTuple(expected.Skip(pixel * actual.Channels).Take(actual.Channels), actual.Kind) + (layers is null ? string.Empty : " + retained additive layers")));
     }
 
@@ -210,34 +173,16 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
     {
         Programs.RequireContext();
         if(image.InternalFormat!=TextureFormat.Rgba8)throw new ArgumentException("Byte metadata comparison requires RGBA8 storage.",nameof(image));
-        using var decoded=projections.Apply(image, ObservationProjections.GpuImageAssertionsPredicates_CompareRgba8);
-        return Compare(decoded,expected.Select(value=>(float)value).ToArray());
-    }
-
-    /// <summary>Checks independently authored expectations using float subtraction and each component's original absolute tolerance.</summary>
-    internal GpuComparisonResult CompareFloating(GpuTexture image,float[] expected,float[] tolerances,uint? channelMask=null)
-    {
-        Programs.RequireContext();
-        using var actual=new GpuImageSnapshot(image);
-        int plane=checked(actual.Texture.Width*actual.Texture.Height),count=checked(plane*actual.Texture.Depth);
-        if(actual.Kind!=0 || expected.Length!=checked(count*actual.Channels) || tolerances.Length!=expected.Length)
-            throw new ArgumentException("Float expectations and tolerances must cover every original component.");
-        uint[] bits=new uint[checked(count*8)];
-        for(int pixel=0;pixel<count;pixel++)for(int channel=0;channel<actual.Channels;channel++)
-        {
-            int scalar=pixel*actual.Channels+channel;
-            if(!float.IsFinite(expected[scalar]) || !float.IsFinite(tolerances[scalar]) || tolerances[scalar]<0)
-                throw new ArgumentException("Float expectations require finite values and nonnegative finite tolerances.");
-            int address=((pixel/plane*2)*plane+pixel%plane)*4+channel;
-            bits[address]=BitConverter.SingleToUInt32Bits(expected[scalar]);
-            bits[address+plane*4]=BitConverter.SingleToUInt32Bits(tolerances[scalar]);
-        }
-        using var input=CreateArray(TextureFormat.Rgba32ui,actual.Texture.Width,actual.Texture.Height,actual.Texture.Depth*2);
-        input.UploadDataImmediate(bits,0,0,0,input.Width,input.Height,input.Depth);
-        var inputs = DomainInputs(actual, channelMask, 0, double.NegativeInfinity, double.PositiveInfinity);
-        GpuAssertionInputs.Integer(inputs, 12, (uint)ComparisonOperation.Authored);
-        GpuAssertionInputs.Integer(inputs, 92, (uint)ObservationPredicates.GpuImageAssertionsPredicates_CompareFloating.Choice);
-        return new(CompareDomain(actual, "predicate-" + ObservationPredicates.GpuImageAssertionsPredicates_CompareFloating.Domain, inputs, [("actualImage", actual.Texture), ("expectedImage", input)], (pixel, channel, value) => $"{expected[pixel * actual.Channels + channel]:R} +/- {tolerances[pixel * actual.Channels + channel]:R}"));
+        using var actual = new GpuImageSnapshot(image);
+        if (expected.Length != checked(image.Width * image.Height * image.Depth * 4))
+            throw new ArgumentException("Byte expectations must cover every RGBA8 component.", nameof(expected));
+        using var input = CreateArray(TextureFormat.Rgba8ui, image.Width, image.Height, image.Depth);
+        input.UploadDataImmediate(expected, 0, 0, 0, input.Width, input.Height, input.Depth);
+        UploadedExpectationBytes += expected.Length;
+        var inputs = DomainInputs(actual, 15, 0, double.NegativeInfinity, double.PositiveInfinity);
+        GpuAssertionInputs.Integer(inputs, 12, (uint)ComparisonOperation.NormalizedBytes);
+        return new(CompareDomain(actual, "compare", inputs, [("actualImage", actual.Texture), ("expectedImage", input)],
+            (pixel, channel, value) => expected[pixel * 4 + channel].ToString()));
     }
 
     #endregion
@@ -271,8 +216,18 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
         Intervals = 17,
         /// <summary>Selects the AffineInterval kernel operation.</summary>
         AffineInterval = 19,
-        /// <summary>Selects the Authored kernel operation.</summary>
-        Authored = 21,
+        /// <summary>Compares authored per-component float tolerances with original float subtraction.</summary>
+        FloatingTolerance = 22,
+        /// <summary>Compares exact IEEE bits without numeric equivalence.</summary>
+        ExactBits = 23,
+        /// <summary>Reconstructs exact normalized byte values without a projected image.</summary>
+        NormalizedBytes = 24,
+        /// <summary>Compares all selected components with one authored vector.</summary>
+        VectorConstant = 25,
+        /// <summary>Checks independently nominated scalar interval records.</summary>
+        ScalarIntervals = 28,
+        /// <summary>Checks every independently authored region/tuple, including overlaps.</summary>
+        Regions = 29,
     }
     #endregion
 }

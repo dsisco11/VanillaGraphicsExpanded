@@ -160,7 +160,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                     if (attachment == 2 && !ssao) continue;
                     using var contents = Assertions.GpuImageSnapshot.FromAttachment(engine.GetAttachment(FramebufferSlot.Color0 + attachment)!);
                     if (attachment == 6)
-                        ImageAssertions.Comparisons.CompareBits(contents.Texture, Enumerable.Repeat(6u, 16).ToArray()).AssertEqual();
+                        ImageAssertions.Comparisons.CompareUnsignedConstant(contents.Texture, 6).AssertEqual();
                     else ImageAssertions.Comparisons.CompareConstant(contents.Texture, attachment).AssertEqual();
                 }
             }

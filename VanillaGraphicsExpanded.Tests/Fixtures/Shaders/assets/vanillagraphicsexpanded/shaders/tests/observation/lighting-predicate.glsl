@@ -62,9 +62,11 @@ return bvec2(a.r>=3.99999 && a.r<=4.00001 && a.g>=1.99999 && a.g<=2.00001 && a.b
 /// Evaluates an independently authored domain contract.
 bvec2 predicate137(ivec3 coordinate,uint index,vec4 a,vec4 b,vec4 c,vec4 d,ivec3 selected,vec4 value,uint flags) {
 {
-bool selected=coordinate.y==8 && coordinate.x>=int(multipliers.x)+17 && coordinate.x<=26;
+// Preserve the exact independent row/column mask without short-circuit Boolean merge values.
+uint nominated=uint(coordinate.y==8)&uint(coordinate.x>=int(multipliers.x)+17)&uint(coordinate.x<=26);
 float previous=texelFetch(actualImage,ivec3(max(coordinate.x-1,0),coordinate.y,0),0).r;
-return bvec2(!selected || a.r<=previous+.00001,selected);
+uint accepted=(1u-nominated)|uint(a.r<=previous+.00001);
+return bvec2(accepted!=0u,nominated!=0u);
 
 }
 }

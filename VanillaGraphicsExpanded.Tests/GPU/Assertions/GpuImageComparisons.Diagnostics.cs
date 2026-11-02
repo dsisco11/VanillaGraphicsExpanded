@@ -14,6 +14,13 @@ internal sealed partial class GpuImageComparisons
         (string Name, GpuTexture? Texture)[] sources, Func<int, int, uint[], string> expectedAt)
     {
         var data = Observe(actual, family, inputs, sources);
+        return Diagnose(actual, data, expectedAt);
+    }
+
+    /// <summary>Adds a bounded first-failure tuple to already verified dense or sparse completion evidence.</summary>
+    private static GpuObservationData Diagnose(GpuImageSnapshot actual, GpuObservationData data,
+        Func<int, int, uint[], string> expectedAt)
+    {
         if (data.Counters[2] == 0 || data.Counters[6] == uint.MaxValue) return data;
         int pixel = checked((int)(data.Counters[6] / 4)), channel = (int)(data.Counters[6] % 4);
         var value = ReadDiagnosticTuple(actual.Texture, pixel, actual.Kind);
