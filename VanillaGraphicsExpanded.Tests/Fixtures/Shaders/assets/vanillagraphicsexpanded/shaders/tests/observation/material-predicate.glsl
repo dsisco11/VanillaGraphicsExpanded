@@ -67,8 +67,9 @@ return bvec2(true,inside && a.a>0.01 && a.a<0.99);
 /// Evaluates an independently authored domain contract.
 bvec2 predicate132(ivec3 coordinate,uint index,vec4 a,vec4 b,vec4 c,vec4 d,ivec3 selected,vec4 value,uint flags) {
 {
-bool inside=coordinate.x>=16 && coordinate.x<48 && coordinate.y>=16 && coordinate.y<48;
-vec4 expected=inside?b:vec4(0.5,0.5,1.0,0.5);
+// Keep all four rectangle bounds explicit before selecting the independent reference.
+uint inside=uint(coordinate.x>=16)&uint(coordinate.x<48)&uint(coordinate.y>=16)&uint(coordinate.y<48);
+vec4 expected=inside!=0u?b:vec4(0.5,0.5,1.0,0.5);
 return bvec2(all(lessThanEqual(abs(a-expected),vec4(0.001))),false);
 
 }

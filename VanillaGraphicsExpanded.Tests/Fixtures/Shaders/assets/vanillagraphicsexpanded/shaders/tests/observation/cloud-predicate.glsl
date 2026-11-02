@@ -186,7 +186,10 @@ bool selected=coordinate.x>=1 && coordinate.x<7 && coordinate.y>=1 && coordinate
 /// Evaluates an independently authored domain contract.
 bvec2 predicate36(ivec3 coordinate,uint index,vec4 a,vec4 b,vec4 c,vec4 d,ivec3 selected,vec4 value,uint flags) {
 {
-bool selected=coordinate.x>=1 && coordinate.x<7 && coordinate.y>=1 && coordinate.y<7 && a.g==2.0 && a.b==0.0; return bvec2(!selected || abs(b.r-c.r)<=0.004,selected);
+// Explicit masks preserve the excluded boundary independently of the acceptance comparison.
+uint selectedMask=uint(coordinate.x>=1)&uint(coordinate.x<7)&uint(coordinate.y>=1)&uint(coordinate.y<7)&uint(a.g==2.0)&uint(a.b==0.0);
+uint accepted=uint(abs(b.r-c.r)<=0.004);
+return bvec2(((1u-selectedMask)|accepted)!=0u,selectedMask!=0u);
 
 }
 }

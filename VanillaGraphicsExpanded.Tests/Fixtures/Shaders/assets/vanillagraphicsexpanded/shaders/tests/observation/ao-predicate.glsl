@@ -64,10 +64,14 @@ ivec2 childSize=ivec2(multipliers.xy),parentSize=ivec2(multipliers.zw);
 ivec2 first=coordinate.xy*childSize/parentSize;
 ivec2 end=((coordinate.xy+1)*childSize+parentSize-1)/parentSize;
 uint expected=0u;
+// Keep each child's contribution explicit; excluded reads stay in bounds and contribute no bits.
 for(int dy=0;dy<3;dy++)for(int dx=0;dx<3;dx++)
-    if(first.x+dx<end.x && first.y+dy<end.y &&
-        texelFetch(additionalImage,ivec3(first+ivec2(dx,dy),0),0).r==b.r)
-        expected|=1u<<uint(dy*3+dx);
+    {
+        ivec2 child=first+ivec2(dx,dy);
+        uint inside=uint(child.x<end.x)&uint(child.y<end.y);
+        float depth=texelFetch(additionalImage,ivec3(min(child,childSize-1),0),0).r;
+        expected|=(inside&uint(depth==b.r))<<uint(dy*3+dx);
+    }
 return bvec2(uint(a.r)==expected,false);
 
 }

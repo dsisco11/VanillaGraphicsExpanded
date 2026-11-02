@@ -110,7 +110,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            if (contextRetired) RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            if (contextRetired) fixture.RestoreContextRegistration();
             if (native != 0 && GL.IsBuffer(native)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, native));
             fixture.CleanupGpuResources();
             OpenGlStateCache.Current.InvalidateAll();

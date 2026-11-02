@@ -303,8 +303,12 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
         Assert.Equal(CompletionStatus.Ready, context.Poll(fence));
         fixture.InitializeResourceDisposal();
         Assert.False(((GpuQueryRef)query).IsValid); Assert.False(((GpuSyncRef)fence).IsValid);
+#if DEBUG
+        // Owners must not submit after canonical admission withdraws their local association.
+        // Release retains operational safety checks without repeating this misuse diagnostic.
         Assert.Throws<InvalidOperationException>(() => context.WriteTimestamp(query));
         Assert.Throws<InvalidOperationException>(() => context.Poll(fence));
+#endif
         query.Dispose(); fence.Dispose(); fixture.CleanupGpuResources();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

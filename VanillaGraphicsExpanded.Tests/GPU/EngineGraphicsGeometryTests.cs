@@ -197,7 +197,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             if (retired)
             {
                 Rendering.Integration.RenderContextRegistry.Retire(replacement);
-                Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+                fixture.RestoreContextRegistration();
             }
             geometry?.Dispose();
             DeleteNativeMesh(native.Mesh);

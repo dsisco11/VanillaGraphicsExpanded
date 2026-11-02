@@ -206,7 +206,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
         finally
         {
             RenderContextRegistry.Retire(replacement);
-            RenderContextRegistry.RegisterCurrent(fixture, static target => ((HeadlessGLFixture)target).IsContextValid);
+            fixture.RestoreContextRegistration();
             GL.DeleteBuffer(first); fixture.CleanupGpuResources();
         }
     }

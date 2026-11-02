@@ -214,7 +214,7 @@ public sealed unsafe class GpuBufferAcceptanceTests(HeadlessGLFixture fixture)
         finally
         {
             GL.DeleteVertexArray(vao); GL.DeleteBuffer(buffer);
-            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             fixture.CleanupGpuResources();
         }
     }

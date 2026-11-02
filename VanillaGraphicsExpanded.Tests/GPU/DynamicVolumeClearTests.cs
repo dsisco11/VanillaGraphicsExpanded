@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using OpenTK.Graphics.OpenGL4;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -6,12 +7,13 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Checks scalar and multichannel half-float volume clears through independent exact readback.</summary>
+/// <summary>Checks complete volume clear contents through compact independent expected-value comparisons.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
-public sealed class DynamicVolumeClearTests(HeadlessGLFixture fixture)
+public sealed class DynamicVolumeClearTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    #region Volume content and region preservation
     /// <summary>Preserves full float precision and OpenGL's missing blue/alpha defaults for an RG input pixel.</summary>
     [Theory]
     [InlineData(TextureFormat.Rg32f, 2)]
@@ -19,7 +21,7 @@ public sealed class DynamicVolumeClearTests(HeadlessGLFixture fixture)
     [InlineData(TextureFormat.Rgba32f, 4)]
     public void RgFloatInputPreservesComponentsAndDefaults(TextureFormat format, int components)
     {
-        fixture.EnsureContextValid();
+        EnsureContextValid();
         fixture.InitializeResourceDisposal();
         try
         {
@@ -35,15 +37,9 @@ public sealed class DynamicVolumeClearTests(HeadlessGLFixture fixture)
             float[] input = [r, g];
             context.ClearTexture(texture, region, new(PixelChannelLayout.Rg, PixelComponentType.Float),
                 MemoryMarshal.AsBytes(input.AsSpan()));
-            using var request = context.EnqueueReadback(new RHIReadbackDescription(texture, region,
-                context.GetTextureEncoding(texture, PixelComponentType.Float)));
-            Assert.Equal(CompletionStatus.Ready, request.Wait());
-            using var mapped = request.MapReadyReadback();
-            var actual = MemoryMarshal.Cast<byte, float>(mapped.Bytes);
-            float[] expected = [r, g, 0f, 1f];
-            Assert.Equal(16 * 66 * 16 * components, actual.Length);
-            for (int index = 0; index < actual.Length; index++)
-                Assert.Equal(expected[index % components], actual[index]);
+            var compared = ImageAssertions.Comparisons.CompareVector(texture, new(r, g, 0, 1));
+            compared.AssertEqual();
+            Assert.Equal((uint)(16 * 66 * 16 * components), compared.ComparedComponents);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); }
@@ -54,7 +50,7 @@ public sealed class DynamicVolumeClearTests(HeadlessGLFixture fixture)
     [InlineData(false)] [InlineData(true)]
     public void ShortLivedClearValuePreservesRequestedRegion(bool wholeImage)
     {
-        fixture.EnsureContextValid();
+        EnsureContextValid();
         fixture.InitializeResourceDisposal();
         try
         {
@@ -70,23 +66,9 @@ public sealed class DynamicVolumeClearTests(HeadlessGLFixture fixture)
             context.ClearTexture(texture, full, encoding, MemoryMarshal.AsBytes(initial.AsSpan()));
             var region = wholeImage ? full : new RHITextureRegion(new(), 2, 3, 4, 3, 4, 5);
             ClearFromLocalValue(texture, region, .5f, .125f);
-            using var request = context.EnqueueReadback(new RHIReadbackDescription(texture, full, encoding));
-            Assert.Equal(CompletionStatus.Ready, request.Wait());
-            using var mapped = request.MapReadyReadback();
-            var actual = MemoryMarshal.Cast<byte, float>(mapped.Bytes);
-            Assert.Equal(16 * 66 * 16 * 2, actual.Length);
-            // Verify both the requested write and its untouched surroundings independently.
-            for (int z = 0; z < 16; z++)
-                for (int y = 0; y < 66; y++)
-                    for (int x = 0; x < 16; x++)
-                    {
-                        bool selected = x >= region.X && x < region.X + region.Width
-                            && y >= region.Y && y < region.Y + region.Height
-                            && z >= region.Z && z < region.Z + region.Depth;
-                        int index = ((z * 66 + y) * 16 + x) * 2;
-                        Assert.Equal(selected ? .5f : initial[0], actual[index]);
-                        Assert.Equal(selected ? .125f : initial[1], actual[index + 1]);
-                    }
+            var compared = ImageAssertions.Comparisons.CompareRegions(texture, ClearRegions(region, 16, 66, 16));
+            compared.AssertEqual();
+            Assert.Equal((uint)(16 * 66 * 16 * 2), compared.ComparedComponents);
             GC.KeepAlive(initial);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -97,7 +79,7 @@ public sealed class DynamicVolumeClearTests(HeadlessGLFixture fixture)
     [Fact]
     public void AlternatingRgClearsPreserveEachRequestedValue()
     {
-        fixture.EnsureContextValid();
+        EnsureContextValid();
         fixture.InitializeResourceDisposal();
         try
         {
@@ -125,19 +107,11 @@ public sealed class DynamicVolumeClearTests(HeadlessGLFixture fixture)
                 else
                     texture.Clear(step.R, step.G);
 
-                using var request = context.EnqueueReadback(new RHIReadbackDescription(texture, region, encoding));
-                Assert.Equal(CompletionStatus.Ready, request.Wait());
-                using var mapped = request.MapReadyReadback();
-                var actual = MemoryMarshal.Cast<byte, float>(mapped.Bytes);
-                Assert.Equal(16 * 66 * 16 * 2, actual.Length);
-                for (int index = 0; index < actual.Length; index++)
-                {
-                    if (actual[index] == value[index % 2]) continue;
+                var compared = ImageAssertions.Comparisons.CompareVector(texture, new(step.R, step.G, 0, 1));
+                Assert.Equal((uint)(16 * 66 * 16 * 2), compared.ComparedComponents);
+                if (compared.Mismatches != 0)
                     failures.Add($"texture={texture.TextureId} entry={step.Entry} RG/Float extent=16x66x16 "
-                        + $"requested={step.R},{step.G} bytes={Convert.ToHexString(MemoryMarshal.AsBytes(value.AsSpan()))} "
-                        + $"firstMismatch={index} actual={actual[index]}");
-                    break;
-                }
+                        + $"requested={step.R},{step.G} bytes={Convert.ToHexString(MemoryMarshal.AsBytes(value.AsSpan()))} {compared}");
             }
             Assert.True(failures.Count == 0, string.Join(Environment.NewLine, failures));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -158,7 +132,7 @@ public sealed class DynamicVolumeClearTests(HeadlessGLFixture fixture)
     [InlineData(TextureFormat.Rgba16f, 4, 2)]
     public void NonzeroClearPreservesAllComponents(TextureFormat format, int components, int entryPoint)
     {
-        fixture.EnsureContextValid();
+        EnsureContextValid();
         fixture.InitializeResourceDisposal();
         try
         {
@@ -181,27 +155,52 @@ public sealed class DynamicVolumeClearTests(HeadlessGLFixture fixture)
             else
                 texture.Clear(expected[0], expected[1], expected[2], expected[3]);
 
-            // Read the complete allocation rather than relying on filtering or one edge sample.
-            using var request = context.EnqueueReadback(new RHIReadbackDescription(texture, region, encoding));
-            Assert.Equal(CompletionStatus.Ready, request.Wait());
-            using var mapped = request.MapReadyReadback();
-            var actual = MemoryMarshal.Cast<byte, float>(mapped.Bytes);
-            Assert.Equal(16 * 66 * 16 * components, actual.Length);
-            for (int index = 0; index < actual.Length; index++)
-                Assert.Equal(expected[index % components], actual[index]);
+            // Compare the complete original allocation, retaining every channel and processed-component count.
+            var compared = ImageAssertions.Comparisons.CompareVector(texture, new(expected[0], expected[1], expected[2], expected[3]));
+            compared.AssertEqual();
+            Assert.Equal((uint)(16 * 66 * 16 * components), compared.ComparedComponents);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); }
     }
     #endregion
+    #endregion
 
     #region Private
+    /// <summary>Prepares the suite's complete-domain comparison executable before native capture or clear execution.</summary>
+    private protected override void PrepareObservations(GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare");
+    }
+
+    /// <summary>Partitions the original volume into the selected clear and six disjoint untouched slabs.</summary>
+    private static IReadOnlyList<GpuVectorRegion> ClearRegions(RHITextureRegion selected, int width, int height, int depth)
+    {
+        List<GpuVectorRegion> regions = [new(selected, new(.5f, .125f, 0, 1), 3)];
+        int right = selected.X + selected.Width, top = selected.Y + selected.Height, back = selected.Z + selected.Depth;
+        RHITextureRegion[] outside = [
+            new(new(), 0, 0, 0, selected.X, height, depth),
+            new(new(), right, 0, 0, width - right, height, depth),
+            new(new(), selected.X, 0, 0, selected.Width, selected.Y, depth),
+            new(new(), selected.X, top, 0, selected.Width, height - top, depth),
+            new(new(), selected.X, selected.Y, 0, selected.Width, selected.Height, selected.Z),
+            new(new(), selected.X, selected.Y, back, selected.Width, selected.Height, depth - back)];
+        // Empty slabs disappear for a whole-volume clear; otherwise every untouched texel belongs to exactly one slab.
+        foreach (var slab in outside)
+            if (slab.Width > 0 && slab.Height > 0 && slab.Depth > 0)
+                regions.Add(new(slab, new(3, 5, 0, 1), 3));
+        return regions;
+    }
+
     /// <summary>Returns before readback so native execution must consume the value during the clear call.</summary>
     private static void ClearFromLocalValue(GpuTextureRef texture, RHITextureRegion region, float r, float g)
     {
         Span<float> value = stackalloc float[2] { r, g };
         var context = RHICommandContext.Current;
         context.ClearTexture(texture, region, context.GetTextureEncoding(texture, PixelComponentType.Float), MemoryMarshal.AsBytes(value));
+        // Overwrite the caller storage immediately so deferred native reads cannot pass unnoticed.
+        value.Fill(float.NaN);
     }
     #endregion
 }

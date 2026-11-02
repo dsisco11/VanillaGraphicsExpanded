@@ -242,6 +242,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             var second = programs.Create<LumOnUpsampleShaderProgram>();
             using var firstSurface = AssignResources(first, firstTexture, frame, frameCamera, 0.25f);
             using var secondSurface = AssignResources(second, secondTexture, frame, frameCamera, 0.75f);
+            // Fixture conversion uses its own executable and allocator; subject execution starts afterward.
+            RHIUniformRingSystem.SetCurrent(ring);
             using var firstPipeline = CreateBindingPipeline(first);
             using var secondPipeline = CreateBindingPipeline(second);
             var firstCapture = first.CaptureBindings();
@@ -297,7 +299,6 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         {
             var shader = programs.Create<LumOnUpsampleShaderProgram>();
             using var pipeline = CreateBindingPipeline(shader);
-            RHICommandContext.Current.SetPipeline(pipeline);
             int[] priorTextures = BoundTextures();
             shader.FrameUniformBuffer = frame;
             ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
@@ -310,6 +311,9 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             shader.UpsampleSpatialSigma = 2f;
             shader.HoleFillRadius = 3;
             shader.HoleFillMinConfidence = 0.5f;
+            // Finish GPU fixture conversion before selecting the subject executable and measured allocator.
+            RHIUniformRingSystem.SetCurrent(ring);
+            RHICommandContext.Current.SetPipeline(pipeline);
 
 #if DEBUG
             Assert.Equal(0, ring.AllocationsWritten);
@@ -366,7 +370,6 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         {
             var shader = programs.Create<LumOnProbeAnchorShaderProgram>();
             using var pipeline = CreateBindingPipeline(shader);
-            RHICommandContext.Current.SetPipeline(pipeline);
             int[] priorTextures = BoundTextures();
             shader.FrameUniformBuffer = frame;
             ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
@@ -376,6 +379,9 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             shader.PmjJitter = texture;
             shader.DepthDiscontinuityThreshold = 0.25f;
             shader.DepthDiscontinuityThreshold = 0.75f;
+            // Finish GPU fixture conversion before selecting the subject executable and measured allocator.
+            RHIUniformRingSystem.SetCurrent(ring);
+            RHICommandContext.Current.SetPipeline(pipeline);
 #if DEBUG
             Assert.Equal(0, ring.AllocationsWritten);
 #endif

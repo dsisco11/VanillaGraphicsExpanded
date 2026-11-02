@@ -9,7 +9,7 @@ Management naming is complete. Phase 9 remains open: 9.1 records the existing-wo
 9.2 is complete with consistent resource-change publication. Corrective subphase 9.2.1 is qualified, replacing
 registry-wide dependency searches. Phase 9.3 completes remaining
 diagnosis, integrated qualification, package evidence and user-run acceptance.
-Phase 10 audits and streamlines GPU integration tests and their fixtures. Follow-up Phase 11 migrates
+Phase 10 is complete, including accepted test qualification and cleanup in 10.10. Follow-up Phase 11 migrates
 legacy test execution to production shader and submission abstractions.
 
 Goal
@@ -1781,6 +1781,7 @@ Phase 9.3.3: Remove redundant liquid-adapter identity polling
     findings. All five tasks are complete; final integrated/package and user-run qualification remain in 9.3.
 
 Phase 10: Streamline GPU integration tests and eliminate unnecessary test work
+  Status: complete; the user accepted the final results and requested closure of 10.10 on 2026-11-02.
   Depends on Phase 9, including 9.1–9.3 and corrective subphases 9.3.1–9.3.3 (including 9.3.1.1–9.3.1.2).
   Outcome: clearly classified, focused tests retain useful correctness coverage with less repeated setup,
     disk access, GPU work and CPU readback. Phase 9 qualification and user acceptance remain separate.
@@ -1792,8 +1793,8 @@ Phase 10: Streamline GPU integration tests and eliminate unnecessary test work
     are complete. Existing qualification corrections have a commit checkpoint in 10.6; redundant shader
     recompilation is addressed in 10.7. Subphase 10.8 separates the subsequent correction batch for review;
     10.9 identifies and designs changes to the remaining measured costs before implementation units are
-    defined. Final combined correctness and test-runtime acceptance belong to 10.10. Earlier cleanup
-    receipts do not demonstrate that the full suite became faster.
+    defined. Final combined correctness and test-runtime results were accepted at 10.10, retaining the
+    stated skip and comparability limits. No matched whole-suite percentage speedup is claimed.
 
 Phase 10.1: Establish the commit boundary for existing test-cleanup work
   Status: complete by user acceptance as the existing-work commit boundary.
@@ -2413,8 +2414,9 @@ Phase 10.5: Migrate image assertions and runtime observations across all familie
       resource/state/shader cases retain unique signatures, lifetime/context/name/forwarding/restoration
       subjects and their one-texel protocol outputs; no resource-family or interception matrix is deleted.
       CPU-only files outside GPU retain their independent contracts; no image downloads occur there.
-    - Retained direct exceptions: RenderTestBase's numerical read helpers serve one-pixel BRDF/photometric
-      or explicit infrastructure-API subjects; GpuLocalRead/TextureReferenceReadback select nominated
+    - Retained direct exceptions (reconciled in 10.10): RenderTestBase's numerical read helpers serve
+      one-pixel BRDF or explicit infrastructure-API subjects. PhotometricLightingShaderTests retains
+      its 8x2 domain through compact comparisons/predicates and only nominated local correlated tuples; GpuLocalRead/TextureReferenceReadback select nominated
       tuples (the whole-base-image reference adapter is constrained to 1x1). Integer shader/ring/link/cache
       outputs are 1x1x1 protocol tuples. Material publication/photometry and camera/composition outputs
       remain one-pixel records; FrameLightingStorage/GpuTextureLifetime retain two nominated storage tuples.
@@ -2810,7 +2812,7 @@ Phase 10.9: Attribute remaining test costs and agree on the runtime-reduction de
   Status: complete as the original analysis/design boundary. Checkpoint 10.9.1 is complete by user
     acceptance; 10.9.2 design and coverage mapping is complete by user approval. Implementation subphases
     10.9.3–10.9.7 are complete by user acceptance. Batching is
-    deferred and Phase 10 remains open.
+    deferred. Phase 10 subsequently closed through accepted final qualification in 10.10.
   Depends on 10.8. Governing constraints: Phase 10/10.2's coverage and isolation map, 10.7's cache policy,
     Rendering.ShaderBindingState.md (Verification boundary) and Rendering.GpuCommands.Contracts.md
     (Submission and failure rules). This is analysis and design before further implementation.
@@ -3910,6 +3912,7 @@ Phase 10.9.7: Simplify repeated observations and expensive test workload pattern
       before closure; no additional tests, staging or commit were performed.
 
 Phase 10.10: Qualify combined correctness and review final metrics, then remove temporary support files
+  Status: complete; explicitly accepted and closed by the user on 2026-11-02.
   Depends on 10.3–10.9 and revised subphases 10.9.1–10.9.7, including explicit design/metrics acceptance.
   Governing acceptance: Phase 10, 10.2's complete coverage/design mapping and
     10.7's approved cache policy; Rendering.ShaderBindingState.md (Verification boundary) and inherited
@@ -3921,7 +3924,7 @@ Phase 10.10: Qualify combined correctness and review final metrics, then remove 
     Resume final qualification only after the existing checkpoints
     and approved runtime-reduction implementation are complete.
 
-  ☐ Reconcile every retained/remapped family, helper, trait, filter, csproj/runsettings and permanent test
+  ☑ Reconcile every retained/remapped family, helper, trait, filter, csproj/runsettings and permanent test
     documentation. Confirm no superseded source path, universal test-specific dispatcher, eager checker
     catalog preparation, stale Category=GPU command, physical test-owned persistence, blanket shader-cache bypass or bulk image assertion survives outside the explicitly
     classified exceptions. Required immutable bootstrap/loader inputs and runner receipts retain their
@@ -3934,7 +3937,7 @@ Phase 10.10: Qualify combined correctness and review final metrics, then remove 
       and source-before-split/ snapshot;
       preserve source-parity decisions, build/TRX/source identities and bounded metrics before removing tools.
 
-  ☐ Diagnose the outstanding water-state/exception failures recorded in 10.1 against the resulting source.
+  ☑ Diagnose the outstanding water-state/exception failures recorded in 10.1 against the resulting source.
     Preserve expected contracts and tolerances; do not treat an unexplained failure as redundancy or
     change assertions to match incidental behavior. Reconcile any other failing retained correctness case.
     Include TerrainTessellationTests.DisabledDisplacementRasterMatchesTriangles's order-dependent
@@ -3942,7 +3945,7 @@ Phase 10.10: Qualify combined correctness and review final metrics, then remove 
     isolated --no-build pass establishes the assertion path but does not explain the combined failure.
     Reuse the 10.6 diagnoses and focused corrections; verify them in the resulting combined source rather
     than repeating completed investigation. Preserve the explicitly approved owner/preparation contracts.
-  ☐ Delegate final combined VGE correctness qualification on an identified resulting source, including
+  ☑ Delegate final combined VGE correctness qualification on an identified resulting source, including
     required Debug/Release configuration checks. Record commands, filters, counts, failures/skips and
     available runner durations; distinguish build/bootstrap costs and diagnostic selections. Use per-case
     progress logging so long runs identify completed work. Run each required complete selection once;
@@ -3952,7 +3955,7 @@ Phase 10.10: Qualify combined correctness and review final metrics, then remove 
     of claiming success from fewer bytes, compilation counts or a changed selection. No numeric speed gate.
     No benchmark framework or repeated full-suite timing study. No unrelated tool
     test projects, agent-launched game or substitution for Phase 9 user-run visual/runtime acceptance.
-  ☐ Review and remove temporary TestResults/GpuTests101/deferred-gpu-assertions/ (including its
+  ☑ Review and remove temporary TestResults/GpuTests101/deferred-gpu-assertions/ (including its
     tracked-candidate.patch) and any temporary implementation inventories/capture scaffolding introduced
     during this work, after preserving required decisions and useful evidence here or in permanent docs.
     Update references first. Retain authoritative proposals/plans and qualification TRX/logs; do not
@@ -3965,11 +3968,148 @@ Phase 10.10: Qualify combined correctness and review final metrics, then remove 
     and any valid matched-result qualification receipts, source identities and normal logs/TRX.
     Also remove TestResults/GpuTests1093/coverage-probe/ after preserving useful exact selection/asset mapping
     and verification-source evidence; retain coverage-map.json and the focused qualification receipts.
-  ☐ Complete the final second review and independent completion audit against all Phase 10 requirements.
+  ☑ Complete the final second review and independent completion audit against all Phase 10 requirements.
     Completion: full VGE correctness evidence and current docs support the preserved coverage and final
     execution boundaries; all implementation subphases are satisfied and the user has accepted the work
     after discussion of final resulting metrics. Mark Phase 10 complete only then; pending or rejected
     user acceptance remains open even when correctness passes. No numerical performance requirement applies.
+
+  Resulting-source qualification record (accepted 2026-11-02):
+    - Task 1 -> Phase 10/10.2 coverage/I/O map, 10.7 cache policy, README testing commands,
+      csproj/runsettings and Rendering.ShaderBindingState.md (Verification boundary) -> source review
+      confirms GpuIntegration/Purpose filters, in-memory persistence/cache scopes, explicit checker
+      preparation and documented bootstrap/native-oracle exceptions. PhotometricLightingShaderTests'
+      missed 8x2 CPU scan now uses compact comparisons and independent relational predicates, with
+      the original coordinates, double reference equations, strict bounds and few local correlated tuples.
+      DynamicVolumeClearTests retains every original 16x66x16 texel, format, entry point and alternating
+      write; constants and disjoint selected/exterior region tables replace CPU downloads. Processed
+      component counts retain all 33,792 RG components, including the 120-component partial-clear box.
+      No target pruning, tolerance change, original-case reclassification or Phase 11 migration.
+    - Task 2 -> approved 10.6 diagnoses and inherited resource/command ownership/completion contracts ->
+      the initial full Debug receipt (4,517 passed / 2,587 failed / seven skipped) exposed a stale fixture
+      registration generation, causing 2,571 setup failures. Explicit fixture restoration retires old
+      observations and records the new epoch; it does not retarget stale shader owners. Isolated PSO
+      contexts now own their own observers. Fixture GPU conversion finishes before shader-input tests
+      select their measured allocator/pipeline. Frame/terrain compute observations run outside their
+      native shader intervals, preserving all native handback assertions. The original water-state,
+      resize, exception-inner-cause and terrain-routing regression rows passed combined qualification.
+      AO/cloud/material known-field regressions exposed compiled conditional-form discrepancies.
+      Equivalent integer masks preserve every selected bound, witness, reference and tolerance; their
+      deterministic positive/negative checks pass. A failed counter-storage experiment was reverted.
+      Neither compiler/driver internals nor production numerical equations are blamed or changed.
+    - Task 3 -> normal delegated build/test receipts in ../TestResults/GpuTests1010 -> each configuration
+      retains its own source, DLL and asset identities, exact commands/filters, per-case progress and TRX.
+      All builds/tests were sequential, scoped to VGE, with no standalone probes or dotnet crashes.
+
+      | Receipt | Passed / failed / skipped | Runner / process wall |
+      | --- | --- | --- |
+      | Corrected combined Debug, before narrow follow-up fixes | 7,097 / 12 / 6 | 17.0661 min / 17m05.693s |
+      | Combined Release on its frozen candidate | 7,102 / 7 / 7 | 13.8064 min / 13m49.859s |
+      | Bounded material consumers and deterministic regressions | 140 / 0 / 0 | 14.138s runner |
+      | Compact clear/contract/native investigation selection, Debug | 23 / 0 / 0 | 6.070s runner |
+      | Same investigation selection, Release | 15 / 8 / 0 | 9.819s runner |
+
+      The 12 corrected-combined Debug failures have passing focused replacements (20 passing setup/
+      handback cases plus the 140-row material selection); four new deterministic regressions pass.
+      Latest applicable ordinary Debug coverage is 7,110 passes / six skips. Both Release-only misuse
+      expectations now match the approved DEBUG diagnostics: pipeline post-disposal rejection and
+      original local query/fence association misuse. Always-on shader disposal, canonical availability,
+      context, operational interval and readiness assertions remain. Focused Release verifies both fixes.
+      Release build passed in 1m44.246s wall, zero errors; final compact Debug build passed in 15.56s,
+      Release in 17.16s. Source/DLL identity was stable during the full Release run; comments added before
+      final Debug asset preparation were separately reconciled. Historical TRX failures remain failures.
+    - Original remaining Release failures: DynamicVolumeClearTests.NonzeroClearPreservesAllComponents
+      (Rg16f, components=2, entryPoint=0), ShortLivedClearValuePreservesRequestedRegion(false/true),
+      AlternatingRgClearsPreserveEachRequestedValue, and CloudVolumePublicationTests.
+      DrawableSnapshotIsIsolatedAndPublishesOnlyChangedBlocks. All five original cases remain strict
+      and now pass the focused mitigation check below. The historical complete Release run remains
+      a failed run; focused replacement evidence does not rewrite that receipt.
+    - Native clear investigation -> original clear regression cases plus temporary independent controls ->
+      capture sees the requested RG pair before and after native forwarding, yet independent native tuple
+      reads are wrong. Uninstrumented direct GL stack input also fails without the RHI/span/capture route;
+      Finish inside its client stack lifetime passes. Equivalent RGBA float (r,g,0,1) input passes without
+      waiting. These controls establish native source-encoding/stack/timing sensitivity, not proof of
+      driver pointer retention or its exact implementation cause by themselves.
+      The user selected further discussion and approved one bounded direct-driver comparison before
+      any backend change. That Release diagnostic bypasses OpenTK's generated clear binding through
+      GLFW's driver address with the exact unmanaged API signature. Returned RG stack input failed
+      with stored [0,0,0,1]; RG unmanaged input retained through the same synchronous one-texel read
+      passed with [0.25,0.75,0,1]. No Finish, interception callback, RHI clear or JIT override was used.
+      This excludes the generated clear binding as a necessary cause in this reproduction; allocation
+      address/alignment, stack layout, timing and native input handling remain unresolved factors.
+      That comparison alone did not prove delayed driver pointer consumption or qualify a mitigation.
+      Normal Release build passed (zero errors, 15.5365s); exactly two diagnostic rows ran (one pass,
+      one failure; 3.9017s runner). Source and DLL hashes stayed fixed during execution. Receipts:
+      ../TestResults/GpuTests1010/driver-pointer/ (commands, logs, driver-pointer.trx, hashes, source.patch).
+      The temporary diagnostic source was removed after preserving its exact executed source; the
+      user's staged files were left intact.
+      Subsequent controlled unmanaged-input overwrite reproduced consumption of values written after
+      return: RG input changed from (0.25,0.75) to (7,9) produced (7,9). Disabling NVIDIA threaded
+      optimization in a temporary test-only profile removed the failure; restoring the original settings
+      restored it. The temporary profile was removed and restoration verified. With identical four-float
+      input storage and RG16F destination, RGBA encoding preserved the requested values despite the same
+      overwrite. These controls implicate delayed input consumption in the driver's threaded RG path;
+      its internal implementation remains unproven. Receipts: ../TestResults/GpuTests1010/rg-overwrite/,
+      rg-threading/ and rgba-overwrite/. Padding the input while retaining RG encoding did not suffice.
+      The user approved implementation: RG/Float inputs now lower to equivalent RGBA/Float (r,g,0,1),
+      preserving destination storage, region and metadata, with one native clear and no Finish, retry
+      or synchronization. Other input encodings retain their original dispatch.
+      Focused Release qualification passed all 16 DynamicVolumeClearTests and CloudVolumePublicationTests
+      cases with zero failures/skips (6s reported test duration). The stack-input region regression now
+      overwrites caller memory immediately after return. Receipts: ../TestResults/GpuTests1010/rgba-fix/.
+      This is focused correctness evidence on the recorded GPU/driver, not a whole-suite rerun or
+      a claim about other drivers. The final source adds an explicit scoped local for the converted span.
+      Final incremental Release build passed with zero errors (26 warnings; no CS9080 span warning).
+      Independent review found no actionable issues. The initial default-unit-settings attempt selected
+      zero tests; only the explicit AllTests.runsettings focused run supplies test evidence.
+      Final-source Debug build also passed (zero errors, 241 warnings, 1m21.27s build elapsed), followed
+      by the same 16 cases passing with zero failures/skips (17s test duration). Exact commands,
+      filters, source and Debug/Release DLL identities are retained in rgba-fix/qualification-summary.md.
+      Release tests preceded only the scoped-local span annotation; the final Release build and Debug
+      tests include it. That semantic-preserving delta does not require another Release test run.
+      Source conversion semantics were checked in Khronos ARB_clear_texture:
+      https://registry.khronos.org/OpenGL/extensions/ARB/ARB_clear_texture.txt.
+    - Metrics/comparability: historical 10.8 Debug was 8,345 total (8,338 passed / seven skipped),
+      23m37.400s wall. Resulting ordinary inventory has 7,116 rows: removal of 842 duplicate stage loads,
+      480 duplicate links, three particle scene repetitions and one timing-only Diagnostic move, with
+      97 added rows. Exact delta is selection-method-delta.csv; retained coverage maps govern removals.
+      Different source, selection, cache state and configuration preclude a matched percentage speedup.
+      Release class-time sums (not wall attribution): water receivers 120.78s, budgets 56.92s, continuity
+      54.45s, SPIR-V runtime 52.20s, water composition 42.62s, installed surface 27.21s, real GC 23.54s.
+      Hardware: RTX 4090, NVIDIA 610.88, OpenGL 4.5, .NET 10.0.14. Seven Release skips retain three
+      tokenizer/source-map gaps, two EventSource observation gaps and two probe-hit oracle limitations;
+      Debug has six skips because one profiling-counter observation passed. Exact reasons remain in
+      full-release-skips.csv. No single all-green complete run or matched percentage speedup is claimed;
+      acceptance of the reconciled evidence and reported durations is recorded below.
+      Final reconciled ordinary coverage is 7,110 passing / six skipped Debug and 7,109 passing / seven
+      skipped Release, with no unresolved ordinary failures. These are per-case full-run plus focused
+      replacement totals, not a new all-green complete run. Five temporary native-clear investigation
+      rows are excluded. Debug's earlier 7,115-row candidate gains the subsequently added independent
+      material-rectangle regression to reach the same 7,116-row ordinary inventory.
+    - Tasks 1/4 -> explicit temporary-support inventory -> 75 verified targets removed: 1093/coverage-probe;
+      1094/*.cjs, refactor.py, bitload.csh, precision-probe/, source-before-regions/, policy-map.json;
+      1095/compact-*.py, compact-callers.txt and source-before-split/. Named 1091 scripts/maps and the
+      deferred 10.1 archive were already absent. Coverage-map.json, numerical partials.json, original
+      assertion-check-baseline.csh and normal logs/TRX/hash/parity receipts remain. The five temporary
+      native investigation rows and NativeTextureClearCapture helper were removed after preserving
+      native-clear-reproduction.patch and clear-{capture,direct,lifetime,compact-*} source/build/TRX logs.
+      Original RHI correctness cases were not removed; temporary probes are not permanent product contracts.
+      The later driver-threading experiment's run-disabled.ps1, threading-profile.ps1 and downloaded
+      nvapi-headers/ were also removed. Exact script source remains in rg-threading/diagnostic-utility-source.patch,
+      header hashes/provenance in nvapi-header-provenance.csv, and profile restoration in profile-restored.txt.
+      Direct-driver, padding and overwrite diagnostic sources remain archived patches rather than executable
+      test branches. Rechecked named 1091/1093/1094/1095 utilities and the deferred archive: all are absent.
+    - Task 5 -> full Phase 10 requirements and linked contracts -> final second source/document review
+      and independent audit-stage-completion audit found no unresolved implementation, traceability or
+      cleanup issues. The audit directly checked all 3,749 baseline source hashes, documented deltas,
+      failed-case replacements, current source/DLL receipts and temporary-support absence. Existing full
+      Debug/Release evidence plus focused corrections satisfies the permitted qualification approach;
+      another full selection is unnecessary. Final resulting metrics and comparability limits have been
+      presented for explicit user acceptance. On 2026-11-02 the user selected "Accept and close 10.10",
+      accepting the reconciled Debug 7,110-pass/six-skip and Release 7,109-pass/seven-skip evidence,
+      full-run durations and unmatched-comparison limits. All 10.10 tasks and Phase 10 are complete.
+      This documentation-only closure adds no test rerun, staging, commit, agent-launched game, unrelated
+      tool-project testing or Phase 9 visual-acceptance claim. Phase 11 remains open.
 
 Phase 11: Migrate legacy GPU tests to production shader and submission abstractions
   Depends on Phase 10, including 10.10. Governing contracts: Rendering.GpuResources.md (Shader executable
@@ -4094,8 +4234,8 @@ Parent 9.3 retains all final combined-suite, package and user acceptance work. E
 stopped and supplies no complete-suite or final-package receipt. The unavailable historical
 artifacts/phase8h/closure5-head-comparison.json was not recovered; the approved replacement is current
 per-case full-suite evidence, retaining the original fourteen sequence-sensitive regression checks.
-The removed RG-to-RGBA clear workaround remains absent: a passing focused recheck did not explain
-earlier failures, and parent 9.3 retains diagnosis without an assumed driver defect. Optional external
+The RG-to-RGBA clear mitigation was subsequently approved after controlled input-overwrite and driver
+threading comparisons; Phase 10.10 records its evidence and qualification limits. Optional external
 producer imports, unsupported hardware paths and user-run appearance remain unqualified where not
 executed. Phase 10 retains GPU integration terminology, I/O isolation/mocks, redundant-case removal,
 coverage consolidation and compact assertions without bulk pixel readbacks.

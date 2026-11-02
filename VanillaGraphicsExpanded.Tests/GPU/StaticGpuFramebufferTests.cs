@@ -178,7 +178,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         finally
         {
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(replacement);
-            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             if (GL.IsFramebuffer(id)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, id));
         }
     }

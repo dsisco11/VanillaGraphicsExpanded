@@ -79,7 +79,7 @@ public sealed class GpuResourceMetadataAcquisitionTests
         finally
         {
             RenderContextRegistry.Retire(replacement);
-            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             GL.DeleteBuffer(buffer);
         }
     }

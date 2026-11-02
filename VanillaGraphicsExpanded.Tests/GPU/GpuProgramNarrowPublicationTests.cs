@@ -413,7 +413,7 @@ public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
             var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
             using var queries = new ExecutableDescriptorCapture();
             RenderContextRegistry.Retire(fixture);
-            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             Assert.Throws<InvalidOperationException>(() => executionBackend.CompleteProgramLink(owner, out _));
             Assert.Equal(0, queries.ProgramReads);
             Assert.Equal(GpuResourceRegistrationState.ContextRetired, entry.State);
@@ -421,7 +421,7 @@ public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             if (native != 0 && GL.IsProgram(native)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, native));
             fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }

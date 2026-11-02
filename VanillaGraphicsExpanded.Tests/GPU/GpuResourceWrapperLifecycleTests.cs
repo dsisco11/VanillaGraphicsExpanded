@@ -463,7 +463,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         finally
         {
             RenderContextRegistry.Retire(replacementContext);
-            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             GL.DeleteTexture(native);
             OpenGlStateCache.Current.InvalidateAll();
         }

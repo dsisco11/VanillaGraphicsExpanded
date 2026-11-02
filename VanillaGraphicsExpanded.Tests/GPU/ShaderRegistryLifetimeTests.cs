@@ -298,7 +298,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         finally
         {
             RenderContextRegistry.Retire(contextOwner);
-            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
             if (id != 0 && GL.IsProgram(id)) GL.DeleteProgram(id);
             lifetime.Shutdown();
@@ -328,13 +328,13 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
             Assert.True(lifetime.IsClosed); Assert.True(registry.IsClosed);
             Assert.False(target.IsValid); Assert.False(texture.IsValid);
             Assert.Throws<InvalidOperationException>(boundary.Dispose);
-            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("ReplacementPass", coverage), out var replacement));
             replacement!.Dispose();
         }
         finally
         {
-            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             lifetime.Shutdown();
         }
     }

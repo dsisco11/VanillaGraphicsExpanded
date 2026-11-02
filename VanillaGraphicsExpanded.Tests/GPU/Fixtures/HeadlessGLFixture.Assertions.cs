@@ -10,6 +10,18 @@ public sealed partial class HeadlessGLFixture
     private (nint Handle, long Generation) fixtureContext;
 
     #region Internal API
+    /// <summary>Restores this fixture after a test deliberately replaces its registered context lifetime.</summary>
+    internal unsafe void RestoreContextRegistration()
+    {
+        if (_glfwWindow == null || OpenTK.Windowing.GraphicsLibraryFramework.GLFW.GetCurrentContext() != _glfwWindow)
+            throw new InvalidOperationException("Select the fixture window before restoring its context registration.");
+        // Old preparations keep their original generation and must retire before a new epoch is adopted.
+        DisposeObservationPrograms();
+        long generation = VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(
+            this, static target => ((HeadlessGLFixture)target)._glfwWindow != null);
+        fixtureContext = ((nint)_glfwWindow, generation);
+    }
+
     /// <summary>Gets explicit observation services; executable loading requires a separate setup request.</summary>
     internal GpuObservations Observations
     {

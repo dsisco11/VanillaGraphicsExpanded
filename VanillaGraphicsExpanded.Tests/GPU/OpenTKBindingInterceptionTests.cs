@@ -178,7 +178,7 @@ public sealed class OpenTKBindingInterceptionTests(HeadlessGLFixture fixture) : 
         }
         finally
         {
-            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             VanillaGraphicsExpanded.Rendering.GpuSupport.EnsureCurrentContext();
             GC.KeepAlive(owner);
         }

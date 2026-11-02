@@ -10,6 +10,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -30,7 +31,11 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
     {
         EnsureShaderTestAvailable();
         using var context = new PsoWorkloadContext(fixture);
-        using Measurement current = Run(workload);
+        // This workload owns a different physical context, so its checkers share that lifetime explicitly.
+        using var observationPrograms = new GpuObservationPrograms();
+        PrepareObservations(observationPrograms);
+        var observations = new GpuObservations(observationPrograms);
+        using Measurement current = Run(workload, observations);
         Assert.DoesNotContain(current.Events, item => item.StartsWith("application:LineWidth("));
         Assert.DoesNotContain(current.Events, item => item.StartsWith("application:Scissor("));
         if (workload != "point-resolve") Assert.DoesNotContain(current.Events, item => item.StartsWith("application:PointSize("));
@@ -39,8 +44,8 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
             Assert.Contains(current.Events, item => item.StartsWith("application:PointSize(1"));
             // The real resolve stores physical RGB at persistent scale 1/16; validity/distance alpha stays unscaled.
             Assert.Equal(new[] { .046875f, .0078125f, .03125f, 1f }, current.Pixels[0].Texture.ReadPixelsRegion(3, 4, 1, 1));
-            ImageAssertions.Statistics.Inspect(current.Pixels[0].Texture).AssertFiniteRange();
-            Assert.Equal(4u, ImageAssertions.Statistics.Inspect(current.Pixels[0].Texture).Nonzero);
+            observations.Statistics.Inspect(current.Pixels[0].Texture).AssertFiniteRange();
+            Assert.Equal(4u, observations.Statistics.Inspect(current.Pixels[0].Texture).Nonzero);
         }
         if (workload == "cloud") Assert.Contains("validated:active-blend-factors",current.Events);
         AssertDormantOutputPayloads(current.Events);
@@ -56,26 +61,26 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
     #region Private
     #region Workload admission
     /// <summary>Creates fresh deterministic workload inputs; deferred preparation remains in the observed setup segment.</summary>
-    private Measurement Run(string workload)
+    private Measurement Run(string workload, GpuObservations observations)
     {
         if (workload == "sky")
         {
             using var scene = new ProductionSkyDrawScene(1);
             scene.Initialize();
-            return Measure(() => scene.Draw(true), () => scene.CaptureOutput());
+            return Measure(() => scene.Draw(true), () => scene.CaptureOutput(), observations);
         }
         if (workload == "cloud")
         {
             using var programs = new ComponentShaderPrograms();
-            using var scene = new CloudStoredVolumeViewScene(ImageAssertions, programs,8,8);
+            using var scene = new CloudStoredVolumeViewScene(observations, programs,8,8);
             var settings=VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewSettings.Default;
-            return Measure(() => { scene.PrepareDraw(settings); Assert.True(scene.DrawOnly()); }, () => scene.CaptureOutput());
+            return Measure(() => { scene.PrepareDraw(settings); Assert.True(scene.DrawOnly()); }, () => scene.CaptureOutput(), observations);
         }
-        return PointResolve();
+        return PointResolve(observations);
     }
 
     /// <summary>Runs real one-pixel radiance-atlas resolve through the shared complete pipeline, requiring fixed point-size activation.</summary>
-    private Measurement PointResolve()
+    private Measurement PointResolve(GpuObservations observations)
     {
         using var programs = new ComponentShaderPrograms();
         var program = programs.Create<LumOnWorldProbeRadianceTileResolveShaderProgram>();
@@ -98,7 +103,7 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
             commands.BindResources(program.CaptureBindings());
             commands.Draw(geometry.Inputs, new(0, 1)); commands.EndRenderPass();
         });
-}, () => new Assertions.GpuImageSet([image]));
+}, () => new Assertions.GpuImageSet([image]), observations);
     }
     #endregion
 
@@ -119,7 +124,7 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
     }
 
     /// <summary>Separates hostile setup and raw native inspection from the bounded observed callback.</summary>
-    private Measurement Measure(Action draw, Func<Assertions.GpuImageSet> pixels)
+    private Measurement Measure(Action draw, Func<Assertions.GpuImageSet> pixels, GpuObservations observations)
     {
         PsoNativeStateFingerprint.MakeDormantHostile();
         string before = PsoNativeStateFingerprint.Read();
@@ -136,7 +141,7 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         var images = pixels();
         try
         {
-            Assert.True(Enumerable.Range(0, images.Count).Any(i => ImageAssertions.Statistics.Inspect(images[i].Texture).Positive > 0));
+            Assert.True(Enumerable.Range(0, images.Count).Any(i => observations.Statistics.Inspect(images[i].Texture).Positive > 0));
         }
         catch { images.Dispose(); throw; }
         return new(

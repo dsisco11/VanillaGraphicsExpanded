@@ -379,7 +379,7 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
             Assert.Equal(queries, cache.BoundaryQueries);
 #endif
         }
-        finally { RenderContextRegistry.RegisterCurrent(fixture, static owner => ((HeadlessGLFixture)owner).IsContextValid); }
+        finally { fixture.RestoreContextRegistration(); }
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var scope));
         cache.ReleaseEngineBoundary(scope!);
     }

@@ -161,7 +161,7 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
         finally
         {
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(domain);
-            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             OpenGlStateCache.Current.InvalidateAll();
         }
     }

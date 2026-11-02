@@ -27,6 +27,7 @@ internal static partial class TestShaderPrograms
         programs.Add(Assertion("predicate-material", 0, 0, 27));
         programs.Add(Assertion("predicate-cloud", 0, 0, 27));
         programs.Add(Assertion("predicate-lighting", 0, 0, 27));
+        programs.Add(Assertion("predicate-photometric", 0, 0, 3));
         programs.Add(Assertion("predicate-surface", 0, 0, 27));
         programs.Add(Assertion("predicate-water", 0, 0, 27));
         programs.Add(Assertion("predicate-geometry", 0, 0, 11));

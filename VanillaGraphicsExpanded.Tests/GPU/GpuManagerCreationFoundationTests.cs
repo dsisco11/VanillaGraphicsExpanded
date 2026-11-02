@@ -266,7 +266,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             if (GL.IsBuffer(state.Id)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, state.Id));
             fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }

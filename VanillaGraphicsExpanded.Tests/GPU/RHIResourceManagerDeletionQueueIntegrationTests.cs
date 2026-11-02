@@ -117,7 +117,7 @@ public sealed class RHIResourceManagerDeletionQueueIntegrationTests
         finally
         {
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(replacement);
-            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             if (id != 0) GL.DeleteProgram(id);
             manager.Dispose(); RHIResourceManagerSystem.Shutdown(); TextureStreamingSystem.Dispose();
         }
@@ -160,7 +160,7 @@ public sealed class RHIResourceManagerDeletionQueueIntegrationTests
         finally
         {
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(replacement);
-            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             if (id != 0) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, id));
             manager.Dispose(); RHIResourceManagerSystem.Shutdown(); TextureStreamingSystem.Dispose();
         }

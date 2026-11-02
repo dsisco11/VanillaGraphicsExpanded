@@ -6,6 +6,7 @@ using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -28,7 +29,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
         try
         {
             string include = Expand(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/atmosphere_transport.glsl"));
-            float[] pixels = Render("#version 430 core\n" + include + """
+            var image = Render("#version 430 core\n" + include + """
                 layout(location=0) out vec4 result;
                 void main(){
                     vec3 origin=vec3(0,atmGround,0);
@@ -36,7 +37,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
                     result=vec4(atmTransmission(origin,sun,12),atmGroundDistance(origin,sun));
                 }
                 """);
-            Assert.Equal(new float[] { 0, 0, 0, 0 }, pixels[..4]);
+            Assert.Equal(new float[] { 0, 0, 0, 0 }, GpuLocalRead.NativeColorTuple(image, 0, 0));
         }
         finally { GpuShaderStorageBuffer.UnbindBase(0); }
     }
@@ -55,7 +56,8 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
                 result=vec4(ground,origin.y-atmGround,0,1);
             }
             """;
-        float[] pixels = Render(fragment);
+        var image = Render(fragment);
+        var pixels = GpuLocalRead.NativeColorTuple(image, 0, 0);
         float representedHeight = (float)(6360f + .001f) - 6360f;
         Assert.InRange(pixels[0], representedHeight * .99999, representedHeight * 1.00001);
         Assert.Equal(representedHeight, pixels[1]);
@@ -77,9 +79,9 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
             void main(){bool accessor=int(gl_FragCoord.x)%2==1;
                 result=vec4(VgeBlockIlluminance(vec3(accessor?127.0/255.0:128.0/255.0),accessor),1);}
             """;
-        float[] pixels = Render(fragment, calibration: calibration);
-        for (int pixel = 0; pixel < 16; pixel++)
-            for (int channel = 0; channel < 3; channel++) Close(44 / (4 * Math.PI), pixels[pixel * 4 + channel]);
+        var image = Render(fragment, calibration: calibration);
+        double expected = 44 / (4 * Math.PI), tolerance = 2e-6 * Math.Max(1, Math.Abs(expected));
+        ImageAssertions.Statistics.Inspect(image, expected - tolerance, expected + tolerance, channelMask: 7).AssertFiniteRange();
     }
 
     /// <summary>Both field decoders retain the torch anchor and suppress weak light with a vanishing slope at their neutral floor.</summary>
@@ -111,33 +113,9 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
                 result=vec4(VgeBlockIlluminance(raw,accessor),1);
             }
             """;
-        float[] pixels = Render(fragment, calibration: calibration);
-        for (int channel = 0; channel < 3; channel++)
-        {
-            Assert.Equal(0, pixels[channel]);
-            Assert.Equal(0, pixels[4 + channel]);
-        }
-        // The fourth-power dark-end toe gives sixteen times the light at twice the distance above zero,
-        // so the finite-difference slope itself tends to zero rather than retaining a linear edge.
-        Assert.InRange(pixels[12] / pixels[8], 15.97f, 16.03f);
-        Assert.InRange(pixels[8], 0, .0000000000001f);
-        for (int column = 2; column < 8; column++)
-        {
-            Assert.True(pixels[column * 4] > pixels[(column - 1) * 4]);
-            Assert.All(pixels[(column * 4)..(column * 4 + 3)], value => Assert.True(float.IsFinite(value)));
-        }
-        foreach (int column in new[] { 2, 3, 6, 7 })
-        {
-            Assert.InRange(pixels[column * 4 + 1] / pixels[column * 4], .59999f, .60001f);
-            Assert.InRange(pixels[column * 4 + 2] / pixels[column * 4], .29999f, .30001f);
-        }
-        double referenceY = .2126 * pixels[20] + .7152 * pixels[21] + .0722 * pixels[22];
-        Close(44 / (4 * Math.PI), (float)referenceY);
-        if (!accessor)
-        {
-            double weakestY = .2126 * pixels[16] + .7152 * pixels[17] + .0722 * pixels[18];
-            Assert.InRange(weakestY, .019228, .019232);
-        }
+        var image = Render(fragment, calibration: calibration);
+        ImageAssertions.Predicates.Predicate(image, PhotometricPredicates.BlockFalloff,
+            parameters: new(accessor ? 1 : 0, 0, 0, 0)).AssertEqual();
     }
 
     /// <summary>The wider fade attenuates intermediate field amplitudes while bounding gain above the torch reference.</summary>
@@ -151,24 +129,23 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
             const float peaks[8]=float[8](.08,.12,.2,.3,.4,.5,.8,1.0);
             void main(){result=vec4(VgeBlockIlluminance(vec3(peaks[int(gl_FragCoord.x)])),1);}
             """;
-        float[] pixels = Render(fragment);
+        var image = Render(fragment);
         double[] peaks = [.08, .12, .2, .3, .4, .5, .8, 1];
+        List<GpuScalarInterval> bounds = [];
         for (int column = 0; column < peaks.Length; column++)
         {
             double amplitude = peaks[column] - 10.0 / 255;
             double expected = 12.8574078602199 * Math.Pow(amplitude, 4) / (Math.Pow(amplitude, 3) + .064);
-            Close(expected, pixels[column * 4]);
-            if (column > 0) Assert.True(pixels[column * 4] > pixels[(column - 1) * 4]);
-            // The previous response retained conspicuous outer light. These amplitudes now
-            // fade substantially before the existing finite field boundary is reached.
+            bounds.Add(Near(column * 4, expected));
+            // Preserve strict upper bounds independently of the shader's response equation.
             double previousGentle = 12.3458217833822 * Math.Pow(amplitude, 1.5);
-            if (column <= 3) Assert.True(pixels[column * 4] < previousGentle * .5);
-            if (column == 4) Assert.True(pixels[column * 4] < previousGentle * .75);
-            // A saturating toe returns toward linear at high amplitudes instead of amplifying
-            // the full field like an unbounded fourth-power response anchored at a dimmer torch.
+            if (column <= 3) bounds.Add(new(column, 0, double.NegativeInfinity, Math.BitDecrement(previousGentle * .5)));
+            if (column == 4) bounds.Add(new(column, 0, double.NegativeInfinity, Math.BitDecrement(previousGentle * .75)));
             double originalLinear = 8.982904808459303 * amplitude;
-            Assert.True(pixels[column * 4] < originalLinear * 1.35);
+            bounds.Add(new(column, 0, double.NegativeInfinity, Math.BitDecrement(originalLinear * 1.35)));
         }
+        ImageAssertions.Comparisons.CompareIntervals(image, bounds).AssertEqual();
+        ImageAssertions.Predicates.Predicate(image, PhotometricPredicates.IncreasingRed).AssertEqual();
     }
 
     /// <summary>Terrain and accessor decoders remove their distinct neutral floors and preserve full availability.</summary>
@@ -186,10 +163,11 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
                 result=vec4(vec3(row==1?VgeStoredSkyAvailability(raw):VgeSkyAvailability(raw,false)),1);
             }
             """;
-        float[] pixels = Render(fragment);
-        for (int row = 0; row < 2; row++)
-        for (int column = 0; column < 8; column++)
-            Close(column < 2 ? 0 : column == 2 ? .5 : 1, pixels[(row * 8 + column) * 4]);
+        var image = Render(fragment);
+        ImageAssertions.Comparisons.CompareRegions(image,
+            [new(new(default, 0, 0, 0, 2, 2, 1), new(0), 1),
+             new(new(default, 2, 0, 0, 1, 2, 1), new(.5f), 1),
+             new(new(default, 3, 0, 0, 5, 2, 1), new(1), 1)], tolerance: 2e-6).AssertEqual();
     }
 
     /// <summary>Physical punctual output obeys inverse-square illumination and engine inputs retain an explicit adapter.</summary>
@@ -209,16 +187,18 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
                 else result=vec4(VgeEmissionLuminance(vec3(.25,.5,1),-1),1);
             }
             """;
-        float[] pixels = Render(fragment);
+        var image = Render(fragment);
+        List<GpuScalarInterval> bounds = [];
         for (int channel = 0; channel < 3; channel++)
         {
-            Close(1000 / (4 * Math.PI), pixels[channel]);
-            Close(1000 / (16 * Math.PI), pixels[4 + channel]);
-            Close(4 * LightingCalibration.EnginePointCandelaPerUnit, pixels[8 + channel]);
-            Assert.Equal(0, pixels[12 + channel]);
-            Close(new[] { 16d, 32d, 64d }[channel], pixels[16 + channel]);
-            Assert.Equal(0, pixels[20 + channel]);
+            bounds.Add(Near(channel, 1000 / (4 * Math.PI)));
+            bounds.Add(Near(4 + channel, 1000 / (16 * Math.PI)));
+            bounds.Add(Near(8 + channel, 4 * LightingCalibration.EnginePointCandelaPerUnit));
+            bounds.Add(new(3, channel, 0, 0));
+            bounds.Add(Near(16 + channel, new[] { 16d, 32d, 64d }[channel]));
+            bounds.Add(new(5, channel, 0, 0));
         }
+        ImageAssertions.Comparisons.CompareIntervals(image, bounds).AssertEqual();
     }
 
     /// <summary>Storage containment keeps exceptional payloads finite without declaring NaN data valid.</summary>
@@ -241,16 +221,12 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
                 result=vec4(value,valid?(clipped?2.0:1.0):0.0);
             }
             """;
-        float[] pixels = Render(fragment);
-        Assert.Equal(1, pixels[3]); Assert.Equal(1, pixels[7]);
-        Assert.Equal(65504, pixels[8]); Assert.Equal(2, pixels[11]);
-        Assert.Equal(65504, pixels[12]); Assert.Equal(0, pixels[13]); Assert.Equal(0, pixels[15]);
-        Assert.Equal(0, pixels[19]); Assert.Equal(0, pixels[20]);
-        Assert.Equal(-65504, pixels[(8 + 3) * 4 + 1]);
-        Assert.Equal(-65504, pixels[(8 + 5) * 4]);
-        Assert.Equal(65024, pixels[24]); Assert.Equal(1, pixels[27]);
-        Assert.Equal(64512, pixels[28]); Assert.Equal(2, pixels[31]);
-        Assert.All(pixels, value => Assert.True(float.IsFinite(value)));
+        var image = Render(fragment);
+        ImageAssertions.Comparisons.CompareIntervals(image,
+            [Exact(3, 1), Exact(7, 1), Exact(8, 65504), Exact(11, 2), Exact(12, 65504),
+             Exact(13, 0), Exact(15, 0), Exact(19, 0), Exact(20, 0), Exact((8 + 3) * 4 + 1, -65504),
+             Exact((8 + 5) * 4, -65504), Exact(24, 65024), Exact(27, 1), Exact(28, 64512), Exact(31, 2)]).AssertEqual();
+        ImageAssertions.Statistics.Inspect(image).AssertFiniteRange();
     }
 
     /// <summary>Block conversion retains chroma, neutral zero and monotonic intensity without camera exposure.</summary>
@@ -274,9 +250,10 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
                         VgePersistentLightAdmitted(physical,true)?1:0);}
             }
             """;
-        float[] pixels = Render(fragment);
+        var image = Render(fragment);
         double[][] inputs = [ [0,0,0], [10.0/255,10.0/255,10.0/255], [.2,.1,.05], [.4,.2,.1],
             [145.0/255,99.0/255,71.0/255], [-1,.4,.2], [1,1,1], [1048064,1048064,1048064] ];
+        List<GpuScalarInterval> bounds = [];
         for (int column = 0; column < inputs.Length; column++)
         {
             double peak = inputs[column].Select(x => Math.Max(x, 0)).Max();
@@ -286,18 +263,17 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
                 double expected = peak > 0 ? Math.Max(inputs[column][channel], 0)
                     * Math.Pow(amplitude, 4) / (Math.Pow(amplitude, 3) + .064) / peak
                     * LightingCalibration.Default.BlockReferenceLux : 0;
-                Close(expected, pixels[column * 4 + channel]);
-                if (column < 6) Close(expected / Math.PI, pixels[(8 + column) * 4 + channel]);
+                bounds.Add(Near(column * 4 + channel, expected));
+                if (column < 6) bounds.Add(Near((8 + column) * 4 + channel, expected / Math.PI));
             }
         }
-        double torchY = .2126 * pixels[16] + .7152 * pixels[17] + .0722 * pixels[18];
+        bounds.AddRange([Exact((8 + 6) * 4, -32), Exact((8 + 6) * 4 + 1, 131072),
+            Exact((8 + 6) * 4 + 2, 1048064), Exact((8 + 6) * 4 + 3, 1), Exact((8 + 7) * 4 + 3, 0)]);
+        ImageAssertions.Comparisons.CompareIntervals(image, bounds).AssertEqual();
+        var torch = GpuLocalRead.NativeColorTuple(image, 4, 0);
+        double torchY = .2126 * torch[0] + .7152 * torch[1] + .0722 * torch[2];
         Close(44 / (4 * Math.PI), (float)torchY);
-        Assert.True(pixels[12] > pixels[8]);
-        Assert.Equal(-32, pixels[(8 + 6) * 4]);
-        Assert.Equal(131072, pixels[(8 + 6) * 4 + 1]);
-        Assert.Equal(1048064, pixels[(8 + 6) * 4 + 2]);
-        Assert.Equal(1, pixels[(8 + 6) * 4 + 3]);
-        Assert.Equal(0, pixels[(8 + 7) * 4 + 3]);
+        Assert.True(GpuLocalRead.NativeColorTuple(image, 3, 0)[0] > GpuLocalRead.NativeColorTuple(image, 2, 0)[0]);
     }
 
     /// <summary>Signed source overshoot is bounded without changing homogeneous scattering or transmission.</summary>
@@ -322,19 +298,21 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
                 result=vec4(row==0?scatter:transmission,valid?1:0);
             }
             """;
-        float[] pixels = Render(fragment);
+        var image = Render(fragment);
         double[] depths = [0, .0001, .5, 10, 1, 1];
         double[] source = [.2, .3, .4];
+        List<GpuScalarInterval> bounds = [];
         for (int column = 0; column < 6; column++)
         for (int channel = 0; channel < 3; channel++)
         {
             double transmission = Math.Exp(-depths[column]);
-            Close(column == 5 ? 0 : source[channel] * (1 - transmission), pixels[column * 4 + channel]);
-            Close(transmission, pixels[(8 + column) * 4 + channel]);
-            Assert.Equal(1, pixels[column * 4 + 3]);
+            bounds.Add(Near(column * 4 + channel, column == 5 ? 0 : source[channel] * (1 - transmission)));
+            bounds.Add(Near((8 + column) * 4 + channel, transmission));
+            bounds.Add(Exact(column * 4 + 3, 1));
         }
-        Assert.Equal(0, pixels[6 * 4 + 3]);
-        Assert.Equal(0, pixels[7 * 4 + 3]);
+        bounds.Add(Exact(6 * 4 + 3, 0));
+        bounds.Add(Exact(7 * 4 + 3, 0));
+        ImageAssertions.Comparisons.CompareIntervals(image, bounds).AssertEqual();
     }
 
     /// <summary>Frame helpers decode physical values once and reject unsupported temporal or generation inputs.</summary>
@@ -358,12 +336,10 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
         byte[] publication = new byte[32];
         System.Buffer.BlockCopy(new float[] { .25f, 4, 100, 1 }, 0, publication, 0, 16);
         System.Buffer.BlockCopy(new uint[] { 42, 7, 0, 0 }, 0, publication, 16, 16);
-        float[] pixels = Render(fragment, publication);
-        Assert.Equal(8, pixels[0]); Assert.Equal(32, pixels[4]); Assert.Equal(8, pixels[8]);
-        Assert.Equal(8, pixels[12]); Assert.Equal(1, pixels[15]);
-        Assert.Equal(0, pixels[19]); Assert.Equal(0, pixels[23]);
-        Assert.Equal(1, pixels[27]); Assert.Equal(0, pixels[31]);
-        Assert.Equal(0, pixels[(8 + 5) * 4 + 3]);
+        var image = Render(fragment, publication);
+        ImageAssertions.Comparisons.CompareIntervals(image,
+            [Exact(0, 8), Exact(4, 32), Exact(8, 8), Exact(12, 8), Exact(15, 1),
+             Exact(19, 0), Exact(23, 0), Exact(27, 1), Exact(31, 0), Exact((8 + 5) * 4 + 3, 0)]).AssertEqual();
     }
 
     /// <summary>Visible disk storage respects glare headroom before multiplication and rejects unsupported source metadata.</summary>
@@ -401,22 +377,44 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
         byte[] publication = new byte[32];
         System.Buffer.BlockCopy(new float[] { 4, .25f, 100, 1 }, 0, publication, 0, 16);
         System.Buffer.BlockCopy(new uint[] { 42, 7, 0, 0 }, 0, publication, 16, 16);
-        float[] pixels = Render(fragment, publication);
-        Assert.InRange(pixels[0], 47999.9f, 48000); Assert.InRange(pixels[4], 15999.9f, 16000);
-        Close(pixels[0] * .5, pixels[1]); Close(pixels[4] * .5, pixels[5]);
-        Assert.Equal(1, pixels[3]); Assert.Equal(1, pixels[7]);
-        for (int column = 2; column <= 5; column++) Assert.Equal(0, pixels[column * 4 + 3]);
-        Assert.InRange(pixels[24], 3.999e-20f, 4.001e-20f); Assert.Equal(1, pixels[27]);
-        Assert.InRange(pixels[28], 47999.9f, 48000); Close(pixels[28] * .5, pixels[29]); Assert.Equal(1, pixels[31]);
-        Assert.Equal(1, pixels[8 * 4 + 3]);
-        for (int column = 1; column <= 3; column++) Assert.Equal(0, pixels[(8 + column) * 4 + 3]);
-        Assert.Equal(1, pixels[(8 + 4) * 4 + 3]);
+        var image = Render(fragment, publication);
+        List<GpuScalarInterval> bounds = [new(0, 0, 47999.9f, 48000), new(1, 0, 15999.9f, 16000),
+            Exact(3, 1), Exact(7, 1), new(6, 0, 3.999e-20f, 4.001e-20f), Exact(27, 1),
+            new(7, 0, 47999.9f, 48000), Exact(31, 1), Exact(8 * 4 + 3, 1), Exact((8 + 4) * 4 + 3, 1)];
+        for (int column = 2; column <= 5; column++) bounds.Add(Exact(column * 4 + 3, 0));
+        for (int column = 1; column <= 3; column++) bounds.Add(Exact((8 + column) * 4 + 3, 0));
+        ImageAssertions.Comparisons.CompareIntervals(image, bounds).AssertEqual();
+        // These three correlated tuples retain their original CPU double arithmetic.
+        foreach (int column in new[] { 0, 1, 7 })
+        {
+            var tuple = GpuLocalRead.NativeColorTuple(image, column, 0);
+            Close(tuple[0] * .5, tuple[1]);
+        }
     }
     #endregion
 
     #region Private
+    /// <summary>Prepares only the compact comparisons and correlated photometric checks used by this suite.</summary>
+    private protected override void PrepareObservations(GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare");
+        programs.Prepare("inspection");
+        programs.Prepare("predicate-photometric");
+    }
+
+    /// <summary>Maps a formerly flat scalar coordinate to an exact nominated GPU interval.</summary>
+    private static GpuScalarInterval Exact(int component, double expected) => new(component / 4, component % 4, expected, expected);
+
+    /// <summary>Retains the original independent double relative bound at one authored scalar coordinate.</summary>
+    private static GpuScalarInterval Near(int component, double expected)
+    {
+        double tolerance = 2e-6 * Math.Max(1, Math.Abs(expected));
+        return new(component / 4, component % 4, expected - tolerance, expected + tolerance);
+    }
+
     /// <summary>Evaluates the current production includes using the real shared frame block layout.</summary>
-    private float[] Render(string fragment, byte[]? frozenStorage = null, LightingCalibration? calibration = null)
+    private GpuTexture Render(string fragment, byte[]? frozenStorage = null, LightingCalibration? calibration = null)
     {
         int program = TestShaderCache.CreateGraphics("#version 430 core\nlayout(location=0) in vec2 position;void main(){gl_Position=vec4(position,0,1);}", fragment);
         int buffer = GL.GenBuffer();
@@ -442,7 +440,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             GL.Disable(EnableCap.ScissorTest); GL.ColorMask(true, true, true, true); GL.UseProgram(program);
             RenderFullscreenQuad(program);
-            return ReadPixelsFloat(target);
+            return target[0];
         }
         finally
         {

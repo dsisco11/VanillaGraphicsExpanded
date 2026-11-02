@@ -226,7 +226,7 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
         finally
         {
             RenderContextRegistry.Retire(owner);
-            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             OpenGlStateCache.Current.InvalidateAll();
         }
     }

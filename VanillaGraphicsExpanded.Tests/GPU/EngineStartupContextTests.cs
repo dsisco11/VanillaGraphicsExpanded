@@ -84,7 +84,7 @@ public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
             ScreenManager.Platform = previousPlatform;
             RenderContextRegistry.Retire(owner);
             SetWindowField(owner, "<Exists>k__BackingField", false);
-            RenderContextRegistry.RegisterCurrent(fixture, static target => ((HeadlessGLFixture)target).IsContextValid);
+            fixture.RestoreContextRegistration();
             GL.Viewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
             OpenGlStateCache.Current.InvalidateAll();
         }

@@ -97,8 +97,6 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             if (ordinaryDraw) platform.RenderMesh(mesh);
             else platform.RenderMesh(mesh, offsets, counts, 1, false);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
-            var assertions = ImageAssertions;
-            assertions.Predicates.Predicate(target[0], GeometryPredicates.TerrainTessellationEngineDrawTests_PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw,expected.Texture).AssertEqual();
             Assert.Equal(new[] { 12, 0 }, offsets); Assert.Equal(new[] { 3 }, counts);
             Assert.Equal(PrimitiveType.Triangles, mesh.drawMode);
             Assert.Equal(5, GL.GetInteger(GetPName.PatchVertices));
@@ -106,6 +104,9 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             // A managed argument failure must also execute the installed finalizer.
             Assert.ThrowsAny<Exception>(() => platform.RenderMesh(null!, offsets, counts, 1, false));
             Assert.Equal(5, GL.GetInteger(GetPName.PatchVertices));
+            // Close the manually declared engine interval after checking its native handback.
+            ShaderProgramBase.CurrentShaderProgram = null;
+            ImageAssertions.Predicates.Predicate(target[0], GeometryPredicates.TerrainTessellationEngineDrawTests_PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw,expected.Texture).AssertEqual();
         }
         finally
         {

@@ -42,7 +42,7 @@ public sealed class GpuOperationContextFoundationTests(HeadlessGLFixture fixture
             if (next is not null) next.Dispose();
             origin.Dispose();
             RenderContextRegistry.Retire(temporaryOwner);
-            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             OpenGlStateCache.Current.InvalidateAll();
         }
     }
@@ -254,7 +254,7 @@ public sealed class GpuOperationContextFoundationTests(HeadlessGLFixture fixture
         }
         finally
         {
-            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            fixture.RestoreContextRegistration();
             if (id != 0 && GL.IsBuffer(id)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, id));
             fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }

@@ -77,9 +77,10 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             using var target = framework.CreateTestGBuffer(2,2,TextureFormat.Rgba32f);
             engine.Stop();
             framework.RenderQuadTo(program.ProgramId,target);
+            // Observe completed output before reentering the native shader interval under test.
+            ImageAssertions.Comparisons.CompareConstant(target[0], 1f).AssertEqual();
             engine.Use();
             Assert.Equal(ErrorCode.NoError,GL.GetError());
-            ImageAssertions.Comparisons.CompareConstant(target[0], 1f).AssertEqual();
             Assert.Equal(0,Binding().Buffer);
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             using var foreign = new PackedUniformBuffer(VgeFrameUniformBuffer.PackedSize);

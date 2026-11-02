@@ -210,6 +210,10 @@ Cache-subject tests instead supply their own isolated store through the same sco
 override the fixture default, follow awaited thread changes, and restore it on disposal. No policy reaches the production disk store
 while a headless fixture is alive, including during teardown and context changes.
 
+Lifecycle tests that deliberately replace the registered context lifetime restore it through
+`HeadlessGLFixture.RestoreContextRegistration()`. That explicit boundary retires old observation owners
+and records the new generation. Selecting the same physical window alone does not revive retired owners.
+
 Production/component/compute shader helpers reuse digest-validated asset binaries. Combined
 `ShaderTestHelper`, declared fixture-program loading and assertion compute programs use that same asset route.
 Resource-free state shaders and source-authored numerical raster helpers use `TestShaderCache`

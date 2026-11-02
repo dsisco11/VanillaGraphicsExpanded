@@ -29,7 +29,11 @@ public sealed class ComputeShaderAssetTests(HeadlessGLFixture fixture)
         var shader=asset.Shader;var pipeline=asset.Pipeline;Assert.Equal(shader,pipeline.RequirePipeline().Description.Shader);
         Assert.True(asset.EnsureReady());Assert.Equal(shader,asset.Shader);Assert.Equal(pipeline,asset.Pipeline);
         Assert.Equal(0,GL.GetInteger(GetPName.CurrentProgram));asset.Dispose();
-        Assert.Throws<ObjectDisposedException>(()=>shader.RequireShader());Assert.Throws<ObjectDisposedException>(()=>pipeline.RequirePipeline());
+        Assert.Throws<ObjectDisposedException>(()=>shader.RequireShader());
+#if DEBUG
+        // Retained pipeline misuse is a development diagnostic under the owner lifetime contract.
+        Assert.Throws<ObjectDisposedException>(()=>pipeline.RequirePipeline());
+#endif
     }
     /// <summary>A failed independent preparation cannot replace or select a previously installed executable.</summary>
     [Fact]

@@ -9,6 +9,119 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed partial class GpuImageAssertionTests
 {
     #region Public API
+    #region Authored predicate domains
+    /// <summary>Rectangle comparisons preserve exterior sentinels and detect a changed interior texel.</summary>
+    [Fact]
+    public void AuthoredMaterialRectangleSeparatesExteriorAndInterior()
+    {
+        EnsureContextValid();
+        ImageAssertions.Programs.Prepare("predicate-material");
+        using var actual = Create(TextureDimension.Two, TextureFormat.Rgba32f, 64, 64);
+        using var reference = Create(TextureDimension.Two, TextureFormat.Rgba32f, 64, 64);
+        float[] values = new float[64 * 64 * 4];
+        for (int y = 0; y < 64; y++)
+        for (int x = 0; x < 64; x++)
+        {
+            bool inside = x >= 16 && x < 48 && y >= 16 && y < 48;
+            int offset = (y * 64 + x) * 4;
+            values[offset] = values[offset + 1] = values[offset + 3] = inside ? 1 : .5f;
+            values[offset + 2] = 1;
+        }
+        Upload(actual, values, PixelComponentType.Float);
+        Upload(reference, Enumerable.Repeat(1f, values.Length).ToArray(), PixelComponentType.Float);
+        var policy = MaterialPredicates.MaterialAtlasBakeSubmissionTests_IndependentAtlasEntriesPreserveStateAndRectangles_3;
+        ImageAssertions.Predicates.Predicate(actual, policy, reference).AssertEqual();
+        values[(20 * 64 + 19) * 4] = 2;
+        Upload(actual, values, PixelComponentType.Float);
+        var changed = ImageAssertions.Predicates.Predicate(actual, policy, reference);
+        Assert.Equal(1u, changed.Mismatches);
+        Assert.Contains("first=(19,20,0)", changed.ToString());
+        values[(20 * 64 + 19) * 4] = 1;
+        values[16 * 64 * 4] = 2;
+        Upload(actual, values, PixelComponentType.Float);
+        var exterior = ImageAssertions.Predicates.Predicate(actual, policy, reference);
+        Assert.Equal(1u, exterior.Mismatches);
+        Assert.Contains("first=(0,16,0)", exterior.ToString());
+    }
+
+    /// <summary>Conditional cloud witnesses exclude boundaries and report only a deliberately changed interior sample.</summary>
+    [Fact]
+    public void AuthoredCloudSelectionPreservesExcludedBoundaryAndInteriorWitnesses()
+    {
+        EnsureContextValid();
+        ImageAssertions.Programs.Prepare("predicate-cloud");
+        using var diagnostics = Create(TextureDimension.Two, TextureFormat.Rgba32f, 8, 8);
+        using var age = Create(TextureDimension.Two, TextureFormat.Rgba32f, 8, 8);
+        using var expected = Create(TextureDimension.Two, TextureFormat.Rgba32f, 8, 8);
+        float[] samples = new float[64 * 4], ages = new float[64 * 4], reference = new float[64 * 4];
+        for (int pixel = 0; pixel < 64; pixel++)
+        {
+            samples[pixel * 4 + 1] = 2;
+            ages[pixel * 4] = reference[pixel * 4] = 2;
+        }
+        ages[0] = 99;
+        Upload(diagnostics, samples, PixelComponentType.Float);
+        Upload(age, ages, PixelComponentType.Float);
+        Upload(expected, reference, PixelComponentType.Float);
+        var policy = CloudPredicates.CloudTemporalFreshnessTests_ResampledFreshnessUsesPhysicalWeightsAndExpiresWithoutObservations_2;
+        var valid = ImageAssertions.Predicates.Predicate(diagnostics, policy, age, expected);
+        valid.AssertEqual();
+        Assert.Equal(36u, valid.MatchingTexels);
+        ages[(3 * 8 + 2) * 4] = 99;
+        Upload(age, ages, PixelComponentType.Float);
+        var changed = ImageAssertions.Predicates.Predicate(diagnostics, policy, age, expected);
+        Assert.Equal(1u, changed.Mismatches);
+        Assert.Contains("first=(2,3,0)", changed.ToString());
+    }
+
+    /// <summary>Minimum-child checking retains mapped source dimensions and detects one deliberately wrong mask.</summary>
+    [Fact]
+    public void AuthoredMinimumChildMaskUsesParentAndChildSamples()
+    {
+        EnsureContextValid();
+        ImageAssertions.Programs.Prepare("predicate-ao");
+        using var masks = Create(TextureDimension.Two, TextureFormat.R32f, 2, 2);
+        using var parents = Create(TextureDimension.Two, TextureFormat.R32f, 2, 2);
+        using var children = Create(TextureDimension.Two, TextureFormat.R32f, 4, 4);
+        Upload(masks, [27f, 27f, 27f, 27f], PixelComponentType.Float);
+        Upload(parents, [1f, 1f, 1f, 1f], PixelComponentType.Float);
+        Upload(children, Enumerable.Repeat(1f, 16).ToArray(), PixelComponentType.Float);
+        var policy = AoPredicates.AoMinimumChildProductionTests_ValidateMasks_2;
+        ImageAssertions.Predicates.Predicate(masks, policy, parents, children,
+            parameters: new(4, 4, 2, 2), mappedSources: true).AssertEqual();
+        Upload(masks, [27f, 27f, 26f, 27f], PixelComponentType.Float);
+        var changed = ImageAssertions.Predicates.Predicate(masks, policy, parents, children,
+            parameters: new(4, 4, 2, 2), mappedSources: true);
+        Assert.Equal(1u, changed.Mismatches);
+        Assert.Contains("first=(0,1,0)", changed.ToString());
+    }
+
+    #endregion
+
+    #region Context and storage borrowing
+    /// <summary>Explicit registration restoration replaces retired preparations without adopting a foreign epoch.</summary>
+    [Fact]
+    public void ObservationPreparationFollowsExplicitFixtureRegistrationRestoration()
+    {
+        EnsureContextValid();
+        var previous = ImageAssertions;
+        var original = VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Current();
+        VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(fixture);
+        try
+        {
+            Assert.True(previous.Programs.IsRetired);
+            Assert.Throws<InvalidOperationException>(() => fixture.Observations);
+        }
+        finally { fixture.RestoreContextRegistration(); }
+        EnsureContextValid();
+        Assert.NotEqual(original, VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Current());
+        Assert.NotSame(previous, ImageAssertions);
+        Assert.Throws<ObjectDisposedException>(() => previous.Programs.RequireContext());
+        using var image = Create(TextureDimension.Two, TextureFormat.Rgba32f, 1, 1);
+        Upload(image, [2, 3, 4, 5], PixelComponentType.Float);
+        ImageAssertions.Comparisons.CompareVector(image, new(2, 3, 4, 5)).AssertEqual();
+    }
+
     /// <summary>Immediate observations preserve raw stored channels despite hostile source sampling state.</summary>
     [Theory]
     [InlineData(TextureDimension.Two)] [InlineData(TextureDimension.TwoArray)]
@@ -60,5 +173,6 @@ public sealed partial class GpuImageAssertionTests
         Assert.Throws<ArgumentOutOfRangeException>(() => new GpuObservationImage(image, new(new(2), 0, 0, 0, 1, 1)));
         Assert.Throws<ArgumentOutOfRangeException>(() => new GpuObservationImage(image, new(new(0), 0, 0, 0, 4, 4, 4)));
     }
+    #endregion
     #endregion
 }
