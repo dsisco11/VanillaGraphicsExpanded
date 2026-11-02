@@ -14,7 +14,7 @@ internal sealed partial class GpuImageComparisons
     {
         Programs.RequireContext();
         if (expected.Count == 0) throw new ArgumentException("Select a nonempty set of RGB samples.", nameof(expected));
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         if (actual.Kind != 0 || actual.Channels < 3) throw new ArgumentException("Selected samples require floating RGB.", nameof(image));
         int count = checked(image.Width * image.Height * image.Depth);
         uint[] words = new uint[checked(expected.Count * 4)];
@@ -36,7 +36,7 @@ internal sealed partial class GpuImageComparisons
     {
         Programs.RequireContext();
         if (expected.Count == 0) throw new ArgumentException("Select a nonempty interval domain.", nameof(expected));
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         int count = checked(image.Width * image.Height * image.Depth);
         uint[] words = new uint[checked(expected.Count * 6)];
         for (int i = 0; i < expected.Count; i++)
@@ -60,7 +60,7 @@ internal sealed partial class GpuImageComparisons
 
     #region Private
     /// <summary>Executes sparse records and reports failures at original source coordinates, without dense expansion.</summary>
-    private GpuObservationData CompareRecords(GpuImageSnapshot actual, uint[] words, int records, ComparisonOperation mode,
+    private GpuObservationData CompareRecords(GpuObservationImage actual, uint[] words, int records, ComparisonOperation mode,
         double tolerance, Func<int, int, uint[], string> expectedAt)
     {
         uint compared = checked((uint)records * (mode == ComparisonOperation.SelectedExpected ? 3u : 1u));

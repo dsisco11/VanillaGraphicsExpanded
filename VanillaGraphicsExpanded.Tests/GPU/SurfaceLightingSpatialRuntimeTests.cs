@@ -72,9 +72,11 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
         Assert.Equal(27,overlap.Count);
         runtime.RunUntil(()=>
         {
-            return overlap.All(p => ImageAssertions.Statistics.Inspect(resources.ProbeMeta0,
-                selection: new(new(0), (p.X + (int)ring.X) % resolution + (p.Z + (int)ring.Z) % resolution * resolution,
-                    (p.Y + (int)ring.Y) % resolution, 0, 1, 1), channelMask: 1).Minimum >= .25f);
+            // Each readiness question names exactly one scalar. Preserve per-cell polling and its
+            // short-circuit boundary without allocating an image snapshot and dispatching a reduction.
+            return overlap.All(p => Assertions.GpuLocalRead.NativeColorTuple(resources.ProbeMeta0,
+                (p.X + (int)ring.X) % resolution + (p.Z + (int)ring.Z) % resolution * resolution,
+                (p.Y + (int)ring.Y) % resolution)[0] >= .25f);
         });
         // Stop further producer work through its budget, preserving a coherent published generation.
         runtime.RunUntil(runtime.Cache.AllRequestedLightingReady);

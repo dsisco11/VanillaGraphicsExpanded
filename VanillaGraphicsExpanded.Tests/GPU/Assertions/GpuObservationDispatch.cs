@@ -13,7 +13,7 @@ internal sealed class GpuObservationDispatch
     internal long AllocatedImages { get; private set; }
 
     /// <summary>Executes a complete image domain with no unused histogram or placeholder image allocations.</summary>
-    internal GpuObservationData Observe(GpuImageSnapshot actual, GpuAssertionProgram program, byte[] inputs,
+    internal GpuObservationData Observe(GpuObservationImage actual, GpuAssertionProgram program, byte[] inputs,
         (string Name, GpuTexture? Texture)[] sources)
         => Observe(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth, actual.Kind,
             GpuObservationLimits.RequireDomain(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth), program, inputs, sources);
@@ -60,7 +60,7 @@ internal sealed class GpuObservationDispatch
     internal static void Barrier() => RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureUpdate));
 
     /// <summary>Reads bounded counters independently through native GL and requires complete-domain dispatch proof.</summary>
-    internal static GpuObservationData Read(GpuImageSnapshot actual, DynamicTexture2D output)
+    internal static GpuObservationData Read(GpuObservationImage actual, DynamicTexture2D output)
         => Read(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth, actual.Kind,
             GpuObservationLimits.RequireDomain(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth), output);
 

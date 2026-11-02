@@ -12,7 +12,7 @@ internal sealed partial class GpuImageComparisons
     internal GpuComparisonResult CompareRegions(GpuTexture image, IReadOnlyList<GpuVectorRegion> expected, double tolerance = 0)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         if (actual.Kind != 0 || expected.Count == 0) throw new ArgumentException("Regions require floating storage and nonempty authored coverage.");
         uint[] words = new uint[checked(expected.Count * 12)];
         uint compared = 0;

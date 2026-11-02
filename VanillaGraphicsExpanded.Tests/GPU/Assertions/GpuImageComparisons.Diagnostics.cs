@@ -10,7 +10,7 @@ internal sealed partial class GpuImageComparisons
 {
     #region Private
     /// <summary>Completes a comparison and evaluates its independent expected-value diagnostic only on failure.</summary>
-    private GpuObservationData CompareDomain(GpuImageSnapshot actual, string family, byte[] inputs,
+    private GpuObservationData CompareDomain(GpuObservationImage actual, string family, byte[] inputs,
         (string Name, GpuTexture? Texture)[] sources, Func<int, int, uint[], string> expectedAt)
     {
         var data = Observe(actual, family, inputs, sources);
@@ -18,7 +18,7 @@ internal sealed partial class GpuImageComparisons
     }
 
     /// <summary>Adds a bounded first-failure tuple to already verified dense or sparse completion evidence.</summary>
-    private static GpuObservationData Diagnose(GpuImageSnapshot actual, GpuObservationData data,
+    private static GpuObservationData Diagnose(GpuObservationImage actual, GpuObservationData data,
         Func<int, int, uint[], string> expectedAt)
     {
         if (data.Counters[2] == 0 || data.Counters[6] == uint.MaxValue) return data;

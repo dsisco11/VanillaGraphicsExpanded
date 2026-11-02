@@ -249,9 +249,20 @@ within each workgroup before global publication; inactive tail lanes still join 
 Only a failed comparison reads its nominated native tuple for expected/actual
 value diagnostics; passing images stay on the GPU.
 Selections retain their original extent, mip, region, channels, explicit sparse coordinates and layers or
-cube faces. Packed stencil comparisons change the sampling mode only on an owned GPU copy and retain
+cube faces. Synchronous whole-plane observations of immutable 2D, array and cube images borrow shared
+storage through an independently configured nearest-sampling array view. They allocate no pixel copy;
+source swizzles, sampling selectors and stored sRGB interpretation remain independent. Retained
+`GpuImageSnapshot` histories still own copies across mutation or retirement. Spatial crops, mutable
+storage, 3D-to-array conversion and packed aspects retain their required copy route. Callers provide
+producer synchronization; observation neither infers barriers nor batches completion waits.
+Packed stencil comparisons change the sampling mode only on an owned GPU copy and retain
 the source depth aspect and selector. Counter observations return thirty-two words containing counters, moments and failure coordinates/rank identities; it does not download
 complete image buffers. Keep existing local tuple reads and tests of readback APIs independent from this checker.
+
+Atmosphere scheduling tests use explicit controlled producer completion; real worker/publication and
+lookup/numerical tests retain the integrator. `AtmosphereLookupTests.RecordBoundedUpdateCost` is a
+diagnostic timing workload. The repeated resource-association collection case carries `Workload=Stress`;
+its real GC/finalizer checkpoints remain included in ordinary correctness selections.
 
 Comparison/statistics, domain-owned predicate/projection and layer-conversion programs are declared
 test shader assets compiled by the normal shader build. Cloud, water, surface and other domain assets

@@ -13,6 +13,15 @@ internal sealed class AtmosphereComputation : IDisposable
     private (int, int, int, int, int, int, int, int, int)? admittedKey;
     private bool disposed;
     private readonly AtmosphereLookup lookup = new();
+    private readonly Func<AtmosphereBuildRequest, CancellationToken, Task<AtmosphereLighting>> produce;
+
+    #region Construction
+    /// <summary>Uses the real background integrator unless an explicit producer controls completion.</summary>
+    internal AtmosphereComputation(Func<AtmosphereBuildRequest, CancellationToken, Task<AtmosphereLighting>>? producer = null)
+    {
+        produce = producer ?? BuildAsync;
+    }
+    #endregion
 
     /// <summary>Exposes the admitted completion dependency without transferring publication ownership.</summary>
     internal Task<AtmosphereLighting>? Pending => pending;
@@ -43,14 +52,14 @@ internal sealed class AtmosphereComputation : IDisposable
         if (admittedKey == key) return ready;
         admittedKey = key;
         var token = cancellation.Token;
-        // The worker owns all mutable integration state and never reads game or GPU objects.
-        // Finish admitted work to avoid starvation; the next render update captures the newest inputs.
-        pending = Task.Run(() =>
+        // Freeze the admitted inputs. Completion is consumed only by a later Update, even if a
+        // producer completes synchronously; changing requests cannot starve an admitted build.
+        try
         {
-            lookup.Update(sun, altitude, clouds, complete: true, width: width, height: height,
-                cancellationToken: token, quality: quality, groundAlbedo: groundAlbedo);
-            return lookup.Current!;
-        }, token);
+            pending = produce(new(sun, altitude, clouds, width, height, quality, groundAlbedo), token)
+                ?? throw new InvalidOperationException("The atmosphere producer returned no completion dependency.");
+        }
+        catch { admittedKey = null; throw; }
         // Observe faults even if world teardown abandons this task before the render thread polls it.
         _ = pending.ContinueWith(task => { _ = task.Exception; }, CancellationToken.None,
             TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
@@ -67,6 +76,21 @@ internal sealed class AtmosphereComputation : IDisposable
         cancellation.Cancel();
         cancellation.Dispose();
         pending = null;
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Keeps numerical state on its background worker and returns only its completed immutable publication.</summary>
+    private Task<AtmosphereLighting> BuildAsync(AtmosphereBuildRequest request, CancellationToken token)
+    {
+        return Task.Run(() =>
+        {
+            // The worker owns all mutable integration state and never reads game or GPU objects.
+            lookup.Update(request.Sun, request.Altitude, request.Clouds, complete: true,
+                width: request.Width, height: request.Height, cancellationToken: token,
+                quality: request.Quality, groundAlbedo: request.GroundAlbedo);
+            return lookup.Current!;
+        }, token);
     }
     #endregion
 }

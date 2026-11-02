@@ -15,7 +15,7 @@ internal sealed class GpuLayerCopy(GpuObservationPrograms programs)
     {
         var program = programs.Get("layer");
         program.RequireContext(); source.RequireOriginalContext(); destination.RequireOriginalContext();
-        using var input = new GpuImageSnapshot(source);
+        using var input = new GpuObservationImage(source);
         if (input.Texture.Depth != 1 || input.Kind != 0) throw new ArgumentException("Layer conversion requires one floating/normalized image.");
         using var state = new GpuAssertionState(program.SamplerUnits, program.ImageUnits);
         byte[] bytes=new byte[160];

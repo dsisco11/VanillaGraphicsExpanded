@@ -21,7 +21,7 @@ internal sealed partial class GpuImageComparisons
     private GpuComparisonResult CompareFloatingCore(GpuTexture image, float[] expected, float[] tolerances, uint? channelMask, bool compact)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         var inputs = DomainInputs(actual, channelMask, 0, double.NegativeInfinity, double.PositiveInfinity);
         uint mask = channelMask ?? (1u << actual.Channels) - 1;
         int selectedChannels = BitOperations.PopCount(mask), sourceChannels = compact ? selectedChannels : actual.Channels;

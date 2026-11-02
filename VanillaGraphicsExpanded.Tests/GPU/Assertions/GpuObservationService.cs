@@ -11,7 +11,7 @@ internal abstract class GpuObservationService(GpuObservationPrograms programs)
 
     #region Protected API
     /// <summary>Packs the shared image extent and numeric contract without narrowing doubles.</summary>
-    protected static byte[] DomainInputs(GpuImageSnapshot actual, uint? channelMask, double tolerance, double minimum, double maximum)
+    protected static byte[] DomainInputs(GpuObservationImage actual, uint? channelMask, double tolerance, double minimum, double maximum)
     {
         if (!double.IsFinite(tolerance) || tolerance < 0) throw new ArgumentOutOfRangeException(nameof(tolerance));
         GpuObservationLimits.RequireDomain(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth);
@@ -26,14 +26,14 @@ internal abstract class GpuObservationService(GpuObservationPrograms programs)
     }
 
     /// <summary>Executes one prepared whole-domain observation with only its declared input bindings.</summary>
-    protected GpuObservationData Observe(GpuImageSnapshot actual, string family, byte[] inputs, (string Name, GpuTexture? Texture)[] sources)
+    protected GpuObservationData Observe(GpuObservationImage actual, string family, byte[] inputs, (string Name, GpuTexture? Texture)[] sources)
     {
         var program = Programs.Get(family, family.StartsWith("predicate-") ? 0 : actual.Kind);
         return Programs.Dispatch.Observe(actual, program, inputs, sources);
     }
 
     /// <summary>Rejects mismatched domains before a relational oracle reads corresponding GPU texels.</summary>
-    protected static void RequireMatchingFloating(GpuImageSnapshot first, GpuImageSnapshot second)
+    protected static void RequireMatchingFloating(GpuObservationImage first, GpuObservationImage second)
     {
         if (first.Kind != 0 || second.Kind != 0 || first.Texture.Width != second.Texture.Width ||
             first.Texture.Height != second.Texture.Height || first.Texture.Depth != second.Texture.Depth || first.Channels != second.Channels)

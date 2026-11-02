@@ -25,8 +25,8 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
         float multiplier, float excess, float gateMinimum, float divisor = 1)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image); using var reference = new GpuImageSnapshot(baseline);
-        using var condition = new GpuImageSnapshot(gate);
+        using var actual = new GpuObservationImage(image); using var reference = new GpuObservationImage(baseline);
+        using var condition = new GpuObservationImage(gate);
         RequireMatchingFloating(actual, reference); RequireMatchingFloating(actual, condition);
         if (!float.IsFinite(multiplier) || !float.IsFinite(excess) || !float.IsFinite(gateMinimum) || !float.IsFinite(divisor) || divisor == 0)
             throw new ArgumentException("Correlated thresholds require finite scale and offset inputs.");
@@ -41,7 +41,7 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
         System.Numerics.Vector4 maximum, uint channelMask = 7, bool requireAll = true)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         if (actual.Kind != 0) throw new ArgumentException("Floating channel intervals require floating or normalized storage.");
         for (int channel = 0; channel < 4; channel++)
             if (float.IsNaN(minimum[channel]) || float.IsNaN(maximum[channel]) || minimum[channel] > maximum[channel])
@@ -60,7 +60,7 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
     internal GpuStatisticsResult PeriodicLaplacianResidual(GpuTexture image, float[] rightHandSide)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         int count = checked(actual.Texture.Width * actual.Texture.Height);
         if (actual.Kind != 0 || actual.Channels != 1 || actual.Texture.Depth != 1 || rightHandSide.Length != count)
             throw new ArgumentException("A periodic residual requires one scalar floating plane and a complete authored right-hand side.");
@@ -78,7 +78,7 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
         int coverageChannel = 3, uint channelMask = 1)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         if (actual.Kind != 0 || (uint)coverageChannel >= (uint)actual.Channels ||
             double.IsNaN(minimum) || double.IsNaN(maximum) || minimum > maximum)
             throw new ArgumentException("Covered ranges require a represented floating mask and ordered bounds.");
@@ -92,7 +92,7 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
     internal GpuStatisticsResult Statistics(GpuTexture image, RHITextureRegion? selection = null, uint? channelMask = null, bool absolute = false, bool squareInFloat = false)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image, selection);
+        using var actual = new GpuObservationImage(image, selection);
         var inputs = DomainInputs(actual, channelMask, 0, double.NegativeInfinity, double.PositiveInfinity);
         GpuAssertionInputs.Integer(inputs, 12, (uint)InspectionOperation.Moments);
         var moments = new GpuStatisticsResult(Moments(actual, inputs, absolute ? 2 : 0, [("actualImage", actual.Texture)]), channelMask ?? (1u << actual.Channels) - 1);
@@ -109,7 +109,7 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
     internal GpuFlagResult CountFlags(GpuTexture image, uint flags, uint channelMask)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         var inputs = DomainInputs(actual, channelMask, 0, double.NegativeInfinity, double.PositiveInfinity);
         GpuAssertionInputs.Integer(inputs, 12, (uint)InspectionOperation.Flags);
         GpuAssertionInputs.Integer(inputs, 20, (uint)(flags));
@@ -123,7 +123,7 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
     {
         Programs.RequireContext();
         if (double.IsNaN(minimum) || double.IsNaN(maximum) || minimum > maximum) throw new ArgumentException("Invalid assertion range.");
-        using var actual = new GpuImageSnapshot(image, selection);
+        using var actual = new GpuObservationImage(image, selection);
         if (pixelStride <= 0 || pixelOffset < 0 || pixelOffset >= pixelStride || pixelOffset >= (long)actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth)
             throw new ArgumentOutOfRangeException(nameof(pixelStride));
         var inputs = DomainInputs(actual, channelMask, 0, minimum, maximum);
@@ -139,7 +139,7 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
         Programs.RequireContext();
         if (side <= 0 || slices is < 1 or > 32 || image.Width != side || image.Height != checked(side * slices) || image.Depth != 1)
             throw new ArgumentException("Rank storage must be vertically stacked square slices.");
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         if (actual.Kind != 0 || actual.Channels != 1) throw new ArgumentException("Normalized ranks require a scalar floating image.");
         var inputs = DomainInputs(actual, 1, 0, 0, 1);
         GpuAssertionInputs.Integer(inputs, 12, (uint)InspectionOperation.RankCounts);
@@ -154,7 +154,7 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
     /// <summary>Integrates every selected image component against independent double-precision quadrature weights.</summary>
     internal GpuStatisticsResult WeightedStatistics(GpuTexture image,double[] weights,uint? channelMask=null,double[]? secondaryWeights=null)
     {
-        Programs.RequireContext();using var actual=new GpuImageSnapshot(image);
+        Programs.RequireContext();using var actual=new GpuObservationImage(image);
         int count=checked(actual.Texture.Width*actual.Texture.Height*actual.Texture.Depth);
         if(actual.Kind!=0 || weights.Length!=count || (secondaryWeights is not null && secondaryWeights.Length!=count))
             throw new ArgumentException("Weighted moments require floating images and one weight per original texel.");

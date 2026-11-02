@@ -15,7 +15,7 @@ internal sealed partial class GpuImageStatistics
         Programs.RequireContext();
         if (!term.IsOrderedScalar)
             throw new ArgumentException("An ordered reduction requires a declared serial scalar expression.", nameof(term));
-        using var source = new GpuImageSnapshot(image);
+        using var source = new GpuObservationImage(image);
         int count = GpuObservationLimits.RequireDomain(source.Texture.Width, source.Texture.Height, source.Texture.Depth);
         var program = Programs.Get("projection-" + term.Domain, source.Kind);
         using var state = new GpuAssertionState(program.SamplerUnits, program.ImageUnits);

@@ -84,10 +84,10 @@ internal sealed class GpuImagePredicates : GpuObservationService
         Programs.RequireContext();
         if (!body.IsDeclared)
             throw new ArgumentOutOfRangeException(nameof(body), "Select a declared independently authored predicate.");
-        using var actual = new GpuImageSnapshot(image);
-        using var reference = second is null ? null : new GpuImageSnapshot(second);
-        using var additional = third is null ? null : new GpuImageSnapshot(third);
-        using var last = fourth is null ? null : new GpuImageSnapshot(fourth);
+        using var actual = new GpuObservationImage(image);
+        using var reference = second is null ? null : new GpuObservationImage(second);
+        using var additional = third is null ? null : new GpuObservationImage(third);
+        using var last = fourth is null ? null : new GpuObservationImage(fourth);
         foreach (var candidate in new[] { actual, reference, additional, last })
         {
             // Different channel counts are intentional for radiance/metadata pairs; dimensions must agree.

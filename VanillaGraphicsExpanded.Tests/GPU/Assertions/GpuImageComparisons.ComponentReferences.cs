@@ -13,7 +13,7 @@ internal sealed partial class GpuImageComparisons
         uint channelMask, RHITextureRegion? selection = null)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image, selection);
+        using var actual = new GpuObservationImage(image, selection);
         var inputs = DomainInputs(actual, channelMask, tolerance, double.NegativeInfinity, double.PositiveInfinity);
         int channels = BitOperations.PopCount(channelMask);
         if (expected.Length != checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth * channels) ||
@@ -30,7 +30,7 @@ internal sealed partial class GpuImageComparisons
     internal GpuComparisonResult CompareComponents(GpuTexture image, float[] expected, uint channelMask, double tolerance = 0)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         var inputs = DomainInputs(actual, channelMask, tolerance, double.NegativeInfinity, double.PositiveInfinity);
         int channels = BitOperations.PopCount(channelMask);
         if (actual.Kind != 0 || expected.Length != checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth * channels))
@@ -47,7 +47,7 @@ internal sealed partial class GpuImageComparisons
         uint channelMask, RHITextureRegion? selection = null)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image, selection);
+        using var actual = new GpuObservationImage(image, selection);
         var inputs = DomainInputs(actual, channelMask, 0, double.NegativeInfinity, double.PositiveInfinity);
         int channels = BitOperations.PopCount(channelMask);
         int count = checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth * channels);

@@ -23,7 +23,7 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
         float lowerOffset, float upperOffset, uint channelMask = 7, float divisor = 1)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image); using var baseline = new GpuImageSnapshot(reference);
+        using var actual = new GpuObservationImage(image); using var baseline = new GpuObservationImage(reference);
         RequireMatchingFloating(actual, baseline);
         if (float.IsNaN(multiplier) || float.IsNaN(lowerOffset) || float.IsNaN(upperOffset) || lowerOffset > upperOffset ||
             !float.IsFinite(divisor) || divisor == 0)
@@ -42,7 +42,7 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
         RHITextureRegion? selection = null, uint? channelMask = null)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image, selection);
+        using var actual = new GpuObservationImage(image, selection);
         int count = checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth);
         if (expected.Length != checked(count * actual.Channels) || expected.Any(value => !double.IsFinite(value)))
             throw new ArgumentException("Finite double expectations must cover the complete selected domain.", nameof(expected));
@@ -58,7 +58,7 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
         RHITextureRegion? selection = null, uint? channelMask = null)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image, selection);
+        using var actual = new GpuObservationImage(image, selection);
         int count = checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth * actual.Channels);
         if (lower.Length != count || upper.Length != count)
             throw new ArgumentException("Interval expectations must cover the selected domain.");
@@ -80,7 +80,7 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
         double tolerance, int referenceChannel = 0, uint channelMask = 6)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         if (actual.Kind != 0 || (uint)referenceChannel >= (uint)actual.Channels)
             throw new ArgumentException("Channel ratios require a represented floating reference channel.");
         var inputs = DomainInputs(actual, channelMask, tolerance, double.NegativeInfinity, double.PositiveInfinity);
@@ -94,7 +94,7 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
     internal GpuConstantComparisonResult CompareStencil(GpuTexture image,byte expected,RHITextureRegion? selection=null)
     {
         Programs.RequireContext();
-        using var actual=new GpuImageSnapshot(image,selection,stencil:true);
+        using var actual=new GpuObservationImage(image,selection,stencil:true);
         var inputs = DomainInputs(actual, 1, 0, 0, 255);
         GpuAssertionInputs.Integer(inputs, 12, (uint)ComparisonOperation.Constant);
         GpuAssertionInputs.Integer(inputs, 20, (uint)(expected));
@@ -106,7 +106,7 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
         uint? channelMask = null, double tolerance = 0)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image, selection);
+        using var actual = new GpuObservationImage(image, selection);
         if (actual.Kind != 0) throw new ArgumentException("Floating constants require floating or normalized storage.", nameof(image));
         var inputs = DomainInputs(actual, channelMask, tolerance, double.NegativeInfinity, double.PositiveInfinity);
         GpuAssertionInputs.Integer(inputs, 12, (uint)ComparisonOperation.Constant);
@@ -122,11 +122,11 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
         RHITextureRegion? selection = null, uint? channelMask = null, bool vectorDistance = false, GpuTexture? additiveLayers = null,bool bitwise=false)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image, selection);
+        using var actual = new GpuObservationImage(image, selection);
         int count = checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth);
         if (expected.Length != checked(count * actual.Channels)) throw new ArgumentException("Expected data must cover the entire selected domain.", nameof(expected));
         using var input = CreateWords(SelectedWords(expected, actual.Channels, vectorDistance ? 7u : channelMask));
-        using var layers = additiveLayers is null ? null : new GpuImageSnapshot(additiveLayers);
+        using var layers = additiveLayers is null ? null : new GpuObservationImage(additiveLayers);
         if (layers is not null && (actual.Kind != 0 || layers.Kind != 0 || actual.Texture.Depth != 1 ||
             layers.Texture.Depth != 3 || layers.Texture.Width != actual.Texture.Width || layers.Texture.Height != actual.Texture.Height))
             throw new ArgumentException("Additive expectations require three matching floating layers and one actual image.");
@@ -156,7 +156,7 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
         bool bitwise = false, bool retainNonzero = false)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image, selection);
+        using var actual = new GpuObservationImage(image, selection);
         previous.Texture.RequireOriginalContext();
         uint comparedChannels = channelMask ?? (1u << actual.Channels) - 1;
         if (actual.Kind != previous.Kind || (comparedChannels & ~((1u << previous.Channels) - 1)) != 0
@@ -173,7 +173,7 @@ internal sealed partial class GpuImageComparisons : GpuObservationService
     {
         Programs.RequireContext();
         if(image.InternalFormat!=TextureFormat.Rgba8)throw new ArgumentException("Byte metadata comparison requires RGBA8 storage.",nameof(image));
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         if (expected.Length != checked(image.Width * image.Height * image.Depth * 4))
             throw new ArgumentException("Byte expectations must cover every RGBA8 component.", nameof(expected));
         using var input = CreateArray(TextureFormat.Rgba8ui, image.Width, image.Height, image.Depth);

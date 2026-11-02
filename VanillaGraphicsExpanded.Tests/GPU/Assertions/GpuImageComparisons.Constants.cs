@@ -13,7 +13,7 @@ internal sealed partial class GpuImageComparisons
         RHITextureRegion? selection = null, uint? channelMask = null, double tolerance = 0)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image, selection);
+        using var actual = new GpuObservationImage(image, selection);
         if (actual.Kind != 0) throw new ArgumentException("Vector expectations require floating or normalized storage.", nameof(image));
         var inputs = DomainInputs(actual, channelMask, tolerance, double.NegativeInfinity, double.PositiveInfinity);
         GpuAssertionInputs.Integer(inputs, 12, (uint)ComparisonOperation.VectorConstant);
@@ -27,7 +27,7 @@ internal sealed partial class GpuImageComparisons
         RHITextureRegion? selection = null, uint? channelMask = null)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image, selection);
+        using var actual = new GpuObservationImage(image, selection);
         if (actual.Kind != 2) throw new ArgumentException("Unsigned constants require unsigned integer storage.", nameof(image));
         var inputs = DomainInputs(actual, channelMask, 0, 0, uint.MaxValue);
         GpuAssertionInputs.Integer(inputs, 12, (uint)ComparisonOperation.Constant); GpuAssertionInputs.Integer(inputs, 20, expected);
@@ -39,7 +39,7 @@ internal sealed partial class GpuImageComparisons
     internal GpuComparisonResult CompareIntegerVector(GpuTexture image, uint x, uint y, uint z, uint w)
     {
         Programs.RequireContext();
-        using var actual = new GpuImageSnapshot(image);
+        using var actual = new GpuObservationImage(image);
         if (actual.Kind == 0) throw new ArgumentException("Integer vectors require signed or unsigned integer storage.", nameof(image));
         uint[] expected = [x,y,z,w];
         var inputs = DomainInputs(actual, null, 0, double.NegativeInfinity, double.PositiveInfinity);

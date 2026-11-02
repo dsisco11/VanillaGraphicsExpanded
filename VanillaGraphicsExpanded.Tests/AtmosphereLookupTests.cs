@@ -66,6 +66,7 @@ public sealed class AtmosphereLookupTests
     }
     /// <summary>Records warm CPU cost for the bounded update and complete refresh without imposing machine-specific thresholds.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void RecordBoundedUpdateCost()
     {
         for (int warm = 0; warm < 2; warm++)

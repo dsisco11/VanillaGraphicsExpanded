@@ -2809,7 +2809,7 @@ Phase 10.8: Reconcile qualification corrections and residual test cleanup
 Phase 10.9: Attribute remaining test costs and agree on the runtime-reduction design
   Status: complete as the original analysis/design boundary. Checkpoint 10.9.1 is complete by user
     acceptance; 10.9.2 design and coverage mapping is complete by user approval. Implementation subphases
-    10.9.3–10.9.6 are complete by user acceptance; 10.9.7 awaits selection. Batching is
+    10.9.3–10.9.7 are complete by user acceptance. Batching is
     deferred and Phase 10 remains open.
   Depends on 10.8. Governing constraints: Phase 10/10.2's coverage and isolation map, 10.7's cache policy,
     Rendering.ShaderBindingState.md (Verification boundary) and Rendering.GpuCommands.Contracts.md
@@ -3803,29 +3803,111 @@ Phase 10.9.6: Compute only requested facts and reduce counters within workgroups
     record requested work and resulting focused timings, then satisfy shared review/metrics acceptance.
 
 Phase 10.9.7: Simplify repeated observations and expensive test workload patterns
+  Status: complete by explicit user metrics acceptance on 2026-11-01. Implementation, focused
+    qualification, second review and independent completion audit passed; all five tasks are complete.
   Depends on 10.9.2–10.9.6. Separate implementation/commit boundary; batching remains a separate decision.
   Outcome: remaining expensive scenarios use justified execution and observation work without losing coverage.
 
-  ☐ Remove automatic source copies for safe immediate read-only observation under the agreed design.
+  ☑ Remove automatic source copies for safe immediate read-only observation under the agreed design.
     Keep explicit snapshots for history, mutable boundaries, active attachments, aspect/sRGB interpretation
     or independent observation where necessary. Eliminate nested snapshots in Extremum/Brightest and
     projection consumers; do not introduce an implicit cross-check snapshot cache or deferred result batching.
-  ☐ Review SurfaceLightingSpatialRuntimeTests' per-cell one-texel checks and readiness polling, cloud
+  ☑ Review SurfaceLightingSpatialRuntimeTests' per-cell one-texel checks and readiness polling, cloud
     temporal observation chains, water continuity's 201 samples per case and repeated local MRT reads.
     For each, identify unique milestones/facts and avoidable setup/requeries. Preserve all required
     samples, frame periods, wraparound, starvation, independent geometric checks and observation boundaries.
-  ☐ Implement agreed non-batching simplifications. Where reducing synchronization requires batching
+  ☑ Implement agreed non-batching simplifications. Where reducing synchronization requires batching
     observations/results or restructuring draws into sample domains, present the concrete design and
     tradeoffs for explicit user decision before dependent implementation. Record deferred/declined work
     truthfully; do not silently implement batching or claim its potential savings as achieved.
-  ☐ Evaluate the CPU association stress test's collection checkpoints and atmosphere orchestration tests'
+  ☑ Evaluate the CPU association stress test's collection checkpoints and atmosphere orchestration tests'
     repeated expensive producers. Map deterministic policy/lifecycle guarantees versus actual GC/numerical
     integration guarantees, discuss the proposed separation with the user, then implement accepted changes.
     Retain focused real collection and numerical integration checks; mocks cannot replace those subjects.
     Preserve VGE-only scope and existing mocked filesystem requirements.
-  ☐ Delegate affected scenario/negative checks, report actual remaining costs and changed execution counts,
+  ☑ Delegate affected scenario/negative checks, report actual remaining costs and changed execution counts,
     update the coverage/disposition map and permanent docs, and satisfy shared review/metrics acceptance.
     Leave unaccepted design or performance results open; final combined qualification remains in 10.10.
+
+  Traceability and current disposition:
+    - Tasks 1–3 -> 10.9.2's immediate/history/interpretation routes and retained coverage rows;
+      shared Rendering.GpuResources.md (Shader executable ownership), Rendering.ShaderBindingState.md
+      (Shader ownership and publication; Verification boundary), Rendering.GpuCommands.Contracts.md
+      (Executable and pipeline contracts; Submission and failure rules) and 10.2's inherited
+      Rendering.GpuCommands.Proposal.md (Representative outcomes and verification), resource completion
+      and snapshot/change publication -> retain original owners, explicit producer synchronization,
+      complete selected domains, native-independent checks and exact oracles. Evidence: shared-view,
+      source-selector/history, selected mip/layer and existing helper negative/lifetime checks plus
+      affected scenario receipts; second review and independent audit required before closure.
+    - Immediate comparison/statistics/predicate/projection/layer conversion inputs now use
+      GpuObservationImage. Immutable whole-plane 2D/array/cube inputs use shared-storage array views
+      with owned nearest selectors; no copied pixels or automatic history capture. Existing production
+      view creation and BorrowedTexture adapt the original registration to the checker's texture input.
+      Views/borrowers retire on synchronous return; no new cache, shader program or scheduler.
+      Spatial crops, mutable storage, 3D-to-array conversion and packed aspects retain exact copy
+      semantics. Explicit native/active attachment and pre-mutation history captures remain unchanged.
+      Nested Extremum/Brightest/projection observations of interpreted arrays no longer copy storage;
+      Brightest reads its selected original tuple directly with native pack/buffer restoration.
+    - SurfaceLightingSpatialRuntimeTests -> all 27 independently selected cells and both SH modes,
+      per-cell short-circuit readiness boundaries, ring shifts and pre-shift images retained. One-cell
+      confidence polls now read the nominated tuple rather than copying and reducing a one-texel image.
+      Whole tile comparisons, streaming/replacement/dark-neighbor and worker milestones remain.
+    - CloudStoredVolumeViewTests -> keep all 64 schedule frames, two periods, unsigned wrap, odd tails,
+      starvation/freshness checks and distinct observation/motion/history contracts. Explicit old
+      radiance/metadata captures and native attachment copies remain; unchanged interpreted arrays
+      borrow storage during later predicates/comparisons/projections. No temporal frame pruning.
+    - WaterShallowContinuityTests -> keep all 24 rows x 201 motion samples, quality-zero filter path,
+      independent geometry/association/continuity tolerances, read budgets and failing-pair replay.
+      Existing tiny MRT reads are already local. Combining reads or restructuring draws is deferred
+      batching, not implemented and not counted as savings. No synchronization reduction claim.
+    - Task 4 -> 10.9.2's collection/atmosphere coverage rows and Phase 10 VGE-only/mock-filesystem
+      scope -> user approved retaining all 12 x 32 real-GC association cycles with Workload=Stress,
+      separating atmosphere admission/completion/disposal through a controllable producer while
+      retaining the real worker/publication comparison and all lookup/numerical integration subjects.
+      AtmosphereBuildRequest freezes admitted inputs; default production execution remains Task.Run
+      over its original worker-owned lookup. Controlled tests retain latest-input/no-starvation,
+      normalized-key reuse and cancellation/late-publication rejection; failed-completion retry added.
+      Four admitted scheduling builds no longer run numerical transport. The existing seven-build
+      timing-only RecordBoundedUpdateCost method is explicitly Diagnostic and remains selectable;
+      its iterations and output are unchanged. The GC stress case remains in ordinary correctness.
+    - Task 5 -> shared 10.9 review/metrics contract -> delegated ordinary Debug build and affected
+      helper/scenario/CPU checks, exact receipts under ../TestResults/GpuTests1097; no full-suite run,
+      fixed performance target, automatic staging or commit. Final combined qualification is 10.10.
+
+  Qualification and remaining-cost evidence:
+    - Normal Debug build passed after shared-view/producer work: 36.13s, zero errors; helpers 67/67
+      passed in 8.76s wall, CPU atmosphere/GC 11/11 in 8.14s wall, cloud/surface/water 40/40 in 90.34s
+      wall. No skips or failures. The final direct-native polling correction rebuilt successfully in
+      13.49s and passed only its two affected ProbeRing SH rows in 12.79s wall. Other receipts remain
+      valid; no unchanged family reruns or full-suite execution. Initial ordinary compile errors were
+      corrected before these receipts; no standalone probes or dotnet crashes.
+    - Combined latest-valid evidence: 118 unique passes, zero skips/failures. All 24 water rows and
+      both SH modes for five surface scenarios remain. Closeout source manifest covers 25 source
+      files with zero drift; test DLL was stable during execution:
+      D87AFC0E1CAAE2199AC557031C10F22C3095F9FE9F5B9C285E7C58DD79BFEDB3.
+      Receipts: ../TestResults/GpuTests1097/{helpers-frozen,cpu-frozen,scenarios-frozen,ring-closeout}.*,
+      source-closeout.csv, combined-case-outcomes.csv and class-case-duration-sums.csv.
+    - Actual selected case-duration sums: water 24 cases = 52.096s; surface 10 = 26.028s; cloud 6 =
+      10.862s; helpers 67 = 4.573s; atmosphere computation 7 = 3.508s; lookup 3 = 4.253s; unchanged
+      real-GC stress = .192s. Per-case sums exclude process/setup overhead and are not wall-time totals.
+      Water retains 4,824 primary motion samples plus its quality-zero filter/replay subjects; fewer
+      waits/draws would require the deferred batching decision. Four scheduling requests use controlled
+      completion; seven timing-only atmosphere refreshes remain available through Diagnostic selection.
+    - Source-derived work changes: each compatible immediate input replaces an independently allocated
+      W*H*D*storage-size pixel copy with one small shared-storage texture selector and borrower. Copies
+      remain for unsupported direct interpretations and explicit history/native boundaries. Per-cell
+      readiness removes one image copy, checker dispatch and result read per visited poll, replacing
+      those with one native tuple read; it does not combine polls. Brightest removes its selected-texel
+      snapshot. These are execution/resource counts, not measured GPU milliseconds or copied-byte totals.
+      View creation/retirement, necessary copies, synchronous waits, numerical integrations and real GC
+      remain costs. No matched before/after or whole-suite speedup claim; final qualification is 10.10.
+    - Second source review checked unchanged numerical bodies/tolerances, selected domains, counter
+      contracts, view selector isolation/cleanup, source/history ownership, native pack restoration,
+      default worker execution and retained coverage. Independent audit resolved nearest filtering and
+      staged readiness-read findings. Independent technical completion audit passed with no unresolved
+      implementation/documentation/evidence findings. The user explicitly accepted the reported metrics
+      and limitations on 2026-11-01. All 25 source manifest entries were reverified with zero drift
+      before closure; no additional tests, staging or commit were performed.
 
 Phase 10.10: Qualify combined correctness and review final metrics, then remove temporary support files
   Depends on 10.3–10.9 and revised subphases 10.9.1–10.9.7, including explicit design/metrics acceptance.

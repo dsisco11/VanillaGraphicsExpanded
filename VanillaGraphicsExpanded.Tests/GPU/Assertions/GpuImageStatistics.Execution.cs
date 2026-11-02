@@ -7,7 +7,7 @@ internal sealed partial class GpuImageStatistics
 {
     #region Private
     /// <summary>Checks the source domain, reduces double partials, then verifies final completion and transport.</summary>
-    private GpuObservationData Moments(GpuImageSnapshot actual, byte[] inputs, int expression,
+    private GpuObservationData Moments(GpuObservationImage actual, byte[] inputs, int expression,
         (string Name, GpuTexture? Texture)[] sources)
     {
         Assert.Equal(OpenTK.Graphics.OpenGL4.ErrorCode.NoError, OpenTK.Graphics.OpenGL4.GL.GetError());
@@ -37,7 +37,7 @@ internal sealed partial class GpuImageStatistics
     }
 
     /// <summary>Counts original ranks and then independently visits every expected histogram entry.</summary>
-    private GpuObservationData Ranks(GpuImageSnapshot actual, byte[] inputs, int side, int slices)
+    private GpuObservationData Ranks(GpuObservationImage actual, byte[] inputs, int side, int slices)
     {
         Assert.Equal(OpenTK.Graphics.OpenGL4.ErrorCode.NoError, OpenTK.Graphics.OpenGL4.GL.GetError());
         var program = Programs.Get("ranks", actual.Kind);

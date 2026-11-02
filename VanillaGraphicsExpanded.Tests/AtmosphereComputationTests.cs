@@ -51,28 +51,35 @@ public sealed class AtmosphereComputationTests
 
     /// <summary>Completion of admitted work is retained while the newest request starts its own full build.</summary>
     [Fact]
-    public async Task CompletionAdmitsLatestInputsAndResolution()
+    public void CompletionAdmitsLatestInputsAndResolution()
     {
-        using var computation = new AtmosphereComputation();
+        var producer = new ControlledProducer();
+        using var computation = new AtmosphereComputation(producer.Start);
         Assert.Null(computation.Update(Vector3.UnitY, 0, 0, 32, 24));
-        var first = await computation.Pending!.WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.Null(computation.Update(Vector3.UnitX, 2, 1, 17, 9));
+        Assert.Single(producer.Requests);
+        var first = producer.Complete(0);
         Assert.Same(first, computation.Update(Vector3.UnitX, 2, 1, 17, 9));
-        var second = await computation.Pending!.WaitAsync(TimeSpan.FromSeconds(30));
+        var second = producer.Complete(1);
         Assert.Same(second, computation.Update(Vector3.UnitX, 2, 1, 17, 9));
         Assert.Equal(Vector3.UnitY, first.Sun);
         Assert.Equal(Vector3.UnitX, second.Sun);
-        Assert.Equal(17 * 9 * 4, second.Sky.Length);
+        Assert.Equal((17, 9), (second.Width, second.Height));
+        Assert.Equal((2f, 1f), (producer.Requests[1].Request.Altitude, producer.Requests[1].Request.Clouds));
         Assert.Null(computation.Pending);
     }
 
     /// <summary>Requested dimensions outside supported bounds share one normalized admission key.</summary>
     [Fact]
-    public async Task EquivalentClampedDimensionsDoNotRepeatWork()
+    public void EquivalentClampedDimensionsDoNotRepeatWork()
     {
-        using var computation = new AtmosphereComputation();
+        var producer = new ControlledProducer();
+        using var computation = new AtmosphereComputation(producer.Start);
         computation.Update(Vector3.UnitY, 0, 0, 0, 0);
-        var completed = await computation.Pending!.WaitAsync(TimeSpan.FromSeconds(30));
+        var completed = producer.Complete(0);
+        Assert.Equal((16, 8), (completed.Width, completed.Height));
         Assert.Same(completed, computation.Update(Vector3.UnitY, 0, 0, 16, 8));
+        Assert.Single(producer.Requests);
         Assert.Null(computation.Pending);
     }
     #endregion
@@ -94,17 +101,66 @@ public sealed class AtmosphereComputationTests
 
     /// <summary>Shutdown prevents publication and safely observes an admitted worker's completion or cancellation.</summary>
     [Fact]
-    public async Task DisposalPreventsFurtherAdmissionAndPublication()
+    public void DisposalPreventsFurtherAdmissionAndPublication()
     {
-        var computation = new AtmosphereComputation();
+        var producer = new ControlledProducer();
+        var computation = new AtmosphereComputation(producer.Start);
         computation.Update(Vector3.UnitY, 0, 0, 128, 96);
         var task = computation.Pending!;
+        Assert.False(producer.Requests[0].Token.IsCancellationRequested);
         computation.Dispose();
         computation.Dispose();
+        Assert.True(producer.Requests[0].Token.IsCancellationRequested);
         Assert.Null(computation.Pending);
+        // Complete after teardown to prove that even a producer which finishes cannot publish.
+        producer.Complete(0);
+        Assert.True(task.IsCompletedSuccessfully);
         Assert.Throws<ObjectDisposedException>(() => computation.Update(Vector3.UnitY, 0, 0, 32, 24));
-        try { await task.WaitAsync(TimeSpan.FromSeconds(30)); }
-        catch (OperationCanceledException) { Assert.True(task.IsCanceled); }
+    }
+
+    /// <summary>A failed completed build clears admission so the same inputs can be retried.</summary>
+    [Fact]
+    public void FailedProducerAllowsSameInputsToRetry()
+    {
+        var producer = new ControlledProducer();
+        using var computation = new AtmosphereComputation(producer.Start);
+        computation.Update(Vector3.UnitY, 0, 0, 32, 24);
+        var error = new InvalidOperationException("Authored producer failure");
+        producer.Requests[0].Completion.SetException(error);
+        Assert.Same(error, Assert.Throws<InvalidOperationException>(() => computation.Update(Vector3.UnitY, 0, 0, 32, 24)));
+        Assert.Null(computation.Pending);
+        Assert.Null(computation.Update(Vector3.UnitY, 0, 0, 32, 24));
+        Assert.Equal(2, producer.Requests.Count);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Controls worker completion independently of the retained numerical integration tests.</summary>
+    private sealed class ControlledProducer
+    {
+        #region Internal API
+        /// <summary>Retains exact admitted requests, cancellation and independently controlled completion.</summary>
+        internal List<(AtmosphereBuildRequest Request, CancellationToken Token, TaskCompletionSource<AtmosphereLighting> Completion)> Requests { get; } = [];
+
+        /// <summary>Admits a frozen request without running numerical transport or using timed waits.</summary>
+        internal Task<AtmosphereLighting> Start(AtmosphereBuildRequest request, CancellationToken token)
+        {
+            var completion = new TaskCompletionSource<AtmosphereLighting>(TaskCreationOptions.RunContinuationsAsynchronously);
+            Requests.Add((request, token, completion));
+            return completion.Task;
+        }
+
+        /// <summary>Publishes an identifiable immutable fixture value for the nominated admitted request.</summary>
+        internal AtmosphereLighting Complete(int index)
+        {
+            var entry = Requests[index];
+            var value = new AtmosphereLighting(entry.Request.Sun, Vector3.One, Vector3.Zero,
+                Vector3.Zero, Vector3.One, System.Collections.Immutable.ImmutableArray<float>.Empty)
+            { Width = entry.Request.Width, Height = entry.Request.Height };
+            entry.Completion.SetResult(value);
+            return value;
+        }
+        #endregion
     }
     #endregion
 }

@@ -1,6 +1,8 @@
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using OpenTK.Graphics.OpenGL4;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Assertions;
 
@@ -8,6 +10,21 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Assertions;
 internal static class GpuLocalRead
 {
     #region Internal API
+    /// <summary>Reads one original RGB tuple independently of sampler state, including array faces and volume slices.</summary>
+    internal static float[] NativeColorTuple(GpuTexture image, int x, int y, int layer = 0)
+    {
+        image.RequireOriginalContext();
+        if (x < 0 || x >= image.Width || y < 0 || y >= image.Height || layer < 0 || layer >= image.Depth)
+            throw new ArgumentOutOfRangeException(nameof(x));
+        var pixel = new float[4];
+        // Native retrieval preserves stored values and does not apply sampler swizzles or sRGB decode.
+        using (OpenGlStateCache.Current.BindBufferScope(OpenTK.Graphics.OpenGL.BufferTarget.PixelPackBuffer, 0))
+        using (OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new OpenGlStateCache.PixelPackState(4)))
+            GL.GetTextureSubImage(image.TextureId, 0, x, y, layer, 1, 1, 1, PixelFormat.Rgba, PixelType.Float, 16, pixel);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+        return pixel;
+    }
+
     /// <summary>Returns one explicitly nominated texel and layer, with its represented channel count and original float encoding.</summary>
     internal static float[] Tuple(GpuTexture image,int x,int y,int layer=0)
     {

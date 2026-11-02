@@ -17,8 +17,8 @@ internal sealed class GpuImageTransform(GpuObservationPrograms programs)
         programs.RequireContext();
         if (!expression.IsDeclared)
             throw new ArgumentOutOfRangeException(nameof(expression), "Select a declared independent projection.");
-        using var source=new GpuImageSnapshot(image);
-        using var reference=second is null?null:new GpuImageSnapshot(second);
+        using var source=new GpuObservationImage(image);
+        using var reference=second is null?null:new GpuObservationImage(second);
         if(reference is not null && (reference.Kind!=source.Kind || reference.Texture.Width!=source.Texture.Width ||
             reference.Texture.Height!=source.Texture.Height || reference.Texture.Depth!=source.Texture.Depth))
             throw new ArgumentException("History projection controls must have corresponding floating domains.",nameof(second));
