@@ -19,7 +19,7 @@ internal sealed partial class GpuImageStatistics
         GpuObservationDispatch.Initialize(output);
         partials.UploadDataImmediate(new uint[256 * 16]);
         int texels = checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth);
-        int groups = (texels + 63) / 64, x = Math.Min(groups, 65535);
+        int groups = GpuObservationLimits.Groups(texels), x = Math.Min(groups, 65535);
         GpuAssertionInputs.Integer(inputs, 12, 0);
         inspection.Execute(inputs, [("actualImage", actual.Texture)], [("resultImage", output)], x, (groups + x - 1) / x);
         inspection.RequireContext();
@@ -47,12 +47,12 @@ internal sealed partial class GpuImageStatistics
         GpuObservationDispatch.Initialize(output);
         histogram.UploadDataImmediate(new uint[checked(side * side * slices)]);
         int count = checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth);
-        int groups = (count + 63) / 64, x = Math.Min(groups, 65535);
+        int groups = GpuObservationLimits.Groups(count), x = Math.Min(groups, 65535);
         program.Execute(inputs, [("actualImage", actual.Texture)], [("resultImage", output), ("histogram", histogram)], x, (groups + x - 1) / x);
         program.RequireContext();
         GpuObservationDispatch.Barrier();
         GpuAssertionInputs.Integer(inputs, 12, 4);
-        int rankGroups = (side * side * slices + 63) / 64, rankX = Math.Min(rankGroups, 65535);
+        int rankGroups = GpuObservationLimits.Groups(checked(side * side * slices)), rankX = Math.Min(rankGroups, 65535);
         program.Execute(inputs, [("actualImage", actual.Texture)], [("resultImage", output), ("histogram", histogram)], rankX, (rankGroups + rankX - 1) / rankX);
         program.RequireContext();
         GpuObservationDispatch.Barrier();

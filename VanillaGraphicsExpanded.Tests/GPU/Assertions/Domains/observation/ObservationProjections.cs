@@ -3,7 +3,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Assertions;
 /// <summary>Names independently authored observation projection contracts.</summary>
 internal static class ObservationProjections
 {
-    private static readonly GpuObservationDomain Declaration = new("observation", [(3, 1u), (4, 1u), (5, 1u), (17, 3u), (18, 3u), (19, 1u)]);
+    private static readonly GpuObservationDomain Declaration = new("observation", [(3, 1u), (4, 1u), (5, 1u), (17, 3u), (18, 3u), (19, 1u)], orderedScalars: [17, 18]);
 
     #region Internal API
     /// <summary>Preserves the independent GpuImageAssertionsComparisons observation.</summary>

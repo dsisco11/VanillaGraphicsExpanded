@@ -13,6 +13,6 @@ case 25:{
 precise float scaled=a.r*255;precise float delta=scaled-(100+(float(coordinate.x/8)+.5)/8);return vec4(delta,0,0,0);
 }
 case 26:{
-if(index!=0u)return vec4(0);precise float sum=0;for(int z=0;z<extent.z;z++)for(int y=0;y<extent.y;y++)for(int x=0;x<extent.x;x++){vec4 value=vec4(texelFetch(sourceImage,ivec3(x,y,z),0));sum=sum+((value.r*.2126+value.g*.7152)+value.b*.0722);}return vec4(sum,0,0,0);
+if(index!=0u)return vec4(0);precise float sum=0;orderedVisits=0u;for(int z=0;z<extent.z;z++)for(int y=0;y<extent.y;y++)for(int x=0;x<extent.x;x++){vec4 value=vec4(texelFetch(sourceImage,ivec3(x,y,z),0));orderedVisits++;sum=sum+((value.r*.2126+value.g*.7152)+value.b*.0722);}return vec4(sum,0,0,0);
 }
 }return vec4(0);}

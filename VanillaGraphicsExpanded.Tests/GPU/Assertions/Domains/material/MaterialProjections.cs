@@ -3,7 +3,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Assertions;
 /// <summary>Names independently authored material projection contracts.</summary>
 internal static class MaterialProjections
 {
-    private static readonly GpuObservationDomain Declaration = new("material", [(12, 1u), (13, 1u), (20, 3u), (25, 1u), (26, 3u)]);
+    private static readonly GpuObservationDomain Declaration = new("material", [(12, 1u), (13, 1u), (20, 3u), (25, 1u), (26, 3u)], orderedScalars: [26]);
 
     #region Internal API
     /// <summary>Preserves the independent ColorGradingLutTests observation.</summary>

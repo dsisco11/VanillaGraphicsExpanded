@@ -3,7 +3,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Assertions;
 /// <summary>Names independently authored surface projection contracts.</summary>
 internal static class SurfaceProjections
 {
-    private static readonly GpuObservationDomain Declaration = new("surface", [(21, 3u), (22, 3u), (27, 1u)]);
+    private static readonly GpuObservationDomain Declaration = new("surface", [(21, 3u), (22, 3u), (27, 1u)], orderedScalars: [22]);
 
     #region Internal API
     /// <summary>Preserves the independent LumOnUpsampleFunctionalTests observation.</summary>

@@ -243,11 +243,14 @@ storage omits unselected lanes and interleaves double words rather than allocati
 facts, double moments and rank-permutation checks; `Predicates` executes independently authored domain
 contracts. Results expose operation-specific counts and moments rather than interpreting one counter
 as constant matches, flag matches, witnesses and statistics completion. Comparisons report exact
-compared-component totals. Only a failed comparison reads its nominated native tuple for expected/actual
+compared-component totals and do not calculate unrelated inspection statistics. Use `Statistics.Inspect`
+when finite/range/extrema or positivity facts are needed. Counts, extrema and earliest locations reduce
+within each workgroup before global publication; inactive tail lanes still join every collective.
+Only a failed comparison reads its nominated native tuple for expected/actual
 value diagnostics; passing images stay on the GPU.
 Selections retain their original extent, mip, region, channels, explicit sparse coordinates and layers or
 cube faces. Packed stencil comparisons change the sampling mode only on an owned GPU copy and retain
-the source depth aspect and selector. The checker returns thirty-two words containing counters, moments and failure coordinates/rank identities; it does not download
+the source depth aspect and selector. Counter observations return thirty-two words containing counters, moments and failure coordinates/rank identities; it does not download
 complete image buffers. Keep existing local tuple reads and tests of readback APIs independent from this checker.
 
 Comparison/statistics, domain-owned predicate/projection and layer-conversion programs are declared
@@ -281,7 +284,9 @@ conditional checks without a vacuous pass. Explicit mapped-source predicates can
 inputs at independently authored coordinates. `GpuImageTransform` authors history copies and projections
 on the GPU; expectations remain separate. When an oracle requires float products with double sums,
 products round into RGBA32F storage before the double reduction. `OrderedFloatSum` retains explicitly
-required sequential float addition; `WeightedStatistics` retains independent double quadrature weights.
+required sequential float addition and expression grouping, producing one scalar with its own completion
+proof in a four-word result rather than an image followed by general moment passes. Double statistics
+reject reads of channels excluded by their mask and keep their separate accumulation tree. `WeightedStatistics` retains independent double quadrature weights.
 `CompareSelected` uploads integer texel/RGB records and dispatches only nominated samples. Sparse interval
 records preserve duplicate/intersecting bounds. Sparse results prove nominated visits/components and report
 original source coordinates; they do not expose uncomputed whole-image statistics. Comparison source

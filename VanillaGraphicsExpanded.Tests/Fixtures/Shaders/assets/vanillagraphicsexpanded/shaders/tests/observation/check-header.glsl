@@ -132,10 +132,11 @@ uvec4 fetchBits(ivec3 p,bool history) {
     return uvec4(history?texelFetch(historyImage,p,0):texelFetch(actualImage,p,0));
 #endif
 }
-/// Accumulates a predicate failure and the earliest actual source component.
+@import "counter-reduction.glsl"
+/// Accumulates one invocation's failure and earliest original source component.
 void fail(uint index,int counter) {
-    imageAtomicAdd(resultImage,ivec2(counter,0),1u);
-    imageAtomicMin(resultImage,ivec2(6,0),index);
+    addCounter(counter,1u);
+    minCounter(6,index);
 }
 
 #if OBSERVATION_FAMILY == 0 || (AUTHORED_PROGRAM && POINT_SOURCE != 0)

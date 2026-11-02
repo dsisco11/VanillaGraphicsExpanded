@@ -14,6 +14,7 @@ internal abstract class GpuObservationService(GpuObservationPrograms programs)
     protected static byte[] DomainInputs(GpuImageSnapshot actual, uint? channelMask, double tolerance, double minimum, double maximum)
     {
         if (!double.IsFinite(tolerance) || tolerance < 0) throw new ArgumentOutOfRangeException(nameof(tolerance));
+        GpuObservationLimits.RequireDomain(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth);
         uint mask = channelMask ?? (1u << actual.Channels) - 1;
         if (mask == 0 || (mask & ~((1u << actual.Channels) - 1)) != 0) throw new ArgumentOutOfRangeException(nameof(channelMask));
         byte[] bytes = new byte[160];

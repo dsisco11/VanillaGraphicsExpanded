@@ -63,6 +63,8 @@ internal sealed partial class GpuImageComparisons
     private GpuObservationData CompareRecords(GpuImageSnapshot actual, uint[] words, int records, ComparisonOperation mode,
         double tolerance, Func<int, int, uint[], string> expectedAt)
     {
+        uint compared = checked((uint)records * (mode == ComparisonOperation.SelectedExpected ? 3u : 1u));
+        GpuObservationLimits.Groups(records);
         using var input = CreateWords(words);
         var inputs = DomainInputs(actual, mode == ComparisonOperation.SelectedExpected ? 7u : 1u, tolerance, double.NegativeInfinity, double.PositiveInfinity);
         GpuAssertionInputs.Integer(inputs, 12, (uint)mode);
@@ -70,7 +72,6 @@ internal sealed partial class GpuImageComparisons
         var data = Programs.Dispatch.Observe(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth,
             actual.Kind, records, Programs.Get("compare", actual.Kind), inputs,
             [("actualImage", actual.Texture), ("expectedImage", input)]);
-        uint compared = checked((uint)records * (mode == ComparisonOperation.SelectedExpected ? 3u : 1u));
         if (data.Counters[19] != compared) throw new InvalidOperationException("Sparse comparison did not examine every nominated component.");
         return Diagnose(actual, data, expectedAt);
     }

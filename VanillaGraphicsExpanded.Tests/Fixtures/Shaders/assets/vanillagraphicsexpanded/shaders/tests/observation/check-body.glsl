@@ -1,5 +1,5 @@
 /// Validates the entire dispatched domain or independently completes histogram validation.
-void main() {
+void observeInvocation() {
     #if OBSERVATION_FAMILY == 3
     statistics();
     #else
@@ -11,11 +11,11 @@ void main() {
         uint ranks=uint(rankSide*rankSide);
         if(index>=ranks*uint(rankSlices))return;
         if(index==0u)imageStore(resultImage,ivec2(12,0),uvec4(0x48495354u));
-        imageAtomicAdd(resultImage,ivec2(11,0),1u);
+        addCounter(11,1u);
         if(imageLoad(histogram,ivec2(int(index%ranks),int(index/ranks))).r!=1u){
-            imageAtomicAdd(resultImage,ivec2(2,0),1u);
+            addCounter(2,1u);
             // A missing rank has no source texel; report its rank/slice instead of inventing coordinates.
-            imageAtomicMin(resultImage,ivec2(10,0),index);
+            minCounter(10,index);
         }
         return;
     }
@@ -26,7 +26,7 @@ void main() {
     if(mode==16 || mode==28) {
         if(index>=constantValue)return;
         if(index==0u)imageStore(resultImage,ivec2(0,0),uvec4(0x47505541u));
-        imageAtomicAdd(resultImage,ivec2(1,0),1u);
+        addCounter(1,1u);
         uint address=index*(mode==16?4u:6u),pixel=expectedWord(address);
         ivec3 point=ivec3(int(pixel)%extent.x,int(pixel)/extent.x%extent.y,int(pixel)/(extent.x*extent.y));
         uvec4 actual=fetchBits(point,false);
@@ -39,13 +39,13 @@ void main() {
                 && number(actual[c])<=packDouble2x32(uvec2(expectedWord(address+4u),expectedWord(address+5u)));
             if(!valid)fail(pixel*4u+c,2);
         }
-        imageAtomicAdd(resultImage,ivec2(19,0),count);
+        addCounter(19,count);
         return;
     }
 #endif
     if(index>=total)return;
     if(index==0u)imageStore(resultImage,ivec2(0,0),uvec4(0x47505541u));
-    imageAtomicAdd(resultImage,ivec2(1,0),1u);
+    addCounter(1,1u);
     if(index%uint(pixelStride)!=uint(pixelOffset))return;
     ivec3 p=ivec3(int(index)%extent.x,(int(index)/extent.x)%extent.y,int(index)/(extent.x*extent.y));
     #if KIND == 0 && AUTHORED_PROGRAM
@@ -78,7 +78,7 @@ void main() {
         texelFetch(actualImage,p,0));
 #endif
         if(!result.x)fail(index*4u,2);
-        if(result.y){imageAtomicAdd(resultImage,ivec2(14,0),1u);imageAtomicMin(resultImage,ivec2(10,0),index);}
+        if(result.y){addCounter(14,1u);minCounter(10,index);}
         return;
     }
     #endif
@@ -98,7 +98,7 @@ void main() {
                 if(!equalBits(value[c],expectedWord(address+8u+c)))fail(index*4u+c,2);
             }
         }
-        imageAtomicAdd(resultImage,ivec2(19,0),compared);
+        addCounter(19,compared);
         return;
     }
     uvec4 expected=(mode==2||mode==6||mode==7||mode==19)?fetchBits(p,true):(mode==1||mode==8||mode==10||mode==23)?expectedTuple(index):mode==24?texelFetch(expectedImage,p,0):mode==25?channelMinimum:uvec4(constantValue);
@@ -137,7 +137,9 @@ void main() {
 #endif
     for(uint c=0u;c<4u;c++) {
         if((channels&(1u<<c))==0u)continue;
-        imageAtomicAdd(resultImage,ivec2(15,0),1u);
+#if OBSERVATION_FAMILY != 0
+        addCounter(15,1u);
+#endif
         uint scalar=index*4u+c,bits=value[c];
 #if OBSERVATION_FAMILY == 0
         uint eligible=uint(mode!=8);
@@ -166,16 +168,18 @@ void main() {
 #endif
 
     #endif
+#if OBSERVATION_FAMILY != 0
         if(!finiteBits(bits))fail(scalar,3);
         else {
-            imageAtomicMin(resultImage,ivec2(7,0),ordered(bits));
-            imageAtomicMax(resultImage,ivec2(8,0),ordered(bits));
+            minCounter(7,ordered(bits));
+            maxCounter(8,ordered(bits));
             double n=number(bits);
-            if(n>0.0)imageAtomicAdd(resultImage,ivec2(5,0),1u);
-            if(n!=0.0)imageAtomicAdd(resultImage,ivec2(13,0),1u);
+            if(n>0.0)addCounter(5,1u);
+            if(n!=0.0)addCounter(13,1u);
             bool clearCoverage=mode==14 && number(value[referenceChannel])==0.0;
             if(clearCoverage ? n!=0.0 : n<bounds.x || n>bounds.y)fail(scalar,4);
         }
+#endif
         #if OBSERVATION_FAMILY == 0
         if((mode==1||mode==2||mode==5||mode==10||mode==13||mode==25)&&!equalBits(bits,expected[c]))fail(scalar,2);
         if(mode==15&&(!finiteBits(bits)||abs(number(bits)-packDouble2x32(uvec2(doubleLow[c],doubleHigh[c])))>tolerance))fail(scalar,2);
@@ -188,18 +192,18 @@ void main() {
         }
         if(mode==23)authoredValid=authoredValid && bits==expected[c];
         if(mode==24 && roundEven(uintBitsToFloat(bits)*255.0)!=float(expected[c]))fail(scalar,2);
-        if(mode==5&&equalBits(bits,expected[c]))imageAtomicAdd(resultImage,ivec2(14,0),1u);
+        if(mode==5&&equalBits(bits,expected[c]))addCounter(14,1u);
         if(mode==6&&bits!=expected[c])fail(scalar,2);
         if(mode==7&&number(expected[c])!=0.0&&!equalBits(bits,expected[c]))fail(scalar,2);
         #endif
-        if(mode==9&&(bits&constantValue)!=0u)imageAtomicAdd(resultImage,ivec2(14,0),1u);
+        if(mode==9&&(bits&constantValue)!=0u)addCounter(14,1u);
     }
     #if OBSERVATION_FAMILY == 0
-    imageAtomicAdd(resultImage,ivec2(19,0),mode==8?3u:compared);
+    addCounter(19,mode==8?3u:compared);
     if((mode==22 || mode==23) && !authoredValid)fail(index*4u,2);
     #endif
     #if OBSERVATION_FAMILY == 1
-    if(mode==18&&matching)imageAtomicAdd(resultImage,ivec2(14,0),1u);
+    if(mode==18&&matching)addCounter(14,1u);
     #endif
 #if KIND == 0
 
@@ -209,7 +213,7 @@ void main() {
         precise float base=scaled/multipliers.w;
         precise float limit=base+multipliers.y;
         if(uintBitsToFloat(value.r)>limit&&texelFetch(additionalImage,p,0).r>multipliers.z)
-            imageAtomicAdd(resultImage,ivec2(14,0),1u);
+            addCounter(14,1u);
     }
 #endif
 
@@ -235,7 +239,7 @@ void main() {
         }
         if(slice>0u) {
             ivec3 first=ivec3(int(index%ranks)%rankSide,int(index%ranks)/rankSide,0);
-            if(value.r!=fetchBits(first,false).r)imageAtomicOr(resultImage,ivec2(9,0),1u<<slice);
+            if(value.r!=fetchBits(first,false).r)orCounter(9,1u<<slice);
         }
     }
 #endif
@@ -318,3 +322,10 @@ void statistics() {
 }
 
 #endif
+
+/// Keeps tail invocations in every collective without observing nonexistent source records.
+void main() {
+    initializeCounters();
+    observeInvocation();
+    publishCounters();
+}

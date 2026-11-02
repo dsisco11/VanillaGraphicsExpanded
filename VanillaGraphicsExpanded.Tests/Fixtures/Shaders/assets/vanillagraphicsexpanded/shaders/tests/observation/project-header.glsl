@@ -31,3 +31,6 @@ layout(binding=1)uniform usampler2DArray referenceImage;
 layout(rgba32f,binding=0)writeonly uniform image2DArray destinationImage;
 
 
+
+// Serial policies count their actual loop iterations independently of the requested extent.
+uint orderedVisits;

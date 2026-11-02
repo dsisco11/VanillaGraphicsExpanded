@@ -8,6 +8,8 @@ internal readonly record struct GpuImageProjection(GpuObservationDomain Definiti
     internal string Domain => Definition?.Name ?? string.Empty;
     /// <summary>Uses the declared source footprint rather than caller-modifiable mask fields.</summary>
     internal uint Inputs => Definition.RequiredInputs(Choice);
+    /// <summary>Declares that the domain authors a serial scalar rather than a per-texel projection.</summary>
+    internal bool IsOrderedScalar => Definition?.IsOrderedScalar(Choice) == true;
     /// <summary>Proves membership in the immutable domain-owned declaration set.</summary>
     internal bool IsDeclared => Definition?.Contains(Choice) == true;
     #endregion

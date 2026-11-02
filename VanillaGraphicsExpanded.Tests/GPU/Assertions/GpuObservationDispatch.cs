@@ -16,17 +16,18 @@ internal sealed class GpuObservationDispatch
     internal GpuObservationData Observe(GpuImageSnapshot actual, GpuAssertionProgram program, byte[] inputs,
         (string Name, GpuTexture? Texture)[] sources)
         => Observe(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth, actual.Kind,
-            checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth), program, inputs, sources);
+            GpuObservationLimits.RequireDomain(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth), program, inputs, sources);
 
     /// <summary>Executes nominated records while retaining the original source extent for failure coordinates.</summary>
     internal GpuObservationData Observe(int width, int height, int depth, int kind, int records,
         GpuAssertionProgram program, byte[] inputs, (string Name, GpuTexture? Texture)[] sources)
     {
+        GpuObservationLimits.RequireDomain(width, height, depth);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         using var state = new GpuAssertionState(program.SamplerUnits, program.ImageUnits);
         using var output = CreateResult();
         Initialize(output);
-        int groups = checked((records + 63) / 64), x = Math.Min(groups, 65535);
+        int groups = GpuObservationLimits.Groups(records), x = Math.Min(groups, 65535);
         program.Execute(inputs, sources, [("resultImage", output)], x, (groups + x - 1) / x);
         program.RequireContext();
         Barrier();
@@ -61,7 +62,7 @@ internal sealed class GpuObservationDispatch
     /// <summary>Reads bounded counters independently through native GL and requires complete-domain dispatch proof.</summary>
     internal static GpuObservationData Read(GpuImageSnapshot actual, DynamicTexture2D output)
         => Read(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth, actual.Kind,
-            checked(actual.Texture.Width * actual.Texture.Height * actual.Texture.Depth), output);
+            GpuObservationLimits.RequireDomain(actual.Texture.Width, actual.Texture.Height, actual.Texture.Depth), output);
 
     /// <summary>Requires every nominated invocation independently of the original image extent.</summary>
     private static GpuObservationData Read(int width, int height, int depth, int kind, int count, DynamicTexture2D output)

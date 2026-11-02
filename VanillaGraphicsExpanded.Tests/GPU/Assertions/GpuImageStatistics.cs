@@ -70,7 +70,7 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
         input.UploadDataImmediate(bits, 0, 0, 0, input.Width, input.Height, 1);
         var inputs = DomainInputs(actual, 1, 0, double.NegativeInfinity, double.PositiveInfinity);
         GpuAssertionInputs.Integer(inputs, 12, (uint)InspectionOperation.Moments);
-        return new(Moments(actual, inputs, 1, [("actualImage", actual.Texture), ("expectedImage", input)]));
+        return new(Moments(actual, inputs, 1, [("actualImage", actual.Texture), ("expectedImage", input)]), 1);
     }
 
     /// <summary>Checks nominated values against their lit range where coverage is nonzero, and exact zero elsewhere.</summary>
@@ -95,7 +95,7 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
         using var actual = new GpuImageSnapshot(image, selection);
         var inputs = DomainInputs(actual, channelMask, 0, double.NegativeInfinity, double.PositiveInfinity);
         GpuAssertionInputs.Integer(inputs, 12, (uint)InspectionOperation.Moments);
-        var moments = new GpuStatisticsResult(Moments(actual, inputs, absolute ? 2 : 0, [("actualImage", actual.Texture)]));
+        var moments = new GpuStatisticsResult(Moments(actual, inputs, absolute ? 2 : 0, [("actualImage", actual.Texture)]), channelMask ?? (1u << actual.Channels) - 1);
         if(!squareInFloat)return moments;
         // Round products into explicit float storage before the independent double reduction.
         using var products=projections.Apply(actual.Texture, ObservationProjections.GpuImageAssertionsComparisons_Statistics);
@@ -173,15 +173,7 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
         input.UploadDataImmediate(bits,0,0,0,input.Width,input.Height,input.Depth);
         var inputs = DomainInputs(actual, channelMask, 0, double.NegativeInfinity, double.PositiveInfinity);
         GpuAssertionInputs.Integer(inputs, 12, (uint)InspectionOperation.Moments);
-        return new(Moments(actual, inputs, 3, [("actualImage", actual.Texture), ("expectedImage", input)]));
-    }
-
-    /// <summary>Retains scalar float addition order for legacy numerical oracles instead of silently substituting a double reduction.</summary>
-    internal float OrderedFloatSum(GpuTexture image,GpuImageProjection term)
-    {
-        using var projected=projections.Apply(image,term);
-        var result=Statistics(projected,channelMask:1);
-        result.AssertFiniteRange();return (float)result.Sum(0);
+        return new(Moments(actual, inputs, 3, [("actualImage", actual.Texture), ("expectedImage", input)]), channelMask ?? (1u << actual.Channels) - 1);
     }
 
     #endregion
