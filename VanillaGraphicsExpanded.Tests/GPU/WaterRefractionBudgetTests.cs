@@ -146,51 +146,80 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         inputs.Scenario = 12; inputs.Budget = 2; inputs.Quality = 1; inputs.SelectReceiver = 1;
         inputs.Normal = Vector3.Normalize(new Vector3(-.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
-        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+        using var target = CreateMRTRenderTarget(64,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
             TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
             TextureFormat.Rgba32f);
         int switches = 0, rayCount = 0, uvCount = 0, previousMethod = 0;
         Vector3 previousPosition = default, previousReference = default, previousColor = default;
         float maximumPositionError = 0, maximumColorError = 0;
-        for (int motion = 0; motion <= 60; motion++)
+        for (int batchStart = 0; batchStart <= 60; batchStart += 64)
         {
-            Vector3 surface = new(slope == 4 ? .3f + motion * .008f : -.4f + motion * .02f,0,-2);
-            inputs.Surface = surface;
-            TestFramework.RenderQuadTo(program,target);
-            float[] decision = target[0].ReadPixels(), selection = target[3].ReadPixels();
-            float[] receiver = target[4].ReadPixels(), radiance = target[5].ReadPixels();
-            Assert.Equal(1,decision[0]); Assert.Equal(1,decision[3]);
-            Assert.InRange(decision[2],0,2); Assert.InRange(selection[1],0,2);
-            int method = (int)selection[0];
-            float[] work = target[6].ReadPixels();
-            Assert.InRange(work[1], 0, work[0]);
-            Assert.Equal(1, work[2] + work[3]);
-            Assert.InRange(work[1], 1, 4);
-            if (method == 1) Assert.Equal(0, work[2]);
-            if (method == 1) rayCount++; else { Assert.Equal(2,method); uvCount++; }
-            Vector3 position = new(receiver[0],receiver[1],receiver[2]);
-            Vector3 rgb = new(radiance[0],radiance[1],radiance[2]);
-            Assert.True(MathF.Abs(position.Z + 10 - slope * position.X) <= .001f,$"half={half} motion={motion} method={method} point={position} rgb={rgb} planeError={position.Z + 10 - slope * position.X:R} rayCalls={decision[2]}");
-            Assert.InRange(Vector3.Distance(rgb,new(8 + .1f * position.X,4 + .1f * position.Y,8 + .05f * position.Z)),0,.0001f);
-            Vector3 incident = Vector3.Normalize(surface);
-            float cosine = -Vector3.Dot(incident,inputs.Normal), eta = 1 / 1.333f;
-            Vector3 direction = eta * incident + (eta * cosine - MathF.Sqrt(1 - eta * eta * (1 - cosine * cosine))) * inputs.Normal;
-            Vector3 reference = surface + direction * ((-10 + slope * surface.X - surface.Z) / (direction.Z - slope * direction.X));
-            if (previousMethod != 0 && previousMethod != method)
+            // Preserve the original 0..60 surface sequence and independently derive each reference after its GPU result is read.
+            int batchCount = Math.Min(64,61 - batchStart);
+            var surfaces = new Vector4[batchCount];
+            for (int local = 0; local < batchCount; local++)
             {
-                switches++;
-                Vector3 movementError = position - previousPosition - (reference - previousReference);
-                float positionError = movementError.Length();
-                Vector3 expectedColorMotion = (reference - previousReference) * new Vector3(.1f,.1f,.05f);
-                float colorError = Vector3.Distance(rgb - previousColor,expectedColorMotion);
-                maximumPositionError = MathF.Max(maximumPositionError,positionError);
-                maximumColorError = MathF.Max(maximumColorError,colorError);
-                float footprint = 4 * MathF.Max(-position.Z,-previousPosition.Z) / (MathF.Sqrt(3) * (half ? Size / 2 : Size));
-                Assert.True(positionError <= footprint,$"half={half} motion={motion} method={previousMethod}->{method} receiver jump={positionError:R}m exceeds two-texel footprint={footprint:R}m");
-                Assert.True(colorError <= .1f * footprint,$"half={half} method={previousMethod}->{method} HDR jump={colorError:R}");
+                int motion = batchStart + local;
+                Vector3 surface = new(slope == 4 ? .3f + motion * .008f : -.4f + motion * .02f,0,-2);
+                surfaces[local] = new(surface,0);
             }
-            previousMethod = method; previousPosition = position; previousReference = reference; previousColor = rgb;
+            program.SetMotionBatch(surfaces);
+            TestFramework.RenderQuadTo(program,target,scissor: (0,0,batchCount,1));
+            // The shader bounds guard and region readback exclude three unpopulated array slots from evaluation and transfer.
+            float[] decisions = target[0].ReadPixelsRegion(0,0,batchCount,1);
+            float[] selections = target[3].ReadPixelsRegion(0,0,batchCount,1);
+            float[] receivers = target[4].ReadPixelsRegion(0,0,batchCount,1);
+            float[] radiances = target[5].ReadPixelsRegion(0,0,batchCount,1);
+            float[] works = target[6].ReadPixelsRegion(0,0,batchCount,1);
+            for (int local = 0; local < batchCount; local++)
+            {
+                int motion = batchStart + local;
+                int offset = local * 4;
+                Vector4 decision = ReadRecord(decisions,offset), selection = ReadRecord(selections,offset);
+                Vector4 receiver = ReadRecord(receivers,offset), radiance = ReadRecord(radiances,offset);
+                Vector4 work = ReadRecord(works,offset);
+                Vector3 surface = new(surfaces[local].X,surfaces[local].Y,surfaces[local].Z);
+                try
+                {
+                    Assert.Equal(1,decision.X); Assert.Equal(1,decision.W);
+                    Assert.InRange(decision.Z,0,2); Assert.InRange(selection.Y,0,2);
+                    int method = (int)selection.X;
+                    Assert.InRange(work.Y, 0, work.X);
+                    Assert.Equal(1, work.Z + work.W);
+                    Assert.InRange(work.Y, 1, 4);
+                    if (method == 1) Assert.Equal(0, work.Z);
+                    if (method == 1) rayCount++; else { Assert.Equal(2,method); uvCount++; }
+                    Vector3 position = new(receiver.X,receiver.Y,receiver.Z);
+                    Vector3 rgb = new(radiance.X,radiance.Y,radiance.Z);
+                    Assert.True(MathF.Abs(position.Z + 10 - slope * position.X) <= .001f,$"half={half} motion={motion} method={method} point={position} rgb={rgb} planeError={position.Z + 10 - slope * position.X:R} rayCalls={decision.Z}");
+                    Assert.InRange(Vector3.Distance(rgb,new(8 + .1f * position.X,4 + .1f * position.Y,8 + .05f * position.Z)),0,.0001f);
+                    Vector3 incident = Vector3.Normalize(surface);
+                    float cosine = -Vector3.Dot(incident,inputs.Normal), eta = 1 / 1.333f;
+                    Vector3 direction = eta * incident + (eta * cosine - MathF.Sqrt(1 - eta * eta * (1 - cosine * cosine))) * inputs.Normal;
+                    Vector3 reference = surface + direction * ((-10 + slope * surface.X - surface.Z) / (direction.Z - slope * direction.X));
+                    if (previousMethod != 0 && previousMethod != method)
+                    {
+                        switches++;
+                        Vector3 movementError = position - previousPosition - (reference - previousReference);
+                        float positionError = movementError.Length();
+                        Vector3 expectedColorMotion = (reference - previousReference) * new Vector3(.1f,.1f,.05f);
+                        float colorError = Vector3.Distance(rgb - previousColor,expectedColorMotion);
+                        maximumPositionError = MathF.Max(maximumPositionError,positionError);
+                        maximumColorError = MathF.Max(maximumColorError,colorError);
+                        float footprint = 4 * MathF.Max(-position.Z,-previousPosition.Z) / (MathF.Sqrt(3) * (half ? Size / 2 : Size));
+                        Assert.True(positionError <= footprint,$"half={half} motion={motion} method={previousMethod}->{method} receiver jump={positionError:R}m exceeds two-texel footprint={footprint:R}m");
+                        Assert.True(colorError <= .1f * footprint,$"half={half} method={previousMethod}->{method} HDR jump={colorError:R}");
+                    }
+                    previousMethod = method; previousPosition = position; previousReference = reference; previousColor = rgb;
+                }
+                catch (Exception)
+                {
+                    output.WriteLine($"water-transition-failure half={half} slope={slope:R} motion={motion} batchStart={batchStart} local={local} surface={surface} decision={decision} selection={selection} receiverPosition={receiver} radiance={radiance} work={work}");
+                    throw;
+                }
+            }
         }
+        program.SetMotionBatch(ReadOnlySpan<Vector4>.Empty);
         output.WriteLine($"half={half}: ray={rayCount}, uv={uvCount}, switches={switches}, maxTransitionPositionError={maximumPositionError:R}m, maxTransitionHdrError={maximumColorError:R}");
         // Independent neighboring geometry now establishes steep continuous
         // receiver coverage. Full-size planes must keep geometric intersections;
@@ -545,6 +574,10 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
 
     /// <summary>Projects into the diagnostic fixture's independently specified sixty-degree square camera.</summary>
     private static Vector2 Project(Vector3 point) => new Vector2(point.X,point.Y) / -point.Z * (MathF.Sqrt(3) * .5f) + new Vector2(.5f);
+
+    /// <summary>Reads one four-channel attachment record without allocating a per-record array.</summary>
+    private static Vector4 ReadRecord(float[] records,int offset)
+        => new(records[offset],records[offset+1],records[offset+2],records[offset+3]);
 
     /// <summary>Places an original camera sample on a known axial plane without using GPU reconstruction.</summary>
     private static Vector3 AtDepth(Vector2 uv, float depth) => new((uv.X * 2 - 1) * depth / MathF.Sqrt(3),

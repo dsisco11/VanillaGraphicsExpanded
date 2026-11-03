@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
@@ -23,6 +24,10 @@ internal sealed partial class WaterReceiverFilterShaderProgram
 
     /// <summary>Supplies the oriented local interface normal.</summary>
     public Vector3 Normal { get => inputs.Normal; set => inputs.Normal = value; }
+
+    /// <summary>Publishes paired original CPU-authored motion surfaces and sample coordinates.</summary>
+    internal void SetMotionBatch(ReadOnlySpan<Vector4> surfaces, ReadOnlySpan<Vector4> sampleUvs)
+        => inputs.SetBatch(surfaces, sampleUvs);
 
     #endregion
 

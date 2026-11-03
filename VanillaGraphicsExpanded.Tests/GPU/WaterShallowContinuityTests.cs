@@ -68,7 +68,7 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
         inputs.Scenario = 12; inputs.Quality = quality; inputs.Budget = 1 << quality; inputs.SelectReceiver = 1;
         inputs.Normal = Vector3.Normalize(new Vector3(curved ? -.7f : -.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
-        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+        using var target = CreateMRTRenderTarget(64,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
             TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         var filter = Programs.Create<WaterReceiverFilterShaderProgram>();
         var filterInputs = (IWaterReceiverFilterBindings)filter;
@@ -79,59 +79,94 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
         program.FrameInputs = frameCamera;
         filter.FrameInputs = frameCamera;
         filterInputs.Normal = inputs.Normal; filterInputs.Color = halfColor ?? color; filterInputs.Depth = halfDepth ?? depth;
-        using var filterTarget = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
+        using var filterTarget = CreateMRTRenderTarget(64,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         float maximumJump = 0, maximumAssociationError = 0;
         float maximumFilterJump = 0;
         int switches = 0, previousMethod = 0, rays = 0, uv = 0;
         int largestJumpMotion = 0, largestJumpOldMethod = 0, largestJumpNewMethod = 0;
         float? previousRadiance = null;
         float? previousFilterRadiance = null;
-        for (int motion = 0; motion <= 200; motion++)
+        for (int batchStart = 0; batchStart <= 200; batchStart += 64)
         {
-            inputs.Surface = new(-motionRange + motion * motionRange / 100,0,-2);
+            // Author each original motion input once in sweep order; accumulated adjacency metrics remain outside the chunk loop.
+            int batchCount = Math.Min(64, 201 - batchStart);
+            var surfaces = new Vector4[batchCount];
+            var sampleUvs = quality == 0 ? new Vector4[batchCount] : Array.Empty<Vector4>();
+            for (int local = 0; local < batchCount; local++)
+            {
+                int motion = batchStart + local;
+                Vector3 surface = new(-motionRange + motion * motionRange / 100,0,-2);
+                surfaces[local] = new(surface, 0);
+                if (quality == 0) sampleUvs[local] = new(surface.X/2*MathF.Sqrt(3)*.5f+.5f,.5f,0,0);
+            }
+            program.SetMotionBatch(surfaces);
+            TestFramework.RenderQuadTo(program,target,scissor: (0,0,batchCount,1));
+            // Scissor and region readback use only populated records, including the nine-sample tail.
+            float[] decisions = target[0].ReadPixelsRegion(0,0,batchCount,1);
+            float[] selections = target[3].ReadPixelsRegion(0,0,batchCount,1);
+            float[] positions = target[4].ReadPixelsRegion(0,0,batchCount,1);
+            float[] radiances = target[5].ReadPixelsRegion(0,0,batchCount,1);
+            float[]? operations = quality == 0 ? target[6].ReadPixelsRegion(0,0,batchCount,1) : null;
+            float[]? filterRadiances = null;
             if (quality == 0)
             {
-                // Isolate direct bilateral sampling from ray/UV selection. The
-                // projected seed follows the same surface motion without traversal.
-                filterInputs.Surface = inputs.Surface;
-                filterInputs.SampleUv = new(inputs.Surface.X/2*MathF.Sqrt(3)*.5f+.5f,.5f);
-                TestFramework.RenderQuadTo(filter,filterTarget);
-                float filteredRadiance = filterTarget[1].ReadTexel()[0];
-                if (previousFilterRadiance is { } previousFilter)
-                    maximumFilterJump = MathF.Max(maximumFilterJump,MathF.Abs(filteredRadiance-previousFilter));
-                previousFilterRadiance = filteredRadiance;
+                // Isolate direct bilateral sampling from ray/UV selection using the same CPU-authored records.
+                filter.SetMotionBatch(surfaces, sampleUvs);
+                TestFramework.RenderQuadTo(filter,filterTarget,scissor: (0,0,batchCount,1));
+                filterRadiances = filterTarget[1].ReadPixelsRegion(0,0,batchCount,1);
             }
-            TestFramework.RenderQuadTo(program,target);
-            var decision = target[0].ReadPixels(); var selection = target[3].ReadPixels();
-            var position = target[4].ReadPixels(); var radiance = target[5].ReadPixels();
-            Assert.Equal(1,decision[0]); Assert.Equal(1,decision[3]);
-            int method = (int)selection[0];
-            if (quality == 0)
+            for (int local = 0; local < batchCount; local++)
             {
-                Vector3 selectedPosition=new(position[0],position[1],position[2]);
-                Assert.True(Vector3.Dot(selectedPosition-inputs.Surface,inputs.Normal)<0,
-                    "Bounded continuation must retain submerged receiver coverage.");
-                // Two bounded footprints plus reduced-source coverage recovery never become a ray search.
-                var operations = target[6].ReadPixels();
-                Assert.InRange(selection[1], 0, 2);
-                Assert.InRange(operations[0], 0, 15);
-                Assert.InRange(operations[1], 0, 4);
-            }
-            if (method == 1) rays++; else { Assert.Equal(2,method); uv++; }
-            if (!curved) Assert.InRange(MathF.Abs(position[2] + wallDepth - slope * position[0]),0,.0001f);
-            if (previousMethod != 0 && previousMethod != method) switches++;
-            if (previousRadiance is { } previous)
-            {
-                float jump = MathF.Abs(radiance[0]-previous);
-                if (jump > maximumJump)
+                int motion = batchStart + local;
+                int offset = local * 4;
+                Vector4 decision = ReadRecord(decisions,offset);
+                Vector4 selection = ReadRecord(selections,offset);
+                Vector4 position = ReadRecord(positions,offset);
+                Vector4 radiance = ReadRecord(radiances,offset);
+                Vector3 surface = new(surfaces[local].X,surfaces[local].Y,surfaces[local].Z);
+                Vector4 work = operations is null ? new(float.NaN) : ReadRecord(operations,offset);
+                float filteredRadiance = filterRadiances is null ? float.NaN : filterRadiances[offset];
+                try
                 {
-                    maximumJump = jump; largestJumpMotion = motion;
-                    largestJumpOldMethod = previousMethod; largestJumpNewMethod = method;
+                    Assert.Equal(1,decision.X); Assert.Equal(1,decision.W);
+                    int method = (int)selection.X;
+                    if (quality == 0)
+                    {
+                        Vector3 selectedPosition=new(position.X,position.Y,position.Z);
+                        Assert.True(Vector3.Dot(selectedPosition-surface,inputs.Normal)<0,
+                            "Bounded continuation must retain submerged receiver coverage.");
+                        // Two bounded footprints plus reduced-source coverage recovery never become a ray search.
+                        Assert.InRange(selection.Y, 0, 2);
+                        Assert.InRange(work.X, 0, 15);
+                        Assert.InRange(work.Y, 0, 4);
+                        if (previousFilterRadiance is { } previousFilter)
+                            maximumFilterJump = MathF.Max(maximumFilterJump,MathF.Abs(filteredRadiance-previousFilter));
+                        previousFilterRadiance = filteredRadiance;
+                    }
+                    if (method == 1) rays++; else { Assert.Equal(2,method); uv++; }
+                    if (!curved) Assert.InRange(MathF.Abs(position.Z + wallDepth - slope * position.X),0,.0001f);
+                    if (previousMethod != 0 && previousMethod != method) switches++;
+                    if (previousRadiance is { } previous)
+                    {
+                        float jump = MathF.Abs(radiance.X-previous);
+                        if (jump > maximumJump)
+                        {
+                            maximumJump = jump; largestJumpMotion = motion;
+                            largestJumpOldMethod = previousMethod; largestJumpNewMethod = method;
+                        }
+                    }
+                    maximumAssociationError = MathF.Max(maximumAssociationError,MathF.Abs(radiance.X-(8+4*position.X)));
+                    previousMethod = method; previousRadiance = radiance.X;
+                }
+                catch (Exception)
+                {
+                    output.WriteLine($"water-motion-failure quality={quality} half={half} shoreline={shoreline} curved={curved} motion={motion} batchStart={batchStart} local={local} surface={surface} decision={decision} selection={selection} position={position} radiance={radiance} operations={work} filterRadiance={filteredRadiance:R}");
+                    throw;
                 }
             }
-            maximumAssociationError = MathF.Max(maximumAssociationError,MathF.Abs(radiance[0]-(8+4*position[0])));
-            previousMethod = method; previousRadiance = radiance[0];
         }
+        program.SetMotionBatch(ReadOnlySpan<Vector4>.Empty);
+        if (quality == 0) filter.SetMotionBatch(ReadOnlySpan<Vector4>.Empty,ReadOnlySpan<Vector4>.Empty);
         output.WriteLine($"quality={quality} half={half} shoreline={shoreline} curved={curved}: ray={rays}, uv={uv}, switches={switches}, maxAdjacentHdrJump={maximumJump:R}, maxAssociationError={maximumAssociationError:R}, maxDirectFilterJump={maximumFilterJump:R}");
         output.WriteLine($"Largest jump at motion {largestJumpMotion}, method {largestJumpOldMethod}->{largestJumpNewMethod}.");
         if (maximumJump > .01f)
@@ -141,10 +176,10 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
             for (int motion = Math.Max(0, largestJumpMotion - 1); motion <= largestJumpMotion; motion++)
             {
                 inputs.Surface = new(-motionRange + motion * motionRange / 100, 0, -2);
-                TestFramework.RenderQuadTo(program, target);
-                output.WriteLine($"receiver-replay motion={motion} selection={string.Join(',', target[3].ReadPixels())} "
-                    + $"position={string.Join(',', target[4].ReadPixels())} radiance={string.Join(',', target[5].ReadPixels())} "
-                    + $"operations={string.Join(',', target[6].ReadPixels())}");
+                TestFramework.RenderQuadTo(program, target, scissor: (0,0,1,1));
+                output.WriteLine($"receiver-replay motion={motion} selection={string.Join(',', target[3].ReadPixelsRegion(0,0,1,1))} "
+                    + $"position={string.Join(',', target[4].ReadPixelsRegion(0,0,1,1))} radiance={string.Join(',', target[5].ReadPixelsRegion(0,0,1,1))} "
+                    + $"operations={string.Join(',', target[6].ReadPixelsRegion(0,0,1,1))}");
             }
         }
         Assert.InRange(maximumAssociationError,0,.0001f);
@@ -153,5 +188,11 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
         // than .004; .01 permits reconstruction error without accepting texel stairs.
         Assert.InRange(maximumJump,0,.01f);
     }
+    #endregion
+
+    #region Private
+    /// <summary>Reads one four-channel attachment record without allocating a per-record array.</summary>
+    private static Vector4 ReadRecord(float[] records,int offset)
+        => new(records[offset],records[offset+1],records[offset+2],records[offset+3]);
     #endregion
 }

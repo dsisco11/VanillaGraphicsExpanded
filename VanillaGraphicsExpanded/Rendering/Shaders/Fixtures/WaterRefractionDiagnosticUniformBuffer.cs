@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 
@@ -6,9 +7,12 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 /// <summary>Packs the WaterRefractionDiagnostic numerical inputs using their std140 offsets.</summary>
 internal sealed class WaterRefractionDiagnosticUniformBuffer : CpuUniformBuffer
 {
+    private const int BatchSurfaceOffset = 64;
+    private const int BatchCapacity = 64;
+
     #region Public API
-    /// <summary>Creates zero-default inputs with immutable single-frame publication.</summary>
-    internal WaterRefractionDiagnosticUniformBuffer() : base(64) { }
+    /// <summary>Creates zero-default scalar and bounded motion inputs with immutable single-frame publication.</summary>
+    internal WaterRefractionDiagnosticUniformBuffer() : base(BatchSurfaceOffset + BatchCapacity * 16) { }
 
     /// <summary>Selects the independently authored optical geometry.</summary>
     internal int Scenario
@@ -57,6 +61,27 @@ internal sealed class WaterRefractionDiagnosticUniformBuffer : CpuUniformBuffer
     {
         get => MemoryMarshal.Read<int>(Bytes.Slice(56));
         set => WriteInt32(56, value);
+    }
+
+    /// <summary>Selects the scalar input path when zero, or the number of CPU-authored surfaces to index.</summary>
+    internal int BatchCount
+    {
+        get => MemoryMarshal.Read<int>(Bytes.Slice(60));
+        set
+        {
+            if ((uint)value > BatchCapacity) throw new ArgumentOutOfRangeException(nameof(value));
+            WriteInt32(60, value);
+        }
+    }
+
+    /// <summary>Writes a complete bounded surface array and clears every unpopulated slot.</summary>
+    /// <param name="surfaces">CPU-authored surface records in original motion order.</param>
+    internal void SetBatch(ReadOnlySpan<Vector4> surfaces)
+    {
+        if (surfaces.Length > BatchCapacity) throw new ArgumentOutOfRangeException(nameof(surfaces));
+        for (int index = 0; index < BatchCapacity; index++)
+            WriteVector4(BatchSurfaceOffset + index * 16, index < surfaces.Length ? surfaces[index] : Vector4.Zero);
+        BatchCount = surfaces.Length;
     }
 
     #endregion

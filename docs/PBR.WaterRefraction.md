@@ -1259,8 +1259,10 @@ adjacent-corner foreground/depth-layer rejection. Receipts:
 `artifacts/PbrColor/water-shallow-final-release.log`. The shader catalogs retain 179 stages
 and 445 variants. These counts overlap the focused run; durations are not production GPU timings.
 
-The regression fixture uses affine physical-position HDR radiance, 201 subpixel motions,
-both resolutions and all four tiers. It checks continuity and geometry/radiance association;
+The regression fixture uses affine physical-position HDR radiance and 201 subpixel motions
+per retained row, with representative quality/resolution combinations covering both background
+resolutions. The [approved test coverage matrix](Rendering.TestRuntimeOptimizations.todo) records
+the retained combinations. It checks continuity and geometry/radiance association;
 a separate two-depth-column fixture rejects a fictitious four-corner plane. These numerical
 checks do not establish live visual acceptance or GPU cost. Separately, on 2026-10-04 the user
 confirmed that both reported artifacts are fixed and verified in game. This closes visual

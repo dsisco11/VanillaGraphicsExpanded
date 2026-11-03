@@ -4,7 +4,7 @@ Test execution runtime optimizations
 Status
   Phases 1 and 2 are complete and accepted by the user on 2026-11-03, including the measured
   timing limitations and the two approved coverage reductions. Phase 3 is complete and accepted
-  on 2026-11-03; phases 4–6 remain pending.
+  on 2026-11-03. Phase 4 is complete and accepted on 2026-11-03; phases 5–6 remain pending.
   This plan covers the five prioritized optimizations
   from the test-runtime review and a separate water-test necessity review requested at acceptance.
   Both Phase 2 reductions are implemented and verified, with a clean independent completion audit.
@@ -609,23 +609,119 @@ Shared implementation and acceptance requirements
   ☑ Complete second review, independent coverage audit and linked-document reconciliation.
     Present measured results and limitations for user acceptance before closing the phase.
 
-☐ Phase 4 — Batch independent water motion observations
+☑ Phase 4 — Batch independent water motion observations
+  Baseline and approved indexed records (2026-11-03)
+    The current nine-case selection passed 9/9 in Debug and Release, with no failures/skips.
+    Test-process wall times were 74.327s / 52.678s; summed case times were 68.433s / 45.921s.
+    Separate builds passed in 150.734s / 153.129s. These are single baseline observations with
+    existing caches retained, not a speedup comparison. Driver identity was not captured.
+    Receipts: ../TestResults/TestRuntimeOptimizations/Phase4-water-motion/baseline/summary.json,
+    per-configuration TRX files, source/digest stability and conditions-and-commands.txt.
+    Traceability: the shared performance analyses control preserved observations, scoped
+    ownership, submission retirement and measurement. The approved Phase 2 dispositions above
+    control all retained rows and motion counts. PBR.WaterRefraction.md, Shallow receiver
+    continuity and Bounded traversal and selection, controls independent plane/Snell/radiance
+    references, confidence, method transitions and adjacent-motion bounds; PBR.Liquids.md,
+    Material and optics and Validation and acceptance, retains physical and lifecycle boundaries.
+    The user approved this design on 2026-11-03: upload at most 64 exact CPU-authored surface
+    records, plus exact filter UV records where needed, through the existing typed test-fixture
+    uniform blocks. The
+    shader uses its output pixel index only to choose a record before calling unchanged water
+    kernels. The zero-default scalar mode remains for other callers. Original CPU expressions,
+    128x128 source textures, camera/projection, all references and tolerances remain unchanged.
+    Render into bounded 64x1 MRT targets; retrieve only populated records in chunks of
+    64/64/64/9 for each 201-position row and 61 for each transition row. Compare in original
+    order, carrying adjacent-sample state across chunks and retaining worst-jump attribution
+    and failure-only replay. Initialize every batch and exclude padding from observations.
+    Derived counts: 1,407 diagnostic + 603 direct-filter + 122 transition samples remain.
+    Sweep draws would fall from 2,132 to 42 (28 diagnostic + 12 filter + two transition),
+    with seven source-reduction draws unchanged (six continuity rows and one transition row).
+    Readback requests would fall from 7,444 to 146,
+    transferring the same 119,104 RGBA32F bytes. These initial source-derived estimates were
+    checked against the candidate execution below; they are not measured GPU timings.
+    Implementation follows the approved design; verification, reviews and acceptance are
+    recorded below.
+  Indexed-record equivalence (2026-11-03)
+    Temporary paired execution compared the scalar and batched paths with the same exact
+    CPU-authored inputs and compiled kernels. Debug's seven-row continuity receipt and
+    separate two-row transition receipt cover all nine rows; Release's combined receipt covers
+    the same nine rows. Each configuration compared all 1,529 diagnostic and 603 filter records:
+    seven diagnostic MRTs and three filter MRTs, 12,512 Vector4 comparisons / 50,048 components.
+    All components compare numerically exactly, including chunk boundaries and partial tails;
+    this is not a bitwise distinction between positive and negative zero.
+    Temporary counters measured the candidate path separately from comparison overhead:
+    42 sweep draws plus seven unchanged reduction draws, 146 region readback requests,
+    119,104 transferred bytes and zero compute dispatches. Baseline source-derived counts
+    are 2,132 sweep draws plus seven reductions and 7,444 requests for the same payload.
+    Per-record assertions, independent references, tolerances and ordered aggregate/worst-jump
+    metrics remain unchanged. Contextual failure output now includes row parameters, logical
+    motion, batch/local index and named output records; failure replay remains one pixel.
+    Both fixture shader modules changed as intended; the other 907 of 909 compiled test modules
+    per configuration, including production variants, match baseline. Production water kernels
+    are unchanged. Temporary comparison/counter controls were removed, and all eight owned
+    source hashes match the reviewed final snapshot before final rebuild and timing.
+    Receipts under ../TestResults/TestRuntimeOptimizations/Phase4-water-motion/ retain paired
+    TRX files, exact-comparison summaries, counters, final source snapshots and restoration
+    hashes. The temporary instrumented source was reviewed live but not retained as a snapshot.
+  Final verification, timing and acceptance (2026-11-03)
+    Forced nonincremental Debug and Release builds passed with zero errors (56.754s / 46.946s).
+    Build logs prove test-project managed compilation; both new test DLL hashes differ from
+    the preserved instrumented DLLs, and temporary-control strings are absent from both new
+    assemblies. All source contents still match the reviewed snapshot.
+    Separate nine-case timing selections each passed 9/9 with no failures/skips, in
+    43.846s / 37.886s process wall time; summed case times were 35.802s / 30.536s.
+    Relative to the single baseline observations of 74.327s / 52.678s, both candidate runs
+    were faster. All nine case identities and original numerical/worst-jump output strings
+    match baseline exactly in each configuration. All source preparation, target allocation,
+    input staging, clears, drawing and readback are included in test-process wall time.
+    The separate affected-caller regression passed 58/58 per configuration with no failures
+    or skips: 20 filter, 17 budget, 14 diagnostic and seven continuity cases. It includes the
+    nine timed cases, rather than representing 58 additional unique cases. Regression wall
+    times were 75.535s / 84.540s; summed case times were 71.747s / 77.752s.
+    That regression used the earlier counter-containing binary with comparison disabled.
+    Its 49 other case bodies, fixture inputs and shader binaries are unchanged; the two changed
+    test methods' nine cases were subsequently reverified on the clean binary. This retained
+    evidence and the clean nine-case reruns jointly cover the affected selection; there was
+    no new combined 58-case run after the forced compilation.
+    All eight owned source hashes and both compiled shader digest manifests remained stable
+    through final builds/tests. The final source matches the reviewed snapshot, with no
+    comparison/counter controls left in the live tests. Existing scalar fixture callers retain
+    their zero-default input path. Second review and independent source/coverage review found
+    no remaining code corrections. The current water documentation now describes the retained
+    representative matrix instead of claiming exhaustive four-tier coverage.
+    Conditions: the same nine-case filter and AllTests.runsettings were used for baseline and
+    candidate; Debug and Release builds/tests ran serially in fresh test processes with existing
+    caches retained. Candidate shader caches had also been exercised by paired verification.
+    Driver identity was not captured at baseline, and cache warmth was not controlled. There is
+    one qualifying baseline/candidate timing pair per configuration; no stable percentage gain,
+    whole-suite speedup, exclusive CPU synchronization cost or GPU execution time is established.
+    Counters describe the candidate path separately from temporary comparison overhead.
+    The audit caught the earlier incremental builds reusing instrumented managed code after
+    source restoration preserved old timestamps. Their 32.915s / 33.364s timings are superseded
+    as uninstrumented results, not passing final timing evidence. The forced compilation,
+    changed DLL identities and literal-absence checks resolve that provenance gap.
+    Clean receipts: ../TestResults/TestRuntimeOptimizations/Phase4-water-motion/final-clean/
+    contains forced-build, binary/source provenance and timing evidence, plus archived old DLLs.
+    The adjacent final/ directory retains the superseded timing receipts and applicable 58-case
+    regression evidence; SUPERSEDED-clean-build.txt identifies the distinction.
+    The final independent evidence/documentation audit is clean. The user accepted the measured
+    results and limitations on 2026-11-03. No staging or commit was performed.
   Apply the latest approved Phase 2 dispositions: retain all seven shallow-continuity rows
   with their 201 motions and both budget-transition rows with their 61 motions, independent
   references, thresholds and diagnostics. Removed parameter combinations are recorded above;
   no further row removal or shortening of a retained sweep is authorized by batching.
-  ☐ Map all 201-position shallow-water sweeps and 61-position budget sweeps to their inputs,
+  ☑ Map all 201-position shallow-water sweeps and 61-position budget sweeps to their inputs,
     outputs and CPU reference assertions. Identify any ordering or shared-state dependencies.
-  ☐ Discuss and agree on a concrete indexed-result design before implementation. Batching was
+  ☑ Discuss and agree on a concrete indexed-result design before implementation. Batching was
     previously deferred; this phase supplies the specific design and coverage discussion.
-  ☐ Render independent samples into indexed records and retrieve records together, preserving
+  ☑ Render independent samples into indexed records and retrieve records together, preserving
     every original sample, original coordinate semantics and adjacent-sample comparison.
     Keep independent CPU geometric formulas and continuity thresholds unchanged.
-  ☐ Retain precise failure attribution to scenario, motion position and output field, including
+  ☑ Retain precise failure attribution to scenario, motion position and output field, including
     the existing worst-jump diagnostics. Bound result storage and handle partial final batches.
-  ☐ Verify equivalence to original observations and measure draw/dispatch counts, readback count,
+  ☑ Verify equivalence to original observations and measure draw/dispatch counts, readback count,
     transferred bytes and affected-selection wall time. Account for added batching setup work.
-  ☐ Complete second review, independent coverage audit and linked-document reconciliation.
+  ☑ Complete second review, independent coverage audit and linked-document reconciliation.
     Present measured results and limitations for user acceptance before closing the phase.
 
 ☐ Phase 5 — Combine surface-lighting per-frame statistics

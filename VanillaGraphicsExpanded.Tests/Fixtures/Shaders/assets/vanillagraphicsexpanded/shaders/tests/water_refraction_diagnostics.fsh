@@ -13,6 +13,8 @@ layout(std140, binding = 28) uniform WaterRefractionDiagnosticInputs
     int diagnosticSelect;
     int diagnosticQuality;
     int diagnosticUnderwater;
+    int motionBatchCount;
+    vec4 motionSurfaces[64];
 };
 
 
@@ -53,13 +55,15 @@ layout(location=6) out vec4 receiverOperations;
 /** Exposes rejection, receiver evaluation count, confidence, and selected optical geometry. */
 void main()
 {
+    int motionIndex = int(gl_FragCoord.x);
+    if (motionBatchCount < 0 || motionBatchCount > 64 || (motionBatchCount > 0 && motionIndex >= motionBatchCount)) discard;
     float focal = projectionMatrix[0][0];
     vec3 surface = diagnosticScenario == 8 ? vec3(10,0,-2)
         : vec3((gl_FragCoord.xy / frameSize * 2.0 - 1.0) * 2.0 / focal, -2);
     vec3 normal = diagnosticScenario == 1 || diagnosticScenario == 10 ? normalize(vec3(-.4,0,1))
         : diagnosticScenario == 8 ? normalize(vec3(-.7,0,-.714))
         : diagnosticScenario == 11 ? normalize(vec3(1,0,.01)) : vec3(0,0,1);
-    if (diagnosticScenario == 12) { surface = customSurface; normal = customNormal; }
+    if (diagnosticScenario == 12) { surface = motionBatchCount > 0 ? motionSurfaces[motionIndex].xyz : customSurface; normal = customNormal; }
     VgeRefractionSupport seed;
     bool seedValid;
     VgeWaterReceiver receiver;

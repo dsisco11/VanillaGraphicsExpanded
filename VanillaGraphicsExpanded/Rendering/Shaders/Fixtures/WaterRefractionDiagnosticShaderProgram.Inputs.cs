@@ -1,3 +1,4 @@
+using System;
 using System.Numerics;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
@@ -35,6 +36,9 @@ internal sealed partial class WaterRefractionDiagnosticShaderProgram
 
     /// <summary>Selects an underwater exit for custom optical geometry.</summary>
     public int Underwater { get => inputs.Underwater; set => inputs.Underwater = value; }
+
+    /// <summary>Publishes a bounded set of original CPU-authored motion surfaces for one indexed draw.</summary>
+    internal void SetMotionBatch(ReadOnlySpan<Vector4> surfaces) => inputs.SetBatch(surfaces);
 
     #endregion
 
