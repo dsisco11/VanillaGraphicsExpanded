@@ -1284,50 +1284,55 @@ Phase 8: Design the RHICommand and RHICommandList render hardware interface
     migration and validation strategy are concrete and internally consistent; design review is complete
     and the proposal is approved. Implementation and renaming remain separately authorized work.
 
-Phase 9: Upgrade PSO resource binding to capability-selected multi-bind
-  Depends on Phase 7's unified texture-reference integration and Phase 6's qualification; reconcile with the Phase 8 RHI design.
-  Outcome: PSO graphics/compute submission batches eligible resource bindings when multi-bind is
-  available, while preserving equivalent behavior through the existing individual-call fallback.
-  This work does not require implementing the proposed RHI or renaming StateCache.
+Phase 9: Evaluate and optimize remaining RHI binding batches
+  Outcome: identify material remaining binding costs in the implemented OpenGL RHI and apply
+  measured batching improvements while preserving the approved binding-admission, owner-lifecycle,
+  state-cache and submission contracts.
+  Existing texture/sampler publication already batches contiguous changed slots and suppresses
+  unchanged bindings. The backend requires desktop OpenGL 4.5 and the corresponding entry points.
+  The earlier capability-selected pre-RHI implementation and unsupported-context fallback are superseded.
+  Buffer publication still uses individual calls. Image and vertex batching require assessment against
+  explicit image selections and retained geometry setup. Existing batching is not qualification evidence
+  for all of the original phase's requirements.
 
-  ☐ Map PSO application, ShaderPreparedSubmission, prepared bindings and geometry binding to the
-    applicable multi-bind families. Consult the Khronos GL_ARB_multi_bind/core specification and
-    installed OpenTK signatures for BindTextures, BindSamplers, BindImageTextures, BindBuffersBase,
-    BindBuffersRange and BindVertexBuffers. Record eligibility and semantic differences for each
-    family; do not assume every individual binding can be replaced by its plural equivalent.
-  ☐ Use the existing cached GpuSupport.Graphics.SupportsArbMultiBind capability (extension or core
-    OpenGL 4.4). Keep capability selection independent of DSA support and preserve the current
-    individual-call path when unavailable or when a binding cannot be represented equivalently.
-  ☐ Form binding batches within existing submission/prepared-binding ownership. Validate complete
-    inputs before execution, preserve resource lifetime and metadata checks, and retain draw/dispatch
-    ordering. Group eligible slot ranges without changing untouched slots or introducing another
-    binding cache. Compare changed-run batching with wider ranges using measurements; avoid recurring
-    allocation where existing reusable storage can serve submission safely.
-  ☐ Implement native batch execution and cache reconciliation in StateCache's owning binding modules.
-    Preserve stable-binding suppression, unknown-state recovery, zero/unbind semantics, texture target
-    knowledge, indexed buffer ranges, VAO-specific vertex state and boundary restoration. Account for
-    per-entry native rejection rather than treating a batch as atomic or marking all requested state
-    known after a nonthrowing call. Publish only represented resource metadata effects through the
-    existing manager route; ordinary binding changes must not trigger unrelated metadata refreshes.
-  ☐ Preserve explicit image level/layer/access/format selections and other single-call semantics that
-    a batch API cannot express. Preserve fallback-visible generic buffer binding, active texture and
-    VAO state wherever existing contracts require it. Reconcile existing external-call redirection
-    and invalidation so batch execution cannot bypass the authoritative cache or notify twice.
-  ☐ Have subagents exercise capability enabled/disabled and DSA-independent paths for graphics and
-    compute submission, dense/sparse/unchanged slots, zero bindings, mixed texture targets, image
-    selections, buffer ranges and vertex bindings. Verify equivalent outputs and sentinel-state
-    restoration, unknown-state recovery, rejected entries, resource deletion/reuse and unavailable
-    metadata. Record hardware/API cases that could not be executed.
-  ☐ Have subagents measure matched individual-call and batch paths: native call counts, CPU submission
-    cost, allocations and representative changed/unchanged binding patterns. Retain reproducible
-    receipts and choose batching policy from the results; do not infer frame-time gains from call
-    counts. Keep any measurement instrumentation temporary and remove it after qualification.
-  ☐ Reconcile current PSO/cache documentation and Phase 8 design integration, run affected regression
-    tests and canonical build/package verification through subagents, and independently review the
-    final candidate. Preserve the existing public resource APIs and rendering behavior.
-  ☐ Completion: eligible PSO bindings use multi-bind on supported contexts, fallback behavior is
-    equivalent, cache/restoration and metadata contracts hold, and correctness/performance evidence
-    identifies the qualified candidate and any remaining limitations.
+  ☐ Map current prepared bindings, uniform publication and retained geometry configuration to native
+    calls. Separate recurring submission costs from creation or change-driven setup. Reconcile the
+    historical Phase 8 design with implemented RHI ownership and binding-admission contracts before
+    choosing changes; do not reintroduce per-draw validation or lifetime guards retired by that design.
+  ☐ Establish a bounded baseline for representative graphics and compute submissions, including
+    dense, sparse, changed and unchanged bindings. Have subagents measure native call counts, CPU
+    submission cost and allocations. Identify which remaining individual calls are materially costly
+    before selecting additional batching work; call counts alone do not establish frame-time gains.
+  ☐ Evaluate BindBuffersBase/BindBuffersRange for eligible buffer and uniform publication, including
+    current-epoch uniform allocation, commit/failure behavior and required generic-binding side effects.
+    Evaluate image batching against explicit level/layer/access/format selections and vertex batching
+    against retained VAO setup and actual update frequency. Consult Khronos specifications and installed
+    OpenTK signatures for candidates. Record semantic exclusions and retain individual operations where
+    batching cannot preserve the required behavior or offers no demonstrated benefit.
+  ☐ Implement only justified batches within existing prepared-binding ownership and backend/cache
+    modules. Reuse current texture/sampler batching and stable-binding suppression. Preserve untouched
+    slots, draw/dispatch ordering and owner-managed lifetimes without a duplicate binding cache or
+    recurring allocation. Compare changed-run and wider-range policies where the baseline warrants it.
+  ☐ Preserve unknown-state recovery, zero/unbind semantics, texture target knowledge, indexed ranges,
+    VAO-specific state and boundary restoration. Reconcile external observation and invalidation with
+    backend execution so effects are recorded once. Account for per-entry rejection and interrupted
+    publication under the current admission/observation contracts; a nonthrowing batch is not proof
+    that every requested entry was accepted. Ordinary binding changes must not refresh unrelated metadata.
+  ☐ Have subagents verify affected graphics/compute paths, dense/sparse/unchanged slots, zero bindings,
+    buffer ranges, image selections and vertex updates as applicable. Preserve equivalent outputs and
+    sentinel restoration, and exercise unknown state and failure handling at the boundaries responsible
+    for them. Retain coverage of existing texture/sampler semantics. Record unexecuted hardware/API cases.
+  ☐ Have subagents compare the finished candidate with the baseline under matched conditions. Record
+    CPU cost, allocations and native calls, including any regressions and unchanged workloads. Keep
+    individual paths when results do not justify batching. Remove temporary measurement instrumentation
+    after retaining reproducible receipts and the resulting policy decisions.
+  ☐ Reconcile current RHI binding/cache documentation, run affected regression tests and canonical
+    build/package verification through subagents, and independently review the final candidate.
+    Preserve public resource APIs and rendering behavior.
+  ☐ Completion: remaining binding opportunities are evaluated, justified improvements are implemented
+    and qualified, and retained individual paths have documented semantic or measurement rationale.
+    Correctness and performance evidence identifies the candidate and its limitations; no unsupported
+    context fallback or universal conversion to multi-bind is required.
 
 Proposal traceability
   Intent/responsibilities: governing contracts; Phases 2–5.
@@ -1346,7 +1351,7 @@ Proposal traceability
   Acceptance and measurements: baseline in Phase 1; focused verification in Phases 2–5; Phase 6.
   Separately requested unified GpuTextureRef design and implementation: Phase 7.
   Separately requested RHI command-system design and OpenGlStateCache rename planning: Phase 8.
-  Separately requested capability-selected PSO multi-bind upgrade: Phase 9.
+  Remaining RHI binding-batch evaluation and measured optimization: Phase 9.
 
 Final acceptance
   ☐ Every proposal requirement is implemented and verified, or an explicit deferral is approved with
