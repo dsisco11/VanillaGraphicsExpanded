@@ -138,11 +138,121 @@ public sealed partial class GpuImageAssertionTests(HeadlessGLFixture fixture, IT
         Assert.Equal(0, original.Programs.PreparedCount);
         original.Programs.Prepare("inspection");
         Assert.Equal(1, original.Programs.PreparedCount);
+        using var image = Create(TextureDimension.Two, TextureFormat.Rgba32f, 1, 1);
+        Upload(image, [0, 0, 0, 0], PixelComponentType.Float);
+        original.Statistics.InspectRgbPeak(image).AssertFiniteRange();
         fixture.RetireResourceServices();
         Assert.Throws<ObjectDisposedException>(() => original.Programs.Get("inspection"));
+        Assert.Throws<ObjectDisposedException>(() => original.Statistics.InspectRgbPeak(image));
         fixture.EnsureContextValid();
         Assert.NotSame(original, fixture.Observations);
         Assert.Equal(0, fixture.Observations.Programs.PreparedCount);
+    }
+
+    /// <summary>One GPU pass validates every represented channel while preserving RGB-only absolute peak semantics.</summary>
+    [Fact]
+    public void RgbPeakInspectionCombinesFullChannelFinitenessAndFreshMagnitude()
+    {
+        EnsureContextValid();
+        // Arrange: alpha exceeds RGB and a negative red value owns the expected magnitude.
+        using var image = Create(TextureDimension.Two, TextureFormat.Rgba32f, 67, 1);
+        float[] authored = new float[67 * 4];
+        authored[0] = -11; authored[1] = -3; authored[2] = -2; authored[3] = 100;
+        authored[4] = 4; authored[5] = 5; authored[6] = -6; authored[7] = -200;
+        authored[^4] = -13; authored[^3] = 1; authored[^2] = 2; authored[^1] = 300;
+        Upload(image, authored, PixelComponentType.Float);
+
+        // Act: inspect the complete represented image through the existing GPU observation owner.
+        var first = ImageAssertions.Statistics.InspectRgbPeak(image);
+
+        // Assert: the full-domain extrema include alpha, while the reported peak excludes it.
+        Assert.Equal(0u, first.NonFinite);
+        Assert.Equal(67u * 4, first.Components);
+        Assert.Equal(67u, first.VisitedTexels);
+        Assert.Equal(-200d, first.Minimum);
+        Assert.Equal(300d, first.Maximum);
+        Assert.Equal(13f, first.RgbPeakMagnitude);
+
+        // Same-context writes must be observed freshly even when storage identity is unchanged.
+        Array.Clear(authored);
+        authored[^4] = -4; authored[^3] = -5; authored[^2] = -6; authored[^1] = 7;
+        Upload(image, authored, PixelComponentType.Float);
+        var replaced = ImageAssertions.Statistics.InspectRgbPeak(image);
+        Assert.Equal(6f, replaced.RgbPeakMagnitude);
+        Array.Clear(authored);
+        authored[1] = -0f;
+        Upload(image, authored, PixelComponentType.Float);
+        Assert.Equal(0f, ImageAssertions.Statistics.InspectRgbPeak(image).RgbPeakMagnitude);
+
+        // Ordered positive float bits preserve subnormal magnitude, signed zero and the finite limit.
+        Array.Clear(authored);
+        authored[0] = float.Epsilon; authored[1] = -float.Epsilon; authored[2] = -0f;
+        authored[^1] = float.MaxValue;
+        Upload(image, authored, PixelComponentType.Float);
+        Assert.Equal(float.Epsilon, ImageAssertions.Statistics.InspectRgbPeak(image).RgbPeakMagnitude);
+        authored[0] = -float.MaxValue; authored[1] = float.MaxValue; authored[2] = -0f;
+        authored[^1] = 0;
+        Upload(image, authored, PixelComponentType.Float);
+        Assert.Equal(float.MaxValue, ImageAssertions.Statistics.InspectRgbPeak(image).RgbPeakMagnitude);
+
+        // Alpha remains part of finite validation and retains its original component diagnostics.
+        Array.Clear(authored);
+        authored[3] = float.NaN;
+        Upload(image, authored, PixelComponentType.Float);
+        var invalidAlpha = ImageAssertions.Statistics.InspectRgbPeak(image);
+        Assert.Equal(1u, invalidAlpha.NonFinite);
+        var failure = Assert.ThrowsAny<Xunit.Sdk.XunitException>(invalidAlpha.AssertFiniteRange);
+        Assert.Contains("channel=3", failure.Message);
+        Assert.Contains("nonfinite=1", failure.Message);
+    }
+
+    /// <summary>Alpha infinities remain invalid even though alpha never contributes to the RGB peak.</summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(-1)]
+    public void RgbPeakInspectionRejectsInfiniteAlpha(int sign)
+    {
+        EnsureContextValid();
+        // Arrange: alpha is nonfinite while every RGB value remains finite.
+        using var image = Create(TextureDimension.Two, TextureFormat.Rgba32f, 1, 1);
+        Upload(image, [1, 2, 3, sign > 0 ? float.PositiveInfinity : float.NegativeInfinity], PixelComponentType.Float);
+
+        // Act: inspect all four represented channels with the RGB peak operation.
+        var result = ImageAssertions.Statistics.InspectRgbPeak(image);
+
+        // Assert: alpha's original component location is retained in the failure.
+        Assert.Equal(1u, result.NonFinite);
+        var failure = Assert.ThrowsAny<Xunit.Sdk.XunitException>(result.AssertFiniteRange);
+        Assert.Contains("channel=3", failure.Message);
+    }
+
+    /// <summary>RGB NaN and signed infinities fail the same full-domain finite assertion as other represented channels.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void RgbPeakInspectionRejectsEveryRgbNonFiniteClass(int channel)
+    {
+        EnsureContextValid();
+        // Arrange: choose a distinct IEEE nonfinite value in the nominated RGB lane.
+        using var image = Create(TextureDimension.Two, TextureFormat.Rgba32f, 1, 1);
+        float[] values = [1, 2, 3, 4];
+        values[channel] = channel switch
+        {
+            0 => float.NaN,
+            1 => float.PositiveInfinity,
+            _ => float.NegativeInfinity
+        };
+        Upload(image, values, PixelComponentType.Float);
+
+        // Act: collect the compact GPU result, then require the existing finite-range behavior.
+        var result = ImageAssertions.Statistics.InspectRgbPeak(image);
+
+        // Assert: failures retain the original image coordinate and RGB channel.
+        Assert.Equal(1u, result.NonFinite);
+        var failure = Assert.ThrowsAny<Xunit.Sdk.XunitException>(result.AssertFiniteRange);
+        Assert.Contains($"channel={channel}", failure.Message);
+        Assert.Contains("nonfinite=1", failure.Message);
     }
 
     #region Numeric predicates

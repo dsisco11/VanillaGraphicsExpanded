@@ -173,6 +173,10 @@ void observeInvocation() {
         else {
             minCounter(7,ordered(bits));
             maxCounter(8,ordered(bits));
+#if KIND == 0 && OBSERVATION_FAMILY == 1
+            // Positive float encodings order by magnitude, so one associative maximum retains the absolute RGB peak.
+            if(mode==22 && c<3u)maxCounter(16,bits&0x7fffffffu);
+#endif
             double n=number(bits);
             if(n>0.0)addCounter(5,1u);
             if(n!=0.0)addCounter(13,1u);

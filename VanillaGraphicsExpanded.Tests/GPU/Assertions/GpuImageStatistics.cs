@@ -133,6 +133,18 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
         return new(Observe(actual, "inspection", inputs, [("actualImage", actual.Texture)]));
     }
 
+    /// <summary>Validates every represented component and measures peak absolute RGB in one complete GPU observation.</summary>
+    internal GpuRgbPeakInspectionResult InspectRgbPeak(GpuTexture image)
+    {
+        Programs.RequireContext();
+        using var actual = new GpuObservationImage(image);
+        if (actual.Kind != 0) throw new ArgumentException("RGB peak inspection requires floating or normalized storage.", nameof(image));
+        if (actual.Channels < 3) throw new ArgumentOutOfRangeException(nameof(image), "RGB peak inspection requires three represented color channels.");
+        var inputs = DomainInputs(actual, null, 0, double.NegativeInfinity, double.PositiveInfinity);
+        GpuAssertionInputs.Integer(inputs, 12, (uint)InspectionOperation.RgbPeak);
+        return new(Observe(actual, "inspection", inputs, [("actualImage", actual.Texture)]));
+    }
+
     /// <summary>Checks every normalized rank in each vertically stacked square slice, including all slice differences.</summary>
     internal GpuRankResult CheckRanks(GpuTexture image, int side, int slices)
     {
@@ -185,6 +197,8 @@ internal sealed partial class GpuImageStatistics : GpuObservationService
     {
         /// <summary>Selects the FiniteRange kernel operation.</summary>
         FiniteRange = 0,
+        /// <summary>Selects all-channel finiteness with an RGB absolute peak.</summary>
+        RgbPeak = 22,
         /// <summary>Selects the RankCounts kernel operation.</summary>
         RankCounts = 3,
         /// <summary>Selects the Flags kernel operation.</summary>

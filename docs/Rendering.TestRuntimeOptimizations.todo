@@ -4,7 +4,7 @@ Test execution runtime optimizations
 Status
   Phases 1 and 2 are complete and accepted by the user on 2026-11-03, including the measured
   timing limitations and the two approved coverage reductions. Phase 3 is complete and accepted
-  on 2026-11-03. Phase 4 is complete and accepted on 2026-11-03; phases 5–6 remain pending.
+  on 2026-11-03. Phases 4 and 5 are complete and accepted on 2026-11-03; phase 6 remains pending.
   This plan covers the five prioritized optimizations
   from the test-runtime review and a separate water-test necessity review requested at acceptance.
   Both Phase 2 reductions are implemented and verified, with a clean independent completion audit.
@@ -724,17 +724,114 @@ Shared implementation and acceptance requirements
   ☑ Complete second review, independent coverage audit and linked-document reconciliation.
     Present measured results and limitations for user acceptance before closing the phase.
 
-☐ Phase 5 — Combine surface-lighting per-frame statistics
-  ☐ Map Frame, Energy and RunUntil in SurfaceLightingConsumerRuntimeFixture and identify every
+☑ Phase 5 — Combine surface-lighting per-frame statistics
+  Observation mapping and implementation scope (2026-11-03)
+    Frame checks published final output and any allocated world atlas after every frame.
+    RunUntil retains its existing predicate/frame/worker-wait policy and validates final,
+    world, trace history, filtered history and half-resolution gather at every wait boundary.
+    Direct Energy callers additionally cover direct diffuse/specular snapshots, temporal
+    outputs, spatial replacement, partial-world publication, routing and refresh synchronization.
+    All current subjects are floating RGB/RGBA images; no frame or milestone check is removed.
+    Traceability: the linked performance analyses above, especially Required wait observations
+    and failure-only diagnostics, Explicit test uniform-buffer retirement and Constraints on
+    reuse and concurrency, govern full-domain finiteness, current directional publication,
+    preserved diagnostics, scoped ownership and honest before/after measurement.
+    The implementation combines Energy's two inspections of the same image into one bounded
+    result: retain all represented-channel finite/count/extrema/first-failure facts, and add
+    peak absolute RGB magnitude while excluding alpha from that magnitude. Existing inspection
+    diagnostics remain available. Use the current observation service, fixture program owner
+    and shader assets; do not cache observations across calls, writes, frames or replacements.
+    Per-frame/RunUntil call sites, readiness/convergence conditions and numerical bounds remain
+    unchanged. Baseline and candidate evidence, failure injection, independent numerical checks
+    and final acceptance are recorded below.
+  Baseline (2026-11-03)
+    The four runtime families plus RuntimeWaitObservationTests passed 43/43 in each
+    configuration, with no failures/skips: 13 consumer, 10 spatial, 12 scenario, six PBR
+    lifetime and two wait-observation cases. Debug/Release test-process wall times were
+    96.207s / 79.657s; summed case durations were 91.210s / 75.098s.
+    The separate Debug build passed in 101.636s. Release used existing, hash-verified pre-edit
+    binaries with --no-build/--no-restore: its test DLL and all 909 copied shader binaries
+    match the previously validated clean output. The interrupted Release build is retained
+    as incomplete and excluded; no new Release build is claimed for this baseline.
+    Before/after executable and shader provenance is recorded under
+    ../TestResults/TestRuntimeOptimizations/Phase5-surface-statistics/, with baseline JSON,
+    logs and per-configuration TRX files. Source edits made after freezing the baseline binary
+    do not constitute baseline source-stability evidence; executable identity is the control.
+    These are single baseline observations with existing caches retained. Build time is
+    separate, and summed test durations are not exclusive GPU or synchronization timings.
+  Combined-result and bounded-work verification (2026-11-03)
+    The floating RGB/RGBA inspection visits every represented component once, preserving
+    all ordinary finite/count/extrema/first-failure facts. An extra result word tracks the
+    greatest finite RGB magnitude using sign-cleared IEEE bits; alpha still participates in
+    finite validation and full-domain extrema. No floating arithmetic flushes subnormal peaks.
+    Independent authored GPU cases cover alpha exclusion, signed RGB, a 67-pixel tail with
+    the maximum in the final group, fresh same-storage writes, result reset, signed zero,
+    subnormals, finite limits, RGB/alpha NaN and infinities, and retired observation ownership.
+    Temporary runtime measurement passed 1/1. On the same published final image, the executed
+    legacy pair used two result images, dispatches and readbacks, returning 256 result bytes;
+    the combined operation used one of each and returned 128 bytes. Nonfinite counts, full
+    extrema and the independently calculated legacy RGB peak matched exactly. Comparison
+    work was recorded separately from the candidate observation path.
+    The bounded fixture observed one Energy call/dispatch/readback and 128 bytes on its first
+    frame (world atlas allocated, final output unpublished), then two of each and 256 bytes
+    on frames two through four. An immediate successful RunUntil retained five mandatory
+    output observations, using five dispatches/readbacks and 640 bytes. The unchanged source
+    allows zero observations when neither output is available, but that branch was not observed
+    in this measurement. The legacy per-call count implies twice this observation work;
+    no matched whole-selection frame count or exclusive GPU duration is claimed.
+    Temporary hooks and the measurement test were removed. Original, instrumented and restored
+    source snapshots/hashes are retained under measurement-source-{original,instrumented,final}
+    in the receipt directory. Final timing requires forced managed compilation and verified
+    clean executable identities, rather than source hashes alone.
+  Final verification, timing and acceptance (2026-11-03)
+    Forced Debug/Release rebuilds passed with zero errors in 49.990s / 111.295s, separately
+    from tests. The corrected uninstrumented focused assertion/wait selection passed 79/79
+    per configuration; the seven additional direct-caller classes passed 30/30 each; the
+    matched representative selection passed 43/43 each. All runs had zero failures/skips.
+    The two wait cases occur in both focused and representative selections; these counts
+    must not be added as distinct coverage without removing that overlap. The verified union
+    contains 150 distinct passing cases per configuration.
+    Debug/Release representative wall times were 91.655s / 78.567s, versus baseline
+    96.207s / 79.657s; summed representative case times were 86.900s / 74.074s.
+    Focused wall times were 19.044s / 20.500s (case sums 11.568s / 12.908s), and broader
+    caller wall times were 41.099s / 38.248s (case sums 36.535s / 33.755s).
+    Every original representative case remains, with unchanged frame/wait invocation policy,
+    numerical bounds, resource lifetime assertions and failure messages. Six new oracle rows
+    and the existing retired-owner extension validate the combined result. An initial focused
+    run passed 73/79: the six new failing cases required an exact base assertion exception.
+    Those three exception assertions were corrected to accept derived xUnit assertion
+    exceptions while retaining content/location checks; numeric conditions were not weakened.
+    The failed receipt remains separate from the corrected passing results.
+    Temporary measurement files were restored byte-for-byte. Final managed compilation is
+    explicit, final DLL hashes identify the tested outputs, and temporary method/counter names
+    are absent from both source and ASCII/UTF-16 DLL scans. The six permanent changed files
+    and both configurations' 909 compiled shader outputs have retained hash provenance.
+    Production rendering code and shaders are unchanged; only fixture observation code/assets
+    and focused tests changed. Second review and independent source/test review are complete.
+    Conditions: the same representative filter and AllTests.runsettings were used, with serial
+    fresh test processes and retained package/build/driver caches. Candidate runs followed
+    focused and broader verification, so cache warmth is not a matched control. There is one
+    baseline/candidate pair per configuration; the small observed wall-time differences do
+    not establish a stable percentage or whole-suite speedup. Per-Energy observation work is
+    halved in the bounded control; no whole-selection frame-count equivalence, exclusive CPU
+    synchronization cost or GPU execution timing is claimed.
+    Receipts: ../TestResults/TestRuntimeOptimizations/Phase5-surface-statistics/final-verification/
+    final-verification-summary.json, build/selection logs and TRX files, source restoration and
+    DLL/SPIR-V provenance. The candidate/ directory and measurement-source snapshots retain
+    bounded measurement evidence and intermediate failed builds separately.
+    The final independent implementation, coverage and evidence/documentation audit is clean.
+    The user accepted the results and limitations on 2026-11-03. No staging or commit was
+    performed.
+  ☑ Map Frame, Energy and RunUntil in SurfaceLightingConsumerRuntimeFixture and identify every
     caller relying on per-frame finiteness, energy, readiness or convergence observations.
-  ☐ Design a compact combined statistics result that preserves each existing observed quantity
+  ☑ Design a compact combined statistics result that preserves each existing observed quantity
     and its numerical semantics while reducing repeated dispatch/readback pairs.
-  ☐ Integrate the result through existing observation services and fixture-owned shader assets.
+  ☑ Integrate the result through existing observation services and fixture-owned shader assets.
     Preserve per-frame failure detection, optional world-atlas handling and progress conditions.
     Moving assertions to final milestones requires separate coverage discussion and agreement.
-  ☐ Verify failure detection and numerical bounds across the affected consumer, spatial,
+  ☑ Verify failure detection and numerical bounds across the affected consumer, spatial,
     scenario and lifetime suites. Measure per-frame observation work and selection runtime.
-  ☐ Complete second review, independent coverage audit and linked-document reconciliation.
+  ☑ Complete second review, independent coverage audit and linked-document reconciliation.
     Present measured results and limitations for user acceptance before closing the phase.
 
 ☐ Phase 6 — Separate real-GC stress execution from frequent correctness feedback

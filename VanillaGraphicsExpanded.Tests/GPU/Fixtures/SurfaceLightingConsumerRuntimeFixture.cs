@@ -51,10 +51,9 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
     /// <summary>Checks every component for finiteness and returns peak RGB magnitude with a bounded GPU reduction.</summary>
     internal float Energy(GpuTexture texture, string? observation = null)
     {
-        var all = Cache.ImageAssertions.Statistics.Inspect(texture);
-        Assert.True(all.NonFinite == 0, $"{observation ?? "Lighting output"}: {all}");
-        var rgb = Cache.ImageAssertions.Statistics.Inspect(texture, channelMask: 7);
-        return (float)Math.Max(Math.Abs(rgb.Minimum), Math.Abs(rgb.Maximum));
+        var result = Cache.ImageAssertions.Statistics.InspectRgbPeak(texture);
+        Assert.True(result.NonFinite == 0, $"{observation ?? "Lighting output"}: {result}");
+        return result.RgbPeakMagnitude;
     }
     /// <summary>Supplies authored receiver pixels before any registered lighting callback runs.</summary>
     public System.Func<int, int, RuntimeReceiverSurface>? Receiver { get; set; }
