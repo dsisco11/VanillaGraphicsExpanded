@@ -82,7 +82,22 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
         using var target = CreateMRTRenderTarget(size, size, TextureFormat.Rgba32f, TextureFormat.Rgba32f,
             TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f,
             TextureFormat.Rgba32f, TextureFormat.Rgba32f);
-        TestFramework.RenderQuadTo(program, target);
+        // The six edge-motion observations fit inside one row; all other cases use their sole observed pixel.
+        // The render pass still clears every attachment over the full viewport before this bounded draw.
+        var scissor = scenario == 6 ? (X: 1, Y: 64, Width: 64, Height: 1) : (X: 64, Y: 64, Width: 1, Height: 1);
+        int[] viewportBefore = new int[4];
+        int[] scissorBefore = new int[4];
+        GL.GetInteger(GetPName.Viewport, viewportBefore);
+        GL.GetInteger(GetPName.ScissorBox, scissorBefore);
+        bool scissorEnabledBefore = GL.IsEnabled(EnableCap.ScissorTest);
+        TestFramework.RenderQuadTo(program, target, scissor: scissor);
+        int[] viewportAfter = new int[4];
+        int[] scissorAfter = new int[4];
+        GL.GetInteger(GetPName.Viewport, viewportAfter);
+        GL.GetInteger(GetPName.ScissorBox, scissorAfter);
+        Assert.Equal(viewportBefore, viewportAfter);
+        Assert.Equal(scissorBefore, scissorAfter);
+        Assert.Equal(scissorEnabledBefore, GL.IsEnabled(EnableCap.ScissorTest));
         int[] columns = scenario == 6 ? [1, 3, 6, 12, 32, 64] : [64];
         foreach (int x in columns)
         {

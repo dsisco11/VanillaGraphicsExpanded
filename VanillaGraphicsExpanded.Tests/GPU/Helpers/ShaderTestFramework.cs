@@ -207,18 +207,37 @@ public sealed class ShaderTestFramework : IDisposable
     }
 
     /// <summary>Creates the actual fixed pipeline and submits captured inputs to a fixture-owned attachment pass.</summary>
-    public void RenderQuadTo(GpuProgram program, GpuFramebuffer target, (float r,float g,float b,float a)? clearColor=null, Action? afterDraw=null)
-        => SubmitProductionQuad(program,target,clearColor,true,afterDraw);
+    /// <param name="program">Prepared fixture shader and captured resource bindings.</param>
+    /// <param name="target">Fixture-owned framebuffer receiving the shader outputs.</param>
+    /// <param name="clearColor">Optional floating-point color used to initialize every attachment before drawing.</param>
+    /// <param name="afterDraw">Optional observation invoked after the draw and before boundary restoration.</param>
+    /// <param name="scissor">Optional draw rectangle in framebuffer coordinates, applied through the complete pipeline.</param>
+    public void RenderQuadTo(GpuProgram program, GpuFramebuffer target, (float r,float g,float b,float a)? clearColor=null,
+        Action? afterDraw=null, (int X,int Y,int Width,int Height)? scissor=null)
+        => SubmitProductionQuad(program,target,clearColor,true,afterDraw,scissor);
 
     /// <summary>Submits fixed shader inputs directly to supplied final attachment intentions.</summary>
-    public void RenderQuadTo(GpuProgram program,RHIRenderPassDescription pass,Action? afterDraw=null)
+    /// <param name="program">Prepared fixture shader and captured resource bindings.</param>
+    /// <param name="pass">Final attachment load/store intentions for the draw.</param>
+    /// <param name="afterDraw">Optional observation invoked after the draw and before boundary restoration.</param>
+    /// <param name="scissor">Optional draw rectangle in framebuffer coordinates, applied through the complete pipeline.</param>
+    public void RenderQuadTo(GpuProgram program,RHIRenderPassDescription pass,Action? afterDraw=null,
+        (int X,int Y,int Width,int Height)? scissor=null)
     {
         // Complete the desired variant before freezing a pipeline from its exact executable.
         // Option edits may change the active MRT interface as well as shader behavior.
         if (!program.EnsureReady()) throw new InvalidOperationException("The fixture shader could not prepare its requested executable.");
         EnsureQuadInitialized();
         var commands=RHICommandContext.Current;
-        using var pipeline=commands.CreateGraphicsPipeline(new(program.Shader,QuadLayout,commands.DescribeRenderTargets(pass),DynamicPipelineState.Viewport)).RequireResource();
+        DynamicPipelineState dynamics=DynamicPipelineState.Viewport;
+        RasterizerDesc? rasterizer=null;
+        if(scissor is { })
+        {
+            dynamics|=DynamicPipelineState.Scissor;
+            rasterizer=new(){Scissor=true};
+        }
+        using var pipeline=commands.CreateGraphicsPipeline(new(program.Shader,QuadLayout,
+            commands.DescribeRenderTargets(pass),dynamics,rasterizer:rasterizer)).RequireResource();
         var geometry=new RHIGeometryInputs(QuadLayout,[new(0,new(_quadVbo!,0,_quadVbo!.SizeBytes),20)],new(new(_quadEbo!,0,_quadEbo!.SizeBytes),IndexFormat.UnsignedInt));
         if (!commands.TryEnterBoundary(new("Fixture.Fullscreen",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses),out var admitted))
             throw new InvalidOperationException($"Fixture boundary admission failed: {OpenGlStateCache.Current.BoundaryEntryFailure}");
@@ -226,7 +245,7 @@ public sealed class ShaderTestFramework : IDisposable
         boundary.Run(()=>
         {
             commands.BeginRenderPass(pass);commands.SetPipeline(pipeline);
-            commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.BindResources(program.CaptureBindings());
+            commands.SetDynamicState(new(){Viewport=commands.PassViewport,Scissor=scissor});commands.BindResources(program.CaptureBindings());
             commands.DrawIndexed(geometry,new(0,3));
             // Binding observations must run before boundary restoration withdraws the submitted table.
             afterDraw?.Invoke();commands.EndRenderPass();
@@ -363,14 +382,15 @@ public sealed class ShaderTestFramework : IDisposable
     }
 
     /// <summary>Freezes explicit fixture load policy and executes the exact captured shader generation.</summary>
-    private void SubmitProductionQuad(GpuProgram program,GpuFramebuffer target,(float r,float g,float b,float a)? clearColor,bool clear,Action? afterDraw=null)
+    private void SubmitProductionQuad(GpuProgram program,GpuFramebuffer target,(float r,float g,float b,float a)? clearColor,
+        bool clear,Action? afterDraw=null,(int X,int Y,int Width,int Height)? scissor=null)
     {
         EnsureQuadInitialized();
         var color=clearColor??(0f,0f,0f,0f);
         var pass=FramebufferTestSetup.DescribeAttachments(target,Enumerable.Range(0,target.ColorAttachmentCount).Select(index=>
             new RHIColorAttachment(AttachmentIndex:index,Load:clear?AttachmentLoad.Clear:AttachmentLoad.Preserve,
                 Clear:clear?ColorClearValue.Float(color.Item1,color.Item2,color.Item3,color.Item4):null)));
-        RenderQuadTo(program,pass,afterDraw);
+        RenderQuadTo(program,pass,afterDraw,scissor);
     }
 
     /// <summary>Configures native fixture geometry using core named vertex-array commands, independent of production realization caches.</summary>

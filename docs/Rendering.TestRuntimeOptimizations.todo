@@ -2,8 +2,10 @@ Test execution runtime optimizations
 ===================================
 
 Status
-  All phases are pending. This plan covers the five prioritized optimizations from the
-  test-runtime review. Creating the plan does not approve reductions in test coverage.
+  Phase 1 is complete and accepted by the user on 2026-11-03, including the measured timing
+  limitations. All later phases are pending. This plan covers the five prioritized optimizations
+  from the test-runtime review and a separate water-test necessity review requested at acceptance.
+  Creating the plan does not approve reductions in test coverage.
 
 Purpose and scope
   Reduce unnecessary rendering, numerical setup and synchronization in VGE tests while
@@ -42,21 +44,100 @@ Shared implementation and acceptance requirements
   the user and obtain acceptance before closing each phase.
   Each phase is a separate reviewable commit boundary. Staging and committing require a request.
 
-☐ Phase 1 — Restrict water receiver diagnostics to observed pixels
-  ☐ Inspect WaterRefractionDiagnosticTests and water_refraction_diagnostics.fsh to map the
+☑ Phase 1 — Restrict water receiver diagnostics to observed pixels
+  Implementation and measurement record (2026-11-03)
+    The test-only fullscreen helper accepts a pipeline scissor while retaining full-target
+    clears and the 128×128 viewport. Diagnostics draw one pixel, or a 64×1 strip containing
+    every edge-motion observation. The shader and production rendering code are unchanged.
+    Source review found no derivatives or implicit texture sampling in the reachable liquid
+    kernels. All original rows, assertions and readbacks remain, with added viewport/scissor
+    restoration assertions. The second review and independent completion audit found no
+    required code corrections or verification gaps. The user accepted the result on 2026-11-03
+    and requested the separate water-test necessity review below.
+    Two baseline and two candidate runs per configuration each passed 72/72, zero failures or
+    skips; all 102 logged pixel observations per candidate run matched baseline exactly.
+    All 909 emitted test SPIR-V hashes per configuration matched baseline.
+    Command wall seconds, excluding builds:
+      Debug baseline 149.674 / 131.478; candidate 206.517 / 169.493.
+      Release baseline 148.176 / 149.566; candidate 171.804 / 161.667.
+    No measured wall-time improvement is established; every candidate run was slower than its
+    configuration's baseline runs. Causes are unattributed. The historical Debug/Release
+    disparity was not reproduced. These sequential fresh-process runs retained existing driver,
+    filesystem and executable caches; no isolated synchronization or GPU execution times were
+    collected. Builds used current -O shaders, with -g additionally in Debug.
+    Receipts: ../TestResults/TestRuntimeOptimizations/water-receiver/summary.json, commands.txt,
+    the eight TRX files, candidate-*-equivalence.json, candidate-*-shader-diff.json and
+    candidate-source-stability.json. Build timings and the initial package-cache failure are
+    retained separately there. Acceptance includes the absence of demonstrated wall-time savings
+    and the unresolved cause of the earlier sequential-run slowdown.
+  Slower-timing investigation (2026-11-03)
+    The eight original receipts show a broad per-case shift, rather than a single outlier.
+    A six-row selection (flat, edge-motion and positive-view-z; budget 8; both resolutions)
+    compared full/scissored draws in ABBA and BAAB order with the same prepared inputs/program.
+    Both Debug orders and both Release orders passed every original assertion and exact
+    seven-attachment comparisons at the nominated pixels. First submissions took seconds in
+    either mode; later RHI DrawIndexed scopes were sub-millisecond. Corrected Debug state-query/assert
+    totals across four draws were 0.032–0.120 ms outside the first process case, whose totals
+    were 2.849–3.236 ms. These checks cannot explain the earlier roughly 0.4-second case shift.
+    Debug localized multi-second waits to the first RHI DrawIndexed call. The native-intercepted
+    Release runs instead placed them in an unattributed render-boundary remainder; combining
+    those two instrumentation layers into one driver-cause claim would be invalid. Warm GPU
+    clear/pass/draw intervals were about 66–219 microseconds full versus 12–41 scissored;
+    those elapsed query intervals can include idle time and are not exclusive shader timings.
+    No consistent scissor-first penalty was reproduced. Variable first-use work dominates
+    these samples, but the exact cause of the earlier sequential-run regression remains
+    unresolved. Instrumented process wall times are attribution receipts, not matched speedups.
+    Evidence is retained alongside the original receipts as investigation-*-scopes.txt,
+    the corresponding TRX files and instrumented source snapshots. The superseded first
+    profile's combined state/draw timing and the incomplete helper build are excluded evidence.
+    Temporary instrumentation and comparison controls were removed; both live source files
+    match their pre-investigation SHA-256 hashes exactly. Restored Debug/Release builds passed,
+    all 909 shader hashes per configuration remained unchanged, and final focused checks passed
+    6/6 each with unchanged logged values (27.852 / 25.032 seconds wall, builds excluded).
+    See ../TestResults/TestRuntimeOptimizations/water-receiver/investigation-summary.json.
+  Unchanged-candidate timing rerun (2026-11-03)
+    The original 72-case selection passed twice per configuration, zero failures/skips.
+    Command wall seconds: Debug 156.772 / 159.145; Release 159.949 / 167.525.
+    All 102 logged pixel observations matched prior receipts exactly. The two source files,
+    both test binaries and all 909 shader binaries per configuration remained unchanged;
+    no rebuild was needed. Timings varied from the prior candidate runs, but every rerun
+    remained slower than its configuration's original baseline. Cross-time differences do
+    not establish a causal speedup. Receipt:
+    ../TestResults/TestRuntimeOptimizations/water-receiver/rerun-now-20261103-033200-summary.json.
+  ☑ Inspect WaterRefractionDiagnosticTests and water_refraction_diagnostics.fsh to map the
     one-pixel and six-pixel observations to their shader coordinate and derivative requirements.
-  ☐ Choose a bounded raster approach, such as scissoring, that retains the 128×128 viewport,
+  ☑ Choose a bounded raster approach, such as scissoring, that retains the 128×128 viewport,
     source textures and original fragment coordinates. Verify derivative/helper-invocation
     behavior and any attachment initialization requirements before selecting the approach.
-  ☐ Eliminate unnecessary fragment execution across the seven diagnostic outputs while
+  ☑ Eliminate unnecessary fragment execution across the seven diagnostic outputs while
     preserving every receiver scenario, budget, full/half-resolution variant and sampled value.
     Restore modified raster state through existing production test abstractions.
-  ☐ Compare focused correctness and runtime against the original execution. Investigate the
+  ☑ Compare focused correctness and runtime against the original execution. Investigate the
     large Debug/Release disparity only as needed to attribute the affected work accurately.
-  ☐ Complete second review, independent coverage audit and linked-document reconciliation.
+  ☑ Complete second review, independent coverage audit and linked-document reconciliation.
     Present measured results and limitations for user acceptance before closing the phase.
 
-☐ Phase 2 — Separate atmosphere policy checks from repeated numerical construction
+☐ Phase 2 — Reevaluate water-test necessity and overlapping coverage
+  ☐ Inventory the water receiver diagnostics, continuity and budget tests covered by this plan,
+    including every scenario, parameter row, sampled field and independent reference assertion.
+    Identify the production contract and failure mode each observation is intended to protect.
+  ☐ Compare those guarantees with other existing water tests and current production behavior.
+    Distinguish unique regression coverage, deliberate integration/lifecycle witnesses, redundant
+    observations, obsolete behavior and checks that assert implementation details without a
+    required contract. Similar inputs or outputs alone do not establish redundant coverage.
+  ☐ For each proposed consolidation or removal, identify the exact tests/rows affected, the
+    surviving independent witness for every required guarantee, and any coverage that would be
+    lost. Explain why the remaining coverage would still detect the relevant failures; timing
+    cost alone does not establish that a test is unnecessary. Retain unresolved cases.
+  ☐ Present evidence-backed keep/consolidate/remove recommendations and their measured costs
+    where available. Obtain the user's decision on proposed coverage changes before editing
+    tests; this phase initially evaluates necessity and does not presume that any test is unneeded.
+  ☐ Independently review the coverage mapping and recommendations against their source contracts.
+    Record the user's dispositions and reconcile the later water-batching tasks with the agreed
+    retained coverage and verification obligations. Scope any approved test changes explicitly;
+    adding this phase does not authorize deleting tests or weakening assertions.
+
+☐ Phase 3 — Separate atmosphere policy checks from repeated numerical construction
   ☐ Map the guarantees of QualityOnlyEditRebuildsLighting and
     AsyncCompletionAdmitsQualityOnlyChange in AtmosphereScatteringQualityTests, including
     replacement identity, revision, admission and completion behavior.
@@ -72,7 +153,9 @@ Shared implementation and acceptance requirements
   ☐ Complete second review, independent coverage audit and linked-document reconciliation.
     Present measured results and limitations for user acceptance before closing the phase.
 
-☐ Phase 3 — Batch independent water motion observations
+☐ Phase 4 — Batch independent water motion observations
+  Follow the water-test necessity decisions from Phase 2. Until a coverage change is explicitly
+  agreed, the original sample counts and guarantees below remain the implementation contract.
   ☐ Map all 201-position shallow-water sweeps and 61-position budget sweeps to their inputs,
     outputs and CPU reference assertions. Identify any ordering or shared-state dependencies.
   ☐ Discuss and agree on a concrete indexed-result design before implementation. Batching was
@@ -87,7 +170,7 @@ Shared implementation and acceptance requirements
   ☐ Complete second review, independent coverage audit and linked-document reconciliation.
     Present measured results and limitations for user acceptance before closing the phase.
 
-☐ Phase 4 — Combine surface-lighting per-frame statistics
+☐ Phase 5 — Combine surface-lighting per-frame statistics
   ☐ Map Frame, Energy and RunUntil in SurfaceLightingConsumerRuntimeFixture and identify every
     caller relying on per-frame finiteness, energy, readiness or convergence observations.
   ☐ Design a compact combined statistics result that preserves each existing observed quantity
@@ -100,7 +183,7 @@ Shared implementation and acceptance requirements
   ☐ Complete second review, independent coverage audit and linked-document reconciliation.
     Present measured results and limitations for user acceptance before closing the phase.
 
-☐ Phase 5 — Separate real-GC stress execution from frequent correctness feedback
+☐ Phase 6 — Separate real-GC stress execution from frequent correctness feedback
   ☐ Inspect Workload=Stress classification, AllTests.runsettings and current local/CI entry
     points. Propose a frequent-correctness selection and a dedicated mandatory stress selection.
     Agree on invocation and CI cadence before changing the default selection.
@@ -111,7 +194,7 @@ Shared implementation and acceptance requirements
     workflow, with no accidental omission or duplication in the combined coverage accounting.
   ☐ Validate selection membership and execute the affected stress coverage. Report faster
     frequent feedback separately from total qualification cost; moving work is not eliminating it.
-  ☐ Reconcile all five phases' retained evidence and run one appropriately scoped combined
+  ☐ Reconcile all six phases' retained evidence and run one appropriately scoped combined
     qualification after the implementation batches are complete. Preserve failures and focused
     correction receipts and distinguish reconciled coverage from a fresh passing full run.
   ☐ Remove temporary instrumentation, comparison controls and temporary support documents
