@@ -187,12 +187,12 @@ public sealed class UniformLifetimeTests(HeadlessGLFixture fixture) : RenderTest
     /// <summary>Dispatches the existing packaged UBO fixture and reads its actual shader result.</summary>
     private static uint Observe(UniformPublication.Candidate candidate)
     {
-        int program = BuiltShaderFixture.LoadProgram(new(new VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(
+        using var shader = BuiltShaderFixture.LoadProgram(new(new VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(
             VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"))));
+        int program = shader.Program.ProgramId;
         try
         {
-            var layout = new GpuProgramLayout { BinaryInterface = new VanillaGraphicsExpanded.Rendering.Spirv.GpuProgramInterface(
-                program, [VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindStage("tests/GpuUniformRingBufferIntegrationTests_1.csh").Bindings]) };
+            var layout = new GpuProgramLayout { BinaryInterface = shader.Interface };
             layout.RebuildCache(program);
             layout.RegisterUniformBlockBinding("TestParams", 0, required: true);
             layout.ApplyContract(program);
@@ -211,7 +211,6 @@ public sealed class UniformLifetimeTests(HeadlessGLFixture fixture) : RenderTest
         {
             GL.UseProgram(0);
             OpenGlStateCache.Current.Invalidate(EPipelineState.Program);
-            TestShaderInterfaces.DeleteProgram(program);
         }
     }
     #endregion

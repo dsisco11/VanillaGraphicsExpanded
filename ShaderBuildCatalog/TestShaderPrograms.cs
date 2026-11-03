@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering;
 
 namespace ShaderBuildTool.Spirv;
 
@@ -18,14 +19,98 @@ internal static partial class TestShaderPrograms
         programs.Add(new("tests/temporal-debug", [Fixture("temporal-debug", "csh", ShaderStageKind.Compute)], 1));
         foreach (string name in new[] { "aerial-lookup", "displacement-metric", "displacement-height", "sun-segment", "relief-on", "relief-off" })
             programs.Add(new("tests/" + name, [Fixture("complete-state", "vsh", ShaderStageKind.Vertex), Numerical(name)], 1));
+        // Shadow subdivision runs before world-camera publication, so its fixture contract deliberately omits VgeFrameUBO.
+        var shadowDisplacement = new GpuBindingContract();
+        shadowDisplacement.RegisterUniformBlockBinding("DisplacementInputs", 28);
+        shadowDisplacement.FragmentOutputLocations.Add("result", 0);
+        programs.Add(new("tests/displacement-shadow",
+            [Fixture("numerical-quad", "vsh", ShaderStageKind.Vertex),
+             new("tests/displacement-shadow.fsh", "tests/displacement-shadow.fsh", ShaderStageKind.Fragment, shadowDisplacement)], 1));
         foreach (string name in new[] { "particle-draw", "particle-integration", "sampler-handoff", "facing-state" })
             programs.Add(new("tests/" + name, [Fixture("complete-state", "vsh", ShaderStageKind.Vertex), Fixture(name, "fsh", ShaderStageKind.Fragment)], 1));
-        foreach (string mode in new[] { "display", "linear" })
-            programs.Add(new("tests/sun-raster-" + mode, [Numerical("sun-raster", ShaderStageKind.Vertex), Numerical("sun-raster-" + mode)], 1));
         programs.Add(new("tests/eye-relative", [Numerical("eye-relative", ShaderStageKind.Vertex), Numerical("eye-relative")], 1));
         programs.Add(new("tests/normal-input", [Fixture("normal-input", "vsh", ShaderStageKind.Vertex), Fixture("normal-input", "fsh", ShaderStageKind.Fragment)], 1));
         foreach (string name in new[] { "foliage-transmission", "liquid-interface" })
             programs.Add(new("tests/" + name, [Fixture("numerical-quad", "vsh", ShaderStageKind.Vertex), Fixture(name, "fsh", ShaderStageKind.Fragment)], 1));
+        var solarBrdfInputs = new GpuBindingContract();
+        solarBrdfInputs.RegisterUniformBlockBinding("SolarBrdfInputs", 28);
+        solarBrdfInputs.FragmentOutputLocations.Add("result", 0);
+        programs.Add(new("tests/pbr-solar-brdf", [Fixture("numerical-quad", "vsh", ShaderStageKind.Vertex),
+            new ShaderStageContract("tests/pbr-solar-brdf.fsh", "tests/pbr-solar-brdf.fsh",
+                ShaderStageKind.Fragment, solarBrdfInputs)], 1));
+        var localExposureInputs = new GpuBindingContract();
+        localExposureInputs.RegisterUniformBlockBinding("LocalExposureProbeInputs", 28);
+        localExposureInputs.RegisterSamplerUnit("sourceImage", 0);
+        localExposureInputs.RegisterSamplerUnit("baseImage", 1);
+        localExposureInputs.RegisterSamplerUnit("gradingLookup", 2, required: false);
+        localExposureInputs.FragmentOutputLocations.Add("result", 0);
+        // Production compute programs expose the log/filter stages, but no production stage exposes
+        // guided sample/correction tuples or the undithered grading lookup asserted by this suite.
+        var postprocessVertex = GpuShaderContracts.Registry.Programs["pbr_final"].Stages[0];
+        programs.Add(new("tests/local-exposure-prototype", [postprocessVertex,
+            new ShaderStageContract("tests/local-exposure-prototype.fsh", "tests/local-exposure-prototype.fsh",
+                ShaderStageKind.Fragment, localExposureInputs)], 1));
+        var microfacetInputs = new GpuBindingContract();
+        microfacetInputs.RegisterUniformBlockBinding("MicrofacetEnergyInputs", 28);
+        microfacetInputs.RegisterSamplerUnit("vge_microfacetEnergy", 32);
+        microfacetInputs.RegisterSamplerUnit("lookupCoordinates", 0, required: false);
+        microfacetInputs.FragmentOutputLocations.Add("result", 0);
+        programs.Add(new("tests/microfacet-energy", [Fixture("numerical-quad", "vsh", ShaderStageKind.Vertex),
+            new("tests/microfacet-energy.fsh", "tests/microfacet-energy.fsh", ShaderStageKind.Fragment, microfacetInputs)], 1));
+        foreach (bool compensated in new[] { false, true })
+        {
+            var measurementInputs = new GpuBindingContract();
+            measurementInputs.RegisterUniformBlockBinding("MicrofacetMeasurementInputs", 28);
+            if (compensated) measurementInputs.RegisterSamplerUnit("vge_microfacetEnergy", 32);
+            measurementInputs.FragmentOutputLocations.Add("result", 0);
+            string identity = compensated ? "tests/microfacet-measurement-compensated" : "tests/microfacet-measurement-single";
+            programs.Add(new(identity, [Fixture("numerical-quad", "vsh", ShaderStageKind.Vertex),
+                new ShaderStageContract(identity + ".fsh", "tests/microfacet-measurement.fsh", ShaderStageKind.Fragment,
+                    measurementInputs, fixedDefines: new Dictionary<string, ShaderScalar>
+                    { ["VGE_MICROFACET_MEASUREMENT_COMPENSATED"] = ShaderScalar.From(compensated ? 1 : 0) })], 1));
+        }
+        var grazingProbe = new GpuBindingContract();
+        grazingProbe.RegisterUniformBlockBinding("GrazingProbeInputs", 28);
+        grazingProbe.RegisterShaderStorageBlockBinding("FrozenFrameLighting", 4);
+        grazingProbe.RegisterSamplerUnit("vge_microfacetEnergy", 32);
+        grazingProbe.FragmentOutputLocations.Add("result", 0);
+        // These raster probes share the framework's production fullscreen-triangle vertex stage and attribute layout.
+        programs.Add(new("tests/frame-lighting-grazing", [postprocessVertex,
+            new("tests/frame-lighting-grazing.fsh", "tests/frame-lighting-grazing.fsh", ShaderStageKind.Fragment, grazingProbe)], 1));
+        var oitWriter = new GpuBindingContract();
+        oitWriter.RegisterUniformBlockBinding("OitOwnedWriterInputs", 28);
+        foreach (var output in new[] { ("outOitRevealBins", 0), ("outRevealage", 1), ("outOitGlow", 2),
+                     ("outOitAccumulation0", 3), ("outOitAccumulation1", 4), ("outOitAccumulation2", 5) })
+            oitWriter.FragmentOutputLocations.Add(output.Item1, output.Item2);
+        programs.Add(new("tests/oit-owned-writer", [postprocessVertex,
+            new("tests/oit-owned-writer.fsh", "tests/oit-owned-writer.fsh", ShaderStageKind.Fragment, oitWriter)], 1));
+        var photometricProbe = new GpuBindingContract();
+        photometricProbe.RegisterUniformBlockBinding("VgeFrameUBO", 12);
+        photometricProbe.RegisterUniformBlockBinding("PhotometricProbeInputs", 28);
+        photometricProbe.RegisterShaderStorageBlockBinding("AtmosphereParameters", 0);
+        photometricProbe.RegisterShaderStorageBlockBinding("FrozenFrameLighting", 4);
+        photometricProbe.FragmentOutputLocations.Add("result", 0);
+        programs.Add(new("tests/photometric-helpers", [Fixture("complete-state", "vsh", ShaderStageKind.Vertex),
+            new("tests/photometric-helpers.fsh", "tests/photometric-helpers.fsh", ShaderStageKind.Fragment, photometricProbe)], 1));
+        foreach (bool lumon in new[] { true, false })
+        {
+            var bindings = new GpuBindingContract();
+            bindings.RegisterUniformBlockBinding("VgeFrameUBO", 12);
+            bindings.RegisterUniformBlockBinding("VgeLightsUBO", GpuBindingRegistry.Ubo.Lights);
+            bindings.RegisterUniformBlockBinding("TestInputs", 28);
+            bindings.RegisterShaderStorageBlockBinding("FrozenFrameLighting", 4);
+            bindings.RegisterSamplerUnit("shadowMapFar", 0);
+            bindings.RegisterSamplerUnit("vge_atmosphereAerialRadiance", 11);
+            bindings.RegisterSamplerUnit("vge_atmosphereAerialAttenuation", 12);
+            bindings.RegisterSamplerUnit("vge_lightShaftOcclusion", 13);
+            bindings.RegisterSamplerUnit("vge_microfacetEnergy", 32);
+            bindings.FragmentOutputLocations.Add("outColor", 0);
+            string identity = lumon ? "tests/pbr-forward-surface" : "tests/pbr-forward-surface-legacy-environment";
+            var stage = new ShaderStageContract(identity + ".fsh", "tests/pbr-forward-surface.fsh",
+                ShaderStageKind.Fragment, bindings, fixedDefines: new Dictionary<string, ShaderScalar>
+                { ["VGE_PBR_FORWARD_LUMON"] = ShaderScalar.From(lumon ? 1 : 0) });
+            programs.Add(new(identity, [Fixture("complete-state", "vsh", ShaderStageKind.Vertex), stage], 1));
+        }
         var integration=new GpuBindingContract();
         integration.RegisterUniformBlockBinding("AoIntegralTestInputs",28);
         integration.FragmentOutputLocations.Add("result",0);
@@ -115,14 +200,11 @@ internal static partial class TestShaderPrograms
             "eye-relative" => "EyeInputs",
             "aerial-lookup" => "AerialLookupInputs",
             "sun-segment" => "SunSegmentInputs",
-            _ when name.StartsWith("sun-raster", StringComparison.Ordinal) => "SunInputs",
             _ when name.StartsWith("relief-", StringComparison.Ordinal) => "ReliefInputs",
             _ => "DisplacementInputs"
         };
         bindings.RegisterUniformBlockBinding(block, 28);
-        if (name is "sun-raster-linear" or "sun-raster-display")
-            bindings.RegisterShaderStorageBlockBinding("FrameLighting", 4, required: false);
-        if (name is "displacement-metric" or "displacement-height" or "sun-raster" or "eye-relative" || name.StartsWith("relief-", StringComparison.Ordinal))
+        if (name is "displacement-metric" or "displacement-height" or "eye-relative" || name.StartsWith("relief-", StringComparison.Ordinal))
             bindings.RegisterUniformBlockBinding("VgeFrameUBO", 12, required: false);
         bindings.FragmentOutputLocations.Add("result", 0);
         bindings.FragmentOutputLocations.Add("color", 0);

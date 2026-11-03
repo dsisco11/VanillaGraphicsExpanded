@@ -22,7 +22,7 @@ public sealed class ShaderSourceMappingTests
         Assert.True(TestAssetSnapshot.HasDirectory(shaderPath), $"Missing built shader input: {shaderPath}");
         Assert.True(TestAssetSnapshot.HasDirectory(includePath), $"Missing built include input: {includePath}");
 
-        using var helper = new ShaderTestHelper();
+        var helper = new ShaderProcessedSourceDiagnostics();
 
         var defines = new Dictionary<string, string?>
         {

@@ -1,24 +1,16 @@
 using VanillaGraphicsExpanded.Tests.GPU.Assertions;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
-using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using System.IO;
-using System.Linq;
-
-using OpenTK.Graphics.OpenGL;
-
-using HeightBakeParamsUboCpu = VanillaGraphicsExpanded.PBR.Materials.PbrHeightBakeParamsUbo;
-
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
-using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.PBR.Materials;
 
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
+/// <summary>Exercises the production height-bake chain while preserving end-to-end image guarantees.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrHeightBakeFullChainTests : RenderTestBase
@@ -27,35 +19,34 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
     private readonly HeadlessGLFixture fixture;
 
+    #region Public API
+    /// <summary>Creates this integration suite over the shared headless OpenGL fixture.</summary>
     public PbrHeightBakeFullChainTests(HeadlessGLFixture fixture) : base(fixture)
     {
         this.fixture = fixture;
     }
 
+    /// <summary>Checks that checkerboard luminance survives the full production bake chain with usable alpha.</summary>
     [Fact]
     public void FullChain_CheckerboardInput_AlphaIsFiniteAndNotAllSaturated()
     {
         EnsureContextValid();
         fixture.MakeCurrent();
 
-        (ShaderTestHelper helper, string reason) = TryCreateHelper();
-        if (helper is null)
-        {
-            Assert.SkipWhen(true, reason);
-        }
-
-        using (helper)
+        // Arrange: create the original checkerboard atlas and bake intermediates.
+        PbrHeightBakeTestPrograms.EnsureAssetsAvailable();
+        using var programs = new PbrHeightBakeTestPrograms();
         {
             var cfg = new VgeConfig.NormalDepthBakeConfig();
 
-            var progL = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_luminance.fsh");
-            var progG = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_gauss1d.fsh");
-            var progSub = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_sub.fsh");
-            var progGrad = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_gradient.fsh");
-            var progDiv = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_divergence.fsh");
-            var progJacobi = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_jacobi.fsh");
-            var progNorm = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_normalize.fsh");
-            var progPack = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_pack_to_atlas.fsh");
+            var progL = programs.Create("pbr_heightbake_luminance");
+            var progG = programs.Create("pbr_heightbake_gauss1d");
+            var progSub = programs.Create("pbr_heightbake_sub");
+            var progGrad = programs.Create("pbr_heightbake_gradient");
+            var progDiv = programs.Create("pbr_heightbake_divergence");
+            var progJacobi = programs.Create("pbr_heightbake_jacobi");
+            var progNorm = programs.Create("pbr_heightbake_normalize");
+            var progPack = programs.Create("pbr_heightbake_pack_to_atlas");
 
             const int w = 64;
             const int h = 64;
@@ -73,63 +64,52 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             using var texHn = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var outAtlas = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
+            // Act: run the complete production bake sequence.
             // 1) Luminance.
-            RenderTo(texL, progL, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
+            RenderTo(programs, texL, progL, (parameters) => {
+                progL.atlas = atlas;
 
-                UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
-                {
-                    cpu.LuminanceAtlasRect = (x: 0, y: 0, w: w, h: h);
-                    cpu.LuminanceDstSize = (width: w, height: h);
-                });
+
+                    parameters.LuminanceAtlasRect = (x: 0, y: 0, w: w, h: h);
+                    parameters.LuminanceDstSize = (width: w, height: h);
             });
             AssertFiniteAndHasVariance(texL, channels: 1, name: "L");
 
             // 2) base = Gauss(L, sigmaBig) with separable passes.
-            RunGaussian1D(texL, texTmp, progG, sigma: cfg.SigmaBig, dirX: true);
-            RunGaussian1D(texTmp, texBase, progG, sigma: cfg.SigmaBig, dirX: false);
+            RunGaussian1D(programs, texL, texTmp, progG, sigma: cfg.SigmaBig, dirX: true);
+            RunGaussian1D(programs, texTmp, texBase, progG, sigma: cfg.SigmaBig, dirX: false);
             // With a large sigma (defaults: 16px), the blurred base can be almost constant for
             // small test textures. That's fine; just ensure it's finite.
             AssertFinite(texBase, channels: 1, name: "Base");
 
             // 3) D0 = L - base
-            RenderTo(texD0, progSub, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texL, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texL).Target)))]);
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texBase, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texBase).Target)))]);
+            RenderTo(programs, texD0, progSub, (parameters) => {
+                progSub.a = texL;
+                progSub.b = texBase;
 
-                UploadHeightBakeParams(paramsUbo, progSub, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                    cpu.GaussianParams = (radius: 0, relContrast: 0);
-                    cpu.SubParams = (eps: 1e-6f, vMax: 1e6f);
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
+                    parameters.GaussianParams = (radius: 0, relContrast: 0);
+                    parameters.SubParams = (eps: 1e-6f, vMax: 1e6f);
             });
             AssertFiniteAndHasVariance(texD0, channels: 1, name: "D0");
 
             // 4) Gradient field from D0 (we treat D0 as detail D).
-            RenderTo(texGxy, progGrad, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texD0, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texD0).Target)))]);
+            RenderTo(programs, texGxy, progGrad, (parameters) => {
+                progGrad.d = texD0;
 
-                UploadHeightBakeParams(paramsUbo, progGrad, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                    cpu.GradientParams = (gain: cfg.Gain, maxSlope: cfg.MaxSlope, edgeT0: cfg.EdgeT0, edgeT1: cfg.EdgeT1);
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
+                    parameters.GradientParams = (gain: cfg.Gain, maxSlope: cfg.MaxSlope, edgeT0: cfg.EdgeT0, edgeT1: cfg.EdgeT1);
             });
             AssertFiniteAndHasVariance(texGxy, channels: 2, name: "Gxy");
 
             // 5) Divergence
-            RenderTo(texDiv, progDiv, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texGxy, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texGxy).Target)))]);
+            RenderTo(programs, texDiv, progDiv, (parameters) => {
+                progDiv.g = texGxy;
 
-                UploadHeightBakeParams(paramsUbo, progDiv, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
             });
             AssertFiniteAndHasVariance(texDiv, channels: 1, name: "Div");
 
@@ -140,15 +120,12 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 DynamicTexture2D src = (i % 2 == 0) ? texH : texH2;
                 DynamicTexture2D dst = (i % 2 == 0) ? texH2 : texH;
 
-                RenderTo(dst, progJacobi, (paramsUbo) =>
-                {
-                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)src).Target)))]);
-                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texDiv, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texDiv).Target)))]);
+                RenderTo(programs, dst, progJacobi, (parameters) => {
+                    progJacobi.h = src;
+                    progJacobi.b = texDiv;
 
-                    UploadHeightBakeParams(paramsUbo, progJacobi, (cpu) =>
-                    {
-                        cpu.CommonSize = (width: w, height: h);
-                    });
+
+                        parameters.CommonSize = (width: w, height: h);
                 });
             }
             // After odd iteration count, texH contains the last output.
@@ -157,35 +134,30 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 7) Normalize (mean from CPU readback)
             float mean = MeanR32f(texH);
             (float invNeg, float invPos) = ComputeAsymmetricInvScales(texH, mean);
-            RenderTo(texHn, progNorm, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texH, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texH).Target)))]);
+            RenderTo(programs, texHn, progNorm, (parameters) => {
+                progNorm.h = texH;
 
-                UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                    cpu.NormalizeParams = (mean: mean, invNeg: invNeg, invPos: invPos, heightStrength: cfg.HeightStrength);
-                    cpu.NormalizeGamma = cfg.Gamma;
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
+                    parameters.NormalizeParams = (mean: mean, invNeg: invNeg, invPos: invPos, heightStrength: cfg.HeightStrength);
+                    parameters.NormalizeGamma = cfg.Gamma;
             });
             AssertFiniteAndHasVariance(texHn, channels: 1, name: "Hn");
 
             // 8) Pack to atlas
-            RenderTo(outAtlas, progPack, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texHn).Target)))]);
+            RenderTo(programs, outAtlas, progPack, (parameters) => {
+                progPack.height = texHn;
 
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
+                progPack.albedoAtlas = atlas;
 
-                UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
-                {
-                    cpu.SolverSize = (width: w, height: h);
-                    cpu.TileSize = (width: w, height: h);
-                    cpu.ViewportOrigin = (x: 0, y: 0);
-                    cpu.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 1f, depthScale: 1f, eps: 0f);
-                });
+
+                    parameters.SolverSize = (width: w, height: h);
+                    parameters.TileSize = (width: w, height: h);
+                    parameters.ViewportOrigin = (x: 0, y: 0);
+                    parameters.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 1f, depthScale: 1f, eps: 0f);
             });
 
+            // Assert: preserve the packed alpha finiteness, variation, and saturation limits.
             (float minA, float maxA, int nanA, int ones) = AlphaStats(outAtlas);
 
             Assert.Equal(0, nanA);
@@ -194,19 +166,16 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         }
     }
 
+    /// <summary>Confirms the full-chain alpha assertion detects the authored extreme-height saturation case.</summary>
     [Fact]
     public void FullChain_ExtremeHeightStrength_WillSaturateAlpha_ProvingTestDetectsIt()
     {
         EnsureContextValid();
         fixture.MakeCurrent();
 
-        (ShaderTestHelper helper, string reason) = TryCreateHelper();
-        if (helper is null)
-        {
-            Assert.SkipWhen(true, reason);
-        }
-
-        using (helper)
+        // Arrange: retain the authored extreme-height bake parameters and checkerboard input.
+        PbrHeightBakeTestPrograms.EnsureAssetsAvailable();
+        using var programs = new PbrHeightBakeTestPrograms();
         {
             var cfg = new VgeConfig.NormalDepthBakeConfig
             {
@@ -220,9 +189,9 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 EdgeT1 = 0.02f,
             };
 
-            var progL = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_luminance.fsh");
-            var progNorm = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_normalize.fsh");
-            var progPack = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_pack_to_atlas.fsh");
+            var progL = programs.Create("pbr_heightbake_luminance");
+            var progNorm = programs.Create("pbr_heightbake_normalize");
+            var progPack = programs.Create("pbr_heightbake_pack_to_atlas");
 
             const int w = 32;
             const int h = 32;
@@ -232,47 +201,40 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             using var texHn = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var outAtlas = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
-            RenderTo(texL, progL, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
+            // Act: exercise the production luminance, normalize, and pack passes.
+            RenderTo(programs, texL, progL, (parameters) => {
+                progL.atlas = atlas;
 
-                UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
-                {
-                    cpu.LuminanceAtlasRect = (x: 0, y: 0, w: w, h: h);
-                    cpu.LuminanceDstSize = (width: w, height: h);
-                });
+
+                    parameters.LuminanceAtlasRect = (x: 0, y: 0, w: w, h: h);
+                    parameters.LuminanceDstSize = (width: w, height: h);
             });
 
             // Treat luminance as the solved height field, just to stress normalize+pack.
             float mean = MeanR32f(texL);
             (float invNeg, float invPos) = ComputeAsymmetricInvScales(texL, mean);
-            RenderTo(texHn, progNorm, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texL, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texL).Target)))]);
+            RenderTo(programs, texHn, progNorm, (parameters) => {
+                progNorm.h = texL;
 
-                UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                    cpu.NormalizeParams = (mean: mean, invNeg: invNeg, invPos: invPos, heightStrength: cfg.HeightStrength);
-                    cpu.NormalizeGamma = cfg.Gamma;
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
+                    parameters.NormalizeParams = (mean: mean, invNeg: invNeg, invPos: invPos, heightStrength: cfg.HeightStrength);
+                    parameters.NormalizeGamma = cfg.Gamma;
             });
 
-            RenderTo(outAtlas, progPack, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texHn).Target)))]);
+            RenderTo(programs, outAtlas, progPack, (parameters) => {
+                progPack.height = texHn;
 
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
+                progPack.albedoAtlas = atlas;
 
-                UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
-                {
-                    cpu.SolverSize = (width: w, height: h);
-                    cpu.TileSize = (width: w, height: h);
-                    cpu.ViewportOrigin = (x: 0, y: 0);
-                    cpu.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 1f, depthScale: 1f, eps: 0f);
-                });
+
+                    parameters.SolverSize = (width: w, height: h);
+                    parameters.TileSize = (width: w, height: h);
+                    parameters.ViewportOrigin = (x: 0, y: 0);
+                    parameters.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 1f, depthScale: 1f, eps: 0f);
             });
 
+            // Assert: verify this stress case still demonstrates the suite's saturation detection.
             (_, float maxA, _, int ones) = AlphaStats(outAtlas);
 
             // This test is expected to show heavy saturation.
@@ -281,30 +243,27 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         }
     }
 
+    /// <summary>Verifies the production scale uniforms change the final packed output.</summary>
     [Fact]
     public void FullChain_ScaleUniforms_ChangeFinalPackedOutput()
     {
         EnsureContextValid();
         fixture.MakeCurrent();
 
-        (ShaderTestHelper helper, string reason) = TryCreateHelper();
-        if (helper is null)
-        {
-            Assert.SkipWhen(true, reason);
-        }
-
-        using (helper)
+        // Arrange: preserve the original shared input chain and both final output textures.
+        PbrHeightBakeTestPrograms.EnsureAssetsAvailable();
+        using var programs = new PbrHeightBakeTestPrograms();
         {
             var cfg = new VgeConfig.NormalDepthBakeConfig();
 
-            var progL = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_luminance.fsh");
-            var progG = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_gauss1d.fsh");
-            var progSub = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_sub.fsh");
-            var progGrad = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_gradient.fsh");
-            var progDiv = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_divergence.fsh");
-            var progJacobi = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_jacobi.fsh");
-            var progNorm = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_normalize.fsh");
-            var progPack = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_pack_to_atlas.fsh");
+            var progL = programs.Create("pbr_heightbake_luminance");
+            var progG = programs.Create("pbr_heightbake_gauss1d");
+            var progSub = programs.Create("pbr_heightbake_sub");
+            var progGrad = programs.Create("pbr_heightbake_gradient");
+            var progDiv = programs.Create("pbr_heightbake_divergence");
+            var progJacobi = programs.Create("pbr_heightbake_jacobi");
+            var progNorm = programs.Create("pbr_heightbake_normalize");
+            var progPack = programs.Create("pbr_heightbake_pack_to_atlas");
 
             const int w = 64;
             const int h = 64;
@@ -324,57 +283,46 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             using var outAtlas1 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var outAtlas2 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
+            // Act: run the shared production chain and pack each authored scale configuration.
             // 1) Luminance.
-            RenderTo(texL, progL, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
+            RenderTo(programs, texL, progL, (parameters) => {
+                progL.atlas = atlas;
 
-                UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
-                {
-                    cpu.LuminanceAtlasRect = (x: 0, y: 0, w: w, h: h);
-                    cpu.LuminanceDstSize = (width: w, height: h);
-                });
+
+                    parameters.LuminanceAtlasRect = (x: 0, y: 0, w: w, h: h);
+                    parameters.LuminanceDstSize = (width: w, height: h);
             });
 
             // 2) base = Gauss(L, sigmaBig)
-            RunGaussian1D(texL, texTmp, progG, sigma: cfg.SigmaBig, dirX: true);
-            RunGaussian1D(texTmp, texBase, progG, sigma: cfg.SigmaBig, dirX: false);
+            RunGaussian1D(programs, texL, texTmp, progG, sigma: cfg.SigmaBig, dirX: true);
+            RunGaussian1D(programs, texTmp, texBase, progG, sigma: cfg.SigmaBig, dirX: false);
 
             // 3) D0 = L - base
-            RenderTo(texD0, progSub, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texL, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texL).Target)))]);
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texBase, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texBase).Target)))]);
+            RenderTo(programs, texD0, progSub, (parameters) => {
+                progSub.a = texL;
+                progSub.b = texBase;
 
-                UploadHeightBakeParams(paramsUbo, progSub, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                    cpu.GaussianParams = (radius: 0, relContrast: 0);
-                    cpu.SubParams = (eps: 1e-6f, vMax: 1e6f);
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
+                    parameters.GaussianParams = (radius: 0, relContrast: 0);
+                    parameters.SubParams = (eps: 1e-6f, vMax: 1e6f);
             });
 
             // 4) Gradient
-            RenderTo(texGxy, progGrad, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texD0, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texD0).Target)))]);
+            RenderTo(programs, texGxy, progGrad, (parameters) => {
+                progGrad.d = texD0;
 
-                UploadHeightBakeParams(paramsUbo, progGrad, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                    cpu.GradientParams = (gain: cfg.Gain, maxSlope: cfg.MaxSlope, edgeT0: cfg.EdgeT0, edgeT1: cfg.EdgeT1);
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
+                    parameters.GradientParams = (gain: cfg.Gain, maxSlope: cfg.MaxSlope, edgeT0: cfg.EdgeT0, edgeT1: cfg.EdgeT1);
             });
 
             // 5) Divergence
-            RenderTo(texDiv, progDiv, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texGxy, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texGxy).Target)))]);
+            RenderTo(programs, texDiv, progDiv, (parameters) => {
+                progDiv.g = texGxy;
 
-                UploadHeightBakeParams(paramsUbo, progDiv, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
             });
 
             // 6) Jacobi iterations
@@ -384,65 +332,54 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 DynamicTexture2D src = (i % 2 == 0) ? texH : texH2;
                 DynamicTexture2D dst = (i % 2 == 0) ? texH2 : texH;
 
-                RenderTo(dst, progJacobi, (paramsUbo) =>
-                {
-                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)src).Target)))]);
-                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texDiv, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texDiv).Target)))]);
+                RenderTo(programs, dst, progJacobi, (parameters) => {
+                    progJacobi.h = src;
+                    progJacobi.b = texDiv;
 
-                    UploadHeightBakeParams(paramsUbo, progJacobi, (cpu) =>
-                    {
-                        cpu.CommonSize = (width: w, height: h);
-                    });
+
+                        parameters.CommonSize = (width: w, height: h);
                 });
             }
 
             // 7) Normalize
             float mean = MeanR32f(texH);
             (float invNeg, float invPos) = ComputeAsymmetricInvScales(texH, mean);
-            RenderTo(texHn, progNorm, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texH, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texH).Target)))]);
+            RenderTo(programs, texHn, progNorm, (parameters) => {
+                progNorm.h = texH;
 
-                UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                    cpu.NormalizeParams = (mean: mean, invNeg: invNeg, invPos: invPos, heightStrength: cfg.HeightStrength);
-                    cpu.NormalizeGamma = cfg.Gamma;
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
+                    parameters.NormalizeParams = (mean: mean, invNeg: invNeg, invPos: invPos, heightStrength: cfg.HeightStrength);
+                    parameters.NormalizeGamma = cfg.Gamma;
             });
 
             // 8) Pack twice with different scales.
-            RenderTo(outAtlas1, progPack, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texHn).Target)))]);
+            RenderTo(programs, outAtlas1, progPack, (parameters) => {
+                progPack.height = texHn;
 
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
+                progPack.albedoAtlas = atlas;
 
-                UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
-                {
-                    cpu.SolverSize = (width: w, height: h);
-                    cpu.TileSize = (width: w, height: h);
-                    cpu.ViewportOrigin = (x: 0, y: 0);
-                    cpu.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 1f, depthScale: 1f, eps: 0f);
-                });
+
+                    parameters.SolverSize = (width: w, height: h);
+                    parameters.TileSize = (width: w, height: h);
+                    parameters.ViewportOrigin = (x: 0, y: 0);
+                    parameters.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 1f, depthScale: 1f, eps: 0f);
             });
 
-            RenderTo(outAtlas2, progPack, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texHn).Target)))]);
+            RenderTo(programs, outAtlas2, progPack, (parameters) => {
+                progPack.height = texHn;
 
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
+                progPack.albedoAtlas = atlas;
 
-                UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
-                {
-                    cpu.SolverSize = (width: w, height: h);
-                    cpu.TileSize = (width: w, height: h);
-                    cpu.ViewportOrigin = (x: 0, y: 0);
-                    cpu.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 0.5f, depthScale: 0.5f, eps: 0f);
-                });
+
+                    parameters.SolverSize = (width: w, height: h);
+                    parameters.TileSize = (width: w, height: h);
+                    parameters.ViewportOrigin = (x: 0, y: 0);
+                    parameters.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 0.5f, depthScale: 0.5f, eps: 0f);
             });
 
             // The original maxima exceed their thresholds exactly when at least one corresponding component does.
+            // Assert: retain both independent output predicates and their original pixel checks.
             Assert.True(ImageAssertions.Predicates.Predicate(outAtlas1, MaterialPredicates.PbrHeightBakeFullChainTests_FullChain_ScaleUniforms_ChangeFinalPackedOutput,
                 outAtlas2).MatchingTexels>0,"Expected alpha to change with depthScale.");
             Assert.True(ImageAssertions.Predicates.Predicate(outAtlas1, MaterialPredicates.PbrHeightBakeFullChainTests_FullChain_ScaleUniforms_ChangeFinalPackedOutput_2,
@@ -450,19 +387,16 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         }
     }
 
+    /// <summary>Checks the normal-scale-zero behavior of the production normal/depth packing stages.</summary>
     [Fact]
     public void FullChain_NormalScaleZero_FlattensPackedNormalsRgb()
     {
         EnsureContextValid();
         fixture.MakeCurrent();
 
-        (ShaderTestHelper helper, string reason) = TryCreateHelper();
-        if (helper is null)
-        {
-            Assert.SkipWhen(true, reason);
-        }
-
-        using (helper)
+        // Arrange: retain the common bake inputs and the zero/non-zero normal scale outputs.
+        PbrHeightBakeTestPrograms.EnsureAssetsAvailable();
+        using var programs = new PbrHeightBakeTestPrograms();
         {
             var cfg = new VgeConfig.NormalDepthBakeConfig
             {
@@ -470,14 +404,14 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 NormalStrength = 4f
             };
 
-            var progL = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_luminance.fsh");
-            var progG = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_gauss1d.fsh");
-            var progSub = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_sub.fsh");
-            var progGrad = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_gradient.fsh");
-            var progDiv = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_divergence.fsh");
-            var progJacobi = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_jacobi.fsh");
-            var progNorm = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_normalize.fsh");
-            var progPack = Compile(helper, "pbr_heightbake_fullscreen.vsh", "pbr_heightbake_pack_to_atlas.fsh");
+            var progL = programs.Create("pbr_heightbake_luminance");
+            var progG = programs.Create("pbr_heightbake_gauss1d");
+            var progSub = programs.Create("pbr_heightbake_sub");
+            var progGrad = programs.Create("pbr_heightbake_gradient");
+            var progDiv = programs.Create("pbr_heightbake_divergence");
+            var progJacobi = programs.Create("pbr_heightbake_jacobi");
+            var progNorm = programs.Create("pbr_heightbake_normalize");
+            var progPack = programs.Create("pbr_heightbake_pack_to_atlas");
 
             const int w = 64;
             const int h = 64;
@@ -496,57 +430,46 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             using var outAtlasFlat = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var outAtlasScaled = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
+            // Act: execute the production chain and pack flat and scaled normal results.
             // 1) Luminance.
-            RenderTo(texL, progL, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
+            RenderTo(programs, texL, progL, (parameters) => {
+                progL.atlas = atlas;
 
-                UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
-                {
-                    cpu.LuminanceAtlasRect = (x: 0, y: 0, w: w, h: h);
-                    cpu.LuminanceDstSize = (width: w, height: h);
-                });
+
+                    parameters.LuminanceAtlasRect = (x: 0, y: 0, w: w, h: h);
+                    parameters.LuminanceDstSize = (width: w, height: h);
             });
 
             // 2) base = Gauss(L, sigmaBig)
-            RunGaussian1D(texL, texTmp, progG, sigma: cfg.SigmaBig, dirX: true);
-            RunGaussian1D(texTmp, texBase, progG, sigma: cfg.SigmaBig, dirX: false);
+            RunGaussian1D(programs, texL, texTmp, progG, sigma: cfg.SigmaBig, dirX: true);
+            RunGaussian1D(programs, texTmp, texBase, progG, sigma: cfg.SigmaBig, dirX: false);
 
             // 3) D0 = L - base
-            RenderTo(texD0, progSub, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texL, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texL).Target)))]);
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texBase, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texBase).Target)))]);
+            RenderTo(programs, texD0, progSub, (parameters) => {
+                progSub.a = texL;
+                progSub.b = texBase;
 
-                UploadHeightBakeParams(paramsUbo, progSub, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                    cpu.GaussianParams = (radius: 0, relContrast: 0);
-                    cpu.SubParams = (eps: 1e-6f, vMax: 1e6f);
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
+                    parameters.GaussianParams = (radius: 0, relContrast: 0);
+                    parameters.SubParams = (eps: 1e-6f, vMax: 1e6f);
             });
 
             // 4) Gradient
-            RenderTo(texGxy, progGrad, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texD0, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texD0).Target)))]);
+            RenderTo(programs, texGxy, progGrad, (parameters) => {
+                progGrad.d = texD0;
 
-                UploadHeightBakeParams(paramsUbo, progGrad, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                    cpu.GradientParams = (gain: cfg.Gain, maxSlope: cfg.MaxSlope, edgeT0: cfg.EdgeT0, edgeT1: cfg.EdgeT1);
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
+                    parameters.GradientParams = (gain: cfg.Gain, maxSlope: cfg.MaxSlope, edgeT0: cfg.EdgeT0, edgeT1: cfg.EdgeT1);
             });
 
             // 5) Divergence
-            RenderTo(texDiv, progDiv, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texGxy, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texGxy).Target)))]);
+            RenderTo(programs, texDiv, progDiv, (parameters) => {
+                progDiv.g = texGxy;
 
-                UploadHeightBakeParams(paramsUbo, progDiv, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
             });
 
             // 6) Jacobi iterations
@@ -556,145 +479,88 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
                 DynamicTexture2D src = (i % 2 == 0) ? texH : texH2;
                 DynamicTexture2D dst = (i % 2 == 0) ? texH2 : texH;
 
-                RenderTo(dst, progJacobi, (paramsUbo) =>
-                {
-                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)src).Target)))]);
-                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texDiv, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texDiv).Target)))]);
+                RenderTo(programs, dst, progJacobi, (parameters) => {
+                    progJacobi.h = src;
+                    progJacobi.b = texDiv;
 
-                    UploadHeightBakeParams(paramsUbo, progJacobi, (cpu) =>
-                    {
-                        cpu.CommonSize = (width: w, height: h);
-                    });
+
+                        parameters.CommonSize = (width: w, height: h);
                 });
             }
 
             // 7) Normalize
             float mean = MeanR32f(texH);
             (float invNeg, float invPos) = ComputeAsymmetricInvScales(texH, mean);
-            RenderTo(texHn, progNorm, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texH, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texH).Target)))]);
+            RenderTo(programs, texHn, progNorm, (parameters) => {
+                progNorm.h = texH;
 
-                UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
-                {
-                    cpu.CommonSize = (width: w, height: h);
-                    cpu.NormalizeParams = (mean: mean, invNeg: invNeg, invPos: invPos, heightStrength: cfg.HeightStrength);
-                    cpu.NormalizeGamma = cfg.Gamma;
-                });
+
+                    parameters.CommonSize = (width: w, height: h);
+                    parameters.NormalizeParams = (mean: mean, invNeg: invNeg, invPos: invPos, heightStrength: cfg.HeightStrength);
+                    parameters.NormalizeGamma = cfg.Gamma;
             });
 
             // 8) Pack with normalScale=0 (flat) and normalScale=1 (non-flat).
-            RenderTo(outAtlasFlat, progPack, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texHn).Target)))]);
+            RenderTo(programs, outAtlasFlat, progPack, (parameters) => {
+                progPack.height = texHn;
 
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
+                progPack.albedoAtlas = atlas;
 
-                UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
-                {
-                    cpu.SolverSize = (width: w, height: h);
-                    cpu.TileSize = (width: w, height: h);
-                    cpu.ViewportOrigin = (x: 0, y: 0);
-                    cpu.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 0f, depthScale: 1f, eps: 0f);
-                });
+
+                    parameters.SolverSize = (width: w, height: h);
+                    parameters.TileSize = (width: w, height: h);
+                    parameters.ViewportOrigin = (x: 0, y: 0);
+                    parameters.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 0f, depthScale: 1f, eps: 0f);
             });
 
-            RenderTo(outAtlasScaled, progPack, (paramsUbo) =>
-            {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texHn).Target)))]);
+            RenderTo(programs, outAtlasScaled, progPack, (parameters) => {
+                progPack.height = texHn;
 
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
+                progPack.albedoAtlas = atlas;
 
-                UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
-                {
-                    cpu.SolverSize = (width: w, height: h);
-                    cpu.TileSize = (width: w, height: h);
-                    cpu.ViewportOrigin = (x: 0, y: 0);
-                    cpu.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 1f, depthScale: 1f, eps: 0f);
-                });
+
+                    parameters.SolverSize = (width: w, height: h);
+                    parameters.TileSize = (width: w, height: h);
+                    parameters.ViewportOrigin = (x: 0, y: 0);
+                    parameters.PackParams = (normalStrength: cfg.NormalStrength, normalScale: 1f, depthScale: 1f, eps: 0f);
             });
 
+            // Assert: retain the flat RGB predicate and the original scaled-output witness.
             ImageAssertions.Predicates.Predicate(outAtlasFlat, MaterialPredicates.PbrHeightBakeFullChainTests_FullChain_NormalScaleZero_FlattensPackedNormalsRgb).AssertEqual();
             Assert.True(ImageAssertions.Predicates.Predicate(outAtlasFlat, MaterialPredicates.PbrHeightBakeFullChainTests_FullChain_ScaleUniforms_ChangeFinalPackedOutput_2,
                 outAtlasScaled).MatchingTexels>0,"Expected normalScale=0 vs 1 to change RGB.");
         }
     }
 
-    private (ShaderTestHelper helper, string reason) TryCreateHelper()
+    #endregion
+
+    #region Private
+    #region Pass submission
+    /// <summary>Assigns typed production parameters and executes one cleared bake pass.</summary>
+    private void RenderTo(PbrHeightBakeTestPrograms programs, DynamicTexture2D dst, PbrHeightBakeShaderProgram program, Action<PbrHeightBakeParamsUbo> setup)
     {
-        string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
-        {
-            return (null!, "Test shader assets not found in output directory.");
-        }
-
-        return (new ShaderTestHelper(), string.Empty);
-    }
-
-    private static int Compile(ShaderTestHelper helper, string vsh, string fsh)
-    {
-        var res = helper.CompileAndLink(vsh, fsh);
-        Assert.True(res.IsSuccess, res.ErrorMessage);
-        return res.ProgramId;
-    }
-
-
-    private static void UploadHeightBakeParams(ObjectParamsUbo paramsUbo, int programId, Action<HeightBakeParamsUboCpu> configure)
-    {
-        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(programId);
-
-        var cpu = new HeightBakeParamsUboCpu();
-        configure(cpu);
-
-        paramsUbo.UploadAndBind(cpu.Bytes);
-    }
-
-    private void RenderTo(DynamicTexture2D dst, int programId, Action<ObjectParamsUbo> setup)
-    {
-        using var fbo = DynamicGpuFramebuffer.CreateSingle(dst) ?? throw new InvalidOperationException("Failed to create FBO");
-        using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.HeightBake.ParamsUBO.{programId}");
-
-        fbo.Bind();
-        GL.Viewport(0, 0, dst.Width, dst.Height);
-        GL.Disable(EnableCap.Blend);
-
-        GL.ClearColor(0f, 0f, 0f, 0f);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        GL.UseProgram(programId);
-        setup(objectParamsUbo);
-
-        // Draw fullscreen geometry. The bake vertex shader uses gl_VertexID, so the quad works fine.
-        RenderFullscreenQuad();
-
-        GL.UseProgram(0);
-        GpuFramebuffer.Unbind();
+        setup(programs.Parameters);
+        programs.Draw(dst, program, clear: true);
     }
 
     /// <summary>Executes one Gaussian axis using the production block's 64-weight capacity.</summary>
-    private void RunGaussian1D(DynamicTexture2D src, DynamicTexture2D dst, int programId, float sigma, bool dirX)
+    private void RunGaussian1D(PbrHeightBakeTestPrograms programs, DynamicTexture2D src, DynamicTexture2D dst, PbrHeightBakeShaderProgram program, float sigma, bool dirX)
     {
-        int radius = (int)Math.Ceiling(3.0 * sigma);
-        radius = Math.Clamp(radius, 0, 63);
-
+        int radius = Math.Clamp((int)Math.Ceiling(3.0 * sigma), 0, 63);
         float[] weights = BuildGaussianWeights(sigma);
 
-        RenderTo(dst, programId, (paramsUbo) =>
+        RenderTo(programs, dst, program, parameters =>
         {
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)src).Target)))]);
-
-            UploadHeightBakeParams(paramsUbo, programId, (cpu) =>
-            {
-                cpu.CommonSize = (dst.Width, dst.Height);
-                cpu.GaussianDirection = (dirX ? 1 : 0, dirX ? 0 : 1);
-                cpu.GaussianParams = (radius: radius, relContrast: 0);
-                cpu.SetKernelWeights(weights, count: 64);
-            });
+            program.src = src;
+            parameters.CommonSize = (dst.Width, dst.Height);
+            parameters.GaussianDirection = (dirX ? 1 : 0, dirX ? 0 : 1);
+            parameters.GaussianParams = (radius: radius, relContrast: 0);
+            parameters.SetKernelWeights(weights, count: 64);
         });
     }
+    #endregion
 
+    #region Input and normalization helpers
     /// <summary>Normalizes the symmetric kernel within the production uniform block's fixed capacity.</summary>
     private static float[] BuildGaussianWeights(float sigma)
     {
@@ -727,14 +593,12 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         return w;
     }
 
+    /// <summary>Initializes a scalar height field through the RHI texture-clear command.</summary>
     private void ClearR32f(DynamicTexture2D tex, float value)
     {
-        using var fbo = DynamicGpuFramebuffer.CreateSingle(tex) ?? throw new InvalidOperationException("Failed to create FBO");
-        fbo.Bind();
-        GL.Viewport(0, 0, tex.Width, tex.Height);
-        GL.ClearColor(value, 0f, 0f, 0f);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-        GpuFramebuffer.Unbind();
+        Span<float> clear = stackalloc float[1] { value };
+        RHICommandContext.Current.ClearTexture(tex, new(new(), 0, 0, 0, tex.Width, tex.Height),
+            new(PixelChannelLayout.Red, PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes(clear));
     }
 
     /// <summary>Returns the mean of every original scalar through a bounded double GPU sum.</summary>
@@ -758,6 +622,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         return (invNeg, invPos);
     }
 
+    /// <summary>Builds the authored RGBA checkerboard atlas used by the bake scenarios.</summary>
     private static DynamicTexture2D CreateCheckerboardAtlas(int width, int height, int cell)
     {
         float[] data = new float[width * height * 4];
@@ -780,7 +645,9 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
         return RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = width, Height = height, Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, width, height), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba8), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()).ToArray())]).RequireResource();
     }
+    #endregion
 
+    #region Image assertions and observations
     /// <summary>Checks the original first-channel finite values and variance, retaining float products with double sums.</summary>
     private void AssertFiniteAndHasVariance(DynamicTexture2D tex, int channels, string name)
     {
@@ -806,7 +673,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         uint ones=ImageAssertions.Predicates.Predicate(image, MaterialPredicates.PbrHeightBakeFullChainTests_AlphaStats).MatchingTexels;
         return ((float)observation.Minimum,(float)observation.Maximum,(int)observation.NonFinite,(int)ones);
     }
-    #region Private
     /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
     private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
     {
@@ -816,5 +682,6 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         programs.Prepare("projection-observation", 0, 0);
         programs.Prepare("statistics", 0, 0);
     }
+    #endregion
     #endregion
 }

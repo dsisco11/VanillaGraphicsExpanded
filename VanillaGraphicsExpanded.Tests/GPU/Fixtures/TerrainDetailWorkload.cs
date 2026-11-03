@@ -53,6 +53,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
     private PrimitiveType topology;
     private readonly int oldPatch=OpenGlStateCache.Current.PatchVertices;
 
+    #region Public API
     #region Resource ownership and draws
     /// <summary>Creates static stage variants and identical render inputs before warmup begins.</summary>
     internal TerrainDetailWorkload(bool depthBias = false, bool observeClipDelta = false)
@@ -76,7 +77,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
                 """;
         }
         int vs=shaders.Compile(ShaderType.VertexShader,source),fs=shaders.Compile(ShaderType.FragmentShader,fragment);
-        programs.Add("triangles",GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vs,fs)));
+        programs.Add("triangles",TerrainShaderTestFixture.Link(vs,fs));
         {
             var stages = TerrainTessellationTestAssets.Generate(source,depthBias);
             if (observeClipDelta)
@@ -88,8 +89,9 @@ internal sealed class TerrainDetailWorkload : IDisposable
                     """).Commit();
                 stages = stages with { Evaluation = tree.ToText() };
             }
-            Assert.True(TerrainShaderTestFixture.LinkTessellation(vs,fs,stages,TerrainTessellationPatches.EnabledDefine,out int id,out string error),error);
-            programs.Add("adaptive",GpuProgramObject.Adopt(id));
+            var adaptive = TerrainShaderTestFixture.LinkTessellation(vs,fs,stages,TerrainTessellationPatches.EnabledDefine,out string error);
+            Assert.True(adaptive is not null, error);
+            programs.Add("adaptive", adaptive!);
         }
         string includes=Path.Combine(AppContext.BaseDirectory,"assets","shaders","includes");
         foreach(bool relief in new[]{false,true})
@@ -100,7 +102,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
 
                 void main(){vec2 uv=gl_FragCoord.xy/256.0;vec3 p=vec3(uv-vec2(.5)+vec2(1,0),-2);result=vec4(VgeApplyPomUv_WithTbn(uv,mat3(1),1,p,vec2(0),vec2(1)),0,1);}
                 """;
-            programs.Add(relief?"relief":"reliefOff",GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vs,shaders.Compile(ShaderType.FragmentShader,reliefFragment))));
+            programs.Add(relief?"relief":"reliefOff",TerrainShaderTestFixture.Link(vs,shaders.Compile(ShaderType.FragmentShader,reliefFragment)));
         }
         var indices=framework.CreateTexture(64,64,TextureFormat.R32f,Enumerable.Repeat(1f,4096).ToArray());resources.Add(indices);
         var records=framework.CreateTexture(2,1,TextureFormat.Rgba32f,[0,0,1,1,.04f,0,0,0]);resources.Add(records);
@@ -123,16 +125,16 @@ internal sealed class TerrainDetailWorkload : IDisposable
         Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
         GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.CullFace);GL.Disable(EnableCap.Blend);
         var layout=GpuProgramLayout.TryBuild(id);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),0);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_normalDepthTex"),1);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementRecords"),2);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementEnabled"),eligible && mode != "adaptiveDisabled"?1:0);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementReactive"),reactive?1:0);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationPixels"),8f,8f);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationFocalPixels"),256f);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_tessellationDistance"),mode=="adaptiveFaded"?0f:10f,mode=="adaptiveFaded"?.1f:20f);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(id,"vge_displacementTex"),0);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(id,"vge_normalDepthTex"),1);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(id,"vge_displacementRecords"),2);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(id,"vge_displacementEnabled"),eligible && mode != "adaptiveDisabled"?1:0);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(id,"vge_displacementReactive"),reactive?1:0);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(id,"vge_tessellationPixels"),8f,8f);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(id,"vge_tessellationFocalPixels"),256f);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(id,"vge_tessellationDistance"),mode=="adaptiveFaded"?0f:10f,mode=="adaptiveFaded"?.1f:20f);
         float[] identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
-        ShaderTestFramework.SetUniformMatrix4(layout.GetUniformLocation(id,"modelViewMatrix"),identity);
+        ShaderTestFramework.SetNativeUniformMatrix4(layout.GetUniformLocation(id,"modelViewMatrix"),identity);
     }
 
     /// <summary>Submits sixteen identical faces without readback or per-draw resource mutation.</summary>
@@ -146,5 +148,6 @@ internal sealed class TerrainDetailWorkload : IDisposable
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0);OpenGlStateCache.Current.SetPatchVertices(oldPatch);
         foreach(var resource in resources)resource.Dispose();foreach(var program in programs.Values)program.Dispose();vao.Dispose();shaders.Dispose();framework.Dispose();
     }
+    #endregion
     #endregion
 }

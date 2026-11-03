@@ -54,7 +54,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
             Set(program, "positionRadius", radius); Set(program, "cloudsLength", 1000);
             Set(program, "cloudBrightness", brightness); Set(program, "globalCloudBrightness", global);
             Set(program, "undulatingModeness", mode); Set(program, "noiseValue", noise); Set(program, "windWaveCounter", animation);
-            framework.RenderQuadTo(program.ProgramId, target);
+            framework.RenderNativeReferenceQuadTo(program.ProgramId, target);
             Assert.All(target[0].ReadPixels()[..3], value => Assert.InRange(value, 0, bound));
         }
     }
@@ -105,7 +105,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
             float bound = SceneColorCompatibilityBounds.CubeParticles(new(1, 3, 2), night, 4, 1, 3, 6, 7, pointBounds, 0, 1);
             Set(program, "nightVisionStrength", night); Set(program, "sunField", sun); Set(program, "blockField", block);
             Set(program, "fixtureFog", fog); Set(program, "fixtureMurk", murk);
-            framework.RenderQuadTo(program.ProgramId, target);
+            framework.RenderNativeReferenceQuadTo(program.ProgramId, target);
             float[] actual = target[0].ReadPixels();
             Assert.All(actual[..3], value => Assert.InRange(value, 0, bound)); peak = Math.Max(peak, actual[..3].Max());
         }
@@ -141,7 +141,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
         {
             Set(program, "glowAlpha", glow); Set(program, "fogAmountf", fogAmount); Set(program, "fixtureMurk", murk);
             Set(program, "psychedelicStrength", 2); Set(program, "windWaveCounter", animation);
-            framework.RenderQuadTo(program.ProgramId, target);
+            framework.RenderNativeReferenceQuadTo(program.ProgramId, target);
             Assert.All(target[0].ReadPixels()[..3], value => Assert.InRange(value, 0, bound));
         }
     }
@@ -173,7 +173,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
         foreach (float distance in new[] { 0f, 1f, 10f, 100f })
         {
             GL.ProgramUniform3(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "samplePosition"), distance, 0f, 0f);
-            framework.RenderQuadTo(program.ProgramId, target);
+            framework.RenderNativeReferenceQuadTo(program.ProgramId, target);
             float[] actual = target[0].ReadPixels();
             Assert.All(actual[..3], value => Assert.InRange(value, 0, map ? bounds.CloudMapMaximum : bounds.CloudMaximum));
             Assert.True(actual[1] > 0);
@@ -212,7 +212,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
             Set(program, "cloudBrightness", brightness); Set(program, "undulatingModeness", undulation);
             Set(program, "noiseValue", noise); Set(program, "globalCloudBrightness", global);
             Set(program, "fogValue", fog); Set(program, "glowAlpha", glow); Set(program, "nightVisionStrength", 2);
-            framework.RenderQuadTo(program.ProgramId, target);
+            framework.RenderNativeReferenceQuadTo(program.ProgramId, target);
             float[] actual = target[0].ReadPixels();
             Assert.All(actual[..3], value => Assert.InRange(value, 0, bound));
             Assert.Equal(1, actual[3]); peak = Math.Max(peak, actual[..3].Max());
@@ -236,7 +236,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
         float bound = SceneColorCompatibilityBounds.Moon(0, 1, 6, 3, 7, nonlinear != 0, 0, 1);
         foreach (float murk in new[] { 0f, .5f, 1f })
         {
-            Set(program, "fixtureMurk", murk); framework.RenderQuadTo(program.ProgramId, target);
+            Set(program, "fixtureMurk", murk); framework.RenderNativeReferenceQuadTo(program.ProgramId, target);
             float[] actual = target[0].ReadPixels();
             Assert.All(actual[..3], value => Assert.InRange(value, 0, bound));
             Assert.True(actual[0] > 32);

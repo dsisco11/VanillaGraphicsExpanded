@@ -13,6 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class EngineShaderDebugLabelsTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+    #region Public API
     #region Label lifecycle
     /// <summary>Names each stage and each replacement executable using engine pass metadata.</summary>
     [Theory]
@@ -27,7 +28,7 @@ public sealed class EngineShaderDebugLabelsTests(HeadlessGLFixture fixture) : Re
         {
             int vertex = binaries.Load(ShaderType.VertexShader, shader + ".vsh");
             int fragment = binaries.Load(ShaderType.FragmentShader, shader + ".fsh");
-            using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+            using var program = TerrainShaderTestFixture.Link(vertex, fragment);
             previous = program.ProgramId;
             // Borrow live binary handles without transferring ownership to this engine metadata object.
             var engine = new ShaderProgram
@@ -54,12 +55,16 @@ public sealed class EngineShaderDebugLabelsTests(HeadlessGLFixture fixture) : Re
         }
     }
 
+    #endregion
+
+    #region Private
     /// <summary>Reads the driver label to verify the abstraction reached the actual GL object.</summary>
     private static string Label(ObjectLabelIdentifier kind, int id)
     {
         GL.GetObjectLabel(kind, id, 512, out _, out string label);
         return label;
     }
+    #endregion
     #endregion
 
 }

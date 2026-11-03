@@ -4,6 +4,8 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -179,16 +181,19 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
             using var measuredTarget=CreateMRTRenderTarget(size/2,size/2,TextureFormat.Rgba16f,TextureFormat.Rgba32f);
             measuredColor.UploadDataImmediate(Enumerable.Range(0,size*size).SelectMany(_=>new[] {8f,2f,1f,1f}).ToArray());
             program.SourceColor=measuredColor; program.SourceDepth=measuredDepth;
-            using var vao=NativeResourceSetup.CreateVertexArray("Test.WaterReduction.Measurement");
             using var vertices=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterReduction.Vertices" }).RequireResource();
             using var indices=RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterReduction.Indices" }).RequireResource();
-            using var geometry=OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
             indices.UploadIndices(new uint[] {0,1,2});
-            using(OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
-            {
-                vertices.UploadData(new float[] {-1,-1,0,3,-1,0,-1,3,0});
-                using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(0,3,VertexAttribPointerType.Float,false,12,0);
-            }
+            vertices.UploadData(new float[] {-1,-1,0,3,-1,0,-1,3,0});
+            var geometry = new RHIGeometryInputs(
+                new([new(0,3,VertexComponentFormat.Float,VertexInterpretation.Floating,0,0,12)]),
+                [new(0,new(vertices,0,vertices.SizeBytes),12)],
+                new(new(indices,0,indices.SizeBytes),IndexFormat.UnsignedInt));
+            var commands = RHICommandContext.Current;
+            var measuredPass = FramebufferTestSetup.DescribeAttachments(measuredTarget,
+                [new(AttachmentIndex:0,Load:AttachmentLoad.Preserve),new(AttachmentIndex:1,Load:AttachmentLoad.Preserve)]);
+            using var pipeline = commands.CreateGraphicsPipeline(new(program.Shader,geometry.Layout,
+                commands.DescribeRenderTargets(measuredPass),DynamicPipelineState.Viewport)).RequireResource();
             output.WriteLine($"reduction-device renderer={GL.GetString(StringName.Renderer)} version={GL.GetString(StringName.Version)}");
             foreach(string workload in new[] {"invalid","descending","ascending","mixed"})
             {
@@ -201,20 +206,25 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
                 }
                 measuredDepth.UploadDataImmediate(measuredDepths);
                 TestFramework.RenderQuadTo(program,measuredTarget);
-                FramebufferTestSetup.BindForEngineRendering(measuredTarget);
-                using var activation = ShaderBindingTestPipeline.Create(program);
-        RHICommandContext.Current.SetPipeline(activation);
-        RHICommandContext.Current.BindResources(program.CaptureBindings());
-                using var measuredGeometry=OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
-                for(int sample=-5;sample<10;sample++)
+                using var boundary = commands.EnterBoundary(new("Tests.WaterReduction.Measurement",true,
+                    graphics:[pipeline],operations:BoundaryOperations.RenderPasses));
+                boundary.Run(() =>
                 {
-                    using var elapsed=GpuTimerQuery.Create();
-                    elapsed.Begin();
-                    for(int draw=0;draw<128;draw++) GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
-                    elapsed.End();
-                    double milliseconds=elapsed.GetResultNanoseconds()/1e6;
-                    if(sample>=0) output.WriteLine($"reduction-cost workload={workload} sample={sample} gpuMs={milliseconds:R} source=512x512 draws=128");
-                }
+                    commands.BeginRenderPass(measuredPass);
+                    commands.SetPipeline(pipeline);
+                    commands.SetDynamicState(new(){Viewport=commands.PassViewport});
+                    commands.BindResources(program.CaptureBindings());
+                    for(int sample=-5;sample<10;sample++)
+                    {
+                        using var elapsed=GpuTimerQuery.Create();
+                        elapsed.Begin();
+                        for(int draw=0;draw<128;draw++) commands.DrawIndexed(geometry,new(0,indices.IndexCount));
+                        elapsed.End();
+                        double milliseconds=elapsed.GetResultNanoseconds()/1e6;
+                        if(sample>=0) output.WriteLine($"reduction-cost workload={workload} sample={sample} gpuMs={milliseconds:R} source=512x512 draws=128");
+                    }
+                    commands.EndRenderPass();
+                });
                 float[] validity=measuredTarget[1].ReadPixels();
                 int valid=Enumerable.Range(0,size*size/4).Count(pixel=>validity[pixel*4+3]==1);
                 Assert.Equal(workload=="invalid"?0:workload=="mixed"?size*size/8:size*size/4,valid);

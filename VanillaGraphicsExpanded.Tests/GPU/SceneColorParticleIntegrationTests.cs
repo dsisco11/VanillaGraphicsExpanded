@@ -82,7 +82,7 @@ public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture
         using var shaders = new TerrainShaderTestFixture();
         int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
         int fragment = shaders.Load(ShaderType.FragmentShader, "tests/particle-integration.fsh");
-        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        using var program = TerrainShaderTestFixture.Link(vertex, fragment);
         using var vao = NativeResourceSetup.CreateVertexArray();
         try
         {

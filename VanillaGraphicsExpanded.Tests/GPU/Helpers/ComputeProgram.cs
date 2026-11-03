@@ -3,11 +3,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
-using System.Collections.Concurrent;
 using System.IO;
-using System.Text.RegularExpressions;
-
-using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
 
@@ -18,39 +14,24 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 /// <summary>Loads built SPIR-V compute assets and owns their test program lifetime.</summary>
 public sealed class ComputeProgram : IDisposable
 {
-    private static readonly ConcurrentDictionary<int, string> ProgramIdToShaderFile = new();
-
-    private int _programId;
     private ComputeShaderAsset? _pipeline;
     private bool _disposed;
 
-    public string ShaderFile { get; }
+    #region Public API
 
-    public int ProgramId => _programId;
-
-    /// <summary>Retains the loaded pipeline and its uniform lookup identity.</summary>
-    private ComputeProgram(ComputeShaderAsset pipeline, string shaderFile)
-    {
-        _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
-        _programId = pipeline.ProgramId;
-        ShaderFile = shaderFile;
-        TestShaderInterfaces.TrackProgram(_programId, pipeline.ProgramLayout.BinaryInterface!);
-        ProgramIdToShaderFile[_programId] = shaderFile;
-    }
+    /// <summary>Gets the native identity while retaining ownership through the compute asset.</summary>
+    public int ProgramId => _pipeline?.ProgramId ?? 0;
 
     /// <summary>Loads the required build output, failing instead of falling back to runtime GLSL compilation.</summary>
     public static ComputeProgram Create(
-        ShaderTestHelper helper,
         string programIdentity,
         string? debugName = null,
         GpuProgramLayout? layout = null,
         Action<string>? layoutWarn = null)
     {
-        ArgumentNullException.ThrowIfNull(helper);
         ArgumentException.ThrowIfNullOrWhiteSpace(programIdentity);
         var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram(programIdentity));
         var selected = new ShaderLoadPlan(settings).Stages.Single();
-        string computeShaderFile = selected.Stage.Source;
 
         string spvPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", selected.BinaryPath);
 
@@ -70,16 +51,10 @@ public sealed class ComputeProgram : IDisposable
 
 
 
-        return new ComputeProgram(pipeline, computeShaderFile);
+        return new ComputeProgram(pipeline);
     }
 
-    /// <summary>Uses the built binary contract rather than source-text layout guesses.</summary>
-    public static bool TryGetExplicitUniformLocation(int programId, string uniformName, out int location)
-    {
-        location = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, uniformName);
-        return location >= 0;
-    }
-    /// <summary>Releases the program and its numeric resource metadata.</summary>
+    /// <summary>Releases the program through its retained production asset owner.</summary>
     public void Dispose()
     {
         if (_disposed)
@@ -89,23 +64,18 @@ public sealed class ComputeProgram : IDisposable
 
         _disposed = true;
 
-        if (_pipeline is not null)
-        {
-            TestShaderInterfaces.ForgetProgram(_programId);
-            _pipeline.Dispose();
-            _pipeline = null;
-
-            ProgramIdToShaderFile.TryRemove(_programId, out _);
-            _programId = 0;
-            return;
-        }
-
-        if (_programId != 0)
-        {
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(_programId);
-
-            ProgramIdToShaderFile.TryRemove(_programId, out _);
-            _programId = 0;
-        }
+        _pipeline?.Dispose();
+        _pipeline = null;
     }
+
+    #endregion
+
+    #region Private
+
+    /// <summary>Retains the loaded pipeline as the sole owner of the native compute program.</summary>
+    private ComputeProgram(ComputeShaderAsset pipeline)
+    {
+        _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+    }
+    #endregion
 }

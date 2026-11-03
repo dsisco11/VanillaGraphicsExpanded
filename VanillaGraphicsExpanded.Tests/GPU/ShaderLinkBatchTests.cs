@@ -4,6 +4,8 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
@@ -21,6 +23,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
     private const string Graphics = "tests/render_infrastructure";
     private const string Compute = "tests/GpuUniformRingBufferIntegrationTests_1";
 
+    #region Public API
     #region Completion and fallback
     /// <summary>Both owners consume submitted candidates and refill without exceeding the configured window.</summary>
     [Theory]
@@ -52,18 +55,27 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
             byte[] data = new byte[16];
             System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(data, 123);
             var allocation = ring.AllocateAndWrite(data);
-            allocation.Buffer.BindRange(0, allocation.OffsetBytes, allocation.SizeBytes);
-            GL.BindImageTexture(0, texture.TextureId, 0, true, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba32ui);
-            GL.UseProgram(pipeline.ProgramId);
-            GL.DispatchCompute(1, 1, 1);
-            GL.MemoryBarrier(MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.ShaderImageAccessBarrierBit);
+            var commands = RHICommandContext.Current;
+            using (var boundary = commands.EnterBoundary(new("Tests.ShaderLinkBatch.ComputeOutput", true,
+                compute: [pipeline.Pipeline])))
+            {
+                boundary.Run(() =>
+                {
+                    commands.SetPipeline(pipeline.Pipeline);
+                    commands.BindResources(new(pipeline.Shader,
+                        images: [new RHIImageInput(GpuBindingEntry.Identity(ShaderBindingKind.Image, "outImg"),
+                            new RHIImageBinding(texture, ImageAccess.WriteOnly, Layered: true, Format: TextureFormat.Rgba32ui))],
+                        buffers: [new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock, "TestParams"),
+                            BufferRole.Uniform, allocation.Buffer, allocation.OffsetBytes, allocation.SizeBytes, Whole: false)]));
+                    commands.Dispatch(new(1));
+                    commands.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureUpdate));
+                });
+            }
             uint[] actual = new uint[4];
             GL.BindTexture(TextureTarget.Texture3D, texture.TextureId);
             GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RgbaInteger, PixelType.UnsignedInt, actual);
             Assert.Equal(123u, actual[0]);
-            GL.UseProgram(0);
             GL.BindTexture(TextureTarget.Texture3D, 0);
-            GL.BindImageTexture(0, 0, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba32ui);
         }
         Assert.Equal(enabled ? 1 : 0, batch.Outstanding);
         int old = program.ProgramId;
@@ -74,11 +86,9 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         Assert.Equal(enabled ? 2 : 0, batch.PeakOutstanding);
 #endif
         using var target = CreateRenderTarget(8, 8, TextureFormat.Rgba32f);
-        FramebufferTestSetup.BindForEngineRendering(target);
-        RenderFullscreenQuad(program.ProgramId);
+        SubmitCacheOutput(program, target);
         var pixel = ReadPixel(target, 4, 4);
         Assert.InRange(pixel.R, .55f, .58f);
-        GL.UseProgram(0);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -457,20 +467,50 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
             {
                 double loaded = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
                 long use = System.Diagnostics.Stopwatch.GetTimestamp();
-                FramebufferTestSetup.BindForEngineRendering(target);
-                RenderFullscreenQuad(first.ProgramId);
-                RenderFullscreenQuad(second.ProgramId);
-                GL.Finish();
+                SubmitCacheOutput(first, target);
+                SubmitCacheOutput(second, target);
+                RHICommandContext.Current.WaitIdle();
                 double firstUse = System.Diagnostics.Stopwatch.GetElapsedTime(use).TotalMilliseconds;
-                GL.UseProgram(0);
 #if DEBUG
-                output.WriteLine($"Mode={(disable ? "sync" : "batch")}, enabled={batch.Enabled}, count=4, submit={submitted:F3} ms, load={loaded:F3} ms, completion={batch.CompletionMilliseconds:F3} ms, first two draws+finish={firstUse:F3} ms, total={loaded + firstUse:F3} ms");
+                output.WriteLine($"Mode={(disable ? "sync" : "batch")}, enabled={batch.Enabled}, count=4, submit={submitted:F3} ms, load={loaded:F3} ms, completion={batch.CompletionMilliseconds:F3} ms, first two RHI output submissions+wait={firstUse:F3} ms, total={loaded + firstUse:F3} ms");
 #endif
             }
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion
+    #endregion
+    #region Private
+    /// <summary>Submits the cache fixture through its declared position and UV attributes using the production command context.</summary>
+    private static void SubmitCacheOutput(FixtureProgram program, GpuFramebuffer target)
+    {
+        var commands = RHICommandContext.Current;
+        var layout = new RHIVertexLayout([
+            new(0, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 16),
+            new(1, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 8, 16)]);
+        using var vertices = commands.CreateVertexBuffer(new() { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable,
+            Capacity = 96, Usage = BufferUsage.StaticDraw }).RequireResource();
+        vertices.UploadData<float>([
+            -1, -1, 0, 0, 1, -1, 1, 0, 1, 1, 1, 1,
+            -1, -1, 0, 0, 1, 1, 1, 1, -1, 1, 0, 1]);
+        var geometry = new RHIGeometryInputs(layout, [new(0, new(vertices, 0, vertices.SizeBytes), 16)]);
+        var pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: 0, Load: AttachmentLoad.Preserve)]);
+        using var pipeline = commands.CreateGraphicsPipeline(new(program.Shader, layout,
+            commands.DescribeRenderTargets(pass), DynamicPipelineState.Viewport)).RequireResource();
+        using var boundary = commands.EnterBoundary(new("Tests.ShaderLinkBatch.Output", true,
+            graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+        boundary.Run(() =>
+        {
+            commands.BeginRenderPass(pass);
+            commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.BindResources(program.CaptureBindings());
+            commands.Draw(geometry, new(0, 6));
+            commands.EndRenderPass();
+        });
+    }
+    #endregion
+
     #region Fixture declarations
     /// <summary>Captures immutable defaults for the declared binary variant.</summary>
     private static ShaderSettings Settings(string identity) => new(GpuShaderContracts.Registry.FindProgram(identity));

@@ -222,7 +222,7 @@ Physical uniform storage and successful history are committed only when publicat
 
 | Boundary | Current responsibility |
 | --- | --- |
-| `GpuProgramInterface.Uniforms` / diagnostic location projections | Recorded preparation metadata and raw-handle fixtures; no inherited engine uniform dictionary. |
+| `GpuProgramInterface.Uniforms` / diagnostic location projections | Recorded preparation metadata and explicit native integration witnesses; no inherited engine uniform dictionary. |
 | `GpuProgramLayout` resource lookup | Supplied metadata, diagnostics and fixed active-binding identities. |
 | `GpuProgramLayout.ApplyUniformUnitContract` | Explicit preparation of externally owned engine programs, including atmosphere sampler assignments. Generated owned contracts bypass this native integration path. |
 | `LiquidPoolInputAdapter` / `ILiquidPoolInputs` | Engine origin/model-view/transparency inputs copy into the existing visible/depth UBO owners without executable ownership. |
@@ -250,5 +250,9 @@ effects independently of resource compatibility preparation. See [recorded owner
 
 Prepared-binding, generated-input, uniform-lifetime, RHI shader/pipeline/recording and engine-boundary tests
 cover these contracts against supplied metadata and headless output/state checks. Exact adapter tests
-preserve signature and native effects. Test receipts and qualification limits belong to the implementation
+preserve signature and native effects. Ordinary renderer tests retain production shader owners and submit
+typed inputs through the RHI. Declared numerical probes isolate helper quantities unavailable from composed
+renderer outputs and retain independent reference calculations. Native reference draws and lifecycle
+subjects keep their explicit native operations and original ownership boundaries.
+Test receipts and qualification limits belong to the implementation
 checklists; headless checks do not establish installed-game appearance or performance.

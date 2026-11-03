@@ -3,6 +3,11 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using TinyTokenizer.Ast;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.Materials.Energy;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -13,6 +18,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
 {
+    #region Public API
     /// <summary>Uses the shared context without loading a game process.</summary>
     public PbrTerrainCaptureGpuTests(HeadlessGLFixture fixture) : base(fixture) { }
 
@@ -57,7 +63,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             using var framework = new ShaderTestFramework();
             using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
-            framework.RenderQuadTo(program, output);
+            framework.RenderNativeReferenceQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
             float[] expected = [Linear(.2f), Linear(.4f), Linear(.8f), 1f];
             for (int channel = 0; channel < 4; channel++) Assert.InRange(actual[channel], expected[channel] - .00001f, expected[channel] + .00001f);
@@ -80,25 +86,15 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     public void SurfaceNormalUsesGeometryForTransmissionOrLegacyUp(bool twoSided, bool smooth, bool back, float transmission, float x, float y, float z)
     {
         EnsureContextValid();
-        int program = BuiltShaderFixture.LoadFixtureProgram("tests/normal-input.vsh", "tests/normal-input.fsh");
-        try
-        {
-            GL.UseProgram(program);
-            using var inputs = new FixtureUniformInputs(16);
-            inputs.Float(0, transmission);
-            inputs.Integer(4, twoSided ? 1 : 0);
-            inputs.Integer(8, smooth ? 1 : 0);
-            inputs.Integer(12, back ? 1 : 0);
-            inputs.Publish();
-            using var framework = new ShaderTestFramework();
-            using var output = framework.CreateTestGBuffer(4, 4, TextureFormat.Rgba32f);
-            framework.RenderQuadTo(program, output);
-            float[] actual = VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuLocalRead.Tuple(output[0],0,0);
-            float[] expected = [x, y, z, 1];
-            for (int channel = 0; channel < 4; channel++)
-                Assert.InRange(actual[channel], expected[channel] - .00001f, expected[channel] + .00001f);
-        }
-        finally { GL.DeleteProgram(program); }
+        using var programs = new ComponentShaderPrograms();
+        var program = programs.Create<TerrainNormalInputProgram>(shader => shader.Capture(transmission, twoSided, smooth, back));
+        using var framework = new ShaderTestFramework();
+        using var output = framework.CreateTestGBuffer(4, 4, TextureFormat.Rgba32f);
+        RenderDeclaredInputs(program, output);
+        float[] actual = VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuLocalRead.Tuple(output[0],0,0);
+        float[] expected = [x, y, z, 1];
+        for (int channel = 0; channel < 4; channel++)
+            Assert.InRange(actual[channel], expected[channel] - .00001f, expected[channel] + .00001f);
     }
     #endregion
 
@@ -113,29 +109,25 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     public void TransmissionRespectsVisibilityAndAngles(float visibility, bool frontLit, bool sideView, float factor)
     {
         EnsureContextValid();
-        int program = BuiltShaderFixture.LoadFixtureProgram("tests/numerical-quad.vsh", "tests/foliage-transmission.fsh");
-        try
+        using var programs = new ComponentShaderPrograms();
+        var program = programs.Create<FoliageTransmissionInputProgram>(shader =>
         {
-            GL.UseProgram(program);
-            using var inputs = new FixtureUniformInputs(48);
-            inputs.Float(0, visibility);
-            inputs.Vector(16, 0f, 0f, frontLit ? 1f : -1f);
-            inputs.Vector(32, sideView ? 1f : 0f, 0f, sideView ? 0f : 1f);
-            inputs.Publish();
-            using var framework = new ShaderTestFramework();
-            using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
-            framework.RenderQuadTo(program, output);
-            float[] actual = VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuLocalRead.Tuple(output[0],0,0);
-            float[] tint = [.2f, .8f, .1f];
-            for (int channel = 0; channel < 3; channel++)
-            {
-                var energy = PBR.Materials.Energy.MicrofacetEnergyTable.Shared.Sample(.8f,sideView ? 0 : 1);
-                float remaining=1-PBR.Materials.Energy.MicrofacetEnergyTable.Reflectance(energy,new(.04f)).X;
-                float expected = tint[channel] * .5f * factor * remaining / MathF.PI;
-                Assert.InRange(actual[channel], expected - .00001f, expected + .00001f);
-            }
+            shader.EnergyLookup = MicrofacetEnergyLookup.Prepare();
+            shader.EnergySampler = GpuSamplers.LinearClamp;
+            shader.Capture(visibility, frontLit, sideView);
+        });
+        using var framework = new ShaderTestFramework();
+        using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
+        RenderDeclaredInputs(program, output);
+        float[] actual = VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuLocalRead.Tuple(output[0],0,0);
+        float[] tint = [.2f, .8f, .1f];
+        for (int channel = 0; channel < 3; channel++)
+        {
+            var energy = PBR.Materials.Energy.MicrofacetEnergyTable.Shared.Sample(.8f,sideView ? 0 : 1);
+            float remaining=1-PBR.Materials.Energy.MicrofacetEnergyTable.Reflectance(energy,new(.04f)).X;
+            float expected = tint[channel] * .5f * factor * remaining / MathF.PI;
+            Assert.InRange(actual[channel], expected - .00001f, expected + .00001f);
         }
-        finally { GL.DeleteProgram(program); }
     }
     #endregion
 
@@ -149,29 +141,55 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     public void LiquidOpticsRemainBounded(float cosine, bool underwater, float reflection, float missingThickness)
     {
         EnsureContextValid();
-        int program = BuiltShaderFixture.LoadFixtureProgram("tests/numerical-quad.vsh", "tests/liquid-interface.fsh");
-        try
-        {
-            GL.UseProgram(program);
-            using var inputs = new FixtureUniformInputs(16);
-            inputs.Float(0, cosine);
-            inputs.Integer(4, underwater ? 1 : 0);
-            inputs.Publish();
-            using var framework = new ShaderTestFramework();
-            using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
-            framework.RenderQuadTo(program, output);
-            float[] actual = VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuLocalRead.Tuple(output[0],0,0);
-            Assert.InRange(actual[0], reflection - .00001f, reflection + .00001f);
-            Assert.Equal(missingThickness, actual[1]);
-            Assert.Equal(0f, actual[2]);
-            if (underwater) Assert.Equal(0f, actual[3]);
-            else Assert.InRange(actual[3], .19f, .21f);
-        }
-        finally { GL.DeleteProgram(program); }
+        using var programs = new ComponentShaderPrograms();
+        var program = programs.Create<LiquidInterfaceInputProgram>(shader => shader.Capture(cosine, underwater));
+        using var framework = new ShaderTestFramework();
+        using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
+        RenderDeclaredInputs(program, output);
+        float[] actual = VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuLocalRead.Tuple(output[0],0,0);
+        Assert.InRange(actual[0], reflection - .00001f, reflection + .00001f);
+        Assert.Equal(missingThickness, actual[1]);
+        Assert.Equal(0f, actual[2]);
+        if (underwater) Assert.Equal(0f, actual[3]);
+        else Assert.InRange(actual[3], .19f, .21f);
     }
     #endregion
 
+    #endregion
+
+    #region Private
     #region Runtime GLSL validation
+    /// <summary>Submits the declared fixture over the original oversized triangle through an explicit RHI pass.</summary>
+    private static void RenderDeclaredInputs(GpuProgram program, GpuFramebuffer output)
+    {
+        var commands = RHICommandContext.Current;
+        var layout = new RHIVertexLayout([
+            new(0, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 8)]);
+        using var positions = commands.CreateVertexBuffer(new RHIBufferDescription
+        {
+            Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 24, Usage = BufferUsage.StaticDraw,
+            Label = "Tests.PbrTerrainCapture.Positions"
+        }).RequireResource();
+        positions.UploadData(new float[] { -1, -1, 3, -1, -1, 3 });
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles,
+            new Dictionary<int, GpuVbo> { [0] = positions });
+        var pass = FramebufferTestSetup.DescribeAttachments(output,
+            [new(AttachmentIndex: 0, Load: AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))]);
+        using var pipeline = commands.CreateGraphicsPipeline(new(program.Shader, layout,
+            commands.DescribeRenderTargets(pass), DynamicPipelineState.Viewport)).RequireResource();
+        using var boundary = commands.EnterBoundary(new("Tests.PbrTerrainCapture.Numerical", true,
+            graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+        boundary.Run(() =>
+        {
+            commands.BeginRenderPass(pass);
+            commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.BindResources(program.CaptureBindings());
+            commands.Draw(geometry.Inputs, new(0, 3));
+            commands.EndRenderPass();
+        });
+    }
+
     /// <summary>Compiles actual transformed text and reports driver diagnostics on lexical or interface errors.</summary>
     private static int Compile(ShaderType type, string source)
     {
@@ -187,5 +205,6 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
 
     /// <summary>Evaluates the material's specified transfer function independently.</summary>
     private static float Linear(float value) => value <= .04045f ? value / 12.92f : MathF.Pow((value + .055f) / 1.055f, 2.4f);
+    #endregion
     #endregion
 }

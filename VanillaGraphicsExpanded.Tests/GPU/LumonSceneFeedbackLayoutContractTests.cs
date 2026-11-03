@@ -13,14 +13,14 @@ public sealed class LumonSceneFeedbackLayoutContractTests : RenderTestBase
     /// <summary>Uses the shared GPU context.</summary>
     public LumonSceneFeedbackLayoutContractTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    #region Public API
     #region Compiled binding contracts
     /// <summary>Requires the mark program's parameters, input samplers and output image.</summary>
     [Fact]
     public void FeedbackMarkPages_SpirvPath_ExposesExpectedBindings()
     {
         EnsureContextValid();
-        using var helper = CreateShaderHelper();
-        using var program = ComputeProgram.Create(helper, "lumonscene_feedback_mark_pages");
+        using var program = ComputeProgram.Create("lumonscene_feedback_mark_pages");
         AssertBuffer(program.ProgramId, ProgramInterface.UniformBlock, GpuBindingRegistry.Ubo.Object, 16);
         AssertTexture(program.ProgramId, ActiveUniformType.UnsignedIntSampler2D, 0);
         AssertTexture(program.ProgramId, ActiveUniformType.UnsignedIntSampler2D, 1);
@@ -32,8 +32,7 @@ public sealed class LumonSceneFeedbackLayoutContractTests : RenderTestBase
     public void FeedbackCompactPages_SpirvPath_ExposesExpectedBindings()
     {
         EnsureContextValid();
-        using var helper = CreateShaderHelper();
-        using var program = ComputeProgram.Create(helper, "lumonscene_feedback_compact_pages");
+        using var program = ComputeProgram.Create("lumonscene_feedback_compact_pages");
         AssertBuffer(program.ProgramId, ProgramInterface.UniformBlock, GpuBindingRegistry.Ubo.Object, 16);
         AssertBuffer(program.ProgramId, ProgramInterface.ShaderStorageBlock, 0);
         AssertTexture(program.ProgramId, ActiveUniformType.UnsignedIntSampler2DArray, 0);
@@ -41,10 +40,10 @@ public sealed class LumonSceneFeedbackLayoutContractTests : RenderTestBase
     }
     #endregion
 
-    #region Resource inspection
-    /// <summary>Constructs the asset context; missing build output is a failure.</summary>
-    private static ShaderTestHelper CreateShaderHelper() => new();
+    #endregion
 
+    #region Private
+    #region Resource inspection
     /// <summary>Finds an active buffer by its baked binding and checks parameter size when specified.</summary>
     private static void AssertBuffer(int program, ProgramInterface kind, int binding, int? size = null)
     {
@@ -78,5 +77,6 @@ public sealed class LumonSceneFeedbackLayoutContractTests : RenderTestBase
         }
         Assert.Fail($"Missing {type} at unit {unit}.");
     }
+    #endregion
     #endregion
 }

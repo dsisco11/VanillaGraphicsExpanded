@@ -1,9 +1,8 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
-using System.Text.RegularExpressions;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
+using VanillaGraphicsExpanded.PBR.Materials.Energy;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -122,55 +121,32 @@ public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOn
     {
         EnsureShaderTestAvailable();
         var freeze=Programs.CreateCompute(FrameLightingShaderProgram.Create);
+        var probe=Programs.Create<FrameLightingGrazingProbeProgram>();
         using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.HighlightContainment" }).RequireResource();
         output.Allocate(32);freeze.Output=output;
-        string directory=Path.Combine(AppContext.BaseDirectory,"assets/shaders/includes");
-        string vertex="#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}";
-        string source="#version 330 core\n"+Expand(Path.Combine(directory,"pbr_scene_storage.glsl"))
-            +Expand(Path.Combine(directory,"pbr_common.glsl"))+Expand(Path.Combine(directory,"pbr_microfacet_energy.glsl"))+"""
-            uniform int highlight;
-            layout(location=0)out vec4 result;
-            void main(){
-                vec3 radiance=vec3(.0003);
-                if(int(gl_FragCoord.x)==0 && highlight!=0){
-                    vec3 V=vec3(1,0,1e-7),L=vec3(-1,0,1e-7);
-                    VgeLobeEnergy energy=VgeEvaluateMicrofacetEnergy(vec3(1),.04,1e-7);
-                    radiance=cookTorranceBRDF(vec3(0,0,1),V,L,vec3(1),.04)
-                        *energy.compensation*1e-7*1e7;
-                }
-                result=vec4(VgeStoreSceneLighting(radiance),1);
-            }
-            """;
-        int program=TestShaderCache.CreateGraphics(vertex,source);
-        try
+        using var target=TestFramework.CreateTestGBuffer(2,1,TextureFormat.Rgba16f);
+        float? retainedFaint=null;
+        foreach(float bound in new[]{0f,float.MaxValue})
+        foreach(int highlight in new[]{0,1})
         {
-            using var target=TestFramework.CreateTestGBuffer(2,1,TextureFormat.Rgba16f);
-            float? retainedFaint=null;
-            foreach(float bound in new[]{0f,float.MaxValue})
-            foreach(int highlight in new[]{0,1})
-            {
-                freeze.Capture(bound,.001f,false,42,7);
-                Assert.True(CameraExposureDispatch.TryFreeze(freeze));
-                Assert.Equal(.001f,ExposureTestStorage.Read<float>(output)[0]);
-                output.BindBase(GpuBindingRegistry.Ssbo.FrameLighting);
-                Helpers.MicrofacetTextureReference.Bind();
-                GL.UseProgram(program);GL.Uniform1(GL.GetUniformLocation(program,"highlight"),highlight);
-                TestFramework.RenderQuadTo(program,target);
-                float[] pixels=target[0].ReadPixels();
-                Assert.All(pixels,value=>Assert.True(float.IsFinite(value)));
-                Assert.True(pixels[4]>0);
-                retainedFaint??=pixels[4];
-                Assert.Equal(retainedFaint.Value,pixels[4]);
-                if(highlight!=0)Assert.Equal(65504,pixels[0]);
-            }
+            // Arrange: preserve each source-envelope, frame identity, and highlight input from the original matrix.
+            freeze.Capture(bound,.001f,false,42,7);
+            Assert.True(CameraExposureDispatch.TryFreeze(freeze));
+            Assert.Equal(.001f,ExposureTestStorage.Read<float>(output)[0]);
+            probe.Capture(highlight,output,MicrofacetEnergyLookup.Prepare(),GpuSamplers.LinearClamp);
+
+            // Act: the typed owner publishes the real frame storage and lookup through an RHI graphics pass.
+            TestFramework.RenderQuadTo(probe,target);
+
+            // Assert: contain the grazing highlight and retain the independent faint pixel across both bounds.
+            float[] pixels=target[0].ReadPixels();
+            Assert.All(pixels,value=>Assert.True(float.IsFinite(value)));
+            Assert.True(pixels[4]>0);
+            retainedFaint??=pixels[4];
+            Assert.Equal(retainedFaint.Value,pixels[4]);
+            if(highlight!=0)Assert.Equal(65504,pixels[0]);
         }
-        finally { GL.DeleteProgram(program);OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 
-    #region Private
-    /// <summary>Expands the actual production storage and BRDF helpers without replacing their arithmetic.</summary>
-    private static string Expand(string path)=>Regex.Replace(TestAssetSnapshot.ReadSourceText(path),"@import \\\"([^\\\"]+)\\\"",
-        match=>Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!,match.Groups[1].Value))));
-    #endregion
 }

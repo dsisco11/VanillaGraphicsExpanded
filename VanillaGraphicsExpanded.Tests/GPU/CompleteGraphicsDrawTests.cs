@@ -206,7 +206,8 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
     private sealed class FullscreenDraw : IDisposable
     {
         private readonly GpuObservations observations;
-        private readonly int program, framebuffer;
+        private readonly VanillaGraphicsExpanded.Rendering.RHI.RHIShader shader;
+        private readonly int framebuffer;
         private readonly int[] colors = new int[3];
         private readonly GpuVao vao;
         private readonly GpuEbo indices;
@@ -218,7 +219,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
         {
             this.observations = observations;
             observations.Programs.Prepare("compare");
-            program = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixtureProgram(
+            shader = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixtureProgram(
                 "tests/complete-state.vsh", facing ? "tests/facing-state.fsh" : "tests/complete-state.fsh");
             vao = NativeResourceSetup.CreateVertexArray(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId); indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); indices.UploadIndices(new uint[] { 0, 1, 2 });
             framebuffer = GL.GenFramebuffer(); GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
@@ -239,7 +240,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
             using var selection = OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
             try
             {
-                OpenGLProgramSelection.Select(OpenGlStateCache.Current, program);
+                OpenGLProgramSelection.Select(OpenGlStateCache.Current, shader.Program.ProgramId);
                 OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, indices.BufferId);
                 GL.DrawElements(PrimitiveType.Triangles, 3, DrawElementsType.UnsignedInt, IntPtr.Zero);
                 Submissions++;
@@ -268,7 +269,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
         /// <summary>Releases fixture resources while the collection context remains active.</summary>
         public void Dispose()
         {
-            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); indices.Dispose(); vao.Dispose(); GL.DeleteProgram(program);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); indices.Dispose(); vao.Dispose(); shader.Dispose();
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0); GL.DeleteFramebuffer(framebuffer);
             foreach (int color in colors) GL.DeleteRenderbuffer(color); OpenGlStateCache.Current.InvalidateAll();
         }

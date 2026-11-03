@@ -4,6 +4,7 @@ using System;
 using System.Buffers.Binary;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -14,6 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class TestUniformRingRetirementTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+    #region Public API
     #region Submission lifetime
     /// <summary>Distinct queued outputs retain their uniform values across resets without intermediate readbacks.</summary>
     [Theory]
@@ -23,17 +25,13 @@ public sealed class TestUniformRingRetirementTests(HeadlessGLFixture fixture) : 
     public void SubmittedValuesSurviveBoundaryReuse(int boundary)
     {
         EnsureContextValid();
-        int shader = BuiltShaderFixture.Load("tests/GpuUniformRingBufferIntegrationTests_1.csh", ShaderType.ComputeShader);
-        int program = 0;
+        using var shader = BuiltShaderFixture.LoadProgram(new(new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"))));
+        int program = shader.Program.ProgramId;
         var outputs = new Texture3D[16];
         try
         {
-            program = GL.CreateProgram();
-            GL.AttachShader(program, shader);
-            TestShaderInterfaces.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            var layout = TestShaderInterfaces.BuildLayout(program);
+            var layout = new GpuProgramLayout { BinaryInterface = shader.Interface };
+            layout.RebuildCache(program);
             layout.RegisterUniformBlockBinding("TestParams", 0, required: true);
             layout.ApplyContract(program);
 
@@ -98,10 +96,9 @@ public sealed class TestUniformRingRetirementTests(HeadlessGLFixture fixture) : 
             GL.BindTexture(TextureTarget.Texture3D, 0);
             GL.BindImageTexture(0, 0, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba32ui);
             foreach (var output in outputs) output?.Dispose();
-            if (program != 0) TestShaderInterfaces.DeleteProgram(program);
-            TestShaderInterfaces.DeleteShader(shader);
             OpenGlStateCache.Current.InvalidateAll();
         }
     }
+    #endregion
     #endregion
 }

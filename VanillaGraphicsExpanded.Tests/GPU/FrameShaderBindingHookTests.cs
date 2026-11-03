@@ -57,7 +57,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         string lightSchema = TestAssetSnapshot.ReadSourceText(Path.Combine(directory,"vge_lights_ubo.glsl"))
             .Replace("@import \"./vge_ubo_bindings.glsl\"",TestAssetSnapshot.ReadSourceText(Path.Combine(directory,"vge_ubo_bindings.glsl")));
         int fragment = shaders.Compile(ShaderType.FragmentShader,"#version 430 core\n" + lightSchema + "\nuniform int vge_pbrRoute; out vec4 color; void main(){color=vge_pbrRoute==0 ? vec4(1) : vec4(vgeLights.colors[0].rgb,float(vgeLights.lightCount));}");
-        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
+        using var program = TerrainShaderTestFixture.Link(vertex,fragment);
         var engine = new FrameConsumerProgram(program.ProgramId);
         var harmony = new Harmony("tests.frame-native."+Guid.NewGuid());
         var previous = ShaderProgramBase.CurrentShaderProgram;
@@ -76,7 +76,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             using var framework = new ShaderTestFramework();
             using var target = framework.CreateTestGBuffer(2,2,TextureFormat.Rgba32f);
             engine.Stop();
-            framework.RenderQuadTo(program.ProgramId,target);
+            framework.RenderNativeReferenceQuadTo(program.ProgramId,target);
             // Observe completed output before reentering the native shader interval under test.
             ImageAssertions.Comparisons.CompareConstant(target[0], 1f).AssertEqual();
             engine.Use();
@@ -166,7 +166,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         int vertex=shaders.Compile(ShaderType.VertexShader,"#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
         int fragment=shaders.Compile(ShaderType.FragmentShader,"#version 330 core\n"+helper+
             "\nlayout(location=0)out vec4 result;void main(){result=vec4(VgeDirectionalAlbedo(.37,.003),0,1);}");
-        using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
+        using var program=TerrainShaderTestFixture.Link(vertex,fragment);
         using var target=CreateRenderTarget(1,1,TextureFormat.Rgba32f);
         var engine=new FrameConsumerProgram(program.ProgramId);
         var harmony=new Harmony("tests.energy-native."+Guid.NewGuid());
@@ -203,7 +203,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
                 GL.GetInteger((GetIndexedPName)All.SamplerBinding,unit,out int sampler);
                 Assert.Equal(GpuSamplers.LinearClamp.SamplerId,sampler);
                 // Draw directly: a general test framework must not repair a missing hook binding.
-                RenderFullscreenQuad(program.ProgramId);
+                RenderNativeReferenceFullscreenQuad(program.ProgramId);
                 var expected=MicrofacetTextureReference.Sample(selected.Width,.37f,.003f);
                 var actual=target[0].ReadPixelsRegion(0,0,1,1);
                 Assert.InRange(Math.Abs(actual[0]-expected.Value.X),0,expected.Error.X);

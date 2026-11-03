@@ -1,5 +1,7 @@
 using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -11,14 +13,14 @@ using System.Globalization;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Measures bounded opt-in shader arithmetic and lookup overhead independently of game rendering.</summary>
+/// <summary>Runs opt-in warm synthetic microfacet kernel timings; results do not represent live renderer cost.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
 public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, ITestOutputHelper log) : RenderTestBase(fixture)
 {
     private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Public API
-    /// <summary>Compares warm single scattering and compensated material evaluations with typical and repeated workloads.</summary>
+    /// <summary>Compares matched warm baseline and compensated Cook-Torrance kernels at typical and repeated workloads.</summary>
     [Fact]
     [Trait("Purpose", "Diagnostic")]
     public void WarmLookupCost()
@@ -26,68 +28,77 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_MICROFACET_MEASUREMENTS")=="1",
             "Explicit microfacet measurement run required.");
         EnsureContextValid();
-        Helpers.MicrofacetTextureReference.Bind();
-        using var modules=new TerrainShaderTestFixture();
-        string directory=Path.Combine(AppContext.BaseDirectory,"assets/shaders/includes");
-        string common=TestAssetSnapshot.ReadBuiltText(Path.Combine(directory,"pbr_common.glsl"))
-            .Replace("@import \"./common_constants.glsl\"",TestAssetSnapshot.ReadBuiltText(Path.Combine(directory,"common_constants.glsl")));
-        string energy=TestAssetSnapshot.ReadBuiltText(Path.Combine(directory,"pbr_microfacet_energy.glsl"));
-        int vertex=modules.Compile(ShaderType.VertexShader,"#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
-        var programs=new List<int>();
+        // Arrange: use one authored kernel with two fixed variants and prepare all executable/input resources first.
+        using var owners=new ComponentShaderPrograms();
+        var programs=new[]
+        {
+            owners.Create<MicrofacetEnergyMeasurementProgram>(program=>program.Compensated=false,
+                identity:"tests/microfacet-measurement-single"),
+            owners.Create<MicrofacetEnergyMeasurementProgram>(program=>program.Compensated=true,
+                identity:"tests/microfacet-measurement-compensated")
+        };
+        var context=RHICommandContext.Current;
+        var layout=new RHIVertexLayout([new(0,2,VertexComponentFormat.Float,VertexInterpretation.Floating,0,0,2*sizeof(float))]);
+        using var vertices=context.CreateVertexBuffer(new RHIBufferDescription
+        { Role=BufferRole.Vertex,Mode=ResourceStorageMode.Mutable,Capacity=0,Usage=BufferUsage.StaticDraw,Label="Tests.MicrofacetMeasurement.Quad" }).RequireResource();
+        vertices.UploadData<float>([
+            -1,-1, 1,-1, 1,1,
+            -1,-1, 1,1, -1,1
+        ]);
+        using var geometry=new ArrayGraphicsGeometry(layout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>{{0,vertices}});
+        using var target=CreateRenderTarget(256,256,TextureFormat.Rgba32f);
+        var pass=FramebufferTestSetup.DescribeAttachments(target,
+            [new(AttachmentIndex:0,Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))]);
+        var renderTargets=context.DescribeRenderTargets(pass);
+        var pipelines=programs.Select(program=>context.CreateGraphicsPipeline(new(program.Shader,layout,renderTargets,
+            DynamicPipelineState.Viewport)).RequireResource()).ToArray();
         var records=new List<object>();
         try
         {
-            foreach(bool compensated in new[]{false,true})
+            using var boundary=context.EnterBoundary(new("Tests.MicrofacetMeasurement",true,
+                graphics:pipelines.Select(pipeline=>(RHIGraphicsPipelineRef)pipeline),
+                operations:BoundaryOperations.RenderPasses));
+            boundary.Run(() =>
             {
-                string source="#version 330 core\n"+energy+common+"""
-                    uniform int evaluations;
-                    layout(location=0)out vec4 result;
-                    void main(){
-                        vec2 uv=gl_FragCoord.xy/256.0;
-                        vec3 N=vec3(0,0,1),V=normalize(vec3(uv*1.8-.9,1));
-                        vec3 total=vec3(0);
-                        for(int i=0;i<evaluations;i++){
-                            float index=float(i);
-                            vec3 L=normalize(vec3(sin(index*.31),cos(index*.19),1));
-                            float roughness=clamp(.04+.96*uv.x+.001*sin(index),.04,1.0);
-                            vec3 value=cookTorranceBRDF(N,V,L,vec3(.04,.5,1),roughness);
-                    """+(compensated?"value*=VgeEvaluateMicrofacetEnergy(vec3(.04,.5,1),roughness,V.z).compensation;":"")+"""
-                            total+=value*L.z;
-                        }
-                        result=vec4(total,1);
-                    }
-                    """;
-                programs.Add(TerrainShaderTestFixture.Link(vertex,modules.Compile(ShaderType.FragmentShader,source)));
-            }
-            using var target=CreateRenderTarget(256,256,TextureFormat.Rgba32f);
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer,target.FboId);GL.Viewport(0,0,256,256);
-            GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.CullFace);GL.Disable(EnableCap.Blend);
-            GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true);
-            foreach(int evaluations in new[]{1,100})
-            foreach(int program in programs)
-            {
-                GL.UseProgram(program);GL.Uniform1(GL.GetUniformLocation(program,"evaluations"),evaluations);
-                for(int warmup=0;warmup<3;warmup++)RenderFullscreenQuad(program);
-                var elapsed=new List<double>();
-                for(int sample=0;sample<8;sample++)
+                foreach(int evaluations in new[]{1,100})
+                for(int programIndex=0;programIndex<programs.Length;programIndex++)
                 {
-                    using var timer=GpuTimerQuery.Create();timer.Begin();RenderFullscreenQuad(program);timer.End();
-                    elapsed.Add(timer.GetResultNanoseconds()/1e6);
+                    var program=programs[programIndex];
+                    bool compensated=program.Compensated;
+                    program.Capture(evaluations,MicrofacetEnergyLookup.Prepare(),GpuSamplers.LinearClamp);
+                    var captured=program.CaptureBindings();
+                    context.BeginRenderPass(pass);
+                    context.SetPipeline(pipelines[programIndex]);
+                    context.SetDynamicState(new(){Viewport=context.PassViewport});
+                    context.BindResources(captured);
+
+                    // Act: warm and time only the same draw call; typed resource preparation stays outside each query.
+                    for(int warmup=0;warmup<3;warmup++)context.Draw(geometry.Inputs,new(0,6));
+                    var elapsed=new List<double>();
+                    for(int sample=0;sample<8;sample++)
+                    {
+                        using var timer=GpuTimerQuery.Create();
+                        timer.Begin();
+                        context.Draw(geometry.Inputs,new(0,6));
+                        timer.End();
+                        elapsed.Add(timer.GetResultNanoseconds()/1e6);
+                    }
+                    context.EndRenderPass();
+                    double median=elapsed.Order().Skip(3).Take(2).Average();
+                    log.WriteLine($"Microfacet synthetic kernel via prepared RHI draw: compensated={compensated} pixels=65536 evaluations={evaluations} medianGPUms={median:F6}; GPU={GL.GetString(StringName.Renderer)}");
+                    records.Add(new{compensated,pixels=65536,evaluations,medianGpuMilliseconds=median,samplesMilliseconds=elapsed});
                 }
-                double median=elapsed.Order().Skip(3).Take(2).Average();
-                bool compensated=program==programs[1];
-                log.WriteLine($"Microfacet lookup: compensated={compensated} pixels=65536 evaluations={evaluations} medianGPUms={median:F6}; GPU={GL.GetString(StringName.Renderer)}");
-                records.Add(new{compensated,pixels=65536,evaluations,medianGpuMilliseconds=median,samplesMilliseconds=elapsed});
-            }
+            });
             string? path=Environment.GetEnvironmentVariable("VGE_MICROFACET_MEASUREMENT_OUTPUT");
             if(!string.IsNullOrEmpty(path))reports.WriteAllText(path,System.Text.Json.JsonSerializer.Serialize(new{
                 renderer=GL.GetString(StringName.Renderer),lookupBytes=VanillaGraphicsExpanded.PBR.Materials.Energy.MicrofacetEnergyLookup.Prepare().Width
                     *VanillaGraphicsExpanded.PBR.Materials.Energy.MicrofacetEnergyLookup.Prepare().Height*4,records,
-                limitation="Warm synthetic shader cost, varying roughness per evaluation. Not live frame cost or measured physical-memory bandwidth."
+                limitation="Warm synthetic shader cost with varying roughness per evaluation, timed through a prepared RHI draw. These timings are not directly comparable with older measurements that included program and VAO selection and deselection; they are not live frame cost or measured physical-memory bandwidth."
             },new System.Text.Json.JsonSerializerOptions{WriteIndented=true}));
+            // Assert: the captured warm workload completed without OpenGL errors.
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { foreach(int program in programs)GL.DeleteProgram(program);OpenGlStateCache.Current.InvalidateAll(); }
+        finally { foreach(var pipeline in pipelines)pipeline.Dispose(); }
     }
 
     /// <summary>Qualifies one batched default-quality hardware lookup against retained independently integrated physical references.</summary>
@@ -105,22 +116,55 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
         Assert.Equal(360,references.Length);
         int oldQuality=ConfigModSystem.Config.ShadingQuality;
         ConfigModSystem.Config.ShadingQuality=3;
-        using var modules=new TerrainShaderTestFixture();
-        int program=0;
         try
         {
-            string helper=TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory,"assets/shaders/includes/pbr_microfacet_energy.glsl"));
-            int vertex=modules.Compile(ShaderType.VertexShader,"#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
-            int fragment=modules.Compile(ShaderType.FragmentShader,"#version 330 core\n"+helper+"\nlayout(binding=0)uniform sampler2D coordinates;layout(location=0)out vec4 result;void main(){vec2 p=texelFetch(coordinates,ivec2(int(gl_FragCoord.x),0),0).rg;result=vec4(VgeDirectionalAlbedo(p.x,p.y),0,1);}");
-            program=TerrainShaderTestFixture.Link(vertex,fragment);
+            // Arrange: stage every authored coordinate through the existing typed microfacet probe.
+            var context=RHICommandContext.Current;
             var inputs=references.SelectMany(row=>new[]{(float)row[0],(float)row[1]}).ToArray();
-            using var coordinates=RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = references.Length, Height = 1, Format = TextureFormat.Rg32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, references.Length, 1), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rg32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((inputs).AsSpan()).ToArray())]).RequireResource();
+            using var coordinates=context.CreateTexture2D(new RHITextureDescription
+            { Dimension=TextureDimension.Two,Width=references.Length,Height=1,Format=TextureFormat.Rg32f,
+                MipLevels=1,Storage=ResourceStorageMode.Mutable,BaseLevel=0,MaxLevel=0,
+                Filter=TextureFilterMode.Nearest,Label=null },
+                [new RHITextureInitialData(new(new(),0,0,0,references.Length,1),
+                    new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rg32f),PixelComponentType.Float),
+                    System.Runtime.InteropServices.MemoryMarshal.AsBytes(inputs.AsSpan()).ToArray())]).RequireResource();
+            using var owners=new ComponentShaderPrograms();
+            var program=owners.Create<MicrofacetEnergyProbeProgram>();
+            program.EnergyLookup=MicrofacetEnergyLookup.Prepare();
+            program.EnergySampler=GpuSamplers.LinearClamp;
+            program.CaptureLookupBatch(coordinates,GpuSamplers.NearestClamp);
+
+            var layout=new RHIVertexLayout([
+                new(0,2,VertexComponentFormat.Float,VertexInterpretation.Floating,0,0,4*sizeof(float)),
+                new(1,2,VertexComponentFormat.Float,VertexInterpretation.Floating,0,2*sizeof(float),4*sizeof(float))]);
+            using var vertices=context.CreateVertexBuffer(new RHIBufferDescription
+            { Role=BufferRole.Vertex,Mode=ResourceStorageMode.Mutable,Capacity=0,
+                Usage=BufferUsage.StaticDraw,Label="Tests.MicrofacetEnergy.QualificationQuad" }).RequireResource();
+            vertices.UploadData<float>([
+                -1,-1,0,0, 1,-1,1,0, 1,1,1,1,
+                -1,-1,0,0, 1,1,1,1, -1,1,0,1
+            ]);
+            using var geometry=new ArrayGraphicsGeometry(layout,PrimitiveTopology.Triangles,
+                new Dictionary<int,GpuVbo>{{0,vertices}});
             using var target=CreateRenderTarget(references.Length,1,TextureFormat.Rgba32f);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, coordinates, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)coordinates).Target)))]);VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 0, GpuSamplers.NearestClamp.SamplerId);Helpers.MicrofacetTextureReference.Bind();
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer,target.FboId);GL.Viewport(0,0,references.Length,1);
-            GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.CullFace);GL.Disable(EnableCap.Blend);
-            GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true);
-            RenderFullscreenQuad(program);
+            var pass=FramebufferTestSetup.DescribeAttachments(target,
+                [new(AttachmentIndex:0,Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))]);
+            using var pipeline=context.CreateGraphicsPipeline(new(program.Shader,layout,context.DescribeRenderTargets(pass),
+                DynamicPipelineState.Viewport)).RequireResource();
+            using var boundary=context.EnterBoundary(new("Tests.MicrofacetEnergyLookupBatch",true,
+                graphics:[pipeline],operations:BoundaryOperations.RenderPasses));
+            // Act: evaluate the full authored coordinate row through the prepared production RHI draw.
+            boundary.Run(() =>
+            {
+                context.BeginRenderPass(pass);
+                context.SetPipeline(pipeline);
+                context.SetDynamicState(new(){Viewport=context.PassViewport});
+                context.BindResources(program.CaptureBindings());
+                context.Draw(geometry.Inputs,new(0,6));
+                context.EndRenderPass();
+            });
+
+            // Assert: compare the 360 production lookup results against retained independent references.
             var pixels=ReadPixelsFloat(target);
             double maxE=0,maxEf=0,maxW=0,maxR=0,idealMaxE=0,idealMaxEf=0;
             var cases=new List<object>();
@@ -155,7 +199,6 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
         finally
         {
             ConfigModSystem.Config.ShadingQuality=oldQuality;MicrofacetEnergyLookup.Prepare();
-            if(program!=0)GL.DeleteProgram(program);OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

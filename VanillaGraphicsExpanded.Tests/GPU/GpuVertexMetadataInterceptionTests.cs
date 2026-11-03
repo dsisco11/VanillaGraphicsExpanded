@@ -1,6 +1,7 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.HarmonyPatches;
@@ -13,6 +14,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture)
 {
+    private static GpuResourceMetadataEntry<GpuVertexArrayMetadata>? publicationEntry;
+    private static int publicationHits;
+
     #region Public API
     /// <summary>Bound and named native edits advance the original VAO and recover affected EBO bindings without disturbing sentinels.</summary>
     [Theory]
@@ -93,18 +97,40 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var harmony = new Harmony("Tests.VertexPublicationFailure." + Guid.NewGuid());
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         try
         {
             using var vao = NativeResourceSetup.CreateVertexArray();
+            var entry = (GpuResourceMetadataEntry<GpuVertexArrayMetadata>)manager.GetResourceRegistration(vao)!;
+            var cache = OpenGlStateCache.Current;
+            bool availableBefore = manager.IsResourceMetadataAvailable(vao);
+            Assert.True(availableBefore, "The original VAO registration must be available before mutation.");
+            ulong configurationBefore = cache.GetVertexConfigurationRevision(vao.VertexArrayId);
+            publicationEntry = entry;
+            Volatile.Write(ref publicationHits, 0);
             var publication = AccessTools.Method(typeof(GpuResourceMetadataEntry<GpuVertexArrayMetadata>), "Publish");
             harmony.Patch(publication, prefix: new HarmonyMethod(typeof(GpuVertexMetadataInterceptionTests), nameof(ThrowMetadataPublication)));
             GL.EnableVertexArrayAttrib(vao.VertexArrayId, 0);
+            ulong configurationAfterNativeCall = cache.GetVertexConfigurationRevision(vao.VertexArrayId);
+            bool availableAfterNativeCall = manager.IsResourceMetadataAvailable(vao);
+            int targetEntryPublicationHits = Volatile.Read(ref publicationHits);
             GL.GetVertexArrayIndexed(vao.VertexArrayId, 0, VertexArrayIndexedParameter.VertexAttribArrayEnabled, out int enabled);
-            Assert.Equal(1, enabled);
-            Assert.False(RHIResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(vao));
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
+            bool availableAfterGetter = manager.IsResourceMetadataAvailable(vao);
+            ErrorCode error = GL.GetError();
+            string observations = $"TargetEntryPublicationHits={targetEntryPublicationHits}, ConfigurationRevision={configurationBefore}->{configurationAfterNativeCall}, Available={availableBefore}->{availableAfterNativeCall}->{availableAfterGetter}, NativeEnabled={enabled}, Error={error}.";
+            Assert.True(targetEntryPublicationHits == 1, observations);
+            Assert.True(configurationAfterNativeCall > configurationBefore, observations);
+            Assert.False(availableAfterNativeCall, observations);
+            Assert.True(enabled == 1, observations);
+            Assert.False(availableAfterGetter, observations);
+            Assert.True(error == ErrorCode.NoError, observations);
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally
+        {
+            publicationEntry = null;
+            Volatile.Write(ref publicationHits, 0);
+            harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
+        }
     }
     /// <summary>Untracked native VAOs receive actual configuration without speculative registration.</summary>
     [Fact]
@@ -154,7 +180,14 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
 
 
     /// <summary>Injects a managed publication fault after the real native operation has executed.</summary>
-    private static void ThrowMetadataPublication() => throw new ApplicationException("Injected publication failure.");
+    private static void ThrowMetadataPublication(GpuResourceMetadataEntry<GpuVertexArrayMetadata> __instance)
+    {
+        if (ReferenceEquals(__instance, publicationEntry))
+        {
+            Interlocked.Increment(ref publicationHits);
+            throw new ApplicationException("Injected publication failure.");
+        }
+    }
     /// <summary>Receives configuration publication without owning the VAO.</summary>
     private sealed class VertexAlias(int id) : GpuResource<GpuVertexArrayMetadata>
     {

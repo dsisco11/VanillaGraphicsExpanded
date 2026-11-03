@@ -162,7 +162,10 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
     {
         EnsureContextValid();
         var cache = OpenGlStateCache.Current;
-        int program = GL.CreateProgram(), shader = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/deletion.vsh", ShaderType.VertexShader);
+        using var programOwner = NativeResourceSetup.CreateProgram();
+        int program = programOwner.ProgramId;
+        using var shaderOwner = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/deletion.vsh", ShaderType.VertexShader);
+        int shader = shaderOwner.ShaderId;
         try
         {
             // Build a minimal executable so the test exercises deferred native deletion.
@@ -171,7 +174,9 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.Equal(1, linked);
             OpenGLProgramSelection.Select(cache, program);
-            GL.DeleteProgram(program);
+            int nativeProgramId = (int)programOwner.Detach();
+            Assert.Equal(program, nativeProgramId);
+            GL.DeleteProgram(nativeProgramId);
             Assert.True(cache.TryGetCachedCurrentProgram(out int selected));
             Assert.Equal(program, selected);
             Assert.Equal(program, GL.GetInteger(GetPName.CurrentProgram));
@@ -180,7 +185,13 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
             Assert.False(GL.IsProgram(program));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { GL.UseProgram(0); if (GL.IsProgram(program)) GL.DeleteProgram(program); GL.DeleteShader(shader); cache.InvalidateAll(); }
+        finally
+        {
+            GL.UseProgram(0);
+            if (GL.IsProgram(program)) GL.DeleteProgram(program);
+            shaderOwner.Dispose();
+            cache.InvalidateAll();
+        }
     }
     #endregion
     #endregion

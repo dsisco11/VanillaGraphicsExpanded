@@ -196,7 +196,8 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
     /// <summary>Owns deterministic raw test geometry, shader, target and readback resources.</summary>
     private sealed class RasterDraw : IDisposable
     {
-        private readonly int program, vao, framebuffer, color;
+        private readonly VanillaGraphicsExpanded.Rendering.RHI.RHIShader shader;
+        private readonly int vao, framebuffer, color;
         private readonly PackedUniformBuffer inputs = new(16);
         private readonly RHIUniformRingFrameController frame;
         private readonly GpuUniformRingBuffer? previousRing;
@@ -210,7 +211,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         {
             observationPrograms.Prepare("predicate-lighting");
             assertions = new(observationPrograms);
-            program = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixtureProgram("tests/rasterizer.vsh", "tests/rasterizer.fsh");
+            shader = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixtureProgram("tests/rasterizer.vsh", "tests/rasterizer.fsh");
             vao = GL.GenVertexArray(); framebuffer = GL.GenFramebuffer(); color = GL.GenRenderbuffer();
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer); GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, color);
             GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.Rgba8, 32, 32);
@@ -228,7 +229,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         {
             OpenGlStateCache.Current.ApplyConfigurableRaster(pipeline);
             GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
-            GL.UseProgram(program); GL.BindVertexArray(vao);
+            GL.UseProgram(shader.Program.ProgramId); GL.BindVertexArray(vao);
             Span<byte> bytes = stackalloc byte[16];
             bytes.Clear();
             UboPacking.WriteInt32(bytes, 0, lines ? 1 : 0);
@@ -251,7 +252,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             {
                 frame.Dispose();
                 if (previousRing != null) RHIUniformRingSystem.SetCurrent(previousRing);
-                GL.UseProgram(0); GL.DeleteProgram(program); GL.DeleteVertexArray(vao); GL.DeleteFramebuffer(framebuffer); GL.DeleteRenderbuffer(color);
+                GL.UseProgram(0); shader.Dispose(); GL.DeleteVertexArray(vao); GL.DeleteFramebuffer(framebuffer); GL.DeleteRenderbuffer(color);
             }
         }
     }

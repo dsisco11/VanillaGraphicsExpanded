@@ -91,13 +91,12 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         {
             using var vao = NativeResourceSetup.CreateVertexArray();
             using var pipeline = NativeResourceSetup.CreateProgramPipeline();
-            int module = BuiltShaderFixture.LoadFixture("tests/prepared_binding.csh", ShaderType.ComputeShader);
-            int executable = GL.CreateProgram();
-            GL.AttachShader(executable, module); GL.LinkProgram(executable);
+            using var module = BuiltShaderFixture.LoadFixture("tests/prepared_binding.csh", ShaderType.ComputeShader);
+            using var program = NativeResourceSetup.CreateProgram();
+            int executable = program.ProgramId;
+            GL.AttachShader(executable, module.ShaderId); GL.LinkProgram(executable);
             GL.GetProgram(executable, GetProgramParameterName.LinkStatus, out int linked);
             Assert.Equal(1, linked);
-            GL.DetachShader(executable, module); GL.DeleteShader(module);
-            using var program = GpuProgramObject.Adopt(executable);
             var cache = OpenGlStateCache.Current;
             OpenGLVertexSelection.Bind(cache, 0); OpenGLProgramPipelineSelection.Bind(cache, 0); OpenGLProgramSelection.Select(cache, 0);
             using var capture = new BindingCallCapture();

@@ -1,6 +1,7 @@
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.Spirv;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -14,6 +15,7 @@ public sealed class ShaderContractBindingTests : RenderTestBase
     /// <summary>Uses the common graphics fixture.</summary>
     public ShaderContractBindingTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    #region Public API
     #region Compiled bindings
     /// <summary>Checks source-assigned sampler and UBO slots without runtime validation or rebinding.</summary>
     [Theory]
@@ -33,7 +35,8 @@ public sealed class ShaderContractBindingTests : RenderTestBase
     public void GraphicsBindingsAreCompiledFromSharedContract(string name, bool enabled)
     {
         EnsureContextValid();
-        int vertex = 0, fragment = 0, program = 0;
+        VanillaGraphicsExpanded.Rendering.GpuShaderModule? vertex = null, fragment = null;
+        VanillaGraphicsExpanded.Rendering.GpuProgramObject? programOwner = null;
         try
         {
             string vertexIdentity = name.StartsWith("lumon_debug_view_", StringComparison.Ordinal) ? "lumon_debug.vsh"
@@ -50,18 +53,21 @@ public sealed class ShaderContractBindingTests : RenderTestBase
                 defines[name == "lumon_combine" ? "VGE_LUMON_ENABLED" : "VGE_LUMON_WORLDPROBE_ENABLED"] = "0";
             }
             fragment = BuiltShaderFixture.Load(name + ".fsh", ShaderType.FragmentShader, defines);
-            program = GL.CreateProgram();
-            GL.AttachShader(program, vertex); GL.AttachShader(program, fragment);
-            TestShaderInterfaces.LinkProgram(program);
+            programOwner = NativeResourceSetup.CreateProgram();
+            int program = programOwner.ProgramId;
+            GL.AttachShader(program, vertex.ShaderId); GL.AttachShader(program, fragment.ShaderId);
+            GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+            var programContract = GpuShaderContracts.Registry.FindProgram(name);
             var contract = GpuShaderContracts.Create(name);
-            var layout = TestShaderInterfaces.BuildLayout(program);
+            var layout = new GpuProgramLayout { BinaryInterface = new GpuProgramInterface(program, programContract.Stages.Select(stage => stage.Bindings)) };
+            layout.RebuildCache(program);
             layout.RegisterContract(contract);
             int samplerCount = 0;
             foreach (var (uniform, expected) in contract.Samplers)
             {
-                int location = TestShaderInterfaces.GetUniformLocation(program, uniform);
+                int location = layout.GetUniformLocation(program, uniform);
                 if (location < 0) continue;
                 GL.GetUniform(program, location, out int actual);
                 Assert.Equal(expected.Slot, actual);
@@ -83,8 +89,8 @@ public sealed class ShaderContractBindingTests : RenderTestBase
             }
             layout.ApplyContract(program);
             // Applying a compiled contract must not change existing resource slots.
-            var active = contract.Samplers.First(p => TestShaderInterfaces.GetUniformLocation(program, p.Key) >= 0);
-            int activeLocation = TestShaderInterfaces.GetUniformLocation(program, active.Key);
+            var active = contract.Samplers.First(p => layout.GetUniformLocation(program, p.Key) >= 0);
+            int activeLocation = layout.GetUniformLocation(program, active.Key);
             GL.UseProgram(program); GL.Uniform1(activeLocation, active.Value.Slot + 1); GL.UseProgram(0);
             layout.ApplyContract(program);
             GL.GetUniform(program, activeLocation, out int unchanged);
@@ -93,9 +99,9 @@ public sealed class ShaderContractBindingTests : RenderTestBase
         finally
         {
             GL.UseProgram(0);
-            if (program != 0) TestShaderInterfaces.DeleteProgram(program);
-            if (vertex != 0) TestShaderInterfaces.DeleteShader(vertex);
-            if (fragment != 0) TestShaderInterfaces.DeleteShader(fragment);
+            programOwner?.Dispose();
+            vertex?.Dispose();
+            fragment?.Dispose();
         }
     }
     #endregion
@@ -109,13 +115,15 @@ public sealed class ShaderContractBindingTests : RenderTestBase
     public void AtmosphereStorageBindingsAreCompiledFromFields(string name, int expectedBlocks)
     {
         EnsureContextValid();
-        int shader = 0, program = 0;
+        VanillaGraphicsExpanded.Rendering.GpuShaderModule? shader = null;
+        VanillaGraphicsExpanded.Rendering.GpuProgramObject? programOwner = null;
         try
         {
             shader = BuiltShaderFixture.Load(name + ".csh", ShaderType.ComputeShader);
-            program = GL.CreateProgram();
-            GL.AttachShader(program, shader);
-            TestShaderInterfaces.LinkProgram(program);
+            programOwner = NativeResourceSetup.CreateProgram();
+            int program = programOwner.ProgramId;
+            GL.AttachShader(program, shader.ShaderId);
+            GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             var contract = GpuShaderContracts.Create(name);
@@ -135,9 +143,10 @@ public sealed class ShaderContractBindingTests : RenderTestBase
         }
         finally
         {
-            if (program != 0) TestShaderInterfaces.DeleteProgram(program);
-            if (shader != 0) TestShaderInterfaces.DeleteShader(shader);
+            programOwner?.Dispose();
+            shader?.Dispose();
         }
     }
+    #endregion
     #endregion
 }

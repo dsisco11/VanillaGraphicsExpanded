@@ -23,7 +23,7 @@ public sealed class StandaloneNumericInputTests(HeadlessGLFixture fixture) : Ren
             "#version 430 core\nvoid main(){gl_Position=vec4(0,0,0,1);}");
         int fragment = shaders.Compile(ShaderType.FragmentShader,
             "#version 430 core\nlayout(location=0) uniform float value;out vec4 color;void main(){color=vec4(value);}");
-        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        using var program = TerrainShaderTestFixture.Link(vertex, fragment);
         Assert.True(GpuProgramMetadataReader.Instance.TryRead(program.ProgramId, out var metadata));
         using var acquisition = new ProgramAcquisitionCapture();
         acquisition.Calibrate(program.ProgramId);

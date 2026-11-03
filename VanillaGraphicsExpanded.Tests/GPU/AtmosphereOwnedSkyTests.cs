@@ -10,7 +10,9 @@ using Moq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Vintagestory.API.Client;
@@ -407,14 +409,14 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
 
     #endregion
 
-    /// <summary>Owns a controlled triangle while using the production executable, texture publication and block layout.</summary>
+    /// <summary>Owns typed fixture inputs while submitting the production sky executable through a complete RHI pass.</summary>
     private sealed class FullscreenSky : IDisposable
     {
         private readonly AtmosphereSkyShaderProgram program;
         private readonly AtmosphereModSystem atmosphere = new();
         private readonly FixtureUniformInputs inputs = new(112);
         private readonly VgeFrameUniformBuffer cameraInputs = new();
-        private readonly GpuVao vao = NativeResourceSetup.CreateVertexArray();
+        private readonly PostprocessDraw draw = new();
 
         private readonly DynamicTexture2D depth;
         private readonly int width, height;
@@ -492,30 +494,45 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
             inputs.Vector(96, moon.X, moon.Y, moon.Z);
             program.SkyLookup = AtmosphereModSystem.SkyTexture;
             program.LiquidDepth = depth;
-            FramebufferTestSetup.BindForEngineRendering(Target);
-            // Metadata belongs to other passes; preserve recognizable contents while drawing the sky.
-            GL.DrawBuffers(8, Enumerable.Range(0, 8).Select(i => DrawBuffersEnum.ColorAttachment0 + i).ToArray()); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
-            for (int attachment = 2; attachment < 8; attachment++)
-            {
-                if (attachment == 6) GL.ClearBuffer(ClearBuffer.Color, attachment, new uint[] { 6, 6, 6, 6 });
-                else GL.ClearBuffer(ClearBuffer.Color, attachment, Enumerable.Repeat((float)attachment, 4).ToArray());
-            }
-            GL.DrawBuffers(2, new[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 }); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
-            OpenGlStateCache.Current.Apply(new GlPipelineDesc(defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable).With(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask), nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask), depthWriteMask: false));
-            using (var bindingPipeline = ShaderBindingTestPipeline.Create(program))
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId))
-            {
-                RHICommandContext.Current.SetPipeline(bindingPipeline);
-                RHICommandContext.Current.BindResources(program.CaptureBindings());
-                inputs.Publish();
-                GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-            }
+            ClearMetadataAttachments();
+            var pass = FramebufferTestSetup.DescribeAttachments(Target,
+                [new(AttachmentIndex: 0), new(AttachmentIndex: 1)]);
+            var bindings = program.CaptureBindings();
+            ulong skyInputsIdentity = GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock, "SkyInputs");
+            var typedInputs = bindings.Uniforms.Select(binding => binding.Identity == skyInputsIdentity
+                ? new RHIUniformBinding(skyInputsIdentity, inputs.Capture())
+                : binding);
+            var capturedBindings = bindings.WithUniforms(typedInputs);
+            var pipeline = draw.Prepare(program, pass);
+            var commands = RHICommandContext.Current;
+            using var boundary = commands.EnterBoundary(new("Tests.AtmosphereOwnedSky", true,
+                graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+            boundary.Run(() => draw.Submit(commands, pipeline, pass, capturedBindings));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             return new GpuImageSnapshot(Target[0]);
         }
+
         /// <summary>Retires the test publication and geometry before their shared context closes.</summary>
         public void Dispose()
-        { inputs.Dispose(); cameraInputs.Dispose(); vao.Dispose(); atmosphere.Dispose(); }
+        { inputs.Dispose(); cameraInputs.Dispose(); draw.Dispose(); atmosphere.Dispose(); }
+
+        #region Private
+        /// <summary>Restores recognizable values in all non-sky outputs through typed clear attachments.</summary>
+        private void ClearMetadataAttachments()
+        {
+            var colors = Enumerable.Range(2, 6).Select(attachment => new RHIColorAttachment(
+                AttachmentIndex: attachment,
+                Load: AttachmentLoad.Clear,
+                Clear: attachment == 6
+                    ? ColorClearValue.UInt(6, 6, 6, 6)
+                    : ColorClearValue.Float(attachment, attachment, attachment, attachment)));
+            var pass = FramebufferTestSetup.DescribeAttachments(Target, colors);
+            var commands = RHICommandContext.Current;
+            using var boundary = commands.EnterBoundary(new("Tests.AtmosphereOwnedSky.Metadata", true,
+                operations: BoundaryOperations.RenderPasses));
+            boundary.Run(() => { commands.BeginRenderPass(pass); commands.EndRenderPass(); });
+        }
+        #endregion
         #endregion
     }
     #endregion

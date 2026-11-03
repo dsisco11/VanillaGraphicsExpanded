@@ -13,11 +13,16 @@ public class GpuInfrastructureTests
 {
     private readonly HeadlessGLFixture _fixture;
 
+    #region Public API
+
+    /// <summary>Creates infrastructure tests using the shared GPU fixture.</summary>
+    /// <param name="fixture">The headless graphics fixture.</param>
     public GpuInfrastructureTests(HeadlessGLFixture fixture)
     {
         _fixture = fixture;
     }
 
+    /// <summary>Verifies that the shared headless fixture exposes a valid graphics context.</summary>
     [Fact]
     public void HeadlessGLFixture_CreatesValidContext()
     {
@@ -28,8 +33,9 @@ public class GpuInfrastructureTests
         Assert.True(_fixture.IsContextValid);
     }
 
+    /// <summary>Verifies processed shader diagnostics can be constructed for the test assets.</summary>
     [Fact]
-    public void ShaderTestHelper_CanBeCreated()
+    public void ShaderProcessedSourceDiagnostics_CanBeCreated()
     {
         _fixture.EnsureContextValid();
         
@@ -40,7 +46,9 @@ public class GpuInfrastructureTests
         Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
         Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper();
+        var helper = new ShaderProcessedSourceDiagnostics();
         Assert.NotNull(helper);
     }
+
+    #endregion
 }

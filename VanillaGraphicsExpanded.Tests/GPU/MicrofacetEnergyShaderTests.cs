@@ -4,6 +4,8 @@ using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Materials.Energy;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -185,82 +187,58 @@ public sealed class MicrofacetEnergyShaderTests(HeadlessGLFixture fixture) : Ren
     #endregion
 
     #region Private
-    /// <summary>Renders the selected texture through the real shader helper at the retained draw-language version.</summary>
+    /// <summary>Submits the declared microfacet probe with the requested numeric inputs and reads its one-pixel output.</summary>
     private float[] Render(float roughness, float viewCosine, bool invalid, bool furnace = false,
         float environmentMetallic = -1, bool grazing = false, float waterAngle = 0)
     {
-        string helper = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory,
-            "assets/shaders/includes/pbr_microfacet_energy.glsl"));
-        string common = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_common.glsl"))
-            .Replace("@import \"./common_constants.glsl\"", TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory,
-                "assets/shaders/includes/common_constants.glsl")));
-        string environment = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_environment.glsl"))
-            .Replace("@import \"./pbr_common.glsl\"", "").Replace("@import \"./pbr_microfacet_energy.glsl\"", "");
-        string vertex = "#version 330 core\nlayout(location=0) in vec2 position;void main(){gl_Position=vec4(position,0,1);}";
-        string fragment = "#version 330 core\n" + helper + common + environment + """
-            uniform float roughness, viewCosine, material;
-            uniform float environmentMetallic;
-            uniform int furnace;
-            uniform int grazing;
-            uniform float waterAngle;
-            layout(location=0) out vec4 result;
-            void main(){
-                VgeLobeEnergy lobe=VgeEvaluateMicrofacetEnergy(vec3(material),roughness,viewCosine);
-                result=lobe.valid ? vec4(VgeDirectionalAlbedo(roughness,viewCosine),lobe.reflectance.x,1) : vec4(0);
-                if(furnace!=0){
-                    vec3 integral=vec3(0);
-                    // Normal view is azimuth-invariant, so this integrates the actual shader's
-                    // BRDF directly over projected incident cosine without half-vector sampling.
-                    for(int i=0;i<8192;i++){
-                        float nl=(float(i)+.5)/8192.0;
-                        vec3 light=vec3(sqrt(1.0-nl*nl),0,nl);
-                        integral+=cookTorranceBRDF(vec3(0,0,1),vec3(0,0,1),light,vec3(1),roughness)*nl;
-                    }
-                    result=vec4(integral*(2.0*3.141592653589793/8192.0)*lobe.compensation,1);
-                }
-                if(environmentMetallic>=0.0){
-                    vec3 diffuse,specular;
-                    VgeEnvironmentSplit(vec3(1),vec3(1),environmentMetallic,roughness,viewCosine,diffuse,specular);
-                    result=vec4(diffuse+specular,1);
-                }
-                if(grazing!=0){
-                    vec3 view=vec3(sqrt(1.0-viewCosine*viewCosine),0,viewCosine);
-                    vec3 light=vec3(-view.x,0,view.z);
-                    result=vec4(cookTorranceBRDF(vec3(0,0,1),view,light,vec3(1),roughness)*lobe.compensation*viewCosine,1);
-                }
-                if(waterAngle>0.0){
-                    vec3 view=vec3(sqrt(1.0-viewCosine*viewCosine),0,viewCosine);
-                    vec3 halfVector=vec3(sin(waterAngle),0,cos(waterAngle));
-                    vec3 light=2.0*dot(view,halfVector)*halfVector-view;
-                    VgeLobeEnergy water=VgeEvaluateMicrofacetEnergy(vec3(.02037),roughness,viewCosine);
-                    float response=cookTorranceBRDF(vec3(0,0,1),view,light,vec3(.02037),roughness).x
-                        *water.compensation.x*max(light.z,0.0)/max(water.reflectance.x,.001);
-                    vec3 recoveredHalf=normalize(view+light);
-                    result=vec4(response,recoveredHalf.z,recoveredHalf.x,light.z);
-                }
-            }
-            """;
-        int program = TestShaderCache.CreateGraphics(vertex, fragment);
-        try
+        using var programs = new ComponentShaderPrograms();
+        var program = programs.Create<MicrofacetEnergyProbeProgram>();
+        program.EnergyLookup = MicrofacetEnergyLookup.Prepare();
+        program.EnergySampler = GpuSamplers.LinearClamp;
+        program.Capture(roughness, viewCosine, invalid ? float.NaN : 1f, furnace ? 1 : 0,
+            environmentMetallic, grazing ? 1 : 0, waterAngle);
+
+        var context = RHICommandContext.Current;
+        var layout = new RHIVertexLayout([
+            new(0, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 4 * sizeof(float)),
+            new(1, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 2 * sizeof(float), 4 * sizeof(float))]);
+        using var vertices = context.CreateVertexBuffer(new RHIBufferDescription
         {
-            GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "roughness"), roughness);
-            GL.Uniform1(GL.GetUniformLocation(program, "viewCosine"), viewCosine);
-            GL.Uniform1(GL.GetUniformLocation(program, "material"), invalid ? float.NaN : 1f);
-            GL.Uniform1(GL.GetUniformLocation(program, "furnace"), furnace ? 1 : 0);
-            GL.Uniform1(GL.GetUniformLocation(program, "environmentMetallic"), environmentMetallic);
-            GL.Uniform1(GL.GetUniformLocation(program, "grazing"), grazing ? 1 : 0);
-            GL.Uniform1(GL.GetUniformLocation(program, "waterAngle"), waterAngle);
-            MicrofacetTextureReference.Bind();
-            using var target = CreateRenderTarget(1, 1, TextureFormat.Rgba32f);
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, target.FboId);
-            GL.Viewport(0, 0, 1, 1);
-            GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-            GL.Disable(EnableCap.ScissorTest); GL.ColorMask(true, true, true, true);
-            RenderFullscreenQuad(program);
-            return ReadPixelsFloat(target);
-        }
-        finally { GL.DeleteProgram(program); OpenGlStateCache.Current.InvalidateAll(); }
+            Role = BufferRole.Vertex,
+            Mode = ResourceStorageMode.Mutable,
+            Capacity = 0,
+            Usage = BufferUsage.StaticDraw,
+            Label = "Tests.MicrofacetEnergy.Quad"
+        }).RequireResource();
+        vertices.UploadData(new float[]
+        {
+            -1.0f, -1.0f, 0.0f, 0.0f,
+             1.0f, -1.0f, 1.0f, 0.0f,
+             1.0f,  1.0f, 1.0f, 1.0f,
+            -1.0f, -1.0f, 0.0f, 0.0f,
+             1.0f,  1.0f, 1.0f, 1.0f,
+            -1.0f,  1.0f, 0.0f, 1.0f
+        });
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles,
+            new Dictionary<int, GpuVbo> { [0] = vertices });
+        using var target = CreateRenderTarget(1, 1, TextureFormat.Rgba32f);
+        var pass = FramebufferTestSetup.DescribeAttachments(target,
+            [new(AttachmentIndex: 0, Load: AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))]);
+        var renderTargets = context.DescribeRenderTargets(pass);
+        using var pipeline = context.CreateGraphicsPipeline(new(program.Shader, layout, renderTargets,
+            DynamicPipelineState.Viewport)).RequireResource();
+        using var boundary = context.EnterBoundary(new("Tests.MicrofacetEnergyProbe", true,
+            graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+        boundary.Run(() =>
+        {
+            context.BeginRenderPass(pass);
+            context.SetPipeline(pipeline);
+            context.SetDynamicState(new() { Viewport = context.PassViewport });
+            context.BindResources(program.CaptureBindings());
+            context.Draw(geometry.Inputs, new(0, 6));
+            context.EndRenderPass();
+        });
+        return ReadPixelsFloat(target);
     }
     #endregion
 }

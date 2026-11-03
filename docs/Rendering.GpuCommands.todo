@@ -9,8 +9,8 @@ Management naming is complete. Phase 9 remains open: 9.1 records the existing-wo
 9.2 is complete with consistent resource-change publication. Corrective subphase 9.2.1 is qualified, replacing
 registry-wide dependency searches. Phase 9.3 completes remaining
 diagnosis, integrated qualification, package evidence and user-run acceptance.
-Phase 10 is complete, including accepted test qualification and cleanup in 10.10. Follow-up Phase 11 migrates
-legacy test execution to production shader and submission abstractions.
+Phase 10 is complete, including accepted test qualification and cleanup in 10.10. Phase 11 is complete:
+legacy test execution uses production shader/submission abstractions with reviewed native/probe boundaries.
 
 Goal
   Implement the approved semantic RHI boundary, immediate execution and optional single-use recorded
@@ -4112,6 +4112,136 @@ Phase 10.10: Qualify combined correctness and review final metrics, then remove 
       tool-project testing or Phase 9 visual-acceptance claim. Phase 11 remains open.
 
 Phase 11: Migrate legacy GPU tests to production shader and submission abstractions
+  Status: the user approved the owner/submission and independent-native-witness boundary on 2026-11-02.
+    The source/coverage classifications and independently reviewed native exceptions are retained in
+    the source and boundary map below. The subsequent user clarification requires existing actual
+    production programs by default, with a specific unique-observation justification for each dedicated
+    probe. The earlier 79 focused Debug passes remain historical evidence for the initial 11.1 candidate;
+    they do not qualify its revised production-program selection.
+    Planned source migrations, review corrections, documentation reconciliation and temporary cleanup
+    are implemented and independently rechecked. The user approved both remaining test-only numerical
+    contract corrections; their implementation passed affected source review and Debug/Release focused
+    verification. Runtime shaders remain unchanged. Final independent completion audit confirms all
+    requirements of 11 and 11.1–11.5 are satisfied, with no remaining in-scope implementation,
+    documentation, cleanup or qualification gaps. Phase 9 user-run acceptance remains separate.
+    Earlier failed candidates are retained as failed receipts, not passing evidence.
+    Current execution boundary: the integrated canonical Debug build passes. New/helper focused checks
+    recorded 728 passed and six failed out of 734. A correction recheck recorded 36 passed and one
+    failed out of 37, confirming the vertex-layout, explicit program-identity and forward-contract fixes.
+    Approved numerical contracts: NaN-width sampling must report failure and neutral correction, without
+    requiring a preserved base output after failure; the extreme history-ratio row may flush to zero or
+    preserve a safely bounded subnormal result. Nonfinite/unexpectedly large results remain rejected.
+    Ordinary-value oracles and all runtime code remain unchanged.
+    The NaN row retains production-filter neutrality and sampling-failure status, ignores only its failed
+    out-base value, and uses the actual NaN width plus valid original base in a direct correction probe.
+    The extreme-history tuple requires finite nonnegative RGB no larger than the largest Float32
+    subnormal and status zero or one. An initial probe-call argument error caused a failed Debug build
+    with no tests executed (numerical-approved-debug-*); its correction passed independent source review.
+    Final affected Debug/Release checks use numerical-approved-corrected-* receipts: both configurations
+    passed all 34 cases across the two complete affected families, with zero skips. Builds passed with
+    zero errors (Debug 50.12s, Release 1m29.69s); tests took six and fourteen seconds respectively.
+    Verified candidate manifest: FE875ED024D2E0F0178A37C90107050CCB556A55FC3072CC3A85503FAEA0C8AA.
+    Final tests SHA256: Debug CF06CD803F4C30FD3EB14E80C17AC5F2E3EA3145F50E52A6330B35A4A344AD63;
+    Release BFBCB78773822CA9000B5FF58005F0B052B8D50FDCE3F8EA17FECAF89700CF80.
+    Runtime DLL identities remain unchanged from their respective full-run builds.
+    The user approved the existing one-code final-display precision bound for the sun's absolute
+    display RGB assertions. The Debug rebuild and both complete solar rows passed; strict HDR, exact
+    translation, horizon ratios and occlusion assertions remain unchanged. Temporary LUT diagnostics
+    were removed. The retained diagnostic confirms exact HDR (3,2,1); CPU/GPU continuous
+    LUT red is 0.9646412/0.96484375, and actual display red correctly quantizes the latter to 0.96470594.
+    Receipts: TestResults/GpuTests11/integrated-source/{new-helper-focused,correction2-focused}.*.
+    Earlier outside-sandbox 182/183 and zero-executed in-sandbox timeout receipts remain under
+    TestResults/GpuTests11/production-counterparts. Diagnostic microfacet methods were excluded by
+    AllTests.runsettings (Purpose!=Diagnostic); no new GPU timing result is claimed.
+    Solar approval receipts: TestResults/GpuTests11/integrated-source/display-approved-*.
+    The later microfacet reference-batch build passed; its scalar regression passed 27/27. The full
+    Debug correctness run finished under TestResults/GpuTests11/final-qualification/final-debug.*:
+    7,115 passed, three failed and seven skipped out of 7,125 in 11m51s, exit 1. Failures are the two
+    then-unresolved numerical cases and the material smoke-test allocation-epoch setup. Its source correction
+    uses RenderTestBase to open the required epoch and passed independent setup/lifecycle review.
+    The correction Debug build passed with zero errors; both smoke cases passed in two seconds with
+    zero skips. Receipts: final-qualification/smoke-correction*. The failed full-run receipt is retained
+    unchanged; those two numerical failures are resolved by the approved focused corrections above,
+    without claiming a single all-green full run.
+    Smoke-corrected Debug tests SHA256: CE3F97CF3EC9409E7595D1D30AD0EF588222E5CBACB0FA17B4E576F0241685C7.
+    Full Debug skips retain three upstream source-map/tokenizer repros, two existing LumOn geometry-hit
+    limitations and two EventListener cases whose provider was not observed in this run. No new skips
+    were added to mask the migration failures; exact identities/reasons remain in the TRX.
+    Independent completion audit confirms the retained source map and identifies a final correction batch:
+    failure-safe staged ownership/retirement in GlStateCacheUnbindIntegrationTests.SimpleProgram, plus
+    XML comments and visibility-region reconciliation in touched test helpers/suites. That batch and
+    its focused verification/review and the approved numerical corrections are complete as recorded here.
+    Canonical Release build passed with zero errors and 244 warnings in 8m59.30s, including cold
+    production/test shader catalogues. Receipts: final-qualification/final-release-build*.
+    Frozen Release tests SHA256: 20B6BBE5CD181A47CBF5BB92E5BBAB745FC5043A4BD847C81993F4886C617693;
+    runtime SHA256: 477B32324A02BB77400A224ACF5DDCE515B2438D80749741BBE1AA17BE487C9D.
+    Full Release correctness finished: 7,115 passed, four failed and six skipped out of 7,125 in 6m29s,
+    exit 1. Receipts: final-qualification/final-release.*. The smoke correction also passed in this full run.
+    The later audit corrections are covered by separate focused receipts below; binaries remained
+    unchanged throughout the full run.
+    The Release failures are the two numerical cases plus an unchanged chunk-processing
+    one-second processor-start timeout and GpuVertexMetadataInterceptionTests' publication-failure row.
+    Both additional failures required targeted rechecks. The observer row now has test-side injection-hit,
+    configuration-revision and pre-getter availability checks to distinguish missed fault injection from
+    an observation defect; existing native/withdrawal assertions remain. No runtime or timeout change.
+    The audit-correction Release build passed (zero errors, 223 warnings, 47.17s); its three focused cases
+    passed with zero skips in two seconds: native unbind cleanup, strengthened observer injection and
+    the unchanged chunk row. These rechecks reconcile those case identities without claiming a green
+    full run or establishing why the original full-run failures occurred. The Debug build also passed
+    (zero errors, 216 warnings, 42.73s); its unbind/observer counterpart passed 2/2 with zero skips in one
+    second. Receipts: final-qualification/audit-correction-*. Independent review accepted the substantive
+    cleanup/assertion changes. Final affected-source review accepted the four subsequent cosmetic
+    corrections: only comment/region/method-order edits differ across the 3,904-file manifest, no files
+    are missing, and method bodies/assertions match the qualified substantive candidate. Focused receipts
+    remain applicable; no additional test run is needed for that cosmetic follow-up.
+    Qualified audit-correction tests SHA256: Debug
+    F1F09CD204F7BEAA6878E55E553E3743E6E186EC25918CC552380A9D87082275; Release
+    24661772F45FB748C19F992E81D82BF382913E5F4E77622C9BAEF48C031A91EC.
+    Full Debug candidate tests SHA256: 71048EB7B878FFDDD2F28A27D4D443FBEDE44CF412F817BEB3CF43CA6257D80D;
+    copied runtime SHA256: A1550813DECEA9054734D87DBE9F7108621C7807E10C6DD2C6C23B009134D6A0.
+    Case-identity reconciliation: every failed identity from both full TRX files has a later passing
+    receipt in smoke-correction, audit-correction-{debug,release} or numerical-approved-corrected-{debug,release}.
+    Reconciled coverage is Debug 7,118 passed/seven skipped and Release 7,119 passed/six skipped.
+    These totals combine the retained full runs and identified focused rechecks; they are not fresh
+    all-green full-run receipts. Original observer/chunk failure causes remain unproven. No numerical
+    speedup or installed-game appearance claim is made.
+
+  Approved source/design boundaries:
+    - BuiltShaderFixture.LoadProgram/LoadFixtureProgram complete production asset preparation but detach
+      the ready executable. ShaderTestHelper and TestShaderInterfaces then maintain raw-handle ownership,
+      numeric interface dictionaries and cleanup. Retain ready production owners instead; keep source-only
+      preprocessing used by ShaderProcessedSourceDiagnosticsTests and ShaderSourceMappingTests separate.
+    - ComputeProgram already retains ComputeShaderAsset, but ProgramId and raw numeric lookup feed legacy
+      execution. Migrate capture/publication/dispatch together, not merely construction or disposal.
+      RenderTestBase and ShaderTestFramework contain raw-ID overloads alongside existing production paths;
+      classify actual overloads and transitive callers rather than entire files by directory or name.
+    - Reuse actual production GpuProgram/GpuComputeProgram declarations and their shipped assets first,
+      through ComponentShaderPrograms and existing ownership/preparation services. Merely wrapping
+      diagnostic GLSL in a production base class does not satisfy this requirement. For each dedicated
+      probe, record the unique observable guarantee and why an existing production program cannot supply
+      it; retain independent numerical/reference witnesses. Runtime-generated arithmetic source alone
+      does not justify a native exception or another test shader declaration.
+    - Preserve native witnesses where ordinary RHI submission would overwrite the state under test:
+      GpuProgramLayoutBindingTests.ProgramLayout_TryBindSamplerTexture_UsesLayoutBindingUnit;
+      GpuUniformRingBufferIntegrationTests.UniformRingBuffer_BindRange_WritesCorrectData and
+      UnusedUniformAllocationDoesNotBindInactiveBlock; CompleteGraphicsDrawTests' cache-state application
+      and restoration cases. Production owner retention may replace their detached preparation without
+      replacing the independent native witness. Do not apply resource bindings or graphics state again
+      between the operation under test and its witness.
+    - Keep exact external shader assignment/link/interception/retirement and engine borrowed-stage
+      installation operations where those native effects are the subject. InstalledShaderFixture's engine
+      setters and actual patched assets, DirectLightingReferenceRenderer's independent draw and
+      NativeComputeProgram's fresh compiler/failure/context subjects need explicit narrow dispositions.
+      TestShaderCache, TerrainShaderTestFixture and shared engine fixtures receive no blanket exemption.
+    - Proposed commit-boundary families for discussion: ordinary declared raster subjects; ordinary
+      compute/LumOn subjects and their shared execution helpers; unique numerical fixture declarations;
+      native/engine/reference preparation and remaining shared-helper retirement; combined qualification
+      and documentation. The numbered units below assign the reviewed source/coverage map.
+    - Initial lexical scans are discovery evidence only: 94 files contain direct selector/location/uniform/
+      draw/dispatch matches, and shared wrappers add transitive callers, including already migrated paths.
+      These counts are discovery evidence, not migration totals. The retained source and boundary map distinguishes
+      actual method/overload subjects and preserves all authored rows and independent oracles.
+
   Depends on Phase 10, including 10.10. Governing contracts: Rendering.GpuResources.md (Shader executable
     ownership; Recorded command ownership), Rendering.ShaderBindingState.md (Shader ownership and
     publication; Verification boundary) and Rendering.GpuCommands.Contracts.md (Executable and pipeline
@@ -4121,53 +4251,278 @@ Phase 11: Migrate legacy GPU tests to production shader and submission abstracti
     pipelines and RHI submission. Direct native operations remain where they establish an independent
     native oracle or test an actual OpenGL/engine integration boundary.
 
-  ☐ Inventory all direct and transitive raw-program preparation and execution before implementation.
+  ☑ Inventory all direct and transitive raw-program preparation and execution before implementation.
     Cover BuiltShaderFixture.LoadProgram/LoadFixtureProgram and Detach ownership transfers,
     ShaderTestHelper, TestShaderInterfaces, TerrainShaderTestFixture, TestShaderCache, component and
     installed-engine fixtures, and callers outside the GPU directory. Include raw program selection,
     location lookup, uniform/resource uploads, draw/dispatch and cleanup, not only integer-returning
     factories. Classify each test method/helper by its actual subject and assertion requirements.
-  ☐ Present the complete classification and proposed design for discussion before migration. Separate
+  ☑ Present the complete classification and proposed design for discussion before migration. Separate
     ordinary numerical/renderer subjects, intentional native interception/state/lifecycle/engine subjects,
     independent native reference draws and checker/fixture infrastructure. For each retained raw path,
     record the specific native behavior or independent evidence it supplies; legacy infrastructure or
     directory placement alone is not justification. Define reviewable implementation subphases from
-    the reviewed inventory, with source/coverage mappings and explicit commit boundaries.
-  ☐ Migrate ordinary test setup to existing production shader abstractions and asset preparation.
-    Prefer existing GpuProgram/GpuComputeProgram declarations and their RHIShader/pipeline ownership;
-    use minimal test declarations through the same production contracts where fixture code is unique.
+    the retained source and boundary map, with source/coverage mappings and explicit commit boundaries.
+  ☑ Migrate ordinary test setup to existing production shader abstractions and asset preparation.
+    Prefer existing actual production GpuProgram/GpuComputeProgram declarations and shipped assets with
+    their RHIShader/pipeline ownership. Use a minimal test declaration only for a specifically justified
+    observation unavailable through those production programs; document the counterpart considered.
     Retain ready owners through use instead of detaching native handles and later reconstructing wrappers
     or layouts. Do not add a parallel test shader framework, duplicated cache, compatibility facade or
     one bespoke shader class per case where a shared declaration already represents the fixture.
-  ☐ Migrate ordinary execution together with its preparation: typed shader input capture, resource and
+  ☑ Migrate ordinary execution together with its preparation: typed shader input capture, resource and
     uniform publication, pipeline/pass setup, and RHI draws/dispatches. Replace legacy raw-handle setters
     and direct GL execution coherently for each migrated family. Preserve owners through immediate use,
     pass end or recorded execution/discard; consumer references remain non-owning. Keep engine-owned
     programs and required native reference operations behind their explicit integration boundaries.
     Do not make both the production result and its independent reference use the same implementation.
-  ☐ Preserve every authored scenario, parameter row, target extent, numerical oracle, tolerance, negative
+  ☑ Preserve every authored scenario, parameter row, target extent, numerical oracle, tolerance, negative
     case, lifecycle transition and state/restoration assertion. Retain exact native effects for native
     subjects rather than replacing them with higher-level success checks. Keep checker kernels and
     compact observations independent from the renderer under test. Continue default in-memory executable
     reuse, explicit fresh-compilation scopes for affected subjects and isolated stores for cache tests;
     retain fresh native owners and mutable state per case without reintroducing repeated compilation,
     physical test-owned I/O, bulk pixel readbacks or per-frame fixture discovery.
-  ☐ Retire superseded raw-handle helpers, interface dictionaries, detach/adopt plumbing and duplicated
+  ☑ Retire superseded raw-handle helpers, interface dictionaries, detach/adopt plumbing and duplicated
     layout/cleanup paths as their last legitimate consumers migrate. Narrow shared helpers still needed
     by native subjects to that explicit responsibility. Remove temporary migration inventories/scripts
     after preserving necessary decisions and evidence in this plan or appropriate permanent docs;
     retain authoritative plans/proposals, permanent test fixtures and qualification receipts.
-  ☐ Delegate focused verification for each coherent migration unit, then qualify the resulting combined
+  ☑ Delegate focused verification for each coherent migration unit, then qualify the resulting combined
     VGE correctness source in Debug and Release. Reuse valid receipts where source/input identity supports
     them; repeat only affected checks after changes and do not run full selections to iterate on helpers.
     Verify output/state coverage, production submission, native exceptions, owner/context cleanup and
     retained cache reuse. Record commands, filters, counts, failures/skips and candidate identity without
     a new benchmark framework, numerical speedup threshold or agent-launched game.
-  ☐ Reconcile current test documentation and any affected architecture contracts, perform a second review
+  ☑ Reconcile current test documentation and any affected architecture contracts, perform a second review
     and independent completion audit, then mark this phase complete only when all mapped migrations,
     justified native paths, cleanup and verification are accounted for. Earlier 10.10 evidence does not
     qualify this later source. Staging or committing requires a separate explicit user request; headless
     qualification does not replace the pending user-run visual/runtime acceptance.
+
+Phase 11.1: Migrate declared numerical raster fixtures with their submission
+  Governing contracts and preservation requirements: Phase 11 and its retained source and boundary
+    map below. Each subphase below is a separate commit boundary;
+    no staging or commit is authorized merely by completing it.
+  Production-selection correction: use SunProgram for solar raster and BloomShaderProgram for the
+    RGB16F sampling smoke case; preserve the display scenario through FinalDisplayShaderProgram.
+    Retain a solar centroid probe only for its unique intermediate numerical output. These selections
+    are implemented and reviewed; renewed solar/smoke evidence and combined receipts are recorded above.
+  ☑ Migrate AtmosphereSunRasterTests, the ordinary PbrTerrainCaptureGpuTests methods, the temporal-debug
+    fixture, TerrainEyeRelativeShadingTests, TerrainDisplacementNumericalTests,
+    and TerrainReliefNumericalTests together with their final typed inputs,
+    geometry, pass/pipeline and draw routes. Reuse existing declarations where they represent the subject.
+  ☑ Migrate PbrMaterialParamsTextureSmokeTests' sampling fixture and RenderTestInfrastructureTests' ordinary
+    fullscreen output. Preserve source-only diagnostics and native integration methods in mixed files.
+    Retire the two uncalled LumOn SH gather helpers; its sole current test already uses typed production
+    submission. The checkout contains no skipped L1 comparison row to restore or remove.
+  ☑ Retire APIs whose last consumer migrates in this unit; leave still-needed original native helpers
+    unchanged until their owning unit. Delegate focused checks, review preservation and independently audit.
+
+  Status: sources corrected for the user-approved production-program-first requirement, remaining
+    unique probes justified, and renewed review/verification recorded in the parent status. The final
+    independent audit accepts this unit and its parent. The initial candidate's
+    review and receipts below establish only its earlier scope.
+  Initial candidate routes and historical focused evidence:
+    - Numerical subject owners: MaterialParamsSmokeProgram, RenderInfrastructureFixtureProgram,
+      SolarSegmentProgram and constructor-selected SolarRasterProgram variants; TemporalDebugComputeProgram;
+      EyeRelativeShadingProgram, TerrainReliefProgram variants, PbrTerrainCaptureInputProgram variants and
+      TerrainDisplacementNumericalProgram variants. Existing ComponentShaderPrograms owns their prepared
+      assets; typed captures feed RHIResourceBindings, exact authored geometry, pipelines and complete
+      passes/draws or compute dispatch. No detached native executable/layout registry in these final routes.
+    - Removed local APIs: RenderTestInfrastructureTests.CompileMinimalShader and its ShaderTestHelper field;
+      PbrMaterialParamsTextureSmokeTests.CompileMinimalProgram; uncalled LumOn SH CompileShGatherShader
+      and SetupShGatherUniforms. The sole SH projection test remains unchanged. Shared original helpers
+      still serving later units retire with their last consumers in 11.2–11.4.
+    - Shadow arithmetic moved verbatim to tests/displacement-shadow.fsh and its test-only catalog declaration.
+      Native block enumeration preserves the absent-frame guarantee with stripped names. Native transformed
+      PBR terrain code remains unchanged; generated engine-stage raster tests belong to the 11.4 boundary.
+    - Governing mapping: Phase 11's ownership/publication/submission document sections -> the above source
+      routes -> source comparisons of every authored row, extent, payload, numerical oracle and native
+      exception, independent source reviews and candidate-qualified focused receipts below.
+    - Reconciled Debug coverage: 79 unique passing rows, zero failures/skips remaining. This combines
+      imports-fixed's 23 still-valid rows, terrain-types-fixed's 36 rows (including both corrected fullscreen
+      cases), and displacement-and-sh-helper's 20 rows. The last-comment-shadow receipt replaces its same
+      three shadow identities against the final asset. Historical failed layout/input/import candidates
+      remain failed receipts, not a single all-green full run.
+    - Commands: NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages; dotnet build
+      VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore
+      -p:UseSharedCompilation=false; dotnet test the same project -c Debug --no-build --no-restore
+      --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings with the exact focused filters in
+      TestResults/GpuTests11/initial-declared-slices and TestResults/GpuTests11/displacement-and-sh-helper
+      command files/logs/TRX. Final shadow filter selects only ShadowWithoutAngularMetricUsesConservativeCap.
+    - Final tests DLL SHA256: 103EB0FFCCE68BF440F569861F8D38BA6E3E35AEA84C9AAA111C9FA657BA807E;
+      runtime DLL: A1550813DECEA9054734D87DBE9F7108621C7807E10C6DD2C6C23B009134D6A0.
+      Final shadow SPIR-V: 83225A218E537C8E485ADA3505E78A297828061E802C0BA4175773DFC86B1FD6.
+      Before/after source and asset hashes are retained beside receipts. Final Debug build passed with
+      zero errors. Combined Debug/Release qualification remains in 11.5; no performance or game-appearance
+      acceptance is claimed by these focused headless checks.
+
+Phase 11.2: Migrate generated numerical kernels and remaining ordinary raster execution
+  Depends on 11.1. Inherits Phase 11 and its source map; do not create a second shader/cache framework.
+  Implementation progress: local exposure uses existing production reduction/filter owners and one narrow
+    intermediate-output probe; forward-surface and photometric helpers use reviewed domain probes;
+    owned sky keeps AtmosphereSkyShaderProgram; the isolated three-band decoder extends the existing
+    AerialLookupProgram fixture. Source review corrections are resolved, including storage decoding,
+    authored negative coordinates, forward import order/occlusion input and the decoder's UnitX solar
+    direction. Measurement, grazing-highlight storage and exceptional OIT writer source migrations
+    also use reviewed narrow probe boundaries, preserving their original kernel/input observations
+    rather than substituting composed renderer output. Integrated builds and focused execution are
+    recorded in the parent status, including the approved numerical corrections and reconciled qualification.
+  ☑ Migrate LocalExposurePrototypeTests, MicrofacetEnergyShaderTests/MeasurementTests, PbrForwardSurfaceNumericalTests,
+    PbrSolarBrdfTests, PhotometricLightingShaderTests and the ordinary FrameLightingStorageTests and
+    OitStorageArithmeticTests methods. Use production declaration/preparation and typed submission together.
+  ☑ Migrate AtmosphereCelestialPublicationTests.AssertAerialDecoder and AtmosphereOwnedSkyTests.FullscreenSky.Draw;
+    preserve independent CPU/reference values and every calling scenario, extent and tolerance.
+  ☑ Remove superseded per-family raw construction/layout/cleanup and delegate focused verification;
+    perform second review and an independent audit of the complete unit.
+
+Phase 11.3: Migrate bake, iterative and cache-output execution
+  Depends on 11.1. Inherits Phase 11 and its reviewed source map.
+  Actual production counterparts: PbrHeightBakeShaderProgram's thirteen declared pass executables.
+    PbrNormalDepthBakeShaderPipelineTests currently exercises those normalization/atlas-packing passes,
+    despite its name; preserve that subject rather than substitute PbrNormalDepthBakeShaderProgram.
+    Reuse shipped assets and typed inputs; a fixture may compose owners/pipelines without declaring
+    duplicate test shaders.
+  ☑ Migrate PbrHeightBakeFullChainTests, PbrNormalDepthBakeShaderPipelineTests, PbrPoissonJacobiConvergenceTests
+    and PbrPoissonMultigridVCycleTests with exact iterative/history/boundary/blend behavior; replace
+    PbrHeightBakeParamsUbo raw publication and retire its superseded methods with their callers.
+  ☑ Migrate DriverProgramCacheTests and ShaderLinkBatchTests' ordinary output witnesses while retaining
+    cache scopes, corruption/replacement/retirement and changed-context observations. Migrate the
+    WaterRefractionReductionTests diagnostic draw loop through the existing production submission route.
+  ☑ Delegate focused checks, compare all mapped authored rows and numerical/state oracles, remove
+    obsolete per-family helpers, perform second review and independently audit this unit.
+
+Phase 11.4: Retain native witnesses with explicit production ownership and retire legacy shader plumbing
+  Depends on 11.1–11.3. Inherits Phase 11 and its source map; native effects remain independent.
+  ☑ Replace obsolete detach/adopt, interface-registry and duplicate-layout preparation for reviewed
+    native/engine/reference witnesses with retained owners or their explicit original engine boundary.
+    Never insert RHI state/binding publication between the API under test and its native witness.
+    TerrainDisplacementRasterTests retains all sixteen generated engine-stage raster/interface rows:
+    borrowed vertex/fragment stages, copied shadow coordinates/depth bias and base varyings are actual
+    integration subjects. Retain the ready restricted-engine-factory owner rather than changing those
+    standalone engine uniforms or adopting a detached handle. Ordinary displacement arithmetic stays in 11.1.
+  ☑ Migrate preparation-only define/permutation, UBO/interface and cache-policy tests; preserve independent
+    native reflection, dirty-owner isolation, failure and cleanup assertions. Preserve CPU preprocessing.
+  ☑ Remove BuiltShaderFixture/ShaderTestHelper raw APIs, TestShaderInterfaces, ComputeProgram's obsolete
+    metadata fallback and raw base/framework overloads as their final consumers migrate. Narrow remaining
+    native setup/cache/terrain helpers to the reviewed subjects; remove unused UniformBlockBindingUtil.
+    Do not remove legitimate native program IDs required by engine APIs or raw-subject operations.
+  ☑ Verify exact native effects, fresh/cache policy, ownership/context cleanup, suppression and restoration;
+    delegate focused checks, perform second review and independently audit all remaining native routes.
+
+Phase 11.5: Qualify the migrated test source and reconcile documentation
+  Depends on 11.1–11.4. Inherits every Phase 11 verification and cleanup requirement.
+  ☑ Reconcile before/after method/API coverage, all remaining native exceptions and current test docs.
+    Remove Rendering.LegacyShaderTests.Inventory.md and any temporary migration scripts after preserving
+    necessary final source/coverage decisions and receipts in this plan or permanent documentation.
+  ☑ Delegate combined Debug and Release VGE correctness qualification with candidate identity and commands;
+    reuse valid focused receipts only where source/input identity supports them. Record failures/skips
+    truthfully, retaining every authored scenario/oracle and the original Phase 10 cache/I/O/assertion policy.
+  ☑ Perform the final second review and independent completion audit against Phase 11 and linked contracts;
+    complete the parent and its goal only when all units, native exceptions and evidence are satisfied.
+    Headless checks leave Phase 9 user-run appearance/runtime acceptance separate.
+
+Retained shader-test source and boundary map
+  This records implementation dispositions; the approved numerical contracts and execution receipts above
+    govern acceptance. The temporary Rendering.LegacyShaderTests.Inventory.md has been reconciled
+    into this map and removed; authoritative contracts and qualification receipts remain.
+  Ordinary execution:
+    - Sun raster/bloom uses SunProgram; composed display uses FinalDisplayShaderProgram; RGB16F smoke
+      uses BloomShaderProgram. The shared solar-centroid and deterministic infrastructure probes expose
+      distinct intermediate/harness outputs, rather than claiming composed production-renderer coverage.
+    - Terrain normal/transmission/liquid-optics, eye-relative/POM and displacement arithmetic retain narrow
+      production-helper probes. Their vector, UV, metric/cap and thickness quantities are not directly
+      available from engine material color. Actual installed/generated engine-stage coverage stays separate.
+      Temporal debug preserves the direct history-coordinate observation used by its numerical oracle.
+    - Four bake suites use PbrHeightBakeShaderProgram and the production parameter UBO, preserving all
+      22 authored rows, pass extents, CPU stencils, iterations, ping-pong history and additive blending.
+      PbrNormalDepthBakeShaderPipelineTests exercises height normalization/packing despite its name.
+    - Local exposure uses production reduction/filter owners and one shared probe for guided sampling,
+      isolated controls/invalid coordinates and the pre-dither LUT quantity. Forward-surface consumers
+      exist in patched engine shaders, but their light decoding, sRGB conversion and material extraction
+      cannot supply all independently authored helper tuples without overriding those producer boundaries.
+      The forward and photometric probes retain direct helper quantities and independent CPU references.
+    - Microfacet and finite-disk BRDF probes retain intermediate coefficients/directions and independent
+      references. The separate cost kernel retains ordinary/compensated variants, runtime counts 1/100,
+      256-by-256 output, three warmups and eight samples; prepared RHI timing is not historically comparable.
+      The independent reference batch uses the same shared probe with 360 exact RG32F coordinate tuples,
+      the production quality-three lookup and typed RHI submission. Its external CSV inputs are absent
+      from this checkout, so that opt-in diagnostic has not been executed; scalar regression passed 27/27.
+    - Grazing storage retains the actual FrameLightingShaderProgram producer with its paired two-pixel
+      observation. The exceptional OIT writer uses production oit.glsl across all six outputs; independent
+      installed compatibility/blending witnesses remain native.
+    - Owned sky keeps AtmosphereSkyShaderProgram and typed SkyInputs capture, including the eight-output
+      sentinel contract. Existing AerialLookupProgram now also supplies the isolated three-band decoder;
+      the original two-band mode and authored solar/lunar directions remain intact.
+    - Cache/link output witnesses use typed RHI draws/dispatch with exact declared geometry. Isolated
+      stores, fresh/corrupt/cancellation/replacement/context and native retirement observations remain.
+      The water reduction diagnostic preserves its geometry, query intervals and 128 draws per sample.
+  Native and component boundaries:
+    - PbrTerrainCaptureGpuTests.TransformedEngineMainCompilesAndCapturesMaterial retains actual engine
+      transformation/link/native execution; its normal, transmission and liquid-optics methods use typed
+      numerical execution. ConfigurableRasterizerGpuTests retains native raster-policy witnesses.
+      GpuProgramSamplerRetirementTests.AssertPlainTextureHandoff retains location-zero assignment and
+      texture handoff without replacing the foreign sampler state being observed.
+    - Shader/module owners stay alive through compile/link/binding/ring/state/reference witnesses.
+      No RHI binding publication is inserted between an operation under test and its native witness.
+      Engine ProgramId installation and explicit external-deletion tests retain genuine ownership
+      handoffs; these are not detached-owner reconstruction for ordinary execution.
+    - Terrain borrowed-stage factories retain their ready owners, including all sixteen generated-stage
+      raster/interface rows. Native uniform, shadow/base varying and shared-edge/chunk-split effects remain.
+    - RenderNativeReferenceQuadTo, RenderNativeReferenceQuad, RenderNativeReferenceFullscreenQuad and
+      SetNativeUniform identify intentional native engine/reference/state witnesses. Remaining cached GLSL
+      fixtures cover installed engine/OIT/particle compatibility and independent reference operations.
+    - LumOn UBO checks resolve numeric indices from actual linked metadata through the retained interface,
+      then query native binding values independently. Absence checks remain meaningful with stripped names.
+      LumonSceneFeedbackLayoutContractTests' MarkPages and CompactPages SPIR-V binding cases retain
+      ComputeShaderAsset owners and independently query baked bindings before runtime assignment.
+    - RHIAuxiliaryTests.TransformFeedbackCapturesAcrossOneCompleteScope retains native vertex execution
+      as its independent capture/pause/resume witness. All three SceneColorParticleLightingTests methods
+      retain installed vertex-stage transform-feedback subjects, including dark particle/decal cases.
+    - ShaderDefineInjectionTests and GpuInfrastructureTests preserve define/permutation/load/failure
+      coverage through retained preparation. ShaderHelperOwnershipTests preserves repeated disposal and
+      no-double-delete guarantees independently of construction assertions for removed helpers.
+    - Native metadata/interception families (GpuProgramMetadataInterceptionTests and bindless/derived/narrow
+      variants, GpuProgramUniformMetadataTests, GpuProgramDesktopExtSelectionTests) retain exact selector,
+      assignment, link/status, unavailable-fact and callback subjects. GpuExecutableLifecycleTests,
+      StateCacheResourceDeletionTests, NativeShaderDeletionTests and resource kind/context/retirement
+      suites retain original-context, pending-delete, mutation and fixed-generation effects.
+      BindingPublicationInterruptionTests, CommandBindingKnowledgeTests, OpenTKFeedbackObservationTests
+      and GlStateCacheUnbindIntegrationTests retain exact external callbacks, equal/rejected selectors,
+      feedback transitions and native unbind evidence.
+    - ShaderContractBindingTests, PreparedBindingTests and ShaderCachePolicyTests retain authored
+      assignments without repair, unequal-block rejection, dirty-first/fresh-second-owner isolation
+      and independent native observations.
+    - EngineShaderDebugLabelsTests, FrameShaderBindingHookTests, NativeFrameLightingBindingTests,
+      TerrainChunkSlotBindingTests, TerrainReliefBindingsTests and StandaloneNumericInputTests retain
+      linked-interface, hook overwrite, debug-label, sampler-handoff and numeric-rejection witnesses.
+      Installed coverage/depth/block-field/surface and EngineOitAccumulationFormatTests retain actual
+      patched sources, native conventions and bucket allocation/blending/resolve effects.
+      NativeFogColorEnvelopeTests, SceneCompatibilityEnvelopeTests and SceneColorPatchTests retain
+      installed GLSL or independent native arithmetic with their original inputs/output oracle.
+    - SceneColorParticleTests/IntegrationTests/PublicationTests and SceneColorRuntimeTests retain external
+      engine drawing inside redirection, inherited depth/blend and actual engine setters. Atmosphere engine,
+      cloud adapter, resource-change native, engine-boundary and water-capture suites retain callback,
+      context-mismatch and exceptional restoration subjects. Framebuffer routing/attachment suites retain
+      exact routing/resource effects: GL.DrawBuffer(s) is routing, not shader execution.
+    - Typed LumOn and direct-lighting overloads were already production backed and remain so. Already-typed
+      binding/pass/compute/registry suites retain hostile program-zero/sentinel boundary witnesses.
+      Unrelated resource Detach operations are outside shader ownership migration.
+    - DirectLightingComparisonFixture retains independent candidate/reference algorithms and native
+      draw-count/failure observations. Checker services remain independent; NativeComputeProgram retains
+      deliberately fresh native compiler/failure/foreign-context/retired-context subjects.
+    - ShaderProcessedSourceDiagnostics retains CPU-only import/define/source processing through the same
+      AST processor; no native executable preparation or GPU context is introduced into those operations.
+  Superseded surfaces:
+    - BuiltShaderFixture retains RHIShader/GpuShaderModule results instead of detaching them; its old
+      duplicate Layout construction is removed. ComponentShaderPrograms retains typed program owners.
+    - ShaderTestHelper's executable API and TestShaderInterfaces' ambient ID registry/callback cleanup are
+      gone. ComputeProgram retains ComputeShaderAsset without the raw metadata/location fallback.
+    - Unused raw base setters/texture helpers and UniformBlockBindingUtil are gone. Raw reference draws
+      are explicitly named; no compatibility aliases or replacement ambient registry were introduced.
+    - The test-only PbrHeightBakeParamsUbo helper and solar raster fixture assets/owner are removed.
+      The production UBO and authoritative proposals/plans, permanent fixtures and receipts are retained.
 
 Final acceptance
   ☐ All eleven phases, their subphases and mandatory migration receipts are satisfied; later cleanup never substitutes for

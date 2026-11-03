@@ -1,5 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Spirv;
@@ -19,6 +20,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     /// <summary>Uses the shared GL context and test receipt output.</summary>
     public SpirvGraphicsLifecycleTests(HeadlessGLFixture fixture, ITestOutputHelper output) : base(fixture) => this.output = output;
 
+    #region Public API
     #region Binary execution
     /// <summary>Retains runtime packaged-interface validation for every declared graphics assignment.</summary>
     public static IEnumerable<object[]> GraphicsVariants() => SpirvInventoryTests.GraphicsPrograms()
@@ -186,6 +188,53 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
     }
 
+    /// <summary>Repeated draws retain SPIR-V shader objects and produce the expected interpolated pixel.</summary>
+    [Fact]
+    public void RepeatedDrawsUseBuiltBinaries()
+    {
+        EnsureContextValid();
+        using var freshStages = DriverProgramCache.UseStoreForTesting(null);
+        GpuShaderModule? vertex = null, fragment = null;
+        GpuProgramObject? programOwner = null;
+        try
+        {
+            vertex = BuiltShaderFixture.Load("tests/render_infrastructure.vsh", ShaderType.VertexShader);
+            fragment = BuiltShaderFixture.Load("tests/render_infrastructure.fsh", ShaderType.FragmentShader);
+            programOwner = NativeResourceSetup.CreateProgram();
+            int program = programOwner.ProgramId;
+            GL.AttachShader(program, vertex.ShaderId); GL.AttachShader(program, fragment.ShaderId);
+            long start = Stopwatch.GetTimestamp();
+            GL.LinkProgram(program);
+            output.WriteLine($"Native program link: {Stopwatch.GetElapsedTime(start).TotalMilliseconds:F3} ms");
+            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
+            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+            using var target = CreateRenderTarget(8, 8, TextureFormat.Rgba32f);
+            FramebufferTestSetup.BindForEngineRendering(target);
+            start = Stopwatch.GetTimestamp();
+            for (int i = 0; i < 8; i++) RenderNativeReferenceFullscreenQuad(program);
+            output.WriteLine($"Eight draw submissions: {Stopwatch.GetElapsedTime(start).TotalMilliseconds:F3} ms");
+            var pixel = ReadPixel(target, 4, 4);
+            Assert.InRange(pixel.R, 0.55f, 0.58f);
+            Assert.InRange(pixel.G, 0.55f, 0.58f);
+            foreach (int shader in new[] { vertex.ShaderId, fragment.ShaderId })
+            {
+                GL.GetShader(shader, (ShaderParameter)All.SpirVBinary, out int isSpirv);
+                Assert.Equal(1, isSpirv);
+            }
+        }
+        finally
+        {
+            GL.UseProgram(0);
+            programOwner?.Dispose();
+            vertex?.Dispose();
+            fragment?.Dispose();
+        }
+    }
+
+    #endregion
+    #endregion
+
+    #region Private
     /// <summary>Permits only compiled payloads and their required association metadata, never GLSL source.</summary>
     private static void AssertBinaryAsset(string path) =>
         Assert.True(path.EndsWith(".spv", StringComparison.Ordinal) || path == "shaders/" + ShaderBinaryDigest.FileName, path);
@@ -215,45 +264,6 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         }
     }
 
-    /// <summary>Repeated draws retain SPIR-V shader objects and produce the expected interpolated pixel.</summary>
-    [Fact]
-    public void RepeatedDrawsUseBuiltBinaries()
-    {
-        EnsureContextValid();
-        using var freshStages = DriverProgramCache.UseStoreForTesting(null);
-        int vertex = 0, fragment = 0, program = 0;
-        try
-        {
-            vertex = BuiltShaderFixture.Load("tests/render_infrastructure.vsh", ShaderType.VertexShader);
-            fragment = BuiltShaderFixture.Load("tests/render_infrastructure.fsh", ShaderType.FragmentShader);
-            program = GL.CreateProgram();
-            GL.AttachShader(program, vertex); GL.AttachShader(program, fragment);
-            long start = Stopwatch.GetTimestamp();
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(program);
-            output.WriteLine($"Link and numeric reflection: {Stopwatch.GetElapsedTime(start).TotalMilliseconds:F3} ms");
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            using var target = CreateRenderTarget(8, 8, TextureFormat.Rgba32f);
-            FramebufferTestSetup.BindForEngineRendering(target);
-            start = Stopwatch.GetTimestamp();
-            for (int i = 0; i < 8; i++) RenderFullscreenQuad(program);
-            output.WriteLine($"Eight draw submissions: {Stopwatch.GetElapsedTime(start).TotalMilliseconds:F3} ms");
-            var pixel = ReadPixel(target, 4, 4);
-            Assert.InRange(pixel.R, 0.55f, 0.58f);
-            Assert.InRange(pixel.G, 0.55f, 0.58f);
-            foreach (int shader in new[] { vertex, fragment })
-            {
-                GL.GetShader(shader, (ShaderParameter)All.SpirVBinary, out int isSpirv);
-                Assert.Equal(1, isSpirv);
-            }
-        }
-        finally
-        {
-            GL.UseProgram(0);
-            if (program != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program);
-            if (vertex != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vertex);
-            if (fragment != 0) global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fragment);
-        }
-    }
+
     #endregion
 }

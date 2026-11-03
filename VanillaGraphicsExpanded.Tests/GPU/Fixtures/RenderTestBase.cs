@@ -48,6 +48,8 @@ public abstract class RenderTestBase : IDisposable
     /// <summary>Retains per-test assertion resources while borrowing the fixture's production checker owners.</summary>
     private protected Assertions.GpuObservations ImageAssertions => _fixture.Observations;
 
+    #region Public API
+
     /// <summary>
     /// Creates a new RenderTestBase instance.
     /// </summary>
@@ -118,54 +120,10 @@ public abstract class RenderTestBase : IDisposable
     #region Fullscreen Quad Rendering
 
     /// <summary>
-    /// Initializes the fullscreen quad VAO if not already initialized.
+    /// Renders a native reference program through direct GL selection and draw calls.
     /// </summary>
-    private void EnsureQuadInitialized()
-    {
-        if (_quadInitialized)
-            return;
-
-        // Fullscreen quad vertices: position (x,y) and texcoord (u,v)
-        // Two triangles covering the screen from -1 to 1 in NDC
-        float[] quadVertices =
-        [
-            // First triangle
-            -1.0f, -1.0f,  0.0f, 0.0f,  // bottom-left
-             1.0f, -1.0f,  1.0f, 0.0f,  // bottom-right
-             1.0f,  1.0f,  1.0f, 1.0f,  // top-right
-            // Second triangle
-            -1.0f, -1.0f,  0.0f, 0.0f,  // bottom-left
-             1.0f,  1.0f,  1.0f, 1.0f,  // top-right
-            -1.0f,  1.0f,  0.0f, 1.0f,  // top-left
-        ];
-
-        _quadVao = GL.GenVertexArray();
-        _quadVbo = GL.GenBuffer();
-
-        GL.BindVertexArray(_quadVao);
-
-        GL.BindBuffer(BufferTarget.ArrayBuffer, _quadVbo);
-        GL.BufferData(BufferTarget.ArrayBuffer, quadVertices.Length * sizeof(float), quadVertices, BufferUsageHint.StaticDraw);
-
-        // Position attribute (location 0)
-        GL.EnableVertexAttribArray(0);
-        GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 0);
-
-        // TexCoord attribute (location 1)
-        GL.EnableVertexAttribArray(1);
-        GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 2 * sizeof(float));
-
-        GL.BindVertexArray(0);
-        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
-
-        _quadInitialized = true;
-    }
-
-    /// <summary>
-    /// Renders a fullscreen quad using the currently bound shader program.
-    /// </summary>
-    /// <param name="programId">The shader program to use.</param>
-    protected void RenderFullscreenQuad(int programId)
+    /// <param name="programId">The native executable owned by the reference test.</param>
+    protected void RenderNativeReferenceFullscreenQuad(int programId)
     {
         EnsureContextValid(beginUniformFrame: false);
         EnsureQuadInitialized();
@@ -175,20 +133,6 @@ public abstract class RenderTestBase : IDisposable
         GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
         GL.BindVertexArray(0);
         GL.UseProgram(0);
-    }
-
-    /// <summary>
-    /// Renders a fullscreen quad with the shader already bound.
-    /// Assumes the caller has already called GL.UseProgram().
-    /// </summary>
-    protected void RenderFullscreenQuad()
-    {
-        EnsureContextValid(beginUniformFrame: false);
-        EnsureQuadInitialized();
-
-        GL.BindVertexArray(_quadVao);
-        GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
-        GL.BindVertexArray(0);
     }
 
     #endregion
@@ -290,101 +234,6 @@ public abstract class RenderTestBase : IDisposable
         }
     }
 
-    /// <summary>
-    /// Sets a uniform float value on the specified program.
-    /// </summary>
-    protected void SetUniform(int programId, string name, float value)
-    {
-        var location = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
-        {
-            location = explicitLocation;
-        }
-        if (location >= 0)
-        {
-            GL.UseProgram(programId);
-            GL.Uniform1(location, value);
-        }
-    }
-
-    /// <summary>
-    /// Sets a uniform vec2 value on the specified program.
-    /// </summary>
-    protected void SetUniform(int programId, string name, float x, float y)
-    {
-        var location = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
-        {
-            location = explicitLocation;
-        }
-        if (location >= 0)
-        {
-            GL.UseProgram(programId);
-            GL.Uniform2(location, x, y);
-        }
-    }
-
-    /// <summary>
-    /// Sets a uniform vec3 value on the specified program.
-    /// </summary>
-    protected void SetUniform(int programId, string name, float x, float y, float z)
-    {
-        var location = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
-        {
-            location = explicitLocation;
-        }
-        if (location >= 0)
-        {
-            GL.UseProgram(programId);
-            GL.Uniform3(location, x, y, z);
-        }
-    }
-
-    /// <summary>
-    /// Sets a uniform vec4 value on the specified program.
-    /// </summary>
-    protected void SetUniform(int programId, string name, float x, float y, float z, float w)
-    {
-        var location = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
-        {
-            location = explicitLocation;
-        }
-        if (location >= 0)
-        {
-            GL.UseProgram(programId);
-            GL.Uniform4(location, x, y, z, w);
-        }
-    }
-
-    /// <summary>
-    /// Sets a uniform int value on the specified program.
-    /// </summary>
-    protected void SetUniform(int programId, string name, int value)
-    {
-        var location = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, name);
-        if (location < 0 && ComputeProgram.TryGetExplicitUniformLocation(programId, name, out int explicitLocation))
-        {
-            location = explicitLocation;
-        }
-        if (location >= 0)
-        {
-            GL.UseProgram(programId);
-            GL.Uniform1(location, value);
-        }
-    }
-
-    /// <summary>
-    /// Binds a texture to a texture unit and sets the corresponding sampler uniform.
-    /// </summary>
-    protected void BindTexture(int programId, string uniformName, int textureUnit, int textureId)
-    {
-        GL.ActiveTexture(TextureUnit.Texture0 + textureUnit);
-        GL.BindTexture(TextureTarget.Texture2D, textureId);
-        SetUniform(programId, uniformName, textureUnit);
-    }
-
     #endregion
 
     #region IDisposable
@@ -417,6 +266,51 @@ public abstract class RenderTestBase : IDisposable
 
         if (disposing) { frameLighting.Dispose(); _targetResources.Dispose(); }
         _disposed = true;
+    }
+
+    #endregion
+
+    #endregion
+
+    #region Private
+
+    /// <summary>Initializes the fullscreen quad VAO on first use.</summary>
+    private void EnsureQuadInitialized()
+    {
+        if (_quadInitialized)
+            return;
+
+        // Fullscreen quad vertices: position (x,y) and texcoord (u,v)
+        // Two triangles covering the screen from -1 to 1 in NDC
+        float[] quadVertices =
+        [
+            // First triangle
+            -1.0f, -1.0f,  0.0f, 0.0f,  // bottom-left
+             1.0f, -1.0f,  1.0f, 0.0f,  // bottom-right
+             1.0f,  1.0f,  1.0f, 1.0f,  // top-right
+            // Second triangle
+            -1.0f, -1.0f,  0.0f, 0.0f,  // bottom-left
+             1.0f,  1.0f,  1.0f, 1.0f,  // top-right
+            -1.0f,  1.0f,  0.0f, 1.0f,  // top-left
+        ];
+
+        _quadVao = GL.GenVertexArray();
+        _quadVbo = GL.GenBuffer();
+
+        GL.BindVertexArray(_quadVao);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, _quadVbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, quadVertices.Length * sizeof(float), quadVertices, BufferUsageHint.StaticDraw);
+
+        // Position attribute (location 0)
+        GL.EnableVertexAttribArray(0);
+        GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 0);
+
+        // TexCoord attribute (location 1)
+        GL.EnableVertexAttribArray(1);
+        GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 2 * sizeof(float));
+        GL.BindVertexArray(0);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        _quadInitialized = true;
     }
 
     #endregion

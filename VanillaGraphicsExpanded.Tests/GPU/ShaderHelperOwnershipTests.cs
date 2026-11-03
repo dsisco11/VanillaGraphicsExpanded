@@ -4,7 +4,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Exercises ownership transfer between raw-handle fixture callers and their allocating helper.</summary>
+/// <summary>Checks that retiring a ready shader owner more than once leaves other program owners intact.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
 public sealed class ShaderHelperOwnershipTests : RenderTestBase
@@ -12,31 +12,25 @@ public sealed class ShaderHelperOwnershipTests : RenderTestBase
     /// <summary>Uses the shared test context.</summary>
     public ShaderHelperOwnershipTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    #region Public API
     #region Ownership regression
-    /// <summary>Explicit caller deletion releases helper ownership before a later disposal can reuse stale handles.</summary>
+    /// <summary>Repeated disposal of one retained executable does not affect an independently created program.</summary>
     [Fact]
     public void CallerDeletionThenHelperDisposalDoesNotDeleteAgain()
     {
         EnsureContextValid();
-        string root = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        using var helper = new ShaderTestHelper();
-        var result = helper.CompileProgram("tests/render_infrastructure");
-        Assert.True(result.IsSuccess, result.ErrorMessage);
-        GL.GetProgram(result.ProgramId, GetProgramParameterName.AttachedShaders, out int count);
-        var attached = new int[count];
-        GL.GetAttachedShaders(result.ProgramId, count, out _, attached);
-        TestShaderInterfaces.DeleteProgram(result.ProgramId);
-        foreach (int shader in attached) TestShaderInterfaces.DeleteShader(shader);
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
-        int survivor = GL.CreateProgram();
+        using var executable = BuiltShaderFixture.LoadProgram(new(new VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(
+            VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram("tests/render_infrastructure"))));
+        executable.Dispose();
+        var survivor = NativeResourceSetup.CreateProgram();
         try
         {
-            helper.Dispose();
-            helper.Dispose();
+            executable.Dispose();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
-            Assert.True(GL.IsProgram(survivor));
+            Assert.True(GL.IsProgram(survivor.ProgramId));
         }
-        finally { GL.DeleteProgram(survivor); }
+        finally { survivor.Dispose(); }
     }
+    #endregion
     #endregion
 }

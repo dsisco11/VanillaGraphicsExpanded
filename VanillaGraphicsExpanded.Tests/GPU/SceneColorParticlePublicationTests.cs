@@ -101,7 +101,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         using var shaders = new TerrainShaderTestFixture();
         int vertex = shaders.Compile(ShaderType.VertexShader, "#version 430 core\nvoid main(){gl_Position=vec4(0);}");
         int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\nuniform int vge_sceneLinear;out vec4 color;void main(){color=vec4(vge_sceneLinear);}");
-        using var linked = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        using var linked = TerrainShaderTestFixture.Link(vertex, fragment);
         var cube = new LinkedCube { ProgramId = linked.ProgramId };
         cube.Populate();
         // Native fixture linking admits a temporary backend and reloads core bindings.

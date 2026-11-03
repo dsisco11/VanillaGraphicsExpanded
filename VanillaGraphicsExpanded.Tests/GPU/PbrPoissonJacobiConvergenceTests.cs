@@ -1,20 +1,16 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
-using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
-using System.IO;
-
-using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
-using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
+/// <summary>Verifies the shipped Jacobi shader against independent stencil and convergence oracles.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
@@ -23,11 +19,14 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 
     private readonly HeadlessGLFixture fixture;
 
+    #region Public API
+    /// <summary>Creates this integration suite over the shared headless OpenGL fixture.</summary>
     public PbrPoissonJacobiConvergenceTests(HeadlessGLFixture fixture) : base(fixture)
     {
         this.fixture = fixture;
     }
 
+    /// <summary>Provides the preserved zero, sine, and deterministic-noise convergence inputs.</summary>
     public static IEnumerable<object[]> ZeroMeanRhsCases()
     {
         yield return new object[] { "zero", BuildZeroMeanRhs(32, 32, RhsKind.Zero) };
@@ -35,6 +34,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         yield return new object[] { "noise", BuildZeroMeanRhs(32, 32, RhsKind.DeterministicNoise) };
     }
 
+    /// <summary>Provides the original one-step stencil input combinations.</summary>
     public static IEnumerable<object[]> JacobiOneStepCases()
     {
         yield return new object[] { "b_zero_h_noise", BuildJacobiStepCase(8, 8, bKind: RhsKind.Zero, hKind: RhsKind.DeterministicNoise) };
@@ -42,6 +42,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         yield return new object[] { "b_checker_h_noise", BuildJacobiStepCase(8, 8, bKind: RhsKind.Checkerboard, hKind: RhsKind.DeterministicNoise) };
     }
 
+    /// <summary>Compares one production Jacobi step against the independent periodic CPU stencil.</summary>
     [Theory]
     [MemberData(nameof(JacobiOneStepCases))]
     public void JacobiShader_OneStep_MatchesCpuStencil(string name, JacobiStepCase input)
@@ -49,63 +50,28 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         EnsureContextValid();
         fixture.MakeCurrent();
 
-        string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
-        {
-            Assert.SkipWhen(true, "Test shader assets not found in output directory.");
-        }
-
-        using var helper = new ShaderTestHelper();
-
-        var progResult = helper.CompileAndLink(
-            vertexFilename: "pbr_heightbake_fullscreen.vsh",
-            fragmentFilename: "pbr_heightbake_jacobi.fsh");
-        Assert.True(progResult.IsSuccess, progResult.ErrorMessage);
-
-        int programId = progResult.ProgramId;
-        Assert.True(programId > 0);
-
-            PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(programId);
-        using var paramsUbo = new ObjectParamsUbo("Tests.PbrPoissonJacobiConvergence.JacobiParams");
+        // Arrange: prepare the shipped Jacobi program, authored source images, and output extent.
+        PbrHeightBakeTestPrograms.EnsureAssetsAvailable();
+        using var programs = new PbrHeightBakeTestPrograms();
+        var program = programs.Create("pbr_heightbake_jacobi");
 
         using var hTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = input.Width, Height = input.Height, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, input.Width, input.Height), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((input.H).AsSpan()).ToArray())]).RequireResource();
         using var bTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = input.Width, Height = input.Height, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, input.Width, input.Height), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((input.B).AsSpan()).ToArray())]).RequireResource();
         using var outTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, input.Width), Height = System.Math.Max(1, input.Height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
-        // GPU step
-        int vao = GL.GenVertexArray();
-        GL.BindVertexArray(vao);
+        // Bind the authored textures and dimensions through the shipped program's declared inputs.
+        program.h = hTex;
+        program.b = bTex;
+        programs.Parameters.CommonSize = (input.Width, input.Height);
+        // Act: run one production pass through the retained executable and RHI pipeline.
+        programs.Draw(outTex, program);
 
-        using (var fbo = DynamicGpuFramebuffer.CreateSingle(outTex) ?? throw new InvalidOperationException("Failed to create FBO"))
-        {
-            fbo.Bind();
-            GL.Viewport(0, 0, input.Width, input.Height);
-            GL.Disable(EnableCap.Blend);
-            GL.Disable(EnableCap.DepthTest);
-            GL.ColorMask(true, true, true, true);
-
-            GL.UseProgram(programId);
-
-            PbrHeightBakeParamsUbo.BindSize(paramsUbo, input.Width, input.Height);
-
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)hTex).Target)))]);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, bTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)bTex).Target)))]);
-
-            GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-
-            GL.UseProgram(0);
-            GpuFramebuffer.Unbind();
-        }
-
-        GL.BindVertexArray(0);
-        GL.DeleteVertexArray(vao);
-
+        // Assert: compare every output texel with the independent periodic CPU stencil.
         float[] cpu = ComputeJacobiStepCpu(input.H, input.B, input.Width, input.Height);
         ImageAssertions.Comparisons.Compare(outTex, cpu, 1e-4f).AssertEqual();
     }
 
+    /// <summary>Checks convergence across the original zero, sine, and deterministic-noise right-hand sides.</summary>
     [Theory]
     [MemberData(nameof(ZeroMeanRhsCases))]
     public void JacobiSolve_PeriodicPoisson_ReducesResidual_OnMultipleInputs(string name, RhsCase rhs)
@@ -113,27 +79,10 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         EnsureContextValid();
         fixture.MakeCurrent();
 
-        string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
-        {
-            Assert.SkipWhen(true, "Test shader assets not found in output directory.");
-        }
-
-        using var helper = new ShaderTestHelper();
-
-        var progResult = helper.CompileAndLink(
-            vertexFilename: "pbr_heightbake_fullscreen.vsh",
-            fragmentFilename: "pbr_heightbake_jacobi.fsh");
-        Assert.True(progResult.IsSuccess, progResult.ErrorMessage);
-
-        int programId = progResult.ProgramId;
-        Assert.True(programId > 0);
-
-        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(programId);
-
-        using var paramsUbo = new ObjectParamsUbo("Tests.PbrPoissonJacobiConvergence.JacobiParamsSolve");
+        // Arrange: preserve each authored RHS, zeroed initial solution, and 800 iteration count.
+        PbrHeightBakeTestPrograms.EnsureAssetsAvailable();
+        using var programs = new PbrHeightBakeTestPrograms();
+        var program = programs.Create("pbr_heightbake_jacobi");
 
         // Keep this reasonably fast; Jacobi is slow but we only need to see clear reduction.
         const int iterations = 800;
@@ -145,38 +94,19 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         ClearR32f(h0, 0f);
         ClearR32f(h1, 0f);
 
-        int vao = GL.GenVertexArray();
-        GL.BindVertexArray(vao);
+        programs.Parameters.CommonSize = (rhs.Width, rhs.Height);
 
-        PbrHeightBakeParamsUbo.BindSize(paramsUbo, rhs.Width, rhs.Height);
-
+        // Act: execute the authored ping-pong solve.
         // Jacobi ping-pong
         for (int i = 0; i < iterations; i++)
         {
             DynamicTexture2D src = (i % 2 == 0) ? h0 : h1;
             DynamicTexture2D dst = (i % 2 == 0) ? h1 : h0;
 
-            using var fbo = DynamicGpuFramebuffer.CreateSingle(dst) ?? throw new InvalidOperationException("Failed to create FBO");
-
-            fbo.Bind();
-            GL.Viewport(0, 0, rhs.Width, rhs.Height);
-            GL.Disable(EnableCap.Blend);
-            GL.Disable(EnableCap.DepthTest);
-            GL.ColorMask(true, true, true, true);
-
-            GL.UseProgram(programId);
-
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)src).Target)))]);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, bTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)bTex).Target)))]);
-
-            GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-
-            GL.UseProgram(0);
-            GpuFramebuffer.Unbind();
+            program.h = src;
+            program.b = bTex;
+            programs.Draw(dst, program);
         }
-
-        GL.BindVertexArray(0);
-        GL.DeleteVertexArray(vao);
 
         // After an even number of iterations, h0 is the latest; after odd, h1.
         DynamicTexture2D hSolved = (iterations % 2 == 0) ? h0 : h1;
@@ -186,6 +116,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         var stats = (RmsResidual: (float)Math.Sqrt(residual.SumSquares(0) / (rhs.Width * rhs.Height)),
             RmsB: (float)Math.Sqrt(rhs.Data.Sum(value => (double)(value * value)) / (rhs.Width * rhs.Height)));
 
+        // Assert: preserve absolute validity and the original per-input residual thresholds.
         // Absolute checks.
         Assert.True(stats.RmsB > 1e-6 || name == "zero", $"RHS '{name}' unexpectedly near-zero");
         Assert.InRange(stats.RmsResidual, 0, 1.0f);
@@ -204,16 +135,21 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         }
     }
 
+    /// <summary>Stores one authored periodic right-hand side and its dimensions.</summary>
+    public readonly record struct RhsCase(int Width, int Height, float[] Data);
 
+    /// <summary>Stores one authored height/source pair for the one-step stencil comparison.</summary>
+    public readonly record struct JacobiStepCase(int Width, int Height, float[] H, float[] B);
+
+    #endregion
+
+    #region Private
+    /// <summary>Initializes a scalar solution texture through the RHI clear operation.</summary>
     private void ClearR32f(DynamicTexture2D tex, float value)
     {
-        using var fbo = DynamicGpuFramebuffer.CreateSingle(tex) ?? throw new InvalidOperationException("Failed to create FBO");
-        fbo.Bind();
-        GL.Viewport(0, 0, tex.Width, tex.Height);
-        GL.Disable(EnableCap.Blend);
-        GL.ClearColor(value, 0f, 0f, 0f);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-        GpuFramebuffer.Unbind();
+        Span<float> clear = stackalloc float[1] { value };
+        RHICommandContext.Current.ClearTexture(tex, new(new(), 0, 0, 0, tex.Width, tex.Height),
+            new(PixelChannelLayout.Red, PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes(clear));
     }
 
     private enum RhsKind
@@ -224,10 +160,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         DeterministicNoise,
     }
 
-    public readonly record struct RhsCase(int Width, int Height, float[] Data);
-
-    public readonly record struct JacobiStepCase(int Width, int Height, float[] H, float[] B);
-
+    /// <summary>Builds the original independent height and right-hand-side input pair.</summary>
     private static JacobiStepCase BuildJacobiStepCase(int width, int height, RhsKind bKind, RhsKind hKind)
     {
         var b = BuildZeroMeanRhs(width, height, bKind).Data;
@@ -235,6 +168,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         return new JacobiStepCase(width, height, h, b);
     }
 
+    /// <summary>Evaluates one periodic Jacobi stencil step independently on the CPU.</summary>
     private static float[] ComputeJacobiStepCpu(float[] h, float[] b, int width, int height)
     {
         float[] dst = new float[width * height];
@@ -261,6 +195,7 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         return dst;
     }
 
+    /// <summary>Builds a zero-mean periodic RHS from the preserved deterministic patterns.</summary>
     private static RhsCase BuildZeroMeanRhs(int width, int height, RhsKind kind)
     {
         float[] data = new float[width * height];
@@ -318,7 +253,6 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 
         return new RhsCase(width, height, data);
     }
-    #region Private
     /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
     private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
     {

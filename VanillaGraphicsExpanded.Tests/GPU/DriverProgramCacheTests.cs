@@ -5,6 +5,8 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Rendering.Spirv;
@@ -19,6 +21,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
 {
     private readonly CountingDiskCacheFileSystem storage = new();
 
+    #region Public API
     #region Graphics execution
     /// <summary>Invalid packaged declarations cannot replace a working generation, including a cached native executable.</summary>
     [Theory]
@@ -109,19 +112,17 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
                 double load = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
                 if (previous != 0) Assert.False(GL.IsProgram(previous));
                 previous = program.ProgramId;
-                FramebufferTestSetup.BindForEngineRendering(target);
                 start = Stopwatch.GetTimestamp();
-                RenderFullscreenQuad(program.ProgramId);
-                GL.Finish();
+                SubmitCacheOutput(program, target);
+                RHICommandContext.Current.WaitIdle();
                 double firstUse = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
                 var pixel = ReadPixel(target, 4, 4);
                 Assert.InRange(pixel.R, .55f, .58f);
                 Assert.InRange(pixel.G, .55f, .58f);
-                output.WriteLine($"Graphics generation {generation}: load {load:F3} ms, first draw/completion {firstUse:F3} ms");
+                output.WriteLine($"Graphics generation {generation}: load {load:F3} ms, first RHI draw/completion {firstUse:F3} ms");
                 if (generation == 1) program.InvalidateAssets();
             }
             Assert.NotEmpty(storage.EnumerateFiles(directory, "*.json"));
-            GL.UseProgram(0);
             program.Dispose();
             Assert.False(GL.IsProgram(previous));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -157,24 +158,33 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
                     byte[] data = new byte[16];
                     System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(data, (uint)(100 + generation));
                     var allocation = ring.AllocateAndWrite(data);
-                    allocation.Buffer.BindRange(0, allocation.OffsetBytes, allocation.SizeBytes);
-                    GL.BindImageTexture(0, texture.TextureId, 0, true, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba32ui);
-                    GL.UseProgram(pipeline.ProgramId);
+                    var commands = RHICommandContext.Current;
                     start = Stopwatch.GetTimestamp();
-                    GL.DispatchCompute(1, 1, 1);
-                    GL.MemoryBarrier(MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.ShaderImageAccessBarrierBit);
-                    GL.Finish();
+                    using (var boundary = commands.EnterBoundary(new("Tests.DriverCache.ComputeOutput", true,
+                        compute: [pipeline.Pipeline])))
+                    {
+                        boundary.Run(() =>
+                        {
+                            commands.SetPipeline(pipeline.Pipeline);
+                            commands.BindResources(new(pipeline.Shader,
+                                images: [new RHIImageInput(GpuBindingEntry.Identity(ShaderBindingKind.Image, "outImg"),
+                                    new RHIImageBinding(texture, ImageAccess.WriteOnly, Layered: true, Format: TextureFormat.Rgba32ui))],
+                                buffers: [new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock, "TestParams"),
+                                    BufferRole.Uniform, allocation.Buffer, allocation.OffsetBytes, allocation.SizeBytes, Whole: false)]));
+                            commands.Dispatch(new(1));
+                            commands.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureUpdate));
+                            commands.WaitIdle();
+                        });
+                    }
                     double firstUse = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
                     uint[] actual = new uint[4];
                     GL.BindTexture(TextureTarget.Texture3D, texture.TextureId);
                     GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RgbaInteger, PixelType.UnsignedInt, actual);
                     Assert.Equal((uint)(100 + generation), actual[0]);
-                    GL.UseProgram(0);
                     output.WriteLine($"Compute generation {generation}: load {load:F3} ms, first dispatch/completion {firstUse:F3} ms");
                 }
             }
             GL.BindTexture(TextureTarget.Texture3D, 0);
-            GL.BindImageTexture(0, 0, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba32ui);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
@@ -265,6 +275,38 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         }
         finally { if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, true); }
     }
+
+    #endregion
+    #region Private
+    /// <summary>Submits the cache fixture through its declared position and UV attributes using the production command context.</summary>
+    private static void SubmitCacheOutput(FixtureProgram program, GpuFramebuffer target)
+    {
+        var commands = RHICommandContext.Current;
+        var layout = new RHIVertexLayout([
+            new(0, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 16),
+            new(1, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 8, 16)]);
+        using var vertices = commands.CreateVertexBuffer(new() { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable,
+            Capacity = 96, Usage = BufferUsage.StaticDraw }).RequireResource();
+        vertices.UploadData<float>([
+            -1, -1, 0, 0, 1, -1, 1, 0, 1, 1, 1, 1,
+            -1, -1, 0, 0, 1, 1, 1, 1, -1, 1, 0, 1]);
+        var geometry = new RHIGeometryInputs(layout, [new(0, new(vertices, 0, vertices.SizeBytes), 16)]);
+        var pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: 0, Load: AttachmentLoad.Preserve)]);
+        using var pipeline = commands.CreateGraphicsPipeline(new(program.Shader, layout,
+            commands.DescribeRenderTargets(pass), DynamicPipelineState.Viewport)).RequireResource();
+        using var boundary = commands.EnterBoundary(new("Tests.DriverCache.Output", true,
+            graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+        boundary.Run(() =>
+        {
+            commands.BeginRenderPass(pass);
+            commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.BindResources(program.CaptureBindings());
+            commands.Draw(geometry, new(0, 6));
+            commands.EndRenderPass();
+        });
+    }
+    #endregion
 
     /// <summary>Selects packaged declarations while leaving binary loading and linking untouched.</summary>
     private sealed class FixtureProgram : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram

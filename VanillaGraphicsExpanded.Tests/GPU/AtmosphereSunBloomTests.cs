@@ -3,6 +3,8 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
@@ -25,9 +27,9 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
     public void OwnedBloomRetainsSolarRadianceAndCoverageWithoutRedGlowMarker()
     {
         EnsureShaderTestAvailable();
-        var sun=Programs.Create<SolarRasterProgram>();
+        var sun=Programs.Create<SunProgram>();
         using var camera = TestFrameCamera.CreateSolar(64,64);
-        sun.FrameInputs = camera;
+        sun.Frame = camera;
         var bloom=Programs.Create<BloomShaderProgram>();
         using var color=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 64), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var glow=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 64), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
@@ -38,24 +40,29 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
         using var halo=TestFramework.CreateTestGBuffer(32,32,TextureFormat.Rgba32f);
         
         var layout=new RHIVertexLayout([]);
-        using var geometry=new ArrayGraphicsGeometry(layout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:6);
+        using var geometry=new ArrayGraphicsGeometry(layout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
         var metadata = RHICommandContext.Current.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(scene, [new(AttachmentIndex:0),new(AttachmentIndex:1)]));
-        var coverageBlend=new ColorBlendDesc {Enabled=true,SourceRgb=BlendFactor.SourceAlpha,DestinationRgb=BlendFactor.OneMinusSourceAlpha};
+        var solarBlend=new ColorBlendDesc {Enabled=true,SourceRgb=BlendFactor.One,DestinationRgb=BlendFactor.One,
+            SourceAlpha=BlendFactor.Zero,DestinationAlpha=BlendFactor.One};
         using var solarPipeline=RHICommandContext.Current.CreateGraphicsPipeline(new(sun.Shader,layout,metadata,DynamicPipelineState.Viewport,
-            depthStencil:new(){DepthTest=true,DepthWrite=true},blending:[coverageBlend,coverageBlend])).RequireResource();
+            // This fixture's far-plane output equals clear depth one; production SunDrawPass disables depth.
+            depthStencil:new(){DepthTest=true,DepthWrite=true,DepthComparison=ComparisonFunction.LessOrEqual},
+            blending:[solarBlend,solarBlend])).RequireResource();
         using var draw=new PostprocessDraw();
         double baseline=0;
         // Native sky attenuation has already been applied to disk RGB. Bloom never adds another solar source.
         foreach(var (radiance,horizon,blocked,ev,ratio) in new[]{(100f,-1f,false,0f,1f),(25f,-1f,false,0f,.25f),(100f,0f,false,0f,.5f),(.01f,-1f,false,0f,0f),(100f,-1f,true,0f,0f),(0f,-1f,false,0f,0f),(100f,-1f,false,-20f,0f)})
         {
-            sun.Capture(new(radiance,radiance*.5f,radiance*.25f),horizon);
+            Vector3 diskRadiance = new(radiance, radiance * .5f, radiance * .25f);
+            sun.DrawInputs.Capture(SolarRasterLighting.Create(diskRadiance, horizon),
+                AtmosphereSolarDiskStorage.MaximumScale(diskRadiance, 1, 1));
             var pass=FramebufferTestSetup.DescribeAttachments(scene, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),new(AttachmentIndex:1, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))], new(DepthLoad:AttachmentLoad.Clear,ClearDepth:blocked ? .5f : 1f));
             {
     var commands=RHICommandContext.Current;
     using var scope9=commands.EnterBoundary(new("Tests.SolarBloomSource",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([solarPipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope9.Run(()=>{
                 commands.BeginRenderPass(pass);commands.SetPipeline(solarPipeline);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
-                commands.BindResources(sun.CaptureBindings()); commands.Draw(geometry.Inputs,new(0,6));commands.EndRenderPass();
+                commands.BindResources(sun.CaptureBindings()); commands.Draw(geometry.Inputs,new(0,3));commands.EndRenderPass();
             });
 }
             using var solar = new Assertions.GpuImageSnapshot(color);
@@ -87,20 +94,26 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
     public void SolarDepthAndLateQueryMasksRejectOccludedContribution(float wallDepth, bool queryOnly, bool visible)
     {
         EnsureShaderTestAvailable();
-        var sun = Programs.Create<SolarRasterProgram>();
+        var sun = Programs.Create<SunProgram>();
         using var camera = TestFrameCamera.CreateSolar(32,32);
-        sun.FrameInputs = camera;
-        sun.Capture(new(100, 50, 25), -1);
+        sun.Frame = camera;
+        Vector3 diskRadiance = new(100, 50, 25);
+        sun.DrawInputs.Capture(SolarRasterLighting.Create(diskRadiance, -1),
+            AtmosphereSolarDiskStorage.MaximumScale(diskRadiance, 1, 1));
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 32), Height = System.Math.Max(1, 32), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var glow = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 32), Height = System.Math.Max(1, 32), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var depth = new DepthTexture(32, 32, TextureFormat.DepthComponent32f);
         using var scene = DynamicGpuFramebuffer.CreateMRT([color, glow], depth)!;
         var layout = new RHIVertexLayout([]);
-        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo>(), proceduralVertices: 6);
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
         var metadata = RHICommandContext.Current.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(scene, [new(AttachmentIndex:0), new(AttachmentIndex:1)]));
-        var mask = new ColorBlendDesc { WriteRed = !queryOnly, WriteGreen = !queryOnly, WriteBlue = !queryOnly, WriteAlpha = !queryOnly };
+        var mask = new ColorBlendDesc { Enabled = true, SourceRgb = BlendFactor.One, DestinationRgb = BlendFactor.One,
+            SourceAlpha = BlendFactor.Zero, DestinationAlpha = BlendFactor.One, WriteRed = !queryOnly,
+            WriteGreen = !queryOnly, WriteBlue = !queryOnly, WriteAlpha = !queryOnly };
         using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(sun.Shader, layout, metadata, DynamicPipelineState.Viewport,
-            depthStencil: new() { DepthTest = true, DepthWrite = !queryOnly }, blending: [mask, mask])).RequireResource();
+            // Only the test's cleared-depth witness uses this comparison; production SunDrawPass disables depth.
+            depthStencil: new() { DepthTest = true, DepthWrite = !queryOnly, DepthComparison = ComparisonFunction.LessOrEqual },
+            blending: [mask, mask])).RequireResource();
         // The clear stands for already-rasterized opaque geometry; the query's color masks must also hold on clear sky.
         var pass = FramebufferTestSetup.DescribeAttachments(scene, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)), new(AttachmentIndex:1, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))], new(DepthLoad: AttachmentLoad.Clear, ClearDepth: wallDepth));
         {
@@ -110,7 +123,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
             commands.BeginRenderPass(pass);
             commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.BindResources(sun.CaptureBindings()); commands.Draw(geometry.Inputs, new(0, 6));
+            commands.BindResources(sun.CaptureBindings()); commands.Draw(geometry.Inputs, new(0, 3));
             commands.EndRenderPass();
         });
 }

@@ -35,7 +35,7 @@ public sealed class NativeFrameLightingBindingTests(HeadlessGLFixture fixture) :
         string energy = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_microfacet_energy.glsl"));
         int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\n" + energy + helper +
             "\nflat in vec3 physical;layout(location=0)out vec4 outColor;void main(){vec2 e=VgeDirectionalAlbedo(.5,1);outColor=vec4(VgeStoreFrameLight(physical)*vec3(e,1),VgeFrameLightingValid(42u,7u)?1:0);}");
-        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        using var program = TerrainShaderTestFixture.Link(vertex, fragment);
         using var face = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.NativeFaceData" }).RequireResource();
         using var frame = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.NativeFrozenFrame" }).RequireResource();
         float[] data = new float[16]; data[0] = 11; data[1] = 13; data[2] = 17; face.UploadData(data);
@@ -55,7 +55,7 @@ public sealed class NativeFrameLightingBindingTests(HeadlessGLFixture fixture) :
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, GpuBindingRegistry.Ssbo.FrameLighting, frame.BufferId);
             using var framework = new ShaderTestFramework();
             using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
-            framework.RenderQuadTo(program.ProgramId, target);
+            framework.RenderNativeReferenceQuadTo(program.ProgramId, target);
             var lookup = MicrofacetTextureReference.Sample(MicrofacetEnergyLookup.Prepare().Width,.5f,1);
             var coefficients=lookup.Value;
             float[] actual = target[0].ReadPixels();

@@ -1,9 +1,10 @@
 using VanillaGraphicsExpanded.Tests.Helpers;
-using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Spirv;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -12,56 +13,42 @@ internal static class BuiltShaderFixture
 {
     private static readonly ShaderVariantResolver Fixtures = ShaderBuildTool.Spirv.TestShaderPrograms.Create();
 
+    #region Public API
     #region Loading
-    /// <summary>Loads a declared executable through validated asset caching and transfers independent native ownership.</summary>
-    internal static int LoadProgram(ShaderLoadPlan plan)
+    /// <summary>Loads a declared executable through validated asset caching and retains its ready owner.</summary>
+    internal static RHIShader LoadProgram(ShaderLoadPlan plan)
     {
         using var candidate = new VanillaGraphicsExpanded.Rendering.ShaderCompilation.ShaderAssetCandidate(plan,
             path => TestAssetSnapshot.Built.Read("shaders/" + path),
             () => ShaderBinaryDigest.Parse(TestAssetSnapshot.Built.Copy("shaders/" + ShaderBinaryDigest.FileName)));
         candidate.Complete();
-        using var shader = candidate.TakeShader();
-        int program = shader.Program.ProgramId;
-        shader.Program.Detach();
-        return program;
+        return candidate.TakeShader();
     }
 
     /// <summary>Selects an explicit test-catalog graphics pair without compiling detached stages on cache hits.</summary>
-    internal static int LoadFixtureProgram(string vertex, string fragment)
+    internal static RHIShader LoadFixtureProgram(string vertex, string fragment)
     {
         var contract = Fixtures.Programs.Values.Single(program =>
             program.Stages.Any(stage => stage.Identity == vertex) && program.Stages.Any(stage => stage.Identity == fragment));
         return LoadProgram(new(new ShaderSettings(contract)));
     }
 
-    /// <summary>Loads a declared stage's requested selection and retains its numeric interface.</summary>
-    public static int Load(string identity, ShaderType type, IReadOnlyDictionary<string, string?>? defines = null)
+    /// <summary>Loads a declared stage's requested selection and retains its native owner.</summary>
+    public static GpuShaderModule Load(string identity, ShaderType type, IReadOnlyDictionary<string, string?>? defines = null)
     {
         var stage = GpuShaderContracts.Registry.FindStage(identity);
         if (!PrecompiledStageFixture.Matches(stage.Kind, type)) throw new ArgumentException("Stage kind mismatch: " + identity);
         var owner = GpuShaderContracts.Registry.Programs.Values.OrderBy(p => p.Identity, StringComparer.Ordinal).First(p => p.Stages.Any(s => s.Identity == identity));
         var selected = new ShaderLoadPlan(new ShaderSettings(owner, defines)).Stages.Single(s => s.Stage.Identity == identity);
-        using var loaded = PrecompiledStageFixture.Load(selected,
+        return PrecompiledStageFixture.Load(selected,
             path => TestAssetSnapshot.Built.Copy("shaders/" + path));
-        TestShaderInterfaces.TrackShader(loaded.ShaderId, selected.Stage.Bindings);
-        return (int)loaded.Detach();
     }
-    /// <summary>Loads a fixed test stage with source-authored numeric locations and transfers its native ownership.</summary>
-    public static int LoadFixture(string path, ShaderType type)
+    /// <summary>Loads a fixed test stage with source-authored numeric locations and retains its native owner.</summary>
+    public static GpuShaderModule LoadFixture(string path, ShaderType type)
     {
         byte[] binary = TestAssetSnapshot.Built.Copy("shaders/" + path + ".spv");
-        using var module = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), binary)).RequireResource();
-        return (int)module.Detach();
+        return VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), binary)).RequireResource();
     }
-    /// <summary>Builds the numeric interface for fixture programs without relying on stripped binary names.</summary>
-    public static VanillaGraphicsExpanded.Rendering.GpuProgramLayout Layout(int program, params string[] stages)
-    {
-        var layout = new VanillaGraphicsExpanded.Rendering.GpuProgramLayout
-        {
-            BinaryInterface = new GpuProgramInterface(program, stages.Select(path => Fixtures.FindStage(path).Bindings))
-        };
-        layout.RebuildCache(program);
-        return layout;
-    }
+    #endregion
     #endregion
 }

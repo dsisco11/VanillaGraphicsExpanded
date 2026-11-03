@@ -214,9 +214,11 @@ Lifecycle tests that deliberately replace the registered context lifetime restor
 `HeadlessGLFixture.RestoreContextRegistration()`. That explicit boundary retires old observation owners
 and records the new generation. Selecting the same physical window alone does not revive retired owners.
 
-Production/component/compute shader helpers reuse digest-validated asset binaries. Combined
-`ShaderTestHelper`, declared fixture-program loading and assertion compute programs use that same asset route.
-Resource-free state shaders and source-authored numerical raster helpers use `TestShaderCache`
+Ordinary GPU tests retain production shader owners and use typed inputs, pipelines and RHI submission.
+Declared numerical probes expose specific helper outputs unavailable from composed rendering programs;
+they use the same digest-validated asset binaries and cache policy. Native integration and independent
+reference fixtures retain their explicit native operations with shader/module ownership kept through use.
+Resource-free state shaders and native compatibility fixtures use `TestShaderCache`
 with exact expanded source, stage kind and driver/profile identity, storing bytes in the existing store.
 The vertex-only particle color-feedback helper also includes its varying name and interleaved mode.
 A hit creates a new native
@@ -366,7 +368,9 @@ Windows headless receipts do not qualify it.
 The GPU test infrastructure includes:
 
 - **HeadlessGLFixture** - Creates a hidden GLFW window with OpenGL 4.5 context; throws `SkipException` if context creation fails
-- **ShaderTestHelper** - Loads and links built SPIR-V; separately processes imports for CPU source assertions
+- **ComponentShaderPrograms** - Retains production shader owners using the captured binary asset provider
+- **BuiltShaderFixture** - Retains ready shader/module owners for explicit native integration and reference fixtures
+- **ShaderProcessedSourceDiagnostics** - Processes imports and defines through the production AST system without OpenGL
 - **RenderTestBase** - Abstract base class for render tests with FBO setup and pixel readback utilities
 
 Immutable shader, engine-source, schema and baseline inputs are captured from the build's

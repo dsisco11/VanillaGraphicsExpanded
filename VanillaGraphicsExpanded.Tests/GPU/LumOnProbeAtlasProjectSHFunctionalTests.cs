@@ -3,7 +3,6 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.LumOn;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Xunit;
@@ -24,13 +23,6 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
     public LumOnProbeAtlasProjectSHFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     private LumOnScreenProbeAtlasProjectSHShaderProgram CompileProjectShader() => Programs.Create<LumOnScreenProbeAtlasProjectSHShaderProgram>();
-    /// <summary>Retains the explicitly skipped retired L1 comparison; no production L1 gather owner exists.</summary>
-    private int CompileShGatherShader()
-    {
-        var result = ShaderHelper.CompileAndLink("lumon_gather.vsh", "lumon_gather.fsh");
-        Assert.True(result.IsSuccess, result.ErrorMessage);
-        return result.ProgramId;
-    }
     private LumOnScreenProbeAtlasGatherShaderProgram CompileAtlasGatherShader() => Programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>();
 
     private static float[] CreateProbeAnchors(float worldZ, float validity = 1.0f)
@@ -104,38 +96,6 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
     private void SetupProjectUniforms(LumOnScreenProbeAtlasProjectSHShaderProgram programId, float[] viewMatrix)
     {
         UpdateAndBindLumOnFrameUbo(programId, viewMatrix: viewMatrix);
-    }
-
-    /// <summary>Retains the retired L1 binding contract solely for the explicitly skipped historical comparison.</summary>
-    private void SetupShGatherUniforms(int programId, float[] invProjection, float[] view)
-    {
-        GL.UseProgram(programId);
-
-        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "invProjectionMatrix"), 1, false, invProjection);
-        GL.UniformMatrix4(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "viewMatrix"), 1, false, view);
-
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeSpacing"), ProbeSpacing);
-        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "probeGridSize"), (float)ProbeGridWidth, (float)ProbeGridHeight);
-        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "screenSize"), (float)ScreenWidth, (float)ScreenHeight);
-        GL.Uniform2(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "halfResSize"), (float)HalfResWidth, (float)HalfResHeight);
-
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zNear"), ZNear);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "zFar"), ZFar);
-
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "depthDiscontinuityThreshold"), 0.05f);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "intensity"), 1.0f);
-        GL.Uniform3(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "indirectTint"), 1f, 1f, 1f);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "depthSigma"), 0.5f);
-        GL.Uniform1(global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "normalSigma"), 8.0f);
-
-        // The retired gather borrows the existing frame-buffer contract without a production shader owner.
-        UpdateAndBindLumOnFrameUbo(
-            null,
-            invProjectionMatrix: invProjection,
-            viewMatrix: view,
-            probeSpacing: ProbeSpacing);
-
-        GL.UseProgram(0);
     }
 
     /// <summary>Configures the production shader for controlled coefficient inputs.</summary>

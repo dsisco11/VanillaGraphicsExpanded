@@ -1,15 +1,9 @@
 using VanillaGraphicsExpanded.Tests.GPU.Assertions;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
-using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using System.IO;
-
-using OpenTK.Graphics.OpenGL;
-
-using HeightBakeParamsUboCpu = VanillaGraphicsExpanded.PBR.Materials.PbrHeightBakeParamsUbo;
-
+using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -17,42 +11,25 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
+/// <summary>Qualifies the production height-bake normalization and atlas-packing outputs through the RHI.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 {
+    #region Public API
 
+    /// <summary>Uses the shared headless fixture for production bake shader execution.</summary>
+    public PbrNormalDepthBakeShaderPipelineTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    private readonly HeadlessGLFixture fixture;
-
-    public PbrNormalDepthBakeShaderPipelineTests(HeadlessGLFixture fixture) : base(fixture)
-    {
-        this.fixture = fixture;
-    }
-
+    /// <summary>Height packing clamps signed input into alpha while preserving the flat normal encoding.</summary>
     [Fact]
     public void PackToAtlas_EncodesHeightIntoAlpha01_NotAllWhite()
     {
+        // Arrange
         EnsureContextValid();
-
-        fixture.MakeCurrent();
-
-        string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
-        {
-            Assert.SkipWhen(true, "Test shader assets not found in output directory.");
-        }
-
-        using var helper = new ShaderTestHelper();
-        var programResult = helper.CompileAndLink(
-            vertexFilename: "pbr_heightbake_fullscreen.vsh",
-            fragmentFilename: "pbr_heightbake_pack_to_atlas.fsh");
-
-        Assert.True(programResult.IsSuccess, programResult.ErrorMessage);
-        int programId = programResult.ProgramId;
-        Assert.True(programId > 0);
+        PbrHeightBakeTestPrograms.EnsureAssetsAvailable();
+        using var programs = new PbrHeightBakeTestPrograms();
+        var program = programs.Create("pbr_heightbake_pack_to_atlas");
 
         const int w = 16;
         const int h = 8;
@@ -71,43 +48,14 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(w, h, TextureFormat.Rgba16f);
 
-        target.Bind();
-        GL.Viewport(0, 0, w, h);
-        GL.ClearColor(0f, 0f, 0f, 0f);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        GL.UseProgram(programId);
-
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)heightTex).Target)))]);
-
-        using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
-
         // Ensure the pack shader does not take the alpha-cutoff early-out path.
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)albedoAtlas).Target)))]);
+        ConfigurePack(programs, program, heightTex, albedoAtlas, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 1f);
 
-        int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
-        int locAlbedoAtlas = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
+        // Act
+        programs.Draw(target[0], program, clear: true);
 
-        Assert.True(locHeight >= 0, "u_height uniform missing");
-        Assert.True(locAlbedoAtlas >= 0, "u_albedoAtlas uniform missing");
-
-        GL.Uniform1(locHeight, 0);
-        GL.Uniform1(locAlbedoAtlas, 1);
-
-        BindHeightBakeParams(objectParamsUbo, programId, (cpu) =>
-        {
-            cpu.SolverSize = (width: w, height: h);
-            cpu.TileSize = (width: w, height: h);
-            cpu.ViewportOrigin = (x: 0, y: 0);
-            cpu.PackParams = (normalStrength: 0f, normalScale: 1f, depthScale: 1f, eps: 0f);
-        });
-
-        RenderFullscreenQuad();
-
-        GL.UseProgram(0);
-        GpuFramebuffer.Unbind();
-
+        // Assert
         var alpha=ImageAssertions.Statistics.Inspect(target[0],channelMask:8);
         float minA=(float)alpha.Minimum,maxA=(float)alpha.Maximum;
 
@@ -122,29 +70,15 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         Assert.InRange(GpuLocalRead.Scalar(target[0],2), 0.99f, 1.01f);
     }
 
+    /// <summary>Depth scale reduces the packed alpha range for the same centered source ramp.</summary>
     [Fact]
     public void PackToAtlas_DepthScale_AffectsAlphaRange_ForCenteredInput()
     {
+        // Arrange
         EnsureContextValid();
-
-        fixture.MakeCurrent();
-
-        string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
-        {
-            Assert.SkipWhen(true, "Test shader assets not found in output directory.");
-        }
-
-        using var helper = new ShaderTestHelper();
-        var programResult = helper.CompileAndLink(
-            vertexFilename: "pbr_heightbake_fullscreen.vsh",
-            fragmentFilename: "pbr_heightbake_pack_to_atlas.fsh");
-
-        Assert.True(programResult.IsSuccess, programResult.ErrorMessage);
-        int programId = programResult.ProgramId;
-        Assert.True(programId > 0);
+        PbrHeightBakeTestPrograms.EnsureAssetsAvailable();
+        using var programs = new PbrHeightBakeTestPrograms();
+        var program = programs.Create("pbr_heightbake_pack_to_atlas");
 
         const int w = 16;
         const int h = 8;
@@ -161,10 +95,13 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         }
 
         using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
+        using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
 
-        (float minA1, float maxA1) = RenderPackAndGetAlphaMinMax(programId, heightTex, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 1f);
-        (float minA2, float maxA2) = RenderPackAndGetAlphaMinMax(programId, heightTex, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 0.5f);
+        // Act
+        (float minA1, float maxA1) = RenderPackAndGetAlphaMinMax(programs, program, heightTex, albedoAtlas, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 1f);
+        (float minA2, float maxA2) = RenderPackAndGetAlphaMinMax(programs, program, heightTex, albedoAtlas, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 0.5f);
 
+        // Assert
         float range1 = maxA1 - minA1;
         float range2 = maxA2 - minA2;
 
@@ -172,29 +109,15 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         Assert.True(range2 < range1 * 0.75f, $"Expected narrower alpha range at depthScale=0.5; range1={range1}, range2={range2}");
     }
 
+    /// <summary>Normal scale changes encoded RGB while zero normal strength remains flat.</summary>
     [Fact]
     public void PackToAtlas_NormalScale_AffectsRgb_WhenNormalStrengthNonZero()
     {
+        // Arrange
         EnsureContextValid();
-
-        fixture.MakeCurrent();
-
-        string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
-        {
-            Assert.SkipWhen(true, "Test shader assets not found in output directory.");
-        }
-
-        using var helper = new ShaderTestHelper();
-        var programResult = helper.CompileAndLink(
-            vertexFilename: "pbr_heightbake_fullscreen.vsh",
-            fragmentFilename: "pbr_heightbake_pack_to_atlas.fsh");
-
-        Assert.True(programResult.IsSuccess, programResult.ErrorMessage);
-        int programId = programResult.ProgramId;
-        Assert.True(programId > 0);
+        PbrHeightBakeTestPrograms.EnsureAssetsAvailable();
+        using var programs = new PbrHeightBakeTestPrograms();
+        var program = programs.Create("pbr_heightbake_pack_to_atlas");
 
         const int w = 16;
         const int h = 8;
@@ -212,9 +135,13 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
 
-        float[] rgbFlat = RenderPackAndReadFirstPixel(programId, heightTex, w, h, normalStrength: 1f, normalScale: 0f, depthScale: 1f);
-        float[] rgbTilt = RenderPackAndReadFirstPixel(programId, heightTex, w, h, normalStrength: 1f, normalScale: 2f, depthScale: 1f);
+        using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
 
+        // Act
+        float[] rgbFlat = RenderPackAndReadFirstPixel(programs, program, heightTex, albedoAtlas, w, h, normalStrength: 1f, normalScale: 0f, depthScale: 1f);
+        float[] rgbTilt = RenderPackAndReadFirstPixel(programs, program, heightTex, albedoAtlas, w, h, normalStrength: 1f, normalScale: 2f, depthScale: 1f);
+
+        // Assert
         // normalScale=0 should be flat (0.5,0.5,1)
         Assert.InRange(rgbFlat[0], 0.49f, 0.51f);
         Assert.InRange(rgbFlat[1], 0.49f, 0.51f);
@@ -225,126 +152,16 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             $"Expected tilted normal; got ({rgbTilt[0]}, {rgbTilt[1]}, {rgbTilt[2]})");
     }
 
-    private (float minA, float maxA) RenderPackAndGetAlphaMinMax(
-        int programId,
-        DynamicTexture2D heightTex,
-        int w,
-        int h,
-        float normalStrength,
-        float normalScale,
-        float depthScale)
-    {
-        using var target = CreateRenderTarget(w, h, TextureFormat.Rgba16f);
-
-        target.Bind();
-        GL.Viewport(0, 0, w, h);
-        GL.ClearColor(0f, 0f, 0f, 0f);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        GL.UseProgram(programId);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)heightTex).Target)))]);
-
-        using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
-        using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)albedoAtlas).Target)))]);
-
-        int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
-        int locAlbedoAtlas = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
-
-        GL.Uniform1(locHeight, 0);
-        GL.Uniform1(locAlbedoAtlas, 1);
-
-        BindHeightBakeParams(objectParamsUbo, programId, (cpu) =>
-        {
-            cpu.SolverSize = (width: w, height: h);
-            cpu.TileSize = (width: w, height: h);
-            cpu.ViewportOrigin = (x: 0, y: 0);
-            cpu.PackParams = (normalStrength: normalStrength, normalScale: normalScale, depthScale: depthScale, eps: 0f);
-        });
-
-        RenderFullscreenQuad();
-
-        GL.UseProgram(0);
-        GpuFramebuffer.Unbind();
-
-        var alpha=ImageAssertions.Statistics.Inspect(target[0],channelMask:8);
-        float minA=(float)alpha.Minimum,maxA=(float)alpha.Maximum;
-
-        return (minA, maxA);
-    }
-
-    private float[] RenderPackAndReadFirstPixel(
-        int programId,
-        DynamicTexture2D heightTex,
-        int w,
-        int h,
-        float normalStrength,
-        float normalScale,
-        float depthScale)
-    {
-        using var target = CreateRenderTarget(w, h, TextureFormat.Rgba16f);
-
-        target.Bind();
-        GL.Viewport(0, 0, w, h);
-        GL.ClearColor(0f, 0f, 0f, 0f);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        GL.UseProgram(programId);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)heightTex).Target)))]);
-
-        using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
-        using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)albedoAtlas).Target)))]);
-
-        int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
-        int locAlbedoAtlas = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
-
-        GL.Uniform1(locHeight, 0);
-        GL.Uniform1(locAlbedoAtlas, 1);
-
-        BindHeightBakeParams(objectParamsUbo, programId, (cpu) =>
-        {
-            cpu.SolverSize = (width: w, height: h);
-            cpu.TileSize = (width: w, height: h);
-            cpu.ViewportOrigin = (x: 0, y: 0);
-            cpu.PackParams = (normalStrength: normalStrength, normalScale: normalScale, depthScale: depthScale, eps: 0f);
-        });
-
-        RenderFullscreenQuad();
-
-        GL.UseProgram(0);
-        GpuFramebuffer.Unbind();
-
-        float[] pixels = target[0].ReadPixelsRegion(0,0,1,1);
-        return new[] { pixels[0], pixels[1], pixels[2] };
-    }
-
+    /// <summary>Production normalization followed by packing preserves a nonconstant bipolar alpha field.</summary>
     [Fact]
     public void NormalizeThenPack_ProducesNonFlatAlpha_ForBipolarInput()
     {
+        // Arrange
         EnsureContextValid();
-
-        fixture.MakeCurrent();
-
-        string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
-        {
-            Assert.SkipWhen(true, "Test shader assets not found in output directory.");
-        }
-
-        using var helper = new ShaderTestHelper();
-
-        var normalizeProgram = helper.CompileAndLink(
-            vertexFilename: "pbr_heightbake_fullscreen.vsh",
-            fragmentFilename: "pbr_heightbake_normalize.fsh");
-        Assert.True(normalizeProgram.IsSuccess, normalizeProgram.ErrorMessage);
-
-        var packProgram = helper.CompileAndLink(
-            vertexFilename: "pbr_heightbake_fullscreen.vsh",
-            fragmentFilename: "pbr_heightbake_pack_to_atlas.fsh");
-        Assert.True(packProgram.IsSuccess, packProgram.ErrorMessage);
+        PbrHeightBakeTestPrograms.EnsureAssetsAvailable();
+        using var programs = new PbrHeightBakeTestPrograms();
+        var normalizeProgram = programs.Create("pbr_heightbake_normalize");
+        var packProgram = programs.Create("pbr_heightbake_pack_to_atlas");
 
         const int w = 32;
         const int h = 16;
@@ -364,73 +181,22 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         using var hTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((hData).AsSpan()).ToArray())]).RequireResource();
         using var hnTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var hnFbo = DynamicGpuFramebuffer.CreateSingle(hnTex) ?? throw new InvalidOperationException("Failed to create Hn FBO");
 
+        // Act
         // Pass 1: normalize into hnTex
-        hnFbo.Bind();
-        GL.Viewport(0, 0, w, h);
-        GL.ClearColor(0f, 0f, 0f, 0f);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        GL.UseProgram(normalizeProgram.ProgramId);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)hTex).Target)))]);
-
-        using var normalizeParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.NormalizeParams.{normalizeProgram.ProgramId}");
-
-        int locH = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(normalizeProgram.ProgramId, "u_h");
-
-        Assert.True(locH >= 0);
-        GL.Uniform1(locH, 0);
-
-        BindHeightBakeParams(normalizeParamsUbo, normalizeProgram.ProgramId, (cpu) =>
-        {
-            cpu.CommonSize = (width: w, height: h);
-            cpu.NormalizeParams = (mean: 0f, invNeg: 1.0f, invPos: 1.0f, heightStrength: 1.0f);
-            cpu.NormalizeGamma = 1.0f;
-        });
-
-        RenderFullscreenQuad();
-        GL.UseProgram(0);
-        GpuFramebuffer.Unbind();
+        normalizeProgram.h = hTex;
+        programs.Parameters.CommonSize = (w, h);
+        programs.Parameters.NormalizeParams = (0f, 1f, 1f, 1f);
+        programs.Parameters.NormalizeGamma = 1f;
+        programs.Draw(hnTex, normalizeProgram, clear: true);
 
         // Pass 2: pack into RGBA16F output
         using var outFbo = CreateRenderTarget(w, h, TextureFormat.Rgba16f);
-        outFbo.Bind();
-        GL.Viewport(0, 0, w, h);
-        GL.ClearColor(0f, 0f, 0f, 0f);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        GL.UseProgram(packProgram.ProgramId);
-
-        using var packParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{packProgram.ProgramId}");
-
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hnTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)hnTex).Target)))]);
-
         using var albedoAtlas2 = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas2, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)albedoAtlas2).Target)))]);
+        ConfigurePack(programs, packProgram, hnTex, albedoAtlas2, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 1f);
+        programs.Draw(outFbo[0], packProgram, clear: true);
 
-        int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(packProgram.ProgramId, "u_height");
-        int locAlbedoAtlas2Loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(packProgram.ProgramId, "u_albedoAtlas");
-
-        Assert.True(locHeight >= 0);
-        Assert.True(locAlbedoAtlas2Loc >= 0);
-
-        GL.Uniform1(locHeight, 0);
-        GL.Uniform1(locAlbedoAtlas2Loc, 1);
-
-        BindHeightBakeParams(packParamsUbo, packProgram.ProgramId, (cpu) =>
-        {
-            cpu.SolverSize = (width: w, height: h);
-            cpu.TileSize = (width: w, height: h);
-            cpu.ViewportOrigin = (x: 0, y: 0);
-            cpu.PackParams = (normalStrength: 0f, normalScale: 1f, depthScale: 1f, eps: 0f);
-        });
-
-        RenderFullscreenQuad();
-
-        GL.UseProgram(0);
-        GpuFramebuffer.Unbind();
-
+        // Assert
         var alpha=ImageAssertions.Statistics.Inspect(outFbo[0],channelMask:8);
         float minA=(float)alpha.Minimum,maxA=(float)alpha.Maximum;
         uint ones=ImageAssertions.Predicates.Predicate(outFbo[0], MaterialPredicates.PbrNormalDepthBakeShaderPipelineTests_NormalizeThenPack_ProducesNonFlatAlpha_ForBipolarInput).MatchingTexels;
@@ -441,29 +207,15 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         Assert.True(zeros < (w * h * 0.95), $"Alpha appears saturated to 0.0; zeros={zeros}/{w*h}");
     }
 
+    /// <summary>The production pack pass retains nonwhite alpha under explicit additive blending.</summary>
     [Fact]
     public void PackToAtlas_WithBlendEnabled_DoesNotTurnAlphaSolidWhite()
     {
+        // Arrange
         EnsureContextValid();
-
-        fixture.MakeCurrent();
-
-        string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
-        {
-            Assert.SkipWhen(true, "Test shader assets not found in output directory.");
-        }
-
-        using var helper = new ShaderTestHelper();
-        var programResult = helper.CompileAndLink(
-            vertexFilename: "pbr_heightbake_fullscreen.vsh",
-            fragmentFilename: "pbr_heightbake_pack_to_atlas.fsh");
-
-        Assert.True(programResult.IsSuccess, programResult.ErrorMessage);
-        int programId = programResult.ProgramId;
-        Assert.True(programId > 0);
+        PbrHeightBakeTestPrograms.EnsureAssetsAvailable();
+        using var programs = new PbrHeightBakeTestPrograms();
+        var program = programs.Create("pbr_heightbake_pack_to_atlas");
 
         const int w = 32;
         const int h = 16;
@@ -481,61 +233,78 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(w, h, TextureFormat.Rgba16f);
 
-        // Simulate engine state bleed: blending enabled with an additive-ish alpha path.
-        GL.Enable(EnableCap.Blend);
-        GL.BlendFunc(BlendingFactor.One, BlendingFactor.One);
-
-        target.Bind();
-        GL.Viewport(0, 0, w, h);
-        GL.ClearColor(0f, 0f, 0f, 0f);
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-
-        GL.UseProgram(programId);
-
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)heightTex).Target)))]);
-
-        using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)albedoAtlas).Target)))]);
+        ConfigurePack(programs, program, heightTex, albedoAtlas, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 1f);
+        var additive = new ColorBlendDesc { Enabled = true, SourceRgb = BlendFactor.One,
+            DestinationRgb = BlendFactor.One, SourceAlpha = BlendFactor.One, DestinationAlpha = BlendFactor.One };
 
-        int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
-        int locAlbedoAtlasLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
+        // Act
+        programs.Draw(target[0], program, clear: true, blend: additive);
 
-        Assert.True(locHeight >= 0);
-        Assert.True(locAlbedoAtlasLoc >= 0);
-
-        GL.Uniform1(locHeight, 0);
-        GL.Uniform1(locAlbedoAtlasLoc, 1);
-
-        BindHeightBakeParams(objectParamsUbo, programId, (cpu) =>
-        {
-            cpu.SolverSize = (width: w, height: h);
-            cpu.TileSize = (width: w, height: h);
-            cpu.ViewportOrigin = (x: 0, y: 0);
-            cpu.PackParams = (normalStrength: 0f, normalScale: 1f, depthScale: 1f, eps: 0f);
-        });
-
-        RenderFullscreenQuad();
-
-        GL.UseProgram(0);
-        GpuFramebuffer.Unbind();
-        GL.Disable(EnableCap.Blend);
-
+        // Assert
         uint ones=ImageAssertions.Predicates.Predicate(target[0], MaterialPredicates.PbrNormalDepthBakeShaderPipelineTests_NormalizeThenPack_ProducesNonFlatAlpha_ForBipolarInput).MatchingTexels;
 
         Assert.True(ones < (w * h * 0.98), $"Alpha appears solid white under blending; ones={ones}/{w*h}");
     }
 
-    private static void BindHeightBakeParams(ObjectParamsUbo paramsUbo, int programId, Action<HeightBakeParamsUboCpu> configure)
+    #endregion
+
+    #region Protected
+
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
     {
-        PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(programId);
-
-        var cpu = new HeightBakeParamsUboCpu();
-        configure(cpu);
-
-        paramsUbo.UploadAndBind(cpu.Bytes);
+        base.PrepareObservations(programs);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("predicate-material", 0, 0);
     }
 
+    #endregion
+
+    #region Private
+
+    /// <summary>Renders one production pack pass and returns the complete output alpha range.</summary>
+    private (float minA, float maxA) RenderPackAndGetAlphaMinMax(PbrHeightBakeTestPrograms programs,
+        PbrHeightBakeShaderProgram program, DynamicTexture2D heightTex, DynamicTexture2D albedoAtlas,
+        int w, int h, float normalStrength, float normalScale, float depthScale)
+    {
+        using var target = CreateRenderTarget(w, h, TextureFormat.Rgba16f);
+        ConfigurePack(programs, program, heightTex, albedoAtlas, w, h, normalStrength, normalScale, depthScale);
+        programs.Draw(target[0], program, clear: true);
+
+        var alpha = ImageAssertions.Statistics.Inspect(target[0], channelMask: 8);
+        float minA = (float)alpha.Minimum, maxA = (float)alpha.Maximum;
+
+        return (minA, maxA);
+    }
+
+    /// <summary>Renders one production pack pass and observes the authored first output pixel.</summary>
+    private float[] RenderPackAndReadFirstPixel(PbrHeightBakeTestPrograms programs, PbrHeightBakeShaderProgram program,
+        DynamicTexture2D heightTex, DynamicTexture2D albedoAtlas, int w, int h,
+        float normalStrength, float normalScale, float depthScale)
+    {
+        using var target = CreateRenderTarget(w, h, TextureFormat.Rgba16f);
+        ConfigurePack(programs, program, heightTex, albedoAtlas, w, h, normalStrength, normalScale, depthScale);
+        programs.Draw(target[0], program, clear: true);
+
+        float[] pixels = target[0].ReadPixelsRegion(0, 0, 1, 1);
+        return new[] { pixels[0], pixels[1], pixels[2] };
+    }
+
+    /// <summary>Captures the production pack inputs and full-resolution parameter block for one draw.</summary>
+    private static void ConfigurePack(PbrHeightBakeTestPrograms programs, PbrHeightBakeShaderProgram program,
+        GpuTextureRef height, GpuTextureRef albedoAtlas, int width, int heightPixels,
+        float normalStrength, float normalScale, float depthScale)
+    {
+        program.height = height;
+        program.albedoAtlas = albedoAtlas;
+        programs.Parameters.SolverSize = (width, heightPixels);
+        programs.Parameters.TileSize = (width, heightPixels);
+        programs.Parameters.ViewportOrigin = (0, 0);
+        programs.Parameters.PackParams = (normalStrength, normalScale, depthScale, 0f);
+    }
+
+    /// <summary>Creates the constant opaque albedo page required to keep the production pack path active.</summary>
     private static DynamicTexture2D CreateSolidAlbedoAtlas(int w, int h, float alpha)
     {
         float[] rgba = new float[w * h * 4];
@@ -549,13 +318,6 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         return RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = "Tests.Pbr.NormalDepthBake.AlbedoAtlas" }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba8), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((rgba).AsSpan()).ToArray())]).RequireResource();
     }
-    #region Private
-    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
-    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
-    {
-        base.PrepareObservations(programs);
-        programs.Prepare("inspection", 0, 0);
-        programs.Prepare("predicate-material", 0, 0);
-    }
+
     #endregion
 }

@@ -37,6 +37,8 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     private readonly int edge;
     public Block SourceBlock => material.Cube;
     public EngineTerrainBuffers Terrain { get; }
+    #region Public API
+
     public RuntimeRenderEvents Events { get; } = new();
     public VgeConfig Config { get; } = new();
     public TraceGeometryRenderer Geometry { get; private set; } = null!;
@@ -94,24 +96,6 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
                 (flags & (LumonScenePageTableEntryPacking.Flags.NeedsCapture | LumonScenePageTableEntryPacking.Flags.Capturing)) != 0) return false;
         }
         return true;
-    }
-
-    /// <summary>Resolves every authored request by identity, excluding older resident pages outside the current room.</summary>
-    private bool TryGetRequestedPages(IReadOnlyDictionary<uint, ulong> mapping, out List<(uint Physical, ulong Virtual)> pages)
-    {
-        pages = [];
-        var reverse = mapping.ToDictionary(pair => pair.Value, pair => pair.Key);
-        var requests = spatial?.Feedback() ?? feedbackPatches.Select(patch =>
-            (Chunk: FeedbackChunk, Patch: patch)).ToArray();
-        foreach (var request in requests)
-        {
-            if (!Feedback.TryGetNearChunkSlotAndGeneration(request.Chunk, out uint slot, out _)) return false;
-            ulong key = LumonSceneVirtualPageKeyUtil.Pack(slot,
-                request.Patch % (uint)LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk);
-            if (!reverse.TryGetValue(key, out uint physical)) return false;
-            pages.Add((physical, key));
-        }
-        return pages.Count != 0;
     }
 
     #endregion
@@ -337,9 +321,6 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Raises the real world-lifetime event consumed by every production owner.</summary>
     public void LeaveWorld() => Events.LeaveWorld();
 
-    /// <summary>Implements the engine mesh draw using a real fullscreen GPU triangle.</summary>
-    private void Draw() { drawing.RenderQuad(GL.GetInteger(GetPName.CurrentProgram)); }
-
     #endregion
 
     #region Teardown
@@ -356,6 +337,33 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         }
         Buffers.Dispose(); presentation.Dispose(); Terrain.Dispose(); drawing.Dispose(); assets.Dispose(); material.Dispose();
     }
+
+    #endregion
+
+    #endregion
+
+    #region Private
+
+    /// <summary>Resolves each authored page request through the current mapping.</summary>
+    private bool TryGetRequestedPages(IReadOnlyDictionary<uint, ulong> mapping, out List<(uint Physical, ulong Virtual)> pages)
+    {
+        pages = [];
+        var reverse = mapping.ToDictionary(pair => pair.Value, pair => pair.Key);
+        var requests = spatial?.Feedback() ?? feedbackPatches.Select(patch =>
+            (Chunk: FeedbackChunk, Patch: patch)).ToArray();
+        foreach (var request in requests)
+        {
+            if (!Feedback.TryGetNearChunkSlotAndGeneration(request.Chunk, out uint slot, out _)) return false;
+            ulong key = LumonSceneVirtualPageKeyUtil.Pack(slot,
+                request.Patch % (uint)LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk);
+            if (!reverse.TryGetValue(key, out uint physical)) return false;
+            pages.Add((physical, key));
+        }
+        return pages.Count != 0;
+    }
+
+    /// <summary>Draws the current engine mesh through the real fullscreen GPU triangle.</summary>
+    private void Draw() { drawing.RenderNativeReferenceQuad(GL.GetInteger(GetPName.CurrentProgram)); }
 
     #endregion
 }

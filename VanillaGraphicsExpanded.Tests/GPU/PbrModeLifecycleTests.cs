@@ -21,6 +21,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
     /// <summary>Uses the shared headless context.</summary>
     public PbrModeLifecycleTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    #region Public API
     #region Production ownership
     /// <summary>A renderer started without LumOn discovers a later provider and rejects unpublished or disabled GI.</summary>
     [Fact]
@@ -40,7 +41,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         float[] identity = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
         int drawCalls = 0;
         var render = RuntimeEngineServices.Render(1, framebuffers, () => identity, () => identity,
-            () => { drawCalls++; drawing.RenderQuad(GL.GetInteger(GetPName.CurrentProgram)); });
+            () => { drawCalls++; drawing.RenderNativeReferenceQuad(GL.GetInteger(GetPName.CurrentProgram)); });
         var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method, args) => method.Name switch
         {
             "get_Render" => render, "get_Event" => events.Api, "get_Shader" => programs.Api,
@@ -211,6 +212,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         declarations.AssertReusable();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
+    #endregion
     #endregion
     #region Private
     /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>

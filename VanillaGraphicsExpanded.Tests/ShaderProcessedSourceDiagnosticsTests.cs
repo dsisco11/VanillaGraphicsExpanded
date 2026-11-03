@@ -9,11 +9,13 @@ namespace VanillaGraphicsExpanded.Tests;
 /// <summary>Checks expanded production traversal helpers remain at global GLSL scope.</summary>
 public sealed class ShaderProcessedSourceDiagnosticsTests
 {
+    #region Public API
+
     /// <summary>Expands the per-view near-field shader and checks the shared traversal definition.</summary>
     [Fact]
     public void LumonDebugFsh_ProcessedSource_HasTopLevelTraceSceneHelpers()
     {
-        using var helper = new ShaderTestHelper();
+        var helper = new ShaderProcessedSourceDiagnostics();
         var src = helper.GetProcessedSource("lumon_debug_view_near_field_geometry.fsh");
         Assert.NotNull(src);
 
@@ -52,4 +54,5 @@ public sealed class ShaderProcessedSourceDiagnosticsTests
 
         Assert.True(braceDepth == 0, "TraceScene helpers should be declared at top level (brace depth 0).");
     }
+    #endregion
 }

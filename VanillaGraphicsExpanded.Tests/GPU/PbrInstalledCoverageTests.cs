@@ -13,6 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+    #region Public API
     #region Coverage preservation
     /// <summary>Deferred capture resolves opaque coverage while forward and OIT retain authored alpha.</summary>
     [Theory]
@@ -55,10 +56,10 @@ public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : Rende
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
         VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texture).Target)))]);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, family == "standard" ? "tex" : "entityTex"), 0);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_pbrRoute"), route);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialRadiance"), 11);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialAttenuation"), 12);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, family == "standard" ? "tex" : "entityTex"), 0);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "vge_pbrRoute"), route);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialRadiance"), 11);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialAttenuation"), 12);
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         FramebufferTestSetup.BindForEngineRendering(target); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         float[] actual = target[oit > 0 ? 1 : 0].ReadPixels();
@@ -70,5 +71,6 @@ public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : Rende
             Assert.InRange(accumulation[3], alpha - 1e-6f, alpha + 1e-6f);
         }
     }
+    #endregion
     #endregion
 }

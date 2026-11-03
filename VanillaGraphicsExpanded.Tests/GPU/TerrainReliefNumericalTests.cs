@@ -1,9 +1,8 @@
 using VanillaGraphicsExpanded.Tests.GPU.Assertions;
-using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
-using VanillaGraphicsExpanded.Rendering.RHI;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -14,12 +13,10 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class TerrainReliefNumericalTests : RenderTestBase
 {
-
-
     /// <summary>Uses the shared headless context.</summary>
     public TerrainReliefNumericalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    #region Physical relief
+    #region Public API
     /// <summary>Neutral or unavailable material data preserves UV; valid relief follows world scale and mirroring.</summary>
     [Theory]
     [InlineData(0, .04f, 0f, 1f, 1f, 2f, 0f)]
@@ -34,46 +31,59 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
     [InlineData(1, .04f, 0f, 1f, 1f, 2f, 1f)]
     [InlineData(1, .04f, 0f, 2f, 1f, 2f, 1f)]
     [InlineData(1, .04f, 0f, -1f, 1f, 2f, -1f)]
-    public void ReliefUsesAuthoredMetric(int mode,float amplitude,float height,float scale,float index,float distance,float direction)
+    public void ReliefUsesAuthoredMetric(int mode, float amplitude, float height, float scale, float index, float distance, float direction)
     {
         EnsureContextValid();
-        string fragmentPath = mode == 1 ? "tests/relief-on.fsh" : "tests/relief-off.fsh";
-        string vertex="tests/complete-state.vsh";
-        string fs=fragmentPath;
-        using var program=GpuProgramObject.Adopt(BuiltShaderFixture.LoadFixtureProgram(vertex,fs));
-        using var vao=NativeResourceSetup.CreateVertexArray();
-        using var draw=new ShaderTestFramework();
-        using var heights=draw.CreateTexture(64,64,TextureFormat.Rgba32f,Enumerable.Range(0,4096).SelectMany(_=>new[]{.5f,.5f,1f,height}).ToArray());
-        using var indices=draw.CreateTexture(1,1,TextureFormat.R32f,[index]);
-        using var records=draw.CreateTexture(2,1,TextureFormat.Rgba32f,[0,0,1,1,amplitude,0,0,0]);
-        using var target=draw.CreateTestGBuffer(32,32,TextureFormat.Rgba32f);
-        int id=program.ProgramId;
-        using var inputs = new PackedUniformBuffer(16);
-        byte[] inputBytes = new byte[16];
-        var layout=BuiltShaderFixture.Layout(id,fragmentPath);
-        OpenGLProgramSelection.Select(OpenGlStateCache.Current, id); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heights, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)heights).Target)))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, indices, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)indices).Target)))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)records).Target)))]);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_normalDepthTex"),0);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),1);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementRecords"),2);
-        UboPacking.WriteVec2(inputBytes, 8, scale, distance);
+        using var programs = new ComponentShaderPrograms();
+        TerrainReliefProgram program = mode == 1
+            ? programs.Create<TerrainReliefEnabledProgram>()
+            : programs.Create<TerrainReliefDisabledProgram>();
+        using var drawing = new ShaderTestFramework();
+        using var heights = drawing.CreateTexture(64, 64, TextureFormat.Rgba32f,
+            Enumerable.Range(0, 4096).SelectMany(_ => new[] { .5f, .5f, 1f, height }).ToArray());
+        using var indices = drawing.CreateTexture(1, 1, TextureFormat.R32f, [index]);
+        using var records = drawing.CreateTexture(2, 1, TextureFormat.Rgba32f, [0f, 0f, 1f, 1f, amplitude, 0f, 0f, 0f]);
+        using var target = drawing.CreateTestGBuffer(32, 32, TextureFormat.Rgba32f);
+        program.HeightTexture = heights;
+        program.DisplacementIndices = indices;
+        program.DisplacementRecords = records;
+        program.Capture(scale, distance);
+
         using var frameCamera = TestFrameCamera.CreateIdentity(32, 32);
-        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, frameCamera.Capture()));
-        inputs.SetBytes(inputBytes);
-        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
-        FramebufferTestSetup.BindForEngineRendering(target); GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.Blend);GL.Disable(EnableCap.CullFace);
-        GL.DrawArrays(PrimitiveType.Triangles,0,3);
-        float[] pixels=target[0].ReadPixelsRegion(16,16,1,1); int center=0;
-        if(direction==0) Assert.InRange(pixels[center],-.000001f,.000001f);
+        program.FrameInputs = frameCamera;
+        var commands = RHICommandContext.Current;
+        var layout = new RHIVertexLayout([]);
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles,
+            new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
+        var pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: 0)]);
+        using var pipeline = commands.CreateGraphicsPipeline(new(program.Shader, layout,
+            commands.DescribeRenderTargets(pass), DynamicPipelineState.Viewport)).RequireResource();
+        using var boundary = commands.EnterBoundary(new("Tests.TerrainRelief", true,
+            graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+
+        // Act: bind the complete captured material and frame state, then draw the catalogued fixture triangle.
+        boundary.Run(() =>
+        {
+            commands.BeginRenderPass(pass);
+            commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.BindResources(program.CaptureBindings());
+            commands.Draw(geometry.Inputs, new(0, 3));
+            commands.EndRenderPass();
+        });
+
+        // Assert: retain the authored center-pixel metric, signed displacement and full-image predicate.
+        float[] pixels = target[0].ReadPixelsRegion(16, 16, 1, 1);
+        if (direction == 0) Assert.InRange(pixels[0], -.000001f, .000001f);
         else
         {
-            float expected=amplitude*(1f+scale/64f)/(Math.Abs(scale)*distance);
-            Assert.InRange(pixels[center]*direction,expected*.92f,expected*1.02f);
+            float expected = amplitude * (1f + scale / 64f) / (Math.Abs(scale) * distance);
+            Assert.InRange(pixels[0] * direction, expected * .92f, expected * 1.02f);
         }
         ImageAssertions.Predicates.Predicate(target[0], GeometryPredicates.TerrainReliefNumericalTests_ReliefUsesAuthoredMetric).AssertEqual();
-        OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0);
     }
     #endregion
+
     #region Private
     /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
     private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)

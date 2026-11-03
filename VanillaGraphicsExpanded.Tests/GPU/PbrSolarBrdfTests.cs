@@ -1,12 +1,13 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Globalization;
 using System.Numerics;
 using System.Text.RegularExpressions;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -164,52 +165,39 @@ public sealed class PbrSolarBrdfTests(HeadlessGLFixture fixture) : RenderTestBas
     /// <summary>Evaluates current production helper text in a float32 headless render target.</summary>
     private float[] Render(Vector3 normal, Vector3 view, Vector3 light, float roughness, float radius, int mode)
     {
-        string directory = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
-        string fragment = "#version 330 core\n" + Expand(Path.Combine(directory, "pbr_finite_disk_brdf.glsl")) + """
-            uniform vec3 normal, view, light;
-            uniform float roughness, radius;
-            uniform int mode;
-            layout(location=0) out vec4 result;
-            void main(){
-                vec3 value = mode == 2 ? VgeFiniteDiskRepresentativeDirection(normal,view,light,radius)
-                    : mode == 1 ? cookTorranceBRDF(normal,view,light,vec3(.04,.5,1),roughness)
-                    : VgeFiniteDiskSpecularBRDF(normal,view,light,vec3(.04,.5,1),roughness,radius);
-                result=vec4(value,1);
-            }
-            """;
-        int program = TestShaderCache.CreateGraphics("#version 330 core\nlayout(location=0) in vec2 position;void main(){gl_Position=vec4(position,0,1);}", fragment);
-        try
-        {
-            using var target = CreateRenderTarget(1, 1, TextureFormat.Rgba32f);
-            GL.BindFramebuffer(FramebufferTarget.Framebuffer, target.FboId);
-            GL.Viewport(0, 0, 1, 1);
-            GL.Disable(EnableCap.DepthTest);
-            GL.Disable(EnableCap.Blend);
-            GL.Disable(EnableCap.CullFace);
-            GL.Disable(EnableCap.ScissorTest);
-            GL.ColorMask(true, true, true, true);
-            GL.UseProgram(program);
-            GL.Uniform3(GL.GetUniformLocation(program, "normal"), normal.X, normal.Y, normal.Z);
-            GL.Uniform3(GL.GetUniformLocation(program, "view"), view.X, view.Y, view.Z);
-            GL.Uniform3(GL.GetUniformLocation(program, "light"), light.X, light.Y, light.Z);
-            GL.Uniform1(GL.GetUniformLocation(program, "roughness"), roughness);
-            GL.Uniform1(GL.GetUniformLocation(program, "radius"), radius);
-            GL.Uniform1(GL.GetUniformLocation(program, "mode"), mode);
-            RenderFullscreenQuad(program);
-            return ReadPixelsFloat(target);
-        }
-        finally
-        {
-            GL.DeleteProgram(program);
-            OpenGlStateCache.Current.InvalidateAll();
-        }
-    }
+        using var programs = new ComponentShaderPrograms();
+        var program = programs.Create<SolarBrdfProgram>();
+        using var target = CreateRenderTarget(1, 1, TextureFormat.Rgba32f);
+        program.Capture(normal, view, light, roughness, radius, mode);
 
-    /// <summary>Expands only local production imports while retaining their normal include guards.</summary>
-    private static string Expand(string path)
-    {
-        string source = TestAssetSnapshot.ReadSourceText(path);
-        return Regex.Replace(source, "@import \\\"([^\\\"]+)\\\"", match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
+        var commands = RHICommandContext.Current;
+        var layout = new RHIVertexLayout([new(0, 2, VertexComponentFormat.Float,
+            VertexInterpretation.Floating, 0, 0, 4 * sizeof(float))]);
+        using var vertices = commands.CreateVertexBuffer(new RHIBufferDescription
+        { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0,
+            Usage = BufferUsage.StaticDraw, Label = "Tests.PbrSolarBrdf.Quad" }).RequireResource();
+        // Retain the original six vertices and their unused texture coordinates byte for byte.
+        vertices.UploadData([-1f, -1f, 0f, 0f, 1f, -1f, 1f, 0f,
+            1f, 1f, 1f, 1f, -1f, -1f, 0f, 0f, 1f, 1f, 1f, 1f, -1f, 1f, 0f, 1f]);
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles,
+            new Dictionary<int, GpuVbo> { [0] = vertices });
+        var pass = FramebufferTestSetup.DescribeAttachments(target,
+            [new(AttachmentIndex: 0, Load: AttachmentLoad.Clear,
+                Clear: ColorClearValue.Float(0, 0, 0, 0))]);
+        using var pipeline = commands.CreateGraphicsPipeline(new(program.Shader, layout,
+            commands.DescribeRenderTargets(pass), DynamicPipelineState.Viewport)).RequireResource();
+        using var boundary = commands.EnterBoundary(new("Tests.PbrSolarBrdf", true,
+            graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+        boundary.Run(() =>
+        {
+            commands.BeginRenderPass(pass);
+            commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.BindResources(program.CaptureBindings());
+            commands.Draw(geometry.Inputs, new(0, 6));
+            commands.EndRenderPass();
+        });
+        return ReadPixelsFloat(target);
     }
 
     #endregion

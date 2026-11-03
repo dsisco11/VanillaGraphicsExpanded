@@ -16,6 +16,7 @@ public sealed class TerrainReliefBindingsTests : RenderTestBase
     /// <summary>Uses the shared headless context.</summary>
     public TerrainReliefBindingsTests(HeadlessGLFixture fixture):base(fixture) { }
 
+    #region Public API
     #region Installed terrain variants
     /// <summary>Relief remains active without normal mapping in both installed terrain interfaces.</summary>
     [Theory]
@@ -34,7 +35,7 @@ public sealed class TerrainReliefBindingsTests : RenderTestBase
             using var shaders=new TerrainShaderTestFixture();
             int vs=shaders.Compile(ShaderType.VertexShader,PbrSurfaceInstalledShaderTests.Build(family+".vsh",2,0,1,ssbo,0));
             int fs=shaders.Compile(ShaderType.FragmentShader,PbrSurfaceInstalledShaderTests.Build(family+".fsh",2,0,1,ssbo,0));
-            using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vs,fs));
+            using var program=TerrainShaderTestFixture.Link(vs,fs);
             Assert.True(GL.GetUniformLocation(program.ProgramId,"vge_displacementRecords")>=0);
         }
         finally { config.TerrainSurfaceDetailMode=mode;config.EnableNormalMaps=normals; }
@@ -53,7 +54,7 @@ public sealed class TerrainReliefBindingsTests : RenderTestBase
         using var shaders=new TerrainShaderTestFixture();
         int vs=shaders.Compile(ShaderType.VertexShader,"#version 430\nvoid main(){gl_Position=vec4(0);}");
         int fs=shaders.Compile(ShaderType.FragmentShader,"#version 430\nuniform sampler2D vge_displacementTex;uniform sampler2D vge_displacementRecords;uniform sampler2D vge_normalDepthTex;out vec4 result;void main(){result=texture(vge_displacementTex,vec2(.5))+texture(vge_displacementRecords,vec2(.5))+texture(vge_normalDepthTex,vec2(.5));}");
-        using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vs,fs));
+        using var program=TerrainShaderTestFixture.Link(vs,fs);
         using var platform = new EngineShaderPlatformScope();
         using var store=new MaterialAtlasTextureStore();
         var owner=new LinkedProgram { ProgramId=program.ProgramId,PassName=pass,AssetDomain="game" };
@@ -104,6 +105,9 @@ public sealed class TerrainReliefBindingsTests : RenderTestBase
     }
     #endregion
 
+    #endregion
+
+    #region Private
     /// <summary>Submits the entire prepared native terrain fixture resource set once.</summary>
     private static void BindPrepared(ShaderProgramBase owner, int atlas, MaterialAtlasTextureStore store)
     {
@@ -123,5 +127,6 @@ public sealed class TerrainReliefBindingsTests : RenderTestBase
                 uniformLocations[name]=GL.GetUniformLocation(ProgramId,name);
         }
     }
+    #endregion
     #endregion
 }

@@ -22,33 +22,41 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
     public void OwnedWriterRejectsExceptionalInputs()
     {
         EnsureContextValid();
-        string includes = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
-        string owned = TestAssetSnapshot.ReadSourceText(Path.Combine(includes, "oit.glsl"))
-            .Replace("@import \"./pbr_oit_safety.glsl\"", TestAssetSnapshot.ReadSourceText(Path.Combine(includes, "pbr_oit_safety.glsl")));
-        using var program = Link( "#version 330 core\n" + owned + "\nuniform vec4 testColor;uniform float testGlow;void main(){writeOit(testColor,testGlow);}");
+        // Arrange: the packaged probe imports the shipped writer and owns a typed numeric input block.
+        using var programs = new ComponentShaderPrograms();
+        var program = programs.Create<OitOwnedWriterProbeProgram>();
         using var framework = new ShaderTestFramework();
         using var output = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
-        int color = GL.GetUniformLocation(program.ProgramId, "testColor"), glow = GL.GetUniformLocation(program.ProgramId, "testGlow");
+        var sentinel=(.125f,.25f,.5f,.75f);
         foreach (float invalidAlpha in new[] { -.1f, 1.1f, float.NaN, float.PositiveInfinity })
         {
-            GL.ProgramUniform4(program.ProgramId, color, 2f, 1f, .5f, invalidAlpha);
-            GL.ProgramUniform1(program.ProgramId, glow, 0f);
-            framework.RenderQuadTo(program.ProgramId, output, (.125f,.25f,.5f,.75f));
+            program.Capture(new(2f,1f,.5f,invalidAlpha),0f);
+
+            // Act: invalid alpha discards the owned fragment through typed RHI submission.
+            framework.RenderQuadTo(program,output,sentinel);
+
+            // Assert: every destination attachment retains its clear sentinel.
             for (int i=0; i<6; i++) Assert.Equal(new[] {.125f,.25f,.5f,.75f}, output[i].ReadPixels());
         }
         foreach (float invalid in new[] { float.NaN, float.PositiveInfinity })
         {
-            GL.ProgramUniform4(program.ProgramId, color, invalid, 1f, .5f, .75f);
-            framework.RenderQuadTo(program.ProgramId, output, (.125f,.25f,.5f,.75f));
+            program.Capture(new(invalid,1f,.5f,.75f),0f);
+
+            // Act: nonfinite radiance is rejected before any MRT output is written.
+            framework.RenderQuadTo(program,output,sentinel);
             for (int i=0; i<6; i++) Assert.Equal(new[] {.125f,.25f,.5f,.75f}, output[i].ReadPixels());
-            GL.ProgramUniform4(program.ProgramId, color, 2f, 1f, .5f, .75f);
-            GL.ProgramUniform1(program.ProgramId, glow, invalid);
-            framework.RenderQuadTo(program.ProgramId, output, (.125f,.25f,.5f,.75f));
+            program.Capture(new(2f,1f,.5f,.75f),invalid);
+
+            // Act: nonfinite glow is rejected while color remains otherwise valid.
+            framework.RenderQuadTo(program,output,sentinel);
             for (int i=0; i<6; i++) Assert.Equal(new[] {.125f,.25f,.5f,.75f}, output[i].ReadPixels());
-            GL.ProgramUniform1(program.ProgramId, glow, 0f);
         }
-        GL.ProgramUniform4(program.ProgramId, color, 2f, 1f, .5f, .75f);
-        framework.RenderQuadTo(program.ProgramId, output);
+
+        // Act: a valid color reaches the original accumulation output.
+        program.Capture(new(2f,1f,.5f,.75f),0f);
+        framework.RenderQuadTo(program,output);
+
+        // Assert: preserve the original unweighted single-fragment accumulation oracle.
         Assert.Equal(new[] {1.5f,.75f,.375f,.75f}, output[3].ReadPixels());
     }
     /// <summary>The installed wrapper accepts valid negative depth and checks the rounded logarithm argument before bucket arithmetic.</summary>
@@ -70,7 +78,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), 1);
         using var framework = new ShaderTestFramework();
         using var output = CreateMRTRenderTarget(5, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
-        framework.RenderQuadTo(program.ProgramId, output, (.125f,.125f,.125f,.125f));
+        framework.RenderNativeReferenceQuadTo(program.ProgramId, output, (.125f,.125f,.125f,.125f));
         ImageAssertions.Predicates.Predicate(output[1], MaterialPredicates.OitStorageArithmeticTests_PatchedDepthGuardUsesActualRoundedLogInput,output[2]).AssertEqual();
         for(int bin=0;bin<3;bin++)ImageAssertions.Statistics.Inspect(output[3+bin]).AssertFiniteRange();
     }
@@ -90,7 +98,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         int color = GL.GetUniformLocation(program.ProgramId, "testColor"), depth = GL.GetUniformLocation(program.ProgramId, "testDepth");
         GL.ProgramUniform4(program.ProgramId, color, 8f, 4f, 2f, .75f);
         GL.ProgramUniform1(program.ProgramId, depth, 0f);
-        framework.RenderQuadTo(program.ProgramId, output); // Initializes geometry and fullscreen state.
+        framework.RenderNativeReferenceQuadTo(program.ProgramId, output); // Initializes geometry and fullscreen state.
         FramebufferTestSetup.BindForEngineRendering(output);
         FramebufferTestSetup.ClearAttachments(output,0,0,0,0);
         GL.ClearBuffer(ClearBuffer.Color, 0, new[] { 1f, 1f, 1f, 1f });
@@ -163,7 +171,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "revealage"), 2);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "inGlow"), 2);
         using var output = CreateMRTRenderTarget(width, 1, TextureFormat.Rgba16f, TextureFormat.Rgba32f);
-        framework.RenderQuadTo(program.ProgramId, output, (.125f, .25f, .5f, .75f));
+        framework.RenderNativeReferenceQuadTo(program.ProgramId, output, (.125f, .25f, .5f, .75f));
         var expectedPixels=new float[width*4];
         for (int column = 0; column < width; column++)
             for (int channel = 0; channel < 4; channel++)
@@ -194,7 +202,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         using var program = Link( tree.ToText());
         using var framework = new ShaderTestFramework();
         using var output = CreateRenderTarget(4, 1, TextureFormat.Rgba32f);
-        framework.RenderQuadTo(program.ProgramId, output);
+        framework.RenderNativeReferenceQuadTo(program.ProgramId, output);
         var lower=new double[16];var upper=new double[16];
         for (int column = 0; column < 4; column++)
         {
@@ -231,7 +239,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         using var program = Link( fragment);
         using var framework = new ShaderTestFramework();
         using var output = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
-        framework.RenderQuadTo(program.ProgramId, output);
+        framework.RenderNativeReferenceQuadTo(program.ProgramId, output);
         // The numerator exceeds the binary16 ceiling; RGBA32F accumulation must retain
         // it before resolve. Positively weighted alpha divides away the common sum.
         bool requiresFloat32 = false;

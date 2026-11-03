@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Models the engine's marker-writing MRT draw without changing inherited blend or depth state.</summary>
 internal sealed class FirstPersonMarkerDraw : IDisposable
 {
-    private readonly int program;
+    private readonly VanillaGraphicsExpanded.Rendering.RHI.RHIShader shader;
     private readonly int vao;
     private readonly int framebuffer;
 
@@ -15,7 +15,7 @@ internal sealed class FirstPersonMarkerDraw : IDisposable
     /// <summary>Loads a precompiled raster draw writing overlay color, sampled depth and negative metadata.</summary>
     public FirstPersonMarkerDraw()
     {
-        program = Helpers.BuiltShaderFixture.LoadFixtureProgram("tests/first-person.vsh", "tests/first-person.fsh");
+        shader = Helpers.BuiltShaderFixture.LoadFixtureProgram("tests/first-person.vsh", "tests/first-person.fsh");
         vao = GL.GenVertexArray(); framebuffer = GL.GenFramebuffer();
     }
 
@@ -37,7 +37,7 @@ internal sealed class FirstPersonMarkerDraw : IDisposable
                 DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment4, DrawBuffersEnum.ColorAttachment5]); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             Assert.Equal(FramebufferErrorCode.FramebufferComplete, GL.CheckFramebufferStatus(FramebufferTarget.DrawFramebuffer));
             GL.Viewport(0, 0, terrain.Primary.Width, terrain.Primary.Height);
-            GL.UseProgram(program); GL.BindVertexArray(vao); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+            GL.UseProgram(shader.Program.ProgramId); GL.BindVertexArray(vao); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         }
         finally
         {
@@ -56,7 +56,7 @@ internal sealed class FirstPersonMarkerDraw : IDisposable
     /// <summary>Releases only this simulated engine draw's temporary objects.</summary>
     public void Dispose()
     {
-        Helpers.TestShaderInterfaces.DeleteProgram(program); GL.DeleteVertexArray(vao); GL.DeleteFramebuffer(framebuffer);
+        shader.Dispose(); GL.DeleteVertexArray(vao); GL.DeleteFramebuffer(framebuffer);
     }
     #endregion
 }

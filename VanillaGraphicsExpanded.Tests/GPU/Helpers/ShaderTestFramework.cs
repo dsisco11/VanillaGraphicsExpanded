@@ -31,7 +31,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 /// depthTex.Bind(0);
 /// normalTex.Bind(1);
 /// FramebufferTestSetup.BindForEngineRendering(outputGBuffer);
-/// framework.RenderQuad(programId);
+/// framework.RenderNativeReferenceQuadTo(programId, outputGBuffer);
 ///
 /// // Compare the complete output with an independent GPU assertion
 /// ImageAssertions.Comparisons.CompareConstant(outputGBuffer[0], expectedValue).AssertEqual();
@@ -52,27 +52,7 @@ public sealed class ShaderTestFramework : IDisposable
 
     #endregion
 
-    /// <summary>Defines deterministic fixed-function state for fullscreen component passes.</summary>
-    private static GlPipelineDesc CreateFullscreenPassPso()
-    {
-        // Match typical runtime fullscreen compute/post-process defaults (no depth, no blend, no cull, no scissor).
-        var defaultMask =
-            GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
-                .With(GlPipelineStateId.DepthFunc)
-                .With(GlPipelineStateId.BlendEnable)
-                .With(GlPipelineStateId.BlendFunc)
-                .With(GlPipelineStateId.CullFaceEnable)
-                .With(GlPipelineStateId.ScissorTestEnable)
-                .With(GlPipelineStateId.ColorMask);
-
-        var nonDefaultMask = GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask);
-
-        return new GlPipelineDesc(
-            defaultMask: defaultMask,
-            nonDefaultMask: nonDefaultMask,
-            depthWriteMask: false,
-            name: "Tests.FullscreenPass");
-    }
+    #region Public API
 
     #region Texture Creation
 
@@ -196,13 +176,9 @@ public sealed class ShaderTestFramework : IDisposable
 
     #region Rendering
 
-    /// <summary>
-    /// Renders a fullscreen quad using the specified shader program.
-    /// The quad covers clip space (-1,-1) to (1,1).
-    /// Assumes the target GBuffer is already bound.
-    /// </summary>
+    /// <summary>Draws the native reference quad through the explicit GL selector path.</summary>
     /// <param name="programId">Compiled and linked shader program ID.</param>
-    public void RenderQuad(int programId)
+    public void RenderNativeReferenceQuad(int programId)
     {
         EnsureQuadInitialized();
         OpenGlStateCache.Current.Apply(FullscreenPassPso);
@@ -234,17 +210,6 @@ public sealed class ShaderTestFramework : IDisposable
     public void RenderQuadTo(GpuProgram program, GpuFramebuffer target, (float r,float g,float b,float a)? clearColor=null, Action? afterDraw=null)
         => SubmitProductionQuad(program,target,clearColor,true,afterDraw);
 
-    /// <summary>Freezes explicit fixture load policy and executes the exact captured shader generation.</summary>
-    private void SubmitProductionQuad(GpuProgram program,GpuFramebuffer target,(float r,float g,float b,float a)? clearColor,bool clear,Action? afterDraw=null)
-    {
-        EnsureQuadInitialized();
-        var color=clearColor??(0f,0f,0f,0f);
-        var pass=FramebufferTestSetup.DescribeAttachments(target,Enumerable.Range(0,target.ColorAttachmentCount).Select(index=>
-            new RHIColorAttachment(AttachmentIndex:index,Load:clear?AttachmentLoad.Clear:AttachmentLoad.Preserve,
-                Clear:clear?ColorClearValue.Float(color.Item1,color.Item2,color.Item3,color.Item4):null)));
-        RenderQuadTo(program,pass,afterDraw);
-    }
-
     /// <summary>Submits fixed shader inputs directly to supplied final attachment intentions.</summary>
     public void RenderQuadTo(GpuProgram program,RHIRenderPassDescription pass,Action? afterDraw=null)
     {
@@ -269,32 +234,12 @@ public sealed class ShaderTestFramework : IDisposable
     }
 
     /// <summary>Draws explicitly native GLSL fixtures to their engine-owned target without wrapping them as portable shaders.</summary>
-    public void RenderQuadTo(int programId,GpuFramebuffer target,(float r,float g,float b,float a)? clearColor=null)
+    public void RenderNativeReferenceQuadTo(int programId,GpuFramebuffer target,(float r,float g,float b,float a)? clearColor=null)
     {
         var color=clearColor??(0f,0f,0f,0f);
         FramebufferTestSetup.ClearAttachments(target,color.Item1,color.Item2,color.Item3,color.Item4);
         using var binding=OpenGlStateCache.Current.BindFramebufferScope();
-        FramebufferTestSetup.BindForEngineRendering(target);RenderQuad(programId);
-    }
-
-    /// <summary>Configures native fixture geometry using core named vertex-array commands, independent of production realization caches.</summary>
-    private void EnsureQuadInitialized()
-    {
-        if(_quadInitialized)return;
-        _quadVao=NativeResourceSetup.CreateVertexArray("Tests.FullscreenTriangle");
-        _quadVbo=RHICommandContext.Current.CreateVertexBuffer(new(){Role=BufferRole.Vertex,Mode=ResourceStorageMode.Mutable,Capacity=60,Usage=BufferUsage.StaticDraw}).RequireResource();
-        _quadEbo=RHICommandContext.Current.CreateIndexBuffer(new(){Role=BufferRole.Index,Mode=ResourceStorageMode.Mutable,Capacity=12,Usage=BufferUsage.StaticDraw}).RequireResource();
-        _quadVbo.UploadData(new float[]{-1,-1,0,0,0,3,-1,0,2,0,-1,3,0,0,2});
-        _quadEbo.UploadIndices(new uint[]{0,1,2});
-        OpenTK.Graphics.OpenGL4.GL.VertexArrayVertexBuffer(_quadVao.VertexArrayId,0,_quadVbo.BufferId,IntPtr.Zero,20);
-        for(int attribute=0;attribute<2;attribute++)
-        {
-            OpenTK.Graphics.OpenGL4.GL.EnableVertexArrayAttrib(_quadVao.VertexArrayId,attribute);
-            OpenTK.Graphics.OpenGL4.GL.VertexArrayAttribFormat(_quadVao.VertexArrayId,attribute,attribute==0?3:2,OpenTK.Graphics.OpenGL4.VertexAttribType.Float,false,attribute==0?0:12);
-            OpenTK.Graphics.OpenGL4.GL.VertexArrayAttribBinding(_quadVao.VertexArrayId,attribute,0);
-        }
-        OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(_quadVao.VertexArrayId,_quadEbo.BufferId);
-        _quadInitialized=true;
+        FramebufferTestSetup.BindForEngineRendering(target);RenderNativeReferenceQuad(programId);
     }
 
     #endregion
@@ -302,54 +247,54 @@ public sealed class ShaderTestFramework : IDisposable
     #region Uniform Helpers
 
     /// <summary>
-    /// Sets a float uniform on the currently bound program.
+    /// Sets a float uniform through native GL publication for an explicit native witness.
     /// </summary>
-    public static void SetUniform(int location, float value)
+    public static void SetNativeUniform(int location, float value)
     {
         if (location >= 0)
             GL.Uniform1(location, value);
     }
 
     /// <summary>
-    /// Sets an int uniform on the currently bound program.
+    /// Sets an int uniform through native GL publication for an explicit native witness.
     /// </summary>
-    public static void SetUniform(int location, int value)
+    public static void SetNativeUniform(int location, int value)
     {
         if (location >= 0)
             GL.Uniform1(location, value);
     }
 
     /// <summary>
-    /// Sets a vec2 uniform on the currently bound program.
+    /// Sets a vec2 uniform through native GL publication for an explicit native witness.
     /// </summary>
-    public static void SetUniform(int location, float x, float y)
+    public static void SetNativeUniform(int location, float x, float y)
     {
         if (location >= 0)
             GL.Uniform2(location, x, y);
     }
 
     /// <summary>
-    /// Sets a vec3 uniform on the currently bound program.
+    /// Sets a vec3 uniform through native GL publication for an explicit native witness.
     /// </summary>
-    public static void SetUniform(int location, float x, float y, float z)
+    public static void SetNativeUniform(int location, float x, float y, float z)
     {
         if (location >= 0)
             GL.Uniform3(location, x, y, z);
     }
 
     /// <summary>
-    /// Sets a vec4 uniform on the currently bound program.
+    /// Sets a vec4 uniform through native GL publication for an explicit native witness.
     /// </summary>
-    public static void SetUniform(int location, float x, float y, float z, float w)
+    public static void SetNativeUniform(int location, float x, float y, float z, float w)
     {
         if (location >= 0)
             GL.Uniform4(location, x, y, z, w);
     }
 
     /// <summary>
-    /// Sets a mat4 uniform on the currently bound program.
+    /// Sets a mat4 uniform through native GL publication for an explicit native witness.
     /// </summary>
-    public static void SetUniformMatrix4(int location, float[] matrix, bool transpose = false)
+    public static void SetNativeUniformMatrix4(int location, float[] matrix, bool transpose = false)
     {
         if (location >= 0 && matrix.Length == 16)
             GL.UniformMatrix4(location, 1, transpose, matrix);
@@ -387,6 +332,65 @@ public sealed class ShaderTestFramework : IDisposable
         }
 
         _isDisposed = true;
+    }
+
+    #endregion
+
+    #endregion
+
+    #region Private
+
+    /// <summary>Defines deterministic fixed-function state for fullscreen component passes.</summary>
+    private static GlPipelineDesc CreateFullscreenPassPso()
+    {
+        // Match typical runtime fullscreen compute/post-process defaults (no depth, no blend, no cull, no scissor).
+        var defaultMask =
+            GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
+                .With(GlPipelineStateId.DepthFunc)
+                .With(GlPipelineStateId.BlendEnable)
+                .With(GlPipelineStateId.BlendFunc)
+                .With(GlPipelineStateId.CullFaceEnable)
+                .With(GlPipelineStateId.ScissorTestEnable)
+                .With(GlPipelineStateId.ColorMask);
+
+        var nonDefaultMask = GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask);
+
+        return new GlPipelineDesc(
+            defaultMask: defaultMask,
+            nonDefaultMask: nonDefaultMask,
+            depthWriteMask: false,
+            name: "Tests.FullscreenPass");
+    }
+
+    /// <summary>Freezes explicit fixture load policy and executes the exact captured shader generation.</summary>
+    private void SubmitProductionQuad(GpuProgram program,GpuFramebuffer target,(float r,float g,float b,float a)? clearColor,bool clear,Action? afterDraw=null)
+    {
+        EnsureQuadInitialized();
+        var color=clearColor??(0f,0f,0f,0f);
+        var pass=FramebufferTestSetup.DescribeAttachments(target,Enumerable.Range(0,target.ColorAttachmentCount).Select(index=>
+            new RHIColorAttachment(AttachmentIndex:index,Load:clear?AttachmentLoad.Clear:AttachmentLoad.Preserve,
+                Clear:clear?ColorClearValue.Float(color.Item1,color.Item2,color.Item3,color.Item4):null)));
+        RenderQuadTo(program,pass,afterDraw);
+    }
+
+    /// <summary>Configures native fixture geometry using core named vertex-array commands, independent of production realization caches.</summary>
+    private void EnsureQuadInitialized()
+    {
+        if(_quadInitialized)return;
+        _quadVao=NativeResourceSetup.CreateVertexArray("Tests.FullscreenTriangle");
+        _quadVbo=RHICommandContext.Current.CreateVertexBuffer(new(){Role=BufferRole.Vertex,Mode=ResourceStorageMode.Mutable,Capacity=60,Usage=BufferUsage.StaticDraw}).RequireResource();
+        _quadEbo=RHICommandContext.Current.CreateIndexBuffer(new(){Role=BufferRole.Index,Mode=ResourceStorageMode.Mutable,Capacity=12,Usage=BufferUsage.StaticDraw}).RequireResource();
+        _quadVbo.UploadData(new float[]{-1,-1,0,0,0,3,-1,0,2,0,-1,3,0,0,2});
+        _quadEbo.UploadIndices(new uint[]{0,1,2});
+        OpenTK.Graphics.OpenGL4.GL.VertexArrayVertexBuffer(_quadVao.VertexArrayId,0,_quadVbo.BufferId,IntPtr.Zero,20);
+        for(int attribute=0;attribute<2;attribute++)
+        {
+            OpenTK.Graphics.OpenGL4.GL.EnableVertexArrayAttrib(_quadVao.VertexArrayId,attribute);
+            OpenTK.Graphics.OpenGL4.GL.VertexArrayAttribFormat(_quadVao.VertexArrayId,attribute,attribute==0?3:2,OpenTK.Graphics.OpenGL4.VertexAttribType.Float,false,attribute==0?0:12);
+            OpenTK.Graphics.OpenGL4.GL.VertexArrayAttribBinding(_quadVao.VertexArrayId,attribute,0);
+        }
+        OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(_quadVao.VertexArrayId,_quadEbo.BufferId);
+        _quadInitialized=true;
     }
 
     #endregion

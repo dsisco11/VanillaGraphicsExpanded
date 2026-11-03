@@ -13,22 +13,21 @@ internal sealed class TerrainShaderTestFixture : IDisposable
 {
     private readonly Dictionary<int, (GpuShaderModule Module, string Source)> stages = new();
 
+    #region Public API
     #region Shader lifecycle
     /// <summary>Exercises the backend's explicit borrowed-stage integration using the same CPU source policy as engine replacement.</summary>
-    internal static bool LinkTessellation(int vertex, int fragment, TerrainTessellationStages.Sources sources,
-        string prefix, out int program, out string error)
+    internal static GpuProgramObject? LinkTessellation(int vertex, int fragment, TerrainTessellationStages.Sources sources,
+        string prefix, out string error)
     {
-        program = 0;
         error = string.Empty;
         try
         {
             var stages = TerrainTessellationStages.Describe(sources, prefix);
             var result = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CreateEngineTessellationProgram(vertex, fragment, stages.Control, stages.Evaluation, null);
-            if (!result.TryGetResource(out var owner)) { error = result.Diagnostics ?? "Tessellation linking failed."; return false; }
-            using (owner) program = (int)owner!.Detach();
-            return true;
+            if (!result.TryGetResource(out var owner)) { error = result.Diagnostics ?? "Tessellation linking failed."; return null; }
+            return owner;
         }
-        catch (Exception failure) { error = failure.Message; return false; }
+        catch (Exception failure) { error = failure.Message; return null; }
     }
 
     /// <summary>Compiles through the production module abstraction and owns the result until fixture disposal.</summary>
@@ -51,14 +50,22 @@ internal sealed class TerrainShaderTestFixture : IDisposable
     /// <summary>Returns the exact submitted source without querying the driver.</summary>
     internal string Source(int shader) => stages[shader].Source;
 
-    /// <summary>Links a baseline executable and transfers its ownership to the caller or engine owner.</summary>
-    internal static int Link(int vertex, int fragment)
+    /// <summary>Links borrowed test stages and returns the native executable under a retained owner.</summary>
+    internal static GpuProgramObject Link(int vertex, int fragment)
     {
-        using var program = NativeResourceSetup.CreateProgram();
-        GL.AttachShader(program.ProgramId, vertex);
-        GL.AttachShader(program.ProgramId, fragment);
-        Assert.True(NativeProgramFixture.Link(program, out string error), error);
-        return (int)program.Detach();
+        var program = NativeResourceSetup.CreateProgram();
+        try
+        {
+            GL.AttachShader(program.ProgramId, vertex);
+            GL.AttachShader(program.ProgramId, fragment);
+            Assert.True(NativeProgramFixture.Link(program, out string error), error);
+            return program;
+        }
+        catch
+        {
+            program.Dispose();
+            throw;
+        }
     }
 
     /// <summary>Releases every stage even when compilation, linking or an assertion fails.</summary>
@@ -67,5 +74,6 @@ internal sealed class TerrainShaderTestFixture : IDisposable
         foreach (var stage in stages.Values) stage.Module.Dispose();
         stages.Clear();
     }
+    #endregion
     #endregion
 }

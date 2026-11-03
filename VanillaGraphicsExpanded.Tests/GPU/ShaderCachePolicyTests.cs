@@ -73,16 +73,15 @@ public sealed class ShaderCachePolicyTests(HeadlessGLFixture fixture)
                 Assert.Empty(capture.Stages);
                 Assert.Equal(0, capture.Links);
             }
-            using (var helper = new ShaderTestHelper())
-                Assert.True(helper.CompileProgram("tests/render_infrastructure").IsSuccess);
+            using (var program = BuiltShaderFixture.LoadProgram(new(new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/render_infrastructure")))))
+                Assert.True(program.Program.ProgramId > 0);
             using (var capture = new NativeShaderAllocationCapture())
-            using (var helper = new ShaderTestHelper())
+            using (var program = BuiltShaderFixture.LoadProgram(new(new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/render_infrastructure")))))
             {
-                var result = helper.CompileProgram("tests/render_infrastructure");
-                Assert.True(result.IsSuccess, result.ErrorMessage);
+                Assert.True(program.Program.ProgramId > 0);
                 Assert.Empty(capture.Stages);
                 Assert.Equal(0, capture.Links);
-                Assert.NotNull(TestShaderInterfaces.BuildLayout(result.ProgramId));
+                Assert.NotNull(program.Interface);
             }
             using (var states = new GraphicsStateShaders()) states.Get();
             using (var capture = new NativeShaderAllocationCapture())

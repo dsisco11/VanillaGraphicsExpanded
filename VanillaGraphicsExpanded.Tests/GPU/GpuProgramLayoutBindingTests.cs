@@ -5,6 +5,8 @@ using System;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.Spirv;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -12,12 +14,18 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
+/// <summary>Checks production program-layout sampler binding against a real headless context.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
 public sealed class GpuProgramLayoutBindingTests : RenderTestBase
 {
+    #region Public API
+
+    /// <summary>Creates binding tests with the shared render context.</summary>
+    /// <param name="fixture">The headless graphics fixture.</param>
     public GpuProgramLayoutBindingTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    /// <summary>Verifies sampler assignment uses the unit declared by the program layout.</summary>
     [Fact]
     public void ProgramLayout_TryBindSamplerTexture_UsesLayoutBindingUnit()
     {
@@ -25,19 +33,23 @@ public sealed class GpuProgramLayoutBindingTests : RenderTestBase
 
         const string shader = "tests/GpuProgramLayoutBindingTests_1.csh";
 
-        int shaderId = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(shader, ShaderType.ComputeShader);
+        using var shaderOwner = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(shader, ShaderType.ComputeShader);
+        int shaderId = shaderOwner.ShaderId;
         GL.GetShader(shaderId, ShaderParameter.CompileStatus, out int okShader);
         string shaderLog = GL.GetShaderInfoLog(shaderId) ?? string.Empty;
         Assert.True(okShader != 0, $"Compute shader compile failed:\n{shaderLog}");
 
-        int programId = GL.CreateProgram();
+        using var programOwner = NativeResourceSetup.CreateProgram();
+        int programId = programOwner.ProgramId;
         GL.AttachShader(programId, shaderId);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(programId);
+        GL.LinkProgram(programId);
         GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int okLink);
         string programLog = GL.GetProgramInfoLog(programId) ?? string.Empty;
         Assert.True(okLink != 0, $"Compute program link failed:\n{programLog}");
 
-        var layout = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.BuildLayout(programId);
+        var stageContract = GpuShaderContracts.Registry.FindStage(shader);
+        var layout = new GpuProgramLayout { BinaryInterface = new GpuProgramInterface(programId, [stageContract.Bindings]) };
+        layout.RebuildCache(programId);
         Assert.NotSame(GpuProgramLayout.Empty, layout);
 
         // Create a 1x1x1 R32UI occ texture with a known value.
@@ -68,9 +80,11 @@ public sealed class GpuProgramLayoutBindingTests : RenderTestBase
         uint[] outData = ReadTexImageR32ui(outTex.TextureId, width: 1, height: 1, depth: 1);
         Assert.Equal(123u, outData[0]);
 
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(shaderId);
     }
+
+    #endregion
+
+    #region Private
 
     private static uint[] ReadTexImageR32ui(int textureId, int width, int height, int depth)
     {
@@ -81,4 +95,5 @@ public sealed class GpuProgramLayoutBindingTests : RenderTestBase
         GL.BindTexture(TextureTarget.Texture3D, 0);
         return data;
     }
+    #endregion
 }

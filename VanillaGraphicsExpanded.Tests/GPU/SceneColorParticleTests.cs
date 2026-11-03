@@ -50,7 +50,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         capture.BeginCapture();
         Assert.Equal(.75f, ReadDepth(capture.BeforeDepth.TextureId));
         using var inputs = new PackedUniformBuffer(32);
-        using var draw = GpuProgramObject.Adopt(Helpers.BuiltShaderFixture.LoadFixtureProgram("tests/complete-state.vsh", "tests/particle-draw.fsh"));
+        using var draw = Helpers.BuiltShaderFixture.LoadFixtureProgram("tests/complete-state.vsh", "tests/particle-draw.fsh");
         using var vao = NativeResourceSetup.CreateVertexArray();
         FramebufferTestSetup.BindForEngineRendering(capture.DrawTarget);
         GL.Enable(EnableCap.DepthTest);
@@ -59,7 +59,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         GL.Disable(EnableCap.CullFace);
         GL.Disable(EnableCap.Blend);
         OpenGlStateCache.Current.Apply(SceneColorParticleDrawScope.CapturePipeline);
-        GL.UseProgram(draw.ProgramId);
+        GL.UseProgram(draw.Program.ProgramId);
         GL.BindVertexArray(vao.VertexArrayId);
         if (scenario != 3)
         {
@@ -167,7 +167,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "shadowIntensity"), 0f);
         GL.ProgramUniform3(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "lightPosition"), 0f, 1f, 0f);
         using var target = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, ssao > 0 ? 4 : 2).ToArray());
-        TestFramework.RenderQuadTo(program.ProgramId, target);
+        TestFramework.RenderNativeReferenceQuadTo(program.ProgramId, target);
         float[] actual = target[0].ReadPixels();
         float[] authored = [.5f, .25f, .75f];
         for (int channel = 0; channel < 3; channel++)

@@ -13,6 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+    #region Public API
     #region Installed terrain-independent meshes
     /// <summary>Opaque container and first-person draws retain alpha and reject a later background draw.</summary>
     [Theory]
@@ -64,16 +65,16 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         GL.VertexAttrib1(4, 0f);
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         foreach (string name in new[] { "modelMatrix", "viewMatrix", "projectionMatrix" })
-            ShaderTestFramework.SetUniformMatrix4(layout.GetUniformLocation(program.ProgramId, name), identity);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "rgbaTint"), 1f, 1f, 1f, 1f);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "rgbaLightIn"), 1f, 1f, 1f, 1f);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "rgbaAmbientIn"), 1f, 1f, 1f);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "viewDistance"), 256f);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "dontWarpVertices"), 1);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_pbrRoute"), route);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialRadiance"), 11);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialAttenuation"), 12);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "depthOffset"), -.05f);
+            ShaderTestFramework.SetNativeUniformMatrix4(layout.GetUniformLocation(program.ProgramId, name), identity);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "rgbaTint"), 1f, 1f, 1f, 1f);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "rgbaLightIn"), 1f, 1f, 1f, 1f);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "rgbaAmbientIn"), 1f, 1f, 1f);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "viewDistance"), 256f);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "dontWarpVertices"), 1);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "vge_pbrRoute"), route);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialRadiance"), 11);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialAttenuation"), 12);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "depthOffset"), -.05f);
         VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texture).Target)))]);
         FramebufferTestSetup.BindForEngineRendering(target);
         GL.Enable(EnableCap.DepthTest); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
@@ -99,9 +100,10 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         }
         // Draw a distinguishable farther opaque mesh after the first mesh. Depth must reject it.
         vertices.UploadData<float>([-1, -1, .5f, 3, -1, .5f, -1, 3, .5f]);
-        ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "rgbaTint"), 0f, 1f, 0f, .25f);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "rgbaTint"), 0f, 1f, 0f, .25f);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         Assert.Equal(foreground, target[0].ReadPixels());
     }
+    #endregion
     #endregion
 }

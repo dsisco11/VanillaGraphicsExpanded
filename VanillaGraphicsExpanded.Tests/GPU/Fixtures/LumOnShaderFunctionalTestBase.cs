@@ -18,7 +18,6 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 ///
 /// Provides common infrastructure for GPU shader testing:
 /// - OpenGL context via HeadlessGLFixture
-/// - Shader compilation via ShaderTestHelper
 /// - Fullscreen rendering via ShaderTestFramework
 /// - Common test constants (screen sizes, Z-planes, epsilon)
 /// - Reusable scene-owned input resources
@@ -95,7 +94,6 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     #region Fields
 
     private readonly HeadlessGLFixture _fixture;
-    private ShaderTestHelper? _shaderHelper;
     private ShaderTestFramework? _testFramework;
     private LumOnUniformBuffers? _lumOnUbos;
     private readonly List<VgeFrameUniformBuffer> frameCameras = [];
@@ -117,6 +115,8 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     private uint _pmjJitterSeed;
 
     #endregion
+
+    #region Public API
 
     #region Frame inputs
 
@@ -243,19 +243,6 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     #region Properties
 
     /// <summary>
-    /// Gets the shader test helper for compiling and linking shaders.
-    /// </summary>
-    protected ShaderTestHelper ShaderHelper
-    {
-        get
-        {
-            if (_shaderHelper == null)
-                throw new InvalidOperationException("ShaderTestHelper not available. Call EnsureShaderTestAvailable() first.");
-            return _shaderHelper;
-        }
-    }
-
-    /// <summary>
     /// Gets the test framework for rendering and texture management.
     /// </summary>
     protected ShaderTestFramework TestFramework
@@ -271,7 +258,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     /// <summary>
     /// Gets whether shader testing is available (valid GL context and shader paths).
     /// </summary>
-    protected bool IsShaderTestAvailable => _shaderHelper != null && _testFramework != null;
+    protected bool IsShaderTestAvailable => _testFramework != null;
 
     #endregion
 
@@ -287,21 +274,6 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         InitializeTestInfrastructure();
     }
 
-    private void InitializeTestInfrastructure()
-    {
-        if (!_fixture.IsContextValid)
-            return;
-
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        if (VanillaGraphicsExpanded.Tests.Helpers.TestAssetSnapshot.Built.Paths.Any())
-        {
-            _shaderHelper = new ShaderTestHelper();
-            _testFramework = new ShaderTestFramework();
-        }
-    }
-
     #endregion
 
     #region Test Setup Helpers
@@ -313,7 +285,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     protected void EnsureShaderTestAvailable()
     {
         EnsureContextValid();
-        Assert.SkipWhen(_shaderHelper == null, "ShaderTestHelper not available - shader paths not found");
+        Assert.SkipWhen(!VanillaGraphicsExpanded.Tests.Helpers.TestAssetSnapshot.Built.Paths.Any(), "Shader assets are not available");
         Assert.SkipWhen(_testFramework == null, "ShaderTestFramework not available");
     }
 
@@ -569,7 +541,6 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
                 frameCameras.Clear();
                 programs = null;
                 lightingResources = null;
-                _shaderHelper?.Dispose();
                 _testFramework?.Dispose();
                 _lumOnUbos?.Dispose();
                 _lumOnUbos = null;
@@ -581,6 +552,24 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
             _disposed = true;
         }
         base.Dispose(disposing);
+    }
+
+    #endregion
+
+    #endregion
+
+    #region Private
+
+    /// <summary>Creates shader helpers only when the context and built assets are available.</summary>
+    private void InitializeTestInfrastructure()
+    {
+        if (!_fixture.IsContextValid)
+            return;
+
+        if (VanillaGraphicsExpanded.Tests.Helpers.TestAssetSnapshot.Built.Paths.Any())
+        {
+            _testFramework = new ShaderTestFramework();
+        }
     }
 
     #endregion

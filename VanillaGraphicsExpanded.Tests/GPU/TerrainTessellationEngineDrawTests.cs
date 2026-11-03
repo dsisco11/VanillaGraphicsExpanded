@@ -25,6 +25,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
     /// <summary>Uses the shared headless context.</summary>
     public TerrainTessellationEngineDrawTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    #region Public API
     #region Production grouped draw
     /// <summary>The patched engine multidraw preserves index offsets/counts and restores patch state.</summary>
     [Theory]
@@ -159,13 +160,20 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
     }
     #endregion
 
+    #endregion
+
+    #region Private
     #region Fixture inputs
     /// <summary>Wraps linked stages in the same engine ownership model used by terrain.</summary>
-    private static TerrainLinkedTestProgram CreateOwner(TerrainShaderTestFixture shaders, int vertex, int fragment) => new()
+    private static TerrainLinkedTestProgram CreateOwner(TerrainShaderTestFixture shaders, int vertex, int fragment)
     {
-        PassName = "chunkopaque", AssetDomain = "game", ProgramId = TerrainShaderTestFixture.Link(vertex, fragment),
-        VertexShader = new Shader { ShaderId = vertex, Code = shaders.Source(vertex) }, FragmentShader = new Shader { ShaderId = fragment }
-    };
+        using var executable = TerrainShaderTestFixture.Link(vertex, fragment);
+        return new TerrainLinkedTestProgram
+        {
+            PassName = "chunkopaque", AssetDomain = "game", ProgramId = (int)executable.Detach(),
+            VertexShader = new Shader { ShaderId = vertex, Code = shaders.Source(vertex) }, FragmentShader = new Shader { ShaderId = fragment }
+        };
+    }
 
     private const string VertexSource = """
         #version 430 core
@@ -194,6 +202,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
         layout(location=0) out vec4 color;
         void main() { color=rgba; }
         """;
+    #endregion
     #endregion
     #region Private
     /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>

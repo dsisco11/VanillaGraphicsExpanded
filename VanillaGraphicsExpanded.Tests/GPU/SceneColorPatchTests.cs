@@ -36,7 +36,7 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         foreach (int linearScene in new[] { 0, 1 })
         {
             GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), linearScene);
-            framework.RenderQuadTo(program.ProgramId, target);
+            framework.RenderNativeReferenceQuadTo(program.ProgramId, target);
             var lower=new double[4*4*4];var upper=new double[lower.Length];
             int[] indexFactors = [41, 29, 53, 43], areaFactors = [23, 59, 47, 37];
             for (int y = 0; y < 4; y++)
@@ -96,7 +96,7 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         using var framework = new ShaderTestFramework();
         using var target = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), linearScene);
-        framework.RenderQuadTo(program.ProgramId, target);
+        framework.RenderNativeReferenceQuadTo(program.ProgramId, target);
         float[] accumulation = target[3].ReadPixels();
         float[] reveal = target[1].ReadPixels();
         float[] glow = target[2].ReadPixels();
@@ -136,7 +136,7 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "cloudCol"), 1);
         using var bindMap = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, map.TextureId);
         using var bindColor = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, color.TextureId);
-        framework.RenderQuadTo(program.ProgramId, target);
+        framework.RenderNativeReferenceQuadTo(program.ProgramId, target);
         float[] actual = target[3].ReadPixels();
         float coverage = 1 - MathF.Exp(-.25f);
         float[] authored = [.5f, .25f, .75f];
@@ -159,7 +159,7 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
             out vec2 invFrameSize; flat out float godrayIntensity; out vec2 texCoord; out vec3 sunPosScreen; out float iGlobalTime; out float intensity; out float direction;
             void main(){gl_Position=vec4(position,0,1);invFrameSize=vec2(1);godrayIntensity=0;texCoord=vec2(.5);sunPosScreen=vec3(0);iGlobalTime=0;intensity=0;direction=0;}
             """);
-        return GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, shaders.Compile(ShaderType.FragmentShader, fragment)));
+        return TerrainShaderTestFixture.Link(vertex, shaders.Compile(ShaderType.FragmentShader, fragment));
     }
 
     /// <summary>Loads the exact production color helpers copied by the build.</summary>

@@ -4,10 +4,10 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Numerics;
-using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -193,58 +193,33 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
     /// <summary>Executes the production aerial decoder with distinct source axes and actual three-band volumes.</summary>
     private static void AssertAerialDecoder(AtmosphereTextureSet textures, float smooth, float solar, float lunar)
     {
-        string source = "#version 330 core\n#define VGE_ATMOSPHERE_SCATTERING_DIRECTIONS\n"
-            + "uniform vec3 vge_atmosphereScatteringSun; uniform vec3 vge_atmosphereScatteringMoon; uniform vec3 ray; out vec4 outColor;\n"
-            + Expand(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/atmosphere_aerial.glsl"))
-            + "\nvoid main(){outColor=vec4(VgeApplyAerial(vec3(0),ray*100.0,1.0,vec3(0,0,16),vec3(0,0,1)),1);}";
-        int vertex = Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0) in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
-        int fragment = Compile(ShaderType.FragmentShader, source);
-        int program = GL.CreateProgram();
-        try
+        // Arrange
+        using var programs = new ComponentShaderPrograms();
+        using var program = programs.Create<AerialLookupProgram>();
+        using var framework = new ShaderTestFramework();
+        using var shaft = framework.CreateTexture(1, 1, TextureFormat.R32f, [0f]);
+        using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
+        using var draw = new PostprocessDraw();
+        program.Radiance = textures.Radiance;
+        program.Attenuation = textures.Attenuation;
+        program.Occlusion = shaft;
+        var pass = FramebufferTestSetup.DescribeAttachments(output,
+            [new(AttachmentIndex: 0, Load: AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))]);
+        var pipeline = draw.Prepare(program, pass);
+        foreach (Vector3 direction in new[] { Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ })
         {
-            GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            using var radiance = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, textures.Radiance.TextureId);
-            using var attenuation = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, textures.Attenuation.TextureId);
-            using var framework = new ShaderTestFramework();
-            using var shaft = framework.CreateTexture(1, 1, TextureFormat.R32f, new[] { 0f });
-            using var shaftBinding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 13, shaft.TextureId);
-            using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
-            GL.UseProgram(program);
-            GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialRadiance"), 11);
-            GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialAttenuation"), 12);
-            GL.Uniform1(GL.GetUniformLocation(program, "vge_lightShaftOcclusion"), 13);
-            GL.Uniform3(GL.GetUniformLocation(program, "vge_atmosphereScatteringSun"), 1f, 0f, 0f);
-            GL.Uniform3(GL.GetUniformLocation(program, "vge_atmosphereScatteringMoon"), 0f, 1f, 0f);
-            foreach (Vector3 direction in new[] { Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ })
-            {
-                // The framework unbinds the program after each submission.
-                OpenGLProgramSelection.Select(OpenGlStateCache.Current, program);
-                GL.Uniform3(GL.GetUniformLocation(program, "ray"), direction.X, direction.Y, direction.Z);
-                framework.RenderQuadTo(program, output);
-                float expected = smooth + solar * AtmosphereMieTransport.Factor(direction.X) + lunar * AtmosphereMieTransport.Factor(direction.Y);
-                foreach (float value in output[0].ReadTexel().Take(3)) Assert.True(Math.Abs(value - expected) <= .00001f,
-                    $"Aerial direction {direction}: actual {value:R}, expected {expected:R}");
-            }
+            // Act
+            program.CaptureCelestialDecoder(direction);
+            var commands = RHICommandContext.Current;
+            using var boundary = commands.EnterBoundary(new("Tests.Celestial.AerialDecoder", true,
+                graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+            boundary.Run(() => draw.Submit(commands, pipeline, pass, program.CaptureBindings()));
+            float expected = smooth + solar * AtmosphereMieTransport.Factor(direction.X)
+                + lunar * AtmosphereMieTransport.Factor(direction.Y);
+            // Assert
+            foreach (float value in output[0].ReadTexel().Take(3)) Assert.True(Math.Abs(value - expected) <= .00001f,
+                $"Aerial direction {direction}: actual {value:R}, expected {expected:R}");
         }
-        finally { GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(fragment); }
-    }
-
-    /// <summary>Expands guarded production shader imports while retaining the original decoder equations.</summary>
-    private static string Expand(string path) => Regex.Replace(TestAssetSnapshot.ReadSourceText(path), "@import \"([^\"]+)\"",
-        match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
-
-    /// <summary>Compiles one diagnostic stage at the unchanged runtime shader baseline.</summary>
-    private static int Compile(ShaderType type, string source)
-    {
-        int shader = GL.CreateShader(type);
-        GL.ShaderSource(shader, source); GL.CompileShader(shader);
-        GL.GetShader(shader, ShaderParameter.CompileStatus, out int compiled);
-        string log = GL.GetShaderInfoLog(shader);
-        if (compiled == 0) GL.DeleteShader(shader);
-        Assert.True(compiled != 0, log);
-        return shader;
     }
     /// <summary>Completes bounded transport by waiting only for its submitted CPU or GPU dependency.</summary>
     private static AtmosphereLighting Complete(AtmosphereBackend backend, AtmosphereCelestialInputs sources, float altitude = 0,

@@ -5,6 +5,8 @@ using System;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.Spirv;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -12,12 +14,18 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
+/// <summary>Checks uniform-ring uploads and binding behavior through real shader execution.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
 public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
 {
+    #region Public API
+
+    /// <summary>Creates uniform-ring integration tests with the shared render context.</summary>
+    /// <param name="fixture">The headless graphics fixture.</param>
     public GpuUniformRingBufferIntegrationTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    /// <summary>Verifies a published uniform-ring range reaches the shader with the expected contents.</summary>
     [Fact]
     public void UniformRingBuffer_BindRange_WritesCorrectData()
     {
@@ -25,17 +33,20 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
 
         const string shader = "tests/GpuUniformRingBufferIntegrationTests_1.csh";
 
-        int shaderId = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(shader, ShaderType.ComputeShader);
+        using var shaderOwner = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(shader, ShaderType.ComputeShader);
+        int shaderId = shaderOwner.ShaderId;
         GL.GetShader(shaderId, ShaderParameter.CompileStatus, out int okShader);
         Assert.True(okShader != 0, GL.GetShaderInfoLog(shaderId));
 
-        int programId = GL.CreateProgram();
+        using var programOwner = NativeResourceSetup.CreateProgram();
+        int programId = programOwner.ProgramId;
         GL.AttachShader(programId, shaderId);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(programId);
+        GL.LinkProgram(programId);
         GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int okLink);
         Assert.True(okLink != 0, GL.GetProgramInfoLog(programId));
 
-        var layout = TestShaderInterfaces.BuildLayout(programId);
+        var layout = new GpuProgramLayout { BinaryInterface = new GpuProgramInterface(programId, [GpuShaderContracts.Registry.FindStage(shader).Bindings]) };
+        layout.RebuildCache(programId);
         layout.RegisterUniformBlockBinding("TestParams", bindingIndex: 0, required: true);
         layout.ApplyContract(programId);
 
@@ -73,12 +84,11 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
 
         ring.EndFrame();
 
-        // Retire the fixture owner before deletion so later program scopes cannot restore a deferred-deleted name.
+        // Withdraw the current selection before the program owner retires at method exit.
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(shaderId);
     }
 
+    /// <summary>Verifies unused uniform storage does not bind a block that the executable does not consume.</summary>
     [Fact]
     public void UnusedUniformAllocationDoesNotBindInactiveBlock()
     {
@@ -86,17 +96,20 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
 
         const string shader = "tests/GpuUniformRingBufferIntegrationTests_2.csh";
 
-        int shaderId = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(shader, ShaderType.ComputeShader);
+        using var shaderOwner = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.Load(shader, ShaderType.ComputeShader);
+        int shaderId = shaderOwner.ShaderId;
         GL.GetShader(shaderId, ShaderParameter.CompileStatus, out int okShader);
         Assert.True(okShader != 0, GL.GetShaderInfoLog(shaderId));
 
-        int programId = GL.CreateProgram();
+        using var programOwner = NativeResourceSetup.CreateProgram();
+        int programId = programOwner.ProgramId;
         GL.AttachShader(programId, shaderId);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(programId);
+        GL.LinkProgram(programId);
         GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int okLink);
         Assert.True(okLink != 0, GL.GetProgramInfoLog(programId));
 
-        var layout = TestShaderInterfaces.BuildLayout(programId);
+        var layout = new GpuProgramLayout { BinaryInterface = new GpuProgramInterface(programId, [GpuShaderContracts.Registry.FindStage(shader).Bindings]) };
+        layout.RebuildCache(programId);
         layout.RegisterUniformBlockBinding("TestParams", bindingIndex: 0, required: true);
         layout.ApplyContract(programId);
 
@@ -127,11 +140,13 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
 
         ring.EndFrame();
 
-        // Retire the fixture owner before deletion so later program scopes cannot restore a deferred-deleted name.
+        // Withdraw the current selection before the program owner retires at method exit.
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(shaderId);
     }
+
+    #endregion
+
+    #region Private
 
     private static void WriteU32(byte[] dst, int offsetBytes, uint value)
     {
@@ -150,4 +165,5 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
         GL.BindTexture(TextureTarget.Texture3D, 0);
         return data;
     }
+    #endregion
 }

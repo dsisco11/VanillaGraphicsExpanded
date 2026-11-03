@@ -11,13 +11,13 @@ internal sealed class AerialLookupProgram : GpuProgram
 {
     private static readonly GpuShaderContract contract=ShaderBuildTool.Spirv.TestShaderPrograms.Create().Programs["tests/aerial-lookup"];
     private readonly PackedUniformBuffer inputs;
-    private readonly byte[] bytes=new byte[16];
+    private readonly byte[] bytes=new byte[96];
     private GpuTexture? radiance,attenuation,occlusion;
     #region Public API
     /// <summary>Registers the shared fixture contract and retained parameter block.</summary>
     public AerialLookupProgram()
     {
-        inputs=OwnUniformBuffer(new PackedUniformBuffer(16));
+        inputs=OwnUniformBuffer(new PackedUniformBuffer(96));
         foreach(var stage in contract.Stages)ProgramLayout.RegisterContract(stage.Bindings);
     }
     /// <summary>Selects the packaged test executable and its explicit resource layout.</summary>
@@ -31,8 +31,21 @@ internal sealed class AerialLookupProgram : GpuProgram
     /// <summary>Stages physical displacement and receiver sky availability in the fixture block.</summary>
     internal void Capture(Vector3 displacement,float visibility)
     {
-        RequireInputMutation();UboPacking.WriteVec3(bytes,0,displacement.X,displacement.Y,displacement.Z);
+        RequireInputMutation();Array.Clear(bytes);UboPacking.WriteVec3(bytes,0,displacement.X,displacement.Y,displacement.Z);
         UboPacking.WriteFloat(bytes,12,visibility);inputs.SetBytes(bytes);
+    }
+    /// <summary>Captures the direct three-band solar/lunar decode observation without another fixture executable.</summary>
+    internal void CaptureCelestialDecoder(Vector3 ray)
+    {
+        RequireInputMutation();
+        Array.Clear(bytes);
+        UboPacking.WriteVec3(bytes, 0, ray.X * 100, ray.Y * 100, ray.Z * 100);
+        UboPacking.WriteFloat(bytes, 12, 1);
+        UboPacking.WriteVec4(bytes, 32, 1, 0, 0, 0);
+        UboPacking.WriteVec4(bytes, 48, 0, 1, 0, 0);
+        UboPacking.WriteVec4(bytes, 64, 0, 0, 16, 0);
+        UboPacking.WriteInt32(bytes, 80, 1);
+        inputs.SetBytes(bytes);
     }
     #endregion
     #region Protected API

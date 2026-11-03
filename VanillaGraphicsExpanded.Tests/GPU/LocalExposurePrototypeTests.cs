@@ -1,10 +1,14 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Numerics;
-using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
+using VanillaGraphicsExpanded.PBR.Postprocessing.LocalExposure;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.Tests.GPU.Assertions;
@@ -29,8 +33,11 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void UniformFramesRemainIdentity(float logarithm)
     {
         EnsureShaderTestAvailable();
+        // Arrange
         Vector3[] colors = Enumerable.Repeat(new Vector3(MathF.Pow(2, logarithm)), 16 * 8).ToArray();
+        // Act
         using var result = Pipeline(colors, 16, 8, 1, -logarithm, new(.5f), new(4));
+        // Assert
         ImageAssertions.Comparisons.CompareConstant(result[1].Texture,logarithm,tolerance:.00001f,channelMask:1).AssertEqual();
         ImageAssertions.Comparisons.CompareConstant(result[1].Texture,1,channelMask:2).AssertEqual();
         ImageAssertions.Comparisons.CompareConstant(result[2].Texture,colors[0].X,tolerance:Math.Max(1e-10,colors[0].X*.00002),channelMask:1).AssertEqual();
@@ -45,7 +52,9 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void FilterMatchesPhysicalReferenceAcrossStorageScales(float storage)
     {
         EnsureShaderTestAvailable();
+        // Arrange
         Vector3[] colors = Enumerable.Range(0, 128).Select(i => new Vector3(.00003f * MathF.Pow(2, (i % 16) * .15f), .00002f, .00001f)).ToArray();
+        // Act
         using var result = Pipeline(colors, 16, 8, storage, 13, new(.4f, .7f), new(3, 2));
         double[] logs = colors.Select(Luminance).Select(Math.Log2).ToArray();
         var expectedLogs=new double[colors.Length];
@@ -60,6 +69,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
             for (int channel = 0; channel < 3; channel++)
                 expectedGain[i*3+channel]=Math.Pow(2,stops);
         }
+        // Assert
         ImageAssertions.Comparisons.CompareComponentDoubles(result[0].Texture,expectedLogs,.000003,1).AssertEqual();
         ImageAssertions.Comparisons.CompareComponentDoubles(result[1].Texture,expectedBaseValues,.000005,1).AssertEqual();
         ImageAssertions.Comparisons.CompareComponentDoubles(result[2].Texture,expectedStops,.000005,8).AssertEqual();
@@ -75,8 +85,11 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void InvalidSamplesNeverBecomeLight()
     {
         EnsureShaderTestAvailable();
+        // Arrange
         Vector3[] colors = [Vector3.Zero, new(-1, 1, 1), new(float.NaN), new(float.PositiveInfinity), new(.001f), new(.002f)];
+        // Act
         using var result = Pipeline(colors, 6, 1, 1, 14, new(.5f), new(4));
+        // Assert
         var invalid=new RHITextureRegion(new(0),0,0,0,4,1,1);
         ImageAssertions.Comparisons.CompareConstant(result[0].Texture,0,selection:invalid,channelMask:2).AssertEqual();
         ImageAssertions.Comparisons.CompareConstant(result[1].Texture,0,selection:invalid,channelMask:2).AssertEqual();
@@ -91,18 +104,20 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void GuidedReconstructionRejectsBrightLeakage()
     {
         EnsureShaderTestAvailable();
+        // Arrange
         using var texture = TestFramework.CreateTexture(2, 1, TextureFormat.Rg32f, [-16, 1, 8, 1]);
-        string body = "float b; bool valid=VgeSampleLocalBase(sourceImage,vec2(.5),guidance,1.0,b); outColor=vec4(b,valid?1:0,0,1);";
+        // Act and assert each authored guidance row.
         foreach (float guidance in new[] { -16f, 8f })
         {
-            float[] result = Draw(body, 1, 1, texture, null, 1, guidance, default, default);
+            float[] result = Draw(LocalExposureProbeOperation.GuidedSample, 1, 1, texture,
+                new(.5f, .5f, guidance, 1), default);
             Assert.InRange(Math.Abs(result[0] - guidance), 0, .00001f);
             Assert.Equal(1, result[1]);
         }
-        float[] border = Draw("float b; bool v=VgeSampleLocalBase(sourceImage,vec2(0),-16.0,1.0,b); outColor=vec4(b,v?1:0,0,1);", 1, 1, texture);
+        float[] border = Draw(LocalExposureProbeOperation.GuidedSample, 1, 1, texture, new(0, 0, -16, 1));
         Assert.Equal(-16, border[0]); Assert.Equal(1, border[1]);
         using var missing = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, [0, 0]);
-        float[] invalid = Draw(body, 1, 1, missing, null, 1, -16);
+        float[] invalid = Draw(LocalExposureProbeOperation.GuidedSample, 1, 1, missing, new(.5f, .5f, -16, 1));
         Assert.Equal(0, invalid[1]); Assert.Equal(-16, invalid[0]);
     }
 
@@ -114,12 +129,15 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void CorruptedBaseMetadataIsRejected(float corrupted)
     {
         EnsureShaderTestAvailable();
+        // Arrange
         using var mixed = TestFramework.CreateTexture(3, 1, TextureFormat.Rg32f, [-16, 1, corrupted, 1, -16, 1]);
-        using var filtered = DrawImage("outColor=vec4(VgeFilterLocalBase(sourceImage,ivec2(gl_FragCoord.xy),1.0),0,1);", 3, 1, mixed);
+        // Act
+        using var filtered = FilterLocalBase(mixed, 3, 1, 1);
+        // Assert
         Assert.Equal(-16,GpuLocalRead.Scalar(filtered.Texture,0));Assert.Equal(1,GpuLocalRead.Scalar(filtered.Texture,1));
-        Assert.Equal(0,GpuLocalRead.Scalar(filtered.Texture,5));Assert.Equal(-16,GpuLocalRead.Scalar(filtered.Texture,8));
+        Assert.Equal(0,GpuLocalRead.Scalar(filtered.Texture,3));Assert.Equal(-16,GpuLocalRead.Scalar(filtered.Texture,4));
         using var missing = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, [corrupted, 1]);
-        float[] guided = Draw("float b;bool v=VgeSampleLocalBase(sourceImage,vec2(.5),-16.0,1.0,b);outColor=vec4(b,v?1:0,0,1);", 1, 1, missing);
+        float[] guided = Draw(LocalExposureProbeOperation.GuidedSample, 1, 1, missing, new(.5f, .5f, -16, 1));
         Assert.Equal(-16, guided[0]); Assert.Equal(0, guided[1]);
     }
 
@@ -132,11 +150,31 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void InvalidRangeWidthsAreNeutral(float width)
     {
         EnsureShaderTestAvailable();
+        // Arrange
         using var valid = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, [-16, 1]);
-        float[] result = Draw("vec2 f=VgeFilterLocalBase(sourceImage,ivec2(0),storage);float b;bool v=VgeSampleLocalBase(sourceImage,vec2(.5),-16.0,storage,b);outColor=vec4(f,b,v?1:0);", 1, 1, valid, storage: width);
-        Assert.Equal(new[] { 0f, 0f, -16f, 0f }, result);
-        float[] pixel = Draw("outColor=vec4(VgeFilterLocalBase(sourceImage,ivec2(-1),1.0),0,1);", 1, 1, valid);
-        Assert.Equal(new[] { 0f, 0f, 0f, 1f }, pixel);
+        // Act
+        using var filtered = FilterLocalBase(valid, 1, 1, width);
+        float[] result = Draw(LocalExposureProbeOperation.GuidedSample, 1, 1, valid, new(.5f, .5f, -16, width));
+        // Assert
+        Assert.Equal(new[] { 0f, 0f }, filtered.Texture.ReadPixelsRegion(0, 0, 1, 1));
+        if (float.IsNaN(width))
+        {
+            // Failure status is the contract; do not make correctness depend on the out base value.
+            Assert.Equal(0f, result[1]);
+            Assert.Equal(new[] { 0f, 1f }, result[2..]);
+
+            using var physical = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, [1f, 1f]);
+            float[] correction = Draw(LocalExposureProbeOperation.ApplyCorrection, 1, 1, physical,
+                new(1, 0, width, 0), new(.5f, .5f, 4, 4), baseImage: valid);
+            Assert.Equal(new[] { 0f, 0f, 0f, 0f }, correction);
+        }
+        else
+        {
+            Assert.Equal(new[] { -16f, 0f, 0f, 1f }, result);
+        }
+        // Production compute invocations only generate nonnegative in-range IDs, so retain this direct negative-coordinate helper observation.
+        float[] outside = Draw(LocalExposureProbeOperation.FilterLocalBase, 1, 1, valid, new(-1, -1, 1, 0));
+        Assert.Equal(new[] { 0f, 0f, 0f, 1f }, outside);
     }
 
     /// <summary>Malformed UV coordinates cannot overflow integer conversion or borrow edge illumination.</summary>
@@ -144,9 +182,13 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void InvalidCoordinatesAreRejectedBeforeIntegerConversion()
     {
         EnsureShaderTestAvailable();
+        // Arrange
         using var coordinates = TestFramework.CreateTexture(6, 1, TextureFormat.R32f, [-1, .5f, 2, 1e30f, float.NaN, float.PositiveInfinity]);
         using var valid = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, [-16, 1]);
-        using var result = DrawImage("float q=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;float b;bool v=VgeSampleLocalBase(baseImage,vec2(q),-16.0,1.0,b);outColor=vec4(b,v?1:0,0,1);", 6, 1, coordinates, valid);
+        // Act
+        using var result = DrawImage(LocalExposureProbeOperation.GuidedCoordinate, 6, 1, coordinates,
+            new(-16, 1, 0, 0), baseImage: valid);
+        // Assert
         ImageAssertions.Predicates.Predicate(result.Texture, MaterialPredicates.LocalExposurePrototypeTests_InvalidCoordinatesAreRejectedBeforeIntegerConversion).AssertEqual();
     }
 
@@ -155,8 +197,11 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void InvalidCameraInputsMetadataProducesNeutralCorrection()
     {
         EnsureShaderTestAvailable();
+        // Arrange
         using var metadata = TestFramework.CreateTexture(6, 1, TextureFormat.R32f, [-151, 129, 1e30f, -1e30f, float.NaN, float.PositiveInfinity]);
-        using var result = DrawImage("float q=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(q,0.0,0.0,vec2(1),vec2(8)),VgeLocalExposureStops(0.0,q,0.0,vec2(.5),vec2(8)),0,1);", 6, 1, metadata);
+        // Act
+        using var result = DrawImage(LocalExposureProbeOperation.InvalidCorrectionMetadata, 6, 1, metadata);
+        // Assert
         ImageAssertions.Comparisons.CompareVector(result.Texture,new(0,0,0,1)).AssertEqual();
     }
 
@@ -165,8 +210,11 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void InvalidDisplayPivotProducesNeutralCorrection()
     {
         EnsureShaderTestAvailable();
+        // Arrange
         using var metadata=TestFramework.CreateTexture(3,1,TextureFormat.R32f,[float.NaN,float.PositiveInfinity,float.NegativeInfinity]);
-        using var result=DrawImage("float q=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(-12.0,2.0,q,vec2(.5),vec2(4)),0,0,1);",3,1,metadata);
+        // Act
+        using var result=DrawImage(LocalExposureProbeOperation.InvalidDisplayPivot,3,1,metadata);
+        // Assert
         ImageAssertions.Comparisons.CompareVector(result.Texture,new(0,0,0,1)).AssertEqual();
     }
 
@@ -175,8 +223,11 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void GuidedInterpolationMatchesIndependentWeights()
     {
         EnsureShaderTestAvailable();
+        // Arrange
         using var values = TestFramework.CreateTexture(2, 2, TextureFormat.Rg32f, [-14, 1, -13, 1, -12, 1, -11, 1]);
-        float[] actual = Draw("float b;bool v=VgeSampleLocalBase(sourceImage,vec2(.375,.625),-12.5,1.0,b);outColor=vec4(b,v?1:0,0,1);", 1, 1, values);
+        // Act
+        float[] actual = Draw(LocalExposureProbeOperation.GuidedSample, 1, 1, values, new(.375f, .625f, -12.5f, 1));
+        // Assert against independently accumulated double-precision weights.
         double numerator = 0, denominator = 0;
         for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++)
         {
@@ -195,19 +246,24 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void BoundsAndSmoothJoinPreserveBaseDetail()
     {
         EnsureShaderTestAvailable();
+        // Arrange
         using var values = TestFramework.CreateTexture(9, 1, TextureFormat.R32f, [-100, -4, -1, -.0001f, 0, .0001f, 1, 4, 100]);
-        using var result = DrawImage("float b=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;float s=VgeLocalExposureStops(b,0.0,0.0,strengths,bounds);outColor=vec4(s,b+s,(b+.25)+s,1);", 9, 1, values, null, 1, 0, new(.5f, .25f), new(3, 2));
+        // Act
+        using var result = DrawImage(LocalExposureProbeOperation.BoundsAndDetail, 9, 1, values,
+            new(0, 0, 0, 0), new(.5f, .25f, 3, 2));
         float[] samples = [-100, -4, -1, -.0001f, 0, .0001f, 1, 4, 100];
         var expectedStops=new double[samples.Length];
         for (int i = 0; i < samples.Length; i++)
             expectedStops[i]=Stops(samples[i],0,new(.5f,.25f),new(3,2));
+        // Assert
         ImageAssertions.Statistics.Inspect(result.Texture,-2,3,channelMask:1).AssertFiniteRange();
         ImageAssertions.Comparisons.CompareComponentDoubles(result.Texture,expectedStops,.00001,1).AssertEqual();
         ImageAssertions.Predicates.Predicate(result.Texture, MaterialPredicates.LocalExposurePrototypeTests_BoundsAndSmoothJoinPreserveBaseDetail).AssertEqual();
         Assert.InRange(Math.Abs(GpuLocalRead.Scalar(result.Texture,3*4)-GpuLocalRead.Scalar(result.Texture,5*4)),0,.0002);
-        using var identity = DrawImage("float b=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(b,0.0,0.0,vec2(1),vec2(8)),0,0,1);", 9, 1, values);
+        using var identity = DrawImage(LocalExposureProbeOperation.Correction, 9, 1, values,
+            new(0, 0, 0, 0), new(1, 1, 8, 8));
         ImageAssertions.Comparisons.CompareConstant(identity.Texture,0,channelMask:1).AssertEqual();
-        float[] hardLimit = Draw("outColor=vec4(VgeLocalExposureStops(-100.0,0.0,0.0,vec2(0),vec2(100)),VgeLocalExposureStops(100.0,0.0,0.0,vec2(0),vec2(100)),0,1);", 1, 1, values);
+        float[] hardLimit = Draw(LocalExposureProbeOperation.HardLimit, 1, 1, values);
         Assert.Equal(8, hardLimit[0]); Assert.Equal(-8, hardLimit[1]);
     }
 
@@ -216,6 +272,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void SyntheticLampTerrainComparisonUsesExistingFilmicLookup()
     {
         EnsureShaderTestAvailable();
+        // Arrange
         Vector3 terrain = new(.00006592794125f, .0000526507864f, .00001556631946f), lamp = terrain * 434;
         Vector3[] colors = Enumerable.Range(0, 128).Select(i => i % 16 < 8 ? terrain : lamp).ToArray();
         float globalStops = -(float)((Math.Log2(Luminance(terrain)) + Math.Log2(Luminance(lamp))) / 2);
@@ -224,14 +281,17 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         using var lookup = new ColorGradingLut();
         var graded = lookup.Prepare(Programs.Api, controls);
         using var baselineInput = TestFramework.CreateTexture(16, 8, TextureFormat.Rgba32f, colors.SelectMany(c => new[] { c.X, c.Y, c.Z, 1f }).ToArray());
+        // Preserve the direct pre-dither LUT observation: pbr_final adds display dithering and cannot satisfy this authored tolerance.
+        using var baseline = DrawImage(LocalExposureProbeOperation.GradingLookup, 16, 8, baselineInput,
+            new(64, 0, 0, 0), lookup: graded);
         using var candidateInput = local[2].ToPlane();
-        const string body = "vec3 c=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).rgb*64.0;outColor=vec4(texture(gradingLookup,(VgeGradingCoordinate(c)*63.0+.5)/64.0).rgb,1);";
-        using var baseline = DrawImage(body, 16, 8, baselineInput, null, grading: graded);
-        using var candidate = DrawImage(body, 16, 8, candidateInput, null, grading: graded);
+        using var candidate = DrawImage(LocalExposureProbeOperation.GradingLookup, 16, 8, candidateInput,
+            new(64, 0, 0, 0), lookup: graded);
+        // Assert against the original two selected color tuples and the unchanged cached LUT.
         foreach (int pixel in new[] { 3, 12 })
         {
             // The independent grading reference needs only the two originally nominated RGB tuples.
-            float[] corrected=candidateInput.ReadPixelsRegion(pixel,0,1,1);
+            float[] corrected=local[2].Texture.ReadPixelsRegion(pixel,0,1,1);
             Vector3 physical = new(corrected[0],corrected[1],corrected[2]);
             Vector3 expected = FilmicGradingReference.Lookup(physical * 64, controls);
             for (int c = 0; c < 3; c++) Assert.InRange(Math.Abs(GpuLocalRead.Scalar(candidate.Texture,pixel*4+c) - expected[c]), 0, .001f);
@@ -246,67 +306,128 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     #endregion
     #region Private
     #region GPU pipeline
-    /// <summary>Returns one explicitly local tuple; image-domain callers retain GPU storage instead.</summary>
-    private float[] Draw(string body,int width,int height,DynamicTexture2D input,DynamicTexture2D? baseImage=null,
-        float storage=1,float globalStops=0,Vector2 strengths=default,Vector2 bounds=default)
+    /// <summary>Returns one explicitly local probe tuple; image-domain callers retain a GPU snapshot instead.</summary>
+    private float[] Draw(LocalExposureProbeOperation operation, int width, int height, DynamicTexture2D input,
+        Vector4 parameters = default, Vector4 strengthsAndBounds = default, DynamicTexture2D? baseImage = null,
+        DynamicTexture3D? lookup = null)
     {
-        if(width!=1 || height!=1)throw new ArgumentException("Local tuple draws require one texel.");
-        using var image=DrawImage(body,width,height,input,baseImage,storage,globalStops,strengths,bounds);
+        if (width != 1 || height != 1) throw new ArgumentException("Local tuple draws require one texel.");
+        using var image = DrawImage(operation, width, height, input, parameters, strengthsAndBounds, baseImage, lookup: lookup);
         return image.Texture.ReadPixelsRegion(0,0,1,1);
     }
-    /// <summary>Runs log classification, an RG32F base and guided RGB correction on a bounded test image.</summary>
+    /// <summary>Runs the shipped reduction and filter programs, then observes the direct correction helper.</summary>
     private GpuImageSet Pipeline(Vector3[] colors, int width, int height, float storage,
         float globalStops, Vector2 strengths, Vector2 bounds)
     {
         using var input = TestFramework.CreateTexture(width, height, TextureFormat.Rgba32f,
             colors.SelectMany(c => new[] { c.X * storage, c.Y * storage, c.Z * storage, 1f }).ToArray());
-        using var logs = DrawImage("float q;bool v=VgeLocalLogLuminance(texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).rgb/storage,q);outColor=vec4(q,v?1:0,0,1);", width, height, input, null, storage, format: TextureFormat.Rg32f);
-        using var logImage=logs.ToPlane();
-        using var filtered = DrawImage("outColor=vec4(VgeFilterLocalBase(sourceImage,ivec2(gl_FragCoord.xy),1.0),0,1);", width, height, logImage, format: TextureFormat.Rg32f);
-        using var baseImage=filtered.ToPlane();
-        using var color = DrawImage("vec3 c=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).rgb/storage;float q,b;float s=0;bool v=VgeLocalLogLuminance(c,q);if(v&&VgeSampleLocalBase(baseImage,gl_FragCoord.xy/vec2(textureSize(sourceImage,0)),q,1.0,b))s=VgeLocalExposureStops(b,globalStops,0.0,strengths,bounds);outColor=vec4(v?c*exp2(s):vec3(0),s);", width, height, input, baseImage, storage, globalStops, strengths, bounds);
-        return new([logs.Texture,filtered.Texture,color.Texture]);
+        using var logs = CreateFloatTexture(width, height, TextureFormat.Rg32f);
+        using var baseOutput = CreateFloatTexture(width, height, TextureFormat.Rg32f);
+        using var lighting = new TestFrameLightingPublication();
+        lighting.Capture(storage);
+        var reduceAsset = CreateReduceAsset();
+        using var reduce = new LocalExposureReduceProgram(reduceAsset);
+        Assert.True(reduce.EnsureReady());
+        reduce.FrameLightingInputs = lighting.Buffer;
+        reduce.SceneRadiance = input;
+        reduce.LogOutput = new(logs, ImageAccess.WriteOnly, Format: TextureFormat.Rg32f);
+        reduce.Dispatch((width + 7) / 8, (height + 7) / 8);
+        BarrierLocalExposureImages();
+        using var filtered = RunFilter(logs, baseOutput, width, height, 1);
+        using var color = DrawImage(LocalExposureProbeOperation.ApplyCorrection, width, height, input,
+            new(storage, globalStops, 1, 0), new(strengths.X, strengths.Y, bounds.X, bounds.Y), baseOutput);
+        return new([logs, baseOutput, color.Texture]);
     }
 
-    /// <summary>Compiles the shared production helper at GLSL 330 and submits one tiny independent diagnostic pass.</summary>
-    private GpuImageSnapshot DrawImage(string body, int width, int height, DynamicTexture2D input, DynamicTexture2D? baseImage = null,
-        float storage = 1, float globalStops = 0, Vector2 strengths = default, Vector2 bounds = default,
-        TextureFormat format = TextureFormat.Rgba32f, DynamicTexture3D? grading = null)
+    /// <summary>Runs the declared direct-helper observation with captured resources and an owned graphics pipeline.</summary>
+    private GpuImageSnapshot DrawImage(LocalExposureProbeOperation operation, int width, int height, DynamicTexture2D input,
+        Vector4 parameters = default, Vector4 strengthsAndBounds = default, DynamicTexture2D? baseImage = null,
+        TextureFormat format = TextureFormat.Rgba32f, DynamicTexture3D? lookup = null)
     {
-        string root = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
-        string fragment = "#version 330 core\nuniform sampler2D sourceImage;uniform sampler2D baseImage;uniform sampler3D gradingLookup;uniform float storage,globalStops,guidance;uniform vec2 strengths,bounds;out vec4 outColor;\n"
-            + Expand(Path.Combine(root, "post_local_exposure.glsl")) + Expand(Path.Combine(root, "pbr_color.glsl"))
-            + Expand(Path.Combine(root, "post_filmic.glsl")) + "\nvoid main(){" + body + "}";
-        int program = TestShaderCache.CreateGraphics("#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}", fragment);
+        using var program = Programs.Create<LocalExposurePrototypeProbeProgram>();
+        program.Capture(operation, parameters, strengthsAndBounds, input, baseImage, lookup);
+        using var target = TestFramework.CreateTestGBuffer(width, height, format);
+        using var draw = new PostprocessDraw();
+        var pipeline = draw.Prepare(program, target.PostprocessPass());
+        var commands = RHICommandContext.Current;
+        using var boundary = commands.EnterBoundary(new("Tests.LocalExposurePrototype", true,
+            graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+        boundary.Run(() => draw.Submit(commands, pipeline, target.PostprocessPass(), program.CaptureBindings()));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+        return new(target[0]);
+    }
+
+    /// <summary>Runs the production filter on a borrowed log grid and returns its complete output image.</summary>
+    private GpuImageSnapshot FilterLocalBase(DynamicTexture2D logImage, int width, int height, float rangeWidth)
+    {
+        using var output = CreateFloatTexture(width, height, TextureFormat.Rg32f);
+        using var filter = RunFilter(logImage, output, width, height, rangeWidth);
+        return new(output);
+    }
+
+    /// <summary>Creates and submits the retained production filter owner for the exact supplied grid.</summary>
+    private LocalExposureFilterProgram RunFilter(DynamicTexture2D logImage, DynamicTexture2D output,
+        int width, int height, float rangeWidth)
+    {
+        var asset = CreateFilterAsset();
+        var filter = new LocalExposureFilterProgram(asset);
         try
         {
-            using var sourceScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, input.TextureId);
-            using var baseScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, baseImage?.TextureId ?? input.TextureId);
-            using var gradeScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 2, grading?.TextureId ?? 0);
-            // These raw GLSL fixtures use each texture's authored filter, independently of inherited sampler objects.
-            using var sourceSampler = OpenGlStateCache.Current.BindSamplerScope(0, 0);
-            using var baseSampler = OpenGlStateCache.Current.BindSamplerScope(1, 0);
-            using var gradeSampler = OpenGlStateCache.Current.BindSamplerScope(2, 0);
-            OpenGLProgramSelection.Select(OpenGlStateCache.Current, program);
-            GL.Uniform1(GL.GetUniformLocation(program, "sourceImage"), 0); GL.Uniform1(GL.GetUniformLocation(program, "baseImage"), 1);
-            GL.Uniform1(GL.GetUniformLocation(program, "gradingLookup"), 2);
-            GL.Uniform1(GL.GetUniformLocation(program, "storage"), storage);
-            GL.Uniform1(GL.GetUniformLocation(program, "globalStops"), globalStops); GL.Uniform1(GL.GetUniformLocation(program, "guidance"), globalStops);
-            GL.Uniform2(GL.GetUniformLocation(program, "strengths"), strengths.X, strengths.Y);
-            GL.Uniform2(GL.GetUniformLocation(program, "bounds"), bounds.X, bounds.Y);
-            using var target = TestFramework.CreateTestGBuffer(width, height, format);
-            TestFramework.RenderQuadTo(program, target);
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
-            return new(target[0]);
+            Assert.True(filter.EnsureReady());
+            using var inputs = new LocalExposureInputs();
+            inputs.Capture(rangeWidth);
+            filter.Inputs = inputs;
+            filter.LogImage = logImage;
+            filter.BaseOutput = new(output, ImageAccess.WriteOnly, Format: TextureFormat.Rg32f);
+            filter.Dispatch((width + 7) / 8, (height + 7) / 8);
+            BarrierLocalExposureImages();
+            return filter;
         }
-        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); GL.DeleteProgram(program); }
+        catch
+        {
+            filter.Dispose();
+            asset.Dispose();
+            throw;
+        }
     }
 
-    #endregion
-    #region Shader preparation
-    /// <summary>Expands source-authored guarded imports for the diagnostic compiler.</summary>
-    private static string Expand(string path) => Regex.Replace(TestAssetSnapshot.ReadSourceText(path), "@import \"([^\"]+)\"",
-        match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
+    /// <summary>Creates the registered production reduction executable asset.</summary>
+    private ComputeShaderAsset CreateReduceAsset()
+    {
+        Assert.True(ComputeShaderAsset.TryCreateFromAssets(Programs.Api,
+            new ShaderSettings(GpuShaderContracts.Registry.FindProgram(LocalExposureReduceProgram.Contract.Identity)),
+            out var pipeline, out var infoLog), infoLog);
+        return pipeline!;
+    }
+
+    /// <summary>Creates the registered production filter executable asset.</summary>
+    private ComputeShaderAsset CreateFilterAsset()
+    {
+        Assert.True(ComputeShaderAsset.TryCreateFromAssets(Programs.Api,
+            new ShaderSettings(GpuShaderContracts.Registry.FindProgram(LocalExposureFilterProgram.Contract.Identity)),
+            out var pipeline, out var infoLog), infoLog);
+        return pipeline!;
+    }
+
+    /// <summary>Creates one mutable RGBA or RG observation target for typed compute image writes.</summary>
+    private static DynamicTexture2D CreateFloatTexture(int width, int height, TextureFormat format)
+        => RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription
+        {
+            Dimension = TextureDimension.Two,
+            Format = format,
+            Width = width,
+            Height = height,
+            MipLevels = 1,
+            Storage = ResourceStorageMode.Mutable,
+            Filter = TextureFilterMode.Nearest,
+            BaseLevel = 0,
+            MaxLevel = 0,
+            Label = "Tests.LocalExposurePrototype"
+        }).RequireResource();
+
+    /// <summary>Publishes image writes before their texture-fetch observations or graphics consumers.</summary>
+    private static void BarrierLocalExposureImages()
+        => RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch));
 
     #endregion
     #region Numerical references

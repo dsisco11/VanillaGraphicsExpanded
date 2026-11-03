@@ -20,6 +20,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
     /// <summary>Uses the shared headless context.</summary>
     public TerrainDisplacementRasterTests(HeadlessGLFixture fixture):base(fixture) { }
 
+    #region Public API
     #region Displaced receiver
     /// <summary>Actual tessellation respects neutral height, rotated UVs, degenerate tangents and excluded wind faces.</summary>
     [Theory]
@@ -87,11 +88,14 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             .Replace("vec4(worldPos.z,normal)","vec4(worldPos.z,vge_surfaceBasePosition.z,vge_surfaceBaseNormal.z,normal.z)");
         int fragment=shaders.Compile(ShaderType.FragmentShader,fragmentSource);
         using var vertexArray = NativeResourceSetup.CreateVertexArray();
-        int vao = vertexArray.VertexArrayId, program = 0;
+        int vao = vertexArray.VertexArrayId;
+        GpuProgramObject? programOwner = null;
         int oldPatch=OpenGlStateCache.Current.PatchVertices;
         try
         {
-            Assert.True(TerrainShaderTestFixture.LinkTessellation(vertex,fragment,TerrainTessellationTestAssets.Generate(source,depthBias:mode==12),TerrainTessellationPatches.EnabledDefine, out program,out string error),error);
+            programOwner = TerrainShaderTestFixture.LinkTessellation(vertex,fragment,TerrainTessellationTestAssets.Generate(source,depthBias:mode==12),TerrainTessellationPatches.EnabledDefine, out string error);
+            Assert.True(programOwner is not null, error);
+            int program = programOwner!.ProgramId;
             using var framework=new ShaderTestFramework();
             using var amplitude=framework.CreateTexture(16,16,TextureFormat.R32f,Enumerable.Range(0,256).Select(i => mode is 10 or 11 ? (i%16<8 ? 1f : 2f) : mode==6 ? 0f : mode==8 ? 2f : 1f).ToArray());
             using var records=framework.CreateTexture(mode is 10 or 11 ? 4 : 2,1,TextureFormat.Rgba32f,mode is 10 or 11 ? new float[] {0,0,.5f,1,.04f,0,0,0, .5f,0,.5f,1,.02f,0,0,0} : new float[] {0,0,mode==7 ? .5f : 1f,1,.04f,0,0,0});
@@ -103,22 +107,22 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             var layout = GpuProgramLayout.TryBuild(program);
             FramebufferTestSetup.BindForEngineRendering(target); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao);
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, amplitude, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)amplitude).Target)))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)records).Target)))]);
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementTex"),0);
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),1);
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_tessellationDistance"),10f,20f);
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_tessellationPixels"),16f,8f);
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementRecords"),2);
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementEnabled"),1);
-            ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementReactive"),0);
+            ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program,"vge_displacementTex"),0);
+            ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),1);
+            ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program,"vge_tessellationDistance"),10f,20f);
+            ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program,"vge_tessellationPixels"),16f,8f);
+            ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program,"vge_displacementRecords"),2);
+            ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program,"vge_displacementEnabled"),1);
+            ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program,"vge_displacementReactive"),0);
             float[] identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
-            ShaderTestFramework.SetUniformMatrix4(layout.GetUniformLocation(program,"modelViewMatrix"), identity);
-            ShaderTestFramework.SetUniformMatrix4(layout.GetUniformLocation(program,"projectionMatrix"), identity);
+            ShaderTestFramework.SetNativeUniformMatrix4(layout.GetUniformLocation(program,"modelViewMatrix"), identity);
+            ShaderTestFramework.SetNativeUniformMatrix4(layout.GetUniformLocation(program,"projectionMatrix"), identity);
             if(mode==12)
             {
-                ShaderTestFramework.SetUniformMatrix4(layout.GetUniformLocation(program,"toShadowMapSpaceMatrixNear"),identity);
-                ShaderTestFramework.SetUniformMatrix4(layout.GetUniformLocation(program,"toShadowMapSpaceMatrixFar"),identity);
-                ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"shadowRangeNear"),100f);
-                ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"shadowRangeFar"),100f);
+                ShaderTestFramework.SetNativeUniformMatrix4(layout.GetUniformLocation(program,"toShadowMapSpaceMatrixNear"),identity);
+                ShaderTestFramework.SetNativeUniformMatrix4(layout.GetUniformLocation(program,"toShadowMapSpaceMatrixFar"),identity);
+                ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program,"shadowRangeNear"),100f);
+                ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program,"shadowRangeFar"),100f);
             }
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             OpenGlStateCache.Current.SetPatchVertices(3);
@@ -153,8 +157,9 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             ImageAssertions.Predicates.Predicate(target[0], GeometryPredicates.TerrainDisplacementRasterTests_AdaptiveStagesPublishBoundedPositionAndNormal).AssertEqual();
             if(mode<10) Assert.InRange(actual[center+3],.999f,1.001f);
         }
-        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0); OpenGlStateCache.Current.SetPatchVertices(oldPatch);  if(program!=0)GpuProgramObject.Adopt(program).Dispose();   }
+        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0); OpenGlStateCache.Current.SetPatchVertices(oldPatch); programOwner?.Dispose(); }
     }
+    #endregion
     #endregion
     #region Private
     /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>

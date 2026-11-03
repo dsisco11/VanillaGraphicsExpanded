@@ -4,6 +4,8 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -17,34 +19,10 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public class RenderTestInfrastructureTests : RenderTestBase
 {
-    private readonly HeadlessGLFixture _fixture;
-    private readonly ShaderTestHelper? _helper;
+    /// <summary>Uses the shared headless rendering context.</summary>
+    public RenderTestInfrastructureTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    public RenderTestInfrastructureTests(HeadlessGLFixture fixture) : base(fixture)
-    {
-        _fixture = fixture;
-
-        if (_fixture.IsContextValid)
-        {
-            var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-                var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-            if (TestAssetSnapshot.HasDirectory(shaderPath) && TestAssetSnapshot.HasDirectory(includePath))
-            {
-                _helper = new ShaderTestHelper();
-            }
-        }
-    }
-
-    protected override void Dispose(bool disposing)
-    {
-        if (disposing)
-        {
-            _helper?.Dispose();
-        }
-        base.Dispose(disposing);
-    }
-
+    #region Public API
     #region Render Target Tests
 
     [Fact]
@@ -145,28 +123,42 @@ public class RenderTestInfrastructureTests : RenderTestBase
 
     #region Fullscreen Quad Tests
 
+    /// <summary>Typed fullscreen submission preserves the original two-triangle UV output across the target.</summary>
     [Fact]
     public void RenderFullscreenQuad_WithSimpleShader_Succeeds()
     {
         EnsureContextValid();
 
-        // Create a minimal shader that outputs UV coordinates as color
-        var vertexSource = "tests/render_infrastructure.vsh";
-        var fragmentSource = "tests/render_infrastructure.fsh";
-
-        // Compile shader using OpenTK
-        var programId = CompileMinimalShader(vertexSource, fragmentSource);
-        Assert.True(programId > 0, "Shader compilation should succeed");
-
         using var gBuffer = CreateRenderTarget(64, 64, TextureFormat.Rgba16f);
-        
-        FramebufferTestSetup.BindForEngineRendering(gBuffer);
-        FramebufferTestSetup.ClearAttachments(gBuffer, 0f, 0f, 0f, 0f);
-
-        RenderFullscreenQuad(programId);
+        using var programs = new ComponentShaderPrograms();
+        var program = programs.Create<RenderInfrastructureFixtureProgram>();
+        var commands = RHICommandContext.Current;
+        var layout = new RHIVertexLayout([
+            new(0, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 16),
+            new(1, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 8, 16)]);
+        using var vertices = commands.CreateVertexBuffer(new() { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 96, Usage = BufferUsage.StaticDraw }).RequireResource();
+        // Preserve RenderTestBase's authored two-triangle positions and UVs exactly.
+        vertices.UploadData(new float[] {
+            -1, -1, 0, 0, 1, -1, 1, 0, 1, 1, 1, 1,
+            -1, -1, 0, 0, 1, 1, 1, 1, -1, 1, 0, 1 });
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles,
+            new Dictionary<int, GpuVbo> { [0] = vertices });
+        var pass = FramebufferTestSetup.DescribeAttachments(gBuffer,
+            [new(AttachmentIndex: 0, Load: AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))]);
+        using var pipeline = commands.CreateGraphicsPipeline(new(program.Shader, layout,
+            commands.DescribeRenderTargets(pass), DynamicPipelineState.Viewport)).RequireResource();
+        using var boundary = commands.EnterBoundary(new("Tests.RenderInfrastructure.Fullscreen", true,
+            graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+        boundary.Run(() =>
+        {
+            commands.BeginRenderPass(pass);
+            commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.BindResources(program.CaptureBindings());
+            commands.Draw(geometry.Inputs, new(0, 6));
+            commands.EndRenderPass();
+        });
         AssertNoGLError("RenderFullscreenQuad");
-
-        GpuFramebuffer.Unbind();
 
         // Verify output - top-right corner should have high UV values
         var (r, g, _, _) = ReadPixel(gBuffer, 63, 63);
@@ -178,8 +170,6 @@ public class RenderTestInfrastructureTests : RenderTestBase
         Assert.True(r2 < 0.1f, $"Bottom-left red (U) should be ~0.0, got {r2}");
         Assert.True(g2 < 0.1f, $"Bottom-left green (V) should be ~0.0, got {g2}");
 
-        // Cleanup
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
     }
 
     #endregion
@@ -281,59 +271,6 @@ public class RenderTestInfrastructureTests : RenderTestBase
     }
 
     #endregion
-
-    #region Helper Methods
-
-    /// <summary>
-    /// Compiles a minimal shader for testing purposes using OpenTK.
-    /// </summary>
-    private int CompileMinimalShader(string vertexSource, string fragmentSource)
-    {
-        // Compile vertex shader
-        var vertexShader = BuiltShaderFixture.Load(vertexSource, ShaderType.VertexShader);
-        
-        GL.GetShader(vertexShader, ShaderParameter.CompileStatus, out int vStatus);
-        if (vStatus == 0)
-        {
-            var log = GL.GetShaderInfoLog(vertexShader);
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vertexShader);
-            throw new InvalidOperationException($"Vertex shader compile error: {log}");
-        }
-
-        // Compile fragment shader
-        var fragmentShader = BuiltShaderFixture.Load(fragmentSource, ShaderType.FragmentShader);
-        
-        GL.GetShader(fragmentShader, ShaderParameter.CompileStatus, out int fStatus);
-        if (fStatus == 0)
-        {
-            var log = GL.GetShaderInfoLog(fragmentShader);
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vertexShader);
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fragmentShader);
-            throw new InvalidOperationException($"Fragment shader compile error: {log}");
-        }
-
-        // Link program
-        var program = GL.CreateProgram();
-        GL.AttachShader(program, vertexShader);
-        GL.AttachShader(program, fragmentShader);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.LinkProgram(program);
-
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int lStatus);
-        if (lStatus == 0)
-        {
-            var log = GL.GetProgramInfoLog(program);
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vertexShader);
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fragmentShader);
-            global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(program);
-            throw new InvalidOperationException($"Program link error: {log}");
-        }
-
-        // Cleanup shaders (they're now part of the program)
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(vertexShader);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(fragmentShader);
-
-        return program;
-    }
-
     #endregion
+
 }

@@ -16,6 +16,7 @@ public sealed class PbrSurfaceCaptureBoundaryTests : RenderTestBase
     /// <summary>Uses the shared headless context.</summary>
     public PbrSurfaceCaptureBoundaryTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    #region Public API
     #region Capture behavior
     /// <summary>Scene capture ignores later underwater mutations, applies damage once, and preserves the original GUI path.</summary>
     [Theory]
@@ -81,7 +82,7 @@ public sealed class PbrSurfaceCaptureBoundaryTests : RenderTestBase
             GL.Uniform1(GL.GetUniformLocation(program, "vge_pbrRoute"), route);
             using var framework = new ShaderTestFramework();
             using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
-            framework.RenderQuadTo(program, output);
+            framework.RenderNativeReferenceQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
             for (int channel = 0; channel < 3; channel++)
             {
@@ -103,6 +104,9 @@ public sealed class PbrSurfaceCaptureBoundaryTests : RenderTestBase
 
     #endregion
 
+    #endregion
+
+    #region Private
     #region Driver compilation
     /// <summary>Compiles transformed engine-style GLSL and disposes failed shader handles.</summary>
     private static int Compile(ShaderType type, string source)
@@ -115,5 +119,6 @@ public sealed class PbrSurfaceCaptureBoundaryTests : RenderTestBase
         Assert.True(compiled != 0, log);
         return shader;
     }
+    #endregion
     #endregion
 }

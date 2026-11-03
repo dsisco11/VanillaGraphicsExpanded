@@ -18,6 +18,7 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
 {
 
 
+    #region Public API
     #region Engine handoff
     /// <summary>The normal interface Stop path retires shadow comparison samplers before engine texture reuse.</summary>
     [Fact]
@@ -68,20 +69,24 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         }
     }
 
+
+    #endregion
+    #endregion
+    #region Private
     /// <summary>Emulates an engine draw that relies on texture parameters rather than binding a sampler object.</summary>
     private static void AssertPlainTextureHandoff()
     {
         using var shaders = new TerrainShaderTestFixture();
         int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
         int fragment = shaders.Load(ShaderType.FragmentShader, "tests/sampler-handoff.fsh");
-        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        using var program = TerrainShaderTestFixture.Link(vertex, fragment);
         using var vao = NativeResourceSetup.CreateVertexArray();
         using var framework = new ShaderTestFramework();
         using var texture = framework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.2f, .4f, .6f, 1f]);
         using var target = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
-        ShaderTestFramework.SetUniform(0, 5);
+        ShaderTestFramework.SetNativeUniform(0, 5);
         // Intentionally bypass VGE texture binding: vanilla does not clear foreign sampler objects.
         GL.ActiveTexture(TextureUnit.Texture5);
         GL.BindTexture(TextureTarget.Texture2D, texture.TextureId);
@@ -91,8 +96,6 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         Assert.Equal(new[] { .2f, .4f, .6f, 1f }, target[0].ReadPixels());
         OpenGlStateCache.Current.InvalidateAll();
     }
-    #endregion
-    #region Private
     /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
     private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
     {
