@@ -1,0 +1,121 @@
+Test execution runtime optimizations
+===================================
+
+Status
+  All phases are pending. This plan covers the five prioritized optimizations from the
+  test-runtime review. Creating the plan does not approve reductions in test coverage.
+
+Purpose and scope
+  Reduce unnecessary rendering, numerical setup and synchronization in VGE tests while
+  preserving their independent numerical, lifecycle and state-restoration guarantees.
+  Use existing production shader abstractions, fixture ownership and cached programs.
+  Keep production rendering behavior unchanged. Scope is the VGE test project and narrowly
+  justified test seams; discuss any required production behavior change before implementation.
+
+Evidence and references
+  The preceding review used TestResults/GpuTests11/final-qualification/final-debug.trx and
+  final-release.trx. Recorded case-time sums were water receiver diagnostics 170s/3s,
+  two atmosphere quality-policy cases 63s/32s, water continuity and budget suites 144s/14s,
+  four surface-lighting families 65s/47s, and real-GC stress 23s/42s, Debug/Release respectively.
+  These historical measurements include case setup and teardown. Concurrent case durations
+  are not additive wall-clock savings. Confirm current source and receipt availability before
+  using them as implementation baselines. The Debug/Release water disparity is unattributed.
+  Earlier investigations provide context, with different workloads and source revisions.
+  - [GPU.IntegrationTestPerformance.Analysis.md](GPU.IntegrationTestPerformance.Analysis.md)
+  - [GPU.IntegrationTestPerformance.RemainingCosts.md](GPU.IntegrationTestPerformance.RemainingCosts.md)
+
+Shared implementation and acceptance requirements
+  Preserve scenarios, parameter rows, nominated coordinates, motion samples, independent
+  reference calculations, tolerances, lifecycle assertions and failure diagnostics.
+  Any proposed coverage change requires a concrete equivalence argument and user agreement.
+  Keep resource ownership scoped to the existing fixture/context lifetime and initialize
+  mutable inputs and result storage explicitly for each operation.
+  Use configured test-writing/review agents and delegate every build/test invocation.
+  Complete each coherent implementation batch before focused verification and independent
+  review. Reuse valid evidence and avoid repeated full-suite runs between individual edits.
+  Measure affected selections before and after under matched build, shader, fixture and cache
+  conditions where practical. Record selection, counts, failures/skips, wall time and conditions.
+  Separate build time, summed case duration, CPU synchronization time and GPU execution time.
+  Use bounded attribution to resolve specific uncertainties. Do not infer causes or percentage
+  improvements from unmatched Debug/Release or historical runs.
+  No fixed performance threshold applies. Discuss the resulting metrics and limitations with
+  the user and obtain acceptance before closing each phase.
+  Each phase is a separate reviewable commit boundary. Staging and committing require a request.
+
+☐ Phase 1 — Restrict water receiver diagnostics to observed pixels
+  ☐ Inspect WaterRefractionDiagnosticTests and water_refraction_diagnostics.fsh to map the
+    one-pixel and six-pixel observations to their shader coordinate and derivative requirements.
+  ☐ Choose a bounded raster approach, such as scissoring, that retains the 128×128 viewport,
+    source textures and original fragment coordinates. Verify derivative/helper-invocation
+    behavior and any attachment initialization requirements before selecting the approach.
+  ☐ Eliminate unnecessary fragment execution across the seven diagnostic outputs while
+    preserving every receiver scenario, budget, full/half-resolution variant and sampled value.
+    Restore modified raster state through existing production test abstractions.
+  ☐ Compare focused correctness and runtime against the original execution. Investigate the
+    large Debug/Release disparity only as needed to attribute the affected work accurately.
+  ☐ Complete second review, independent coverage audit and linked-document reconciliation.
+    Present measured results and limitations for user acceptance before closing the phase.
+
+☐ Phase 2 — Separate atmosphere policy checks from repeated numerical construction
+  ☐ Map the guarantees of QualityOnlyEditRebuildsLighting and
+    AsyncCompletionAdmitsQualityOnlyChange in AtmosphereScatteringQualityTests, including
+    replacement identity, revision, admission and completion behavior.
+  ☐ Reuse the controllable-producer approach from AtmosphereComputationTests for policy-only
+    checks. Retain an explicit real quality-change integration witness and all independent
+    quadrature/numerical coverage. Discuss the exact separation before changing test boundaries.
+  ☐ Identify identical default-table construction in SourceRemainsFiniteAndNightIsDark and
+    DefaultQuadratureAgreesWithRefinement in AtmosphereMultipleScatteringTests. Reuse immutable
+    tables keyed by all determining inputs where safe, preserving refined integrations and
+    every aerosol/quality comparison. Avoid order dependence and unbounded retained storage.
+  ☐ Verify policy failure detection, integrated replacement behavior, numerical equivalence
+    and fixture isolation. Measure numerical builds avoided and affected-selection runtime.
+  ☐ Complete second review, independent coverage audit and linked-document reconciliation.
+    Present measured results and limitations for user acceptance before closing the phase.
+
+☐ Phase 3 — Batch independent water motion observations
+  ☐ Map all 201-position shallow-water sweeps and 61-position budget sweeps to their inputs,
+    outputs and CPU reference assertions. Identify any ordering or shared-state dependencies.
+  ☐ Discuss and agree on a concrete indexed-result design before implementation. Batching was
+    previously deferred; this phase supplies the specific design and coverage discussion.
+  ☐ Render independent samples into indexed records and retrieve records together, preserving
+    every original sample, original coordinate semantics and adjacent-sample comparison.
+    Keep independent CPU geometric formulas and continuity thresholds unchanged.
+  ☐ Retain precise failure attribution to scenario, motion position and output field, including
+    the existing worst-jump diagnostics. Bound result storage and handle partial final batches.
+  ☐ Verify equivalence to original observations and measure draw/dispatch counts, readback count,
+    transferred bytes and affected-selection wall time. Account for added batching setup work.
+  ☐ Complete second review, independent coverage audit and linked-document reconciliation.
+    Present measured results and limitations for user acceptance before closing the phase.
+
+☐ Phase 4 — Combine surface-lighting per-frame statistics
+  ☐ Map Frame, Energy and RunUntil in SurfaceLightingConsumerRuntimeFixture and identify every
+    caller relying on per-frame finiteness, energy, readiness or convergence observations.
+  ☐ Design a compact combined statistics result that preserves each existing observed quantity
+    and its numerical semantics while reducing repeated dispatch/readback pairs.
+  ☐ Integrate the result through existing observation services and fixture-owned shader assets.
+    Preserve per-frame failure detection, optional world-atlas handling and progress conditions.
+    Moving assertions to final milestones requires separate coverage discussion and agreement.
+  ☐ Verify failure detection and numerical bounds across the affected consumer, spatial,
+    scenario and lifetime suites. Measure per-frame observation work and selection runtime.
+  ☐ Complete second review, independent coverage audit and linked-document reconciliation.
+    Present measured results and limitations for user acceptance before closing the phase.
+
+☐ Phase 5 — Separate real-GC stress execution from frequent correctness feedback
+  ☐ Inspect Workload=Stress classification, AllTests.runsettings and current local/CI entry
+    points. Propose a frequent-correctness selection and a dedicated mandatory stress selection.
+    Agree on invocation and CI cadence before changing the default selection.
+  ☐ Keep GpuResourceAssociationStressTests intact, including its 12×32 cycles, abandoned aliases,
+    forced collections, finalizer waits and retirement/pruning assertions.
+  ☐ Make both selections explicit in runner configuration and usage documentation. Ensure the
+    dedicated stress selection remains discoverable and required by the agreed qualification
+    workflow, with no accidental omission or duplication in the combined coverage accounting.
+  ☐ Validate selection membership and execute the affected stress coverage. Report faster
+    frequent feedback separately from total qualification cost; moving work is not eliminating it.
+  ☐ Reconcile all five phases' retained evidence and run one appropriately scoped combined
+    qualification after the implementation batches are complete. Preserve failures and focused
+    correction receipts and distinguish reconciled coverage from a fresh passing full run.
+  ☐ Remove temporary instrumentation, comparison controls and temporary support documents
+    created for this plan after retaining required decisions and evidence. Keep this tasklist,
+    authoritative documentation and the linked historical performance analyses.
+  ☐ Complete second review, independent coverage audit and documentation reconciliation.
+    Discuss final metrics and remaining costs with the user and obtain acceptance before closure.
