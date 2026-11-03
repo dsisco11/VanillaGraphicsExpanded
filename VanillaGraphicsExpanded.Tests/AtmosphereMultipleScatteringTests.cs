@@ -4,8 +4,17 @@ using VanillaGraphicsExpanded.PBR.Atmosphere;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Validates the bounded isotropic multiple-scattering approximation and its production consumers.</summary>
-public sealed class AtmosphereMultipleScatteringTests
+public sealed class AtmosphereMultipleScatteringTests : IClassFixture<AtmosphereMultipleScatteringTableFixture>
 {
+    private readonly AtmosphereMultipleScatteringTableFixture tables;
+
+    #region Public API
+    /// <summary>Uses one bounded immutable-table fixture across the numerical theory rows.</summary>
+    public AtmosphereMultipleScatteringTests(AtmosphereMultipleScatteringTableFixture tables)
+    {
+        this.tables = tables;
+    }
+
     #region Transport
     /// <summary>A passive atmosphere and fully reflective ground cannot amplify an isotropic unit field.</summary>
     [Fact]
@@ -27,7 +36,11 @@ public sealed class AtmosphereMultipleScatteringTests
     [InlineData(8f)]
     public void SourceRemainsFiniteAndNightIsDark(float aerosol)
     {
-        var table = AtmosphereMultipleScattering.Build(aerosol);
+        // Arrange: obtain the class-owned default table for this aerosol input.
+        var table = tables.GetDefault(aerosol);
+        Assert.Same(table, tables.GetDefault(aerosol));
+
+        // Act: sample the existing altitude and solar-angle matrix.
         foreach (float altitude in new[] { 0f, 2f, 25f, 99f })
         foreach (float cosine in new[] { -1f, -.1f, 0f, .1f, 1f })
         {
@@ -56,8 +69,12 @@ public sealed class AtmosphereMultipleScatteringTests
     [InlineData(8f)]
     public void DefaultQuadratureAgreesWithRefinement(float aerosol)
     {
-        var standard = AtmosphereMultipleScattering.Build(aerosol);
+        // Arrange: reuse the same standard table; retain a fresh independent refined integration.
+        var standard = tables.GetDefault(aerosol);
+        Assert.Same(standard, tables.GetDefault(aerosol));
         var refined = AtmosphereMultipleScattering.Build(aerosol, directionSamples: 256, raySamples: 96);
+
+        // Act: compare the existing altitude, solar-angle and channel matrix.
         foreach (float altitude in new[] { 0f, 2f, 25f, 99f })
         foreach (float cosine in new[] { -.1f, 0f, .25f, 1f })
         {
@@ -127,5 +144,6 @@ public sealed class AtmosphereMultipleScatteringTests
         Assert.Equal(AtmosphereModel.SolarIrradiance(Vector3.UnitY, 2, 1), lighting.Solar);
         Assert.Equal(AtmosphereModel.LocalExtinction(2, 1), lighting.Extinction);
     }
+    #endregion
     #endregion
 }

@@ -3,7 +3,8 @@ Test execution runtime optimizations
 
 Status
   Phases 1 and 2 are complete and accepted by the user on 2026-11-03, including the measured
-  timing limitations and the two approved coverage reductions. All later phases are pending.
+  timing limitations and the two approved coverage reductions. Phase 3 is complete and accepted
+  on 2026-11-03; phases 4–6 remain pending.
   This plan covers the five prioritized optimizations
   from the test-runtime review and a separate water-test necessity review requested at acceptance.
   Both Phase 2 reductions are implemented and verified, with a clean independent completion audit.
@@ -534,20 +535,78 @@ Shared implementation and acceptance requirements
     retained coverage and verification obligations. Scope any approved test changes explicitly;
     adding this phase does not authorize deleting tests or weakening assertions.
 
-☐ Phase 3 — Separate atmosphere policy checks from repeated numerical construction
-  ☐ Map the guarantees of QualityOnlyEditRebuildsLighting and
+☑ Phase 3 — Separate atmosphere policy checks from repeated numerical construction
+  Baseline and approved separation (2026-11-03)
+    The unchanged AtmosphereScatteringQualityTests, AtmosphereMultipleScatteringTests and
+    AtmosphereComputationTests selection passed 33/33 in both Debug and Release, with no
+    failures or skips. Test-process wall times were 48.173s / 15.905s; separate builds took
+    110.380s / 107.480s. Summed case durations were 76.940s / 17.555s; CPU test classes can
+    overlap, so those sums are not elapsed selection time. Source hashes remained unchanged.
+    These are single qualifying baseline runs per configuration, not an optimization comparison.
+    Additional repeat receipts are excluded because their execution/source provenance was not
+    reconciled. Receipts: ../TestResults/TestRuntimeOptimizations/
+    Phase3-atmosphere/summary.json, configuration-specific TRX files and commands-and-conditions.txt.
+    Traceability: the shared performance analyses above govern preserved observations,
+    ownership and measurement. [PBR.Atmosphere.md](PBR.Atmosphere.md), Multiple scattering
+    and Publication and rendering, supplies immutable-table, quality-budget and completed-work
+    admission requirements. AtmosphereComputationTests.ControlledProducer demonstrates the
+    existing completion seam; AtmosphereLookup and AtmosphereComputation remain unchanged.
+    The user approved the following separation on 2026-11-03. Keep
+    QualityOnlyEditRebuildsLighting as the real quality-0-to-1
+    integration witness for table/snapshot replacement, dimensions and revision. Convert only
+    AsyncCompletionAdmitsQualityOnlyChange to controlled completion, checking admitted request
+    inputs/quality, publication identity/order, replacement admission and stable-input reuse.
+    Share the three immutable default aerosol tables between SourceRemainsFiniteAndNightIsDark
+    and DefaultQuadratureAgreesWithRefinement through a bounded class fixture keyed by every
+    determining input. Retain all aerosol rows, refined builds, quality comparisons, independent
+    references and tolerances. The implemented separation removes two full builds from the
+    async policy test and reduces the two numerical methods' default-table builds from six to
+    three; these are source-derived operation counts, not instrumented runtime counters.
+    All three refined integrations remain. The async test now covers scheduling independently
+    of numerical integration; the synchronous test retains the real quality-change witness.
+    AtmosphereMultipleScatteringTableFixture owns at most three immutable managed tables for
+    one test class, keys all eight determining numerical inputs and releases its references
+    at class teardown. No production code or test parameter rows changed.
+  Implementation verification and acceptance (2026-11-03)
+    Corrected Debug and Release selections each passed 33/33, with no failures or skips and
+    exactly the baseline case-name sets. Test-process wall times were 33.236s / 11.335s;
+    summed case durations were 55.216s / 13.129s. Separate builds passed in 20.499s / 18.104s,
+    with zero errors. Each numerical method also passed its three aerosol rows alone in a
+    fresh Debug process (7.992s / 29.162s), confirming no prerequisite test order.
+    The controlled test asserts frozen quality-0/1 requests, pending ownership, completion
+    publication order/identity and no repeated stable-input admission. The real synchronous
+    integration still checks replaced table/snapshot identity, width 64 and revision 2.
+    Numerical equivalence follows unchanged Build inputs, immutable read-only sampling and
+    the retained independent refined comparisons, sample matrices and tolerances. Test source
+    hashes were stable throughout corrected verification; production source hashes match the
+    baseline. No production cache, collection parallelism or shared mutable lookup was added.
+    Baseline/candidate used the same three-class filter, UnitTests.runsettings, package cache
+    and sequential fresh CPU test processes; existing build/filesystem caches were retained.
+    Each configuration has one qualifying baseline and one corrected candidate. Both current
+    candidate walls are lower, but these sequential single samples do not establish a stable
+    percentage improvement or whole-suite savings. CPU synchronization and GPU execution were
+    not separately measured; the selected work is CPU-only. Summed class times can overlap.
+    An earlier Debug run passed 32/33 using a pre-correction assertion that incorrectly expected
+    a previously consumed result again. Its failure receipt is retained separately and excluded
+    from the final result; the corrected test expects no new publication on unchanged input.
+    Receipts: ../TestResults/TestRuntimeOptimizations/Phase3-atmosphere-postchange-corrected/
+    summary.json, Debug/Release and isolated-method TRX files, commands and source hash manifests.
+    Second review and independent implementation/coverage audit are complete, with no required
+    code corrections remaining. The user accepted these measured results and limitations on
+    2026-11-03. No staging or commit was performed.
+  ☑ Map the guarantees of QualityOnlyEditRebuildsLighting and
     AsyncCompletionAdmitsQualityOnlyChange in AtmosphereScatteringQualityTests, including
     replacement identity, revision, admission and completion behavior.
-  ☐ Reuse the controllable-producer approach from AtmosphereComputationTests for policy-only
+  ☑ Reuse the controllable-producer approach from AtmosphereComputationTests for policy-only
     checks. Retain an explicit real quality-change integration witness and all independent
     quadrature/numerical coverage. Discuss the exact separation before changing test boundaries.
-  ☐ Identify identical default-table construction in SourceRemainsFiniteAndNightIsDark and
+  ☑ Identify identical default-table construction in SourceRemainsFiniteAndNightIsDark and
     DefaultQuadratureAgreesWithRefinement in AtmosphereMultipleScatteringTests. Reuse immutable
     tables keyed by all determining inputs where safe, preserving refined integrations and
     every aerosol/quality comparison. Avoid order dependence and unbounded retained storage.
-  ☐ Verify policy failure detection, integrated replacement behavior, numerical equivalence
+  ☑ Verify policy failure detection, integrated replacement behavior, numerical equivalence
     and fixture isolation. Measure numerical builds avoided and affected-selection runtime.
-  ☐ Complete second review, independent coverage audit and linked-document reconciliation.
+  ☑ Complete second review, independent coverage audit and linked-document reconciliation.
     Present measured results and limitations for user acceptance before closing the phase.
 
 ☐ Phase 4 — Batch independent water motion observations
