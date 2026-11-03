@@ -25,20 +25,9 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
     [InlineData(false, "slope")]
     [InlineData(true, "slope")]
     [InlineData(false, "nonfinite")]
-    [InlineData(true, "nonfinite")]
     [InlineData(true, "provenance")]
     [InlineData(false, "slopeclipped")]
     [InlineData(true, "slopeclipped")]
-    [InlineData(false, "all-alpha")]
-    [InlineData(true, "all-alpha")]
-    [InlineData(false, "all-nan-rgb")]
-    [InlineData(true, "all-nan-rgb")]
-    [InlineData(false, "all-inf-rgb")]
-    [InlineData(true, "all-inf-rgb")]
-    [InlineData(false, "all-nan-alpha")]
-    [InlineData(true, "all-nan-alpha")]
-    [InlineData(false, "all-inf-alpha")]
-    [InlineData(true, "all-inf-alpha")]
     [InlineData(false, "inconsistent")]
     [InlineData(true, "inconsistent")]
     public void FilterKeepsOnlyCompatibleReceiverSupport(bool half, string scenario)
@@ -82,17 +71,6 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         if (scenario == "nonfinite") colors[0] = float.NaN;
         if (scenario == "inconsistent") colors[0] = float.NaN;
         if (scenario == "provenance") depths[1] = float.NaN;
-        if (scenario.StartsWith("all-"))
-            for (int pixel = 0; pixel < width * height; pixel++)
-            {
-                // Valid hardware depth must not substitute for the existing color
-                // validity contract, including nonfinite alpha and RGB channels.
-                if (scenario == "all-alpha") colors[pixel * 4 + 3] = 0;
-                if (scenario == "all-nan-rgb") colors[pixel * 4] = float.NaN;
-                if (scenario == "all-inf-rgb") colors[pixel * 4 + 1] = float.PositiveInfinity;
-                if (scenario == "all-nan-alpha") colors[pixel * 4 + 3] = float.NaN;
-                if (scenario == "all-inf-alpha") colors[pixel * 4 + 3] = float.PositiveInfinity;
-            }
         if (scenario != "inconsistent") WaterReceiverTestInputs.EncodeDepthValidity(colors, depths, depthChannels);
         color.UploadDataImmediate(colors); depth.UploadDataImmediate(depths);
         var program = Programs.Create<WaterReceiverFilterShaderProgram>();
@@ -109,7 +87,7 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         float[] position = target[0].ReadPixels(), radiance = target[1].ReadPixels();
-        bool rejected = scenario is "invalid" or "inconsistent" || scenario.StartsWith("all-");
+        bool rejected = scenario is "invalid" or "inconsistent";
         Assert.Equal(rejected ? 0 : 1, position[3]);
         float[] work = target[2].ReadPixels();
         Assert.InRange(work[0], 4, 6);

@@ -42,16 +42,10 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
     /// <summary>Snell displacement responds to actual projection and preserves HDR at either background resolution.</summary>
     [Theory]
     [InlineData(45, .5f, false)]
-    [InlineData(45, .5f, true)]
-    [InlineData(45, 2f, false)]
-    [InlineData(45, 2f, true)]
     [InlineData(90, .5f, false)]
-    [InlineData(90, .5f, true)]
     [InlineData(90, 2f, false)]
     [InlineData(90, 2f, true)]
     [InlineData(60, 1.7f, false, .23f)]
-    [InlineData(60, 1.7f, true, .23f)]
-    [InlineData(75, 1.7f, false, -.17f)]
     [InlineData(75, 1.7f, true, -.17f)]
     public void ProjectedSnellOffsetMatchesCoordinateRadiance(float fieldOfView, float aspect, bool half, float shift = 0)
     {

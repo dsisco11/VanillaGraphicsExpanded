@@ -20,11 +20,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
     #region Public API
     /// <summary>Evaluates a short visible endpoint before stopping, without changing validated fallback.</summary>
     [Theory]
-    [InlineData(1,false,false)]
-    [InlineData(2,false,false)]
     [InlineData(3,false,false)]
-    [InlineData(1,true,false)]
-    [InlineData(2,true,false)]
     [InlineData(3,true,false)]
     [InlineData(3,false,true)]
     [InlineData(3,true,true)]
@@ -115,8 +111,6 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
     [Theory]
     [InlineData(false,4f)]
     [InlineData(true,4f)]
-    [InlineData(false,1f)]
-    [InlineData(true,1f)]
     public void RayAndUvTransitionsStayWithinReceiverFootprint(bool half, float slope)
     {
         EnsureShaderTestAvailable();
@@ -266,8 +260,6 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
     [InlineData(1,false)]
     [InlineData(2,false)]
     [InlineData(3,false)]
-    [InlineData(1,true)]
-    [InlineData(2,true)]
     [InlineData(3,true)]
     public void ExhaustionAndTirAccountForEveryLookup(int quality, bool tir)
     {
@@ -294,10 +286,6 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
 
     /// <summary>Fallback preserves standalone UV results while reusing the initial support, including a rejected seed.</summary>
     [Theory]
-    [InlineData(1,false)]
-    [InlineData(1,true)]
-    [InlineData(2,false)]
-    [InlineData(2,true)]
     [InlineData(3,false)]
     [InlineData(3,true)]
     public void ExhaustedFallbackReusesInitialSupport(int quality, bool half)
@@ -391,9 +379,6 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
     [Theory]
     [InlineData(1,false)]
     [InlineData(1,true)]
-    [InlineData(2,false)]
-    [InlineData(2,true)]
-    [InlineData(3,false)]
     [InlineData(3,true)]
     public void TierSelectionTracksDenseReference(int quality, bool half)
     {

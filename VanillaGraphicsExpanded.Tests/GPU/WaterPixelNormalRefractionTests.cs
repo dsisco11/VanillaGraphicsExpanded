@@ -39,8 +39,6 @@ public sealed class WaterPixelNormalRefractionTests(HeadlessGLFixture fixture) :
     /// <summary>Wave detail controls signed offsets independently of distant receiver depth and image resolution.</summary>
     [Theory]
     [InlineData(-.5f, false)]
-    [InlineData(.5f, false)]
-    [InlineData(-.5f, true)]
     [InlineData(.5f, true)]
     public void WaveOffsetSaturatesWithDepth(float slope, bool half)
     {

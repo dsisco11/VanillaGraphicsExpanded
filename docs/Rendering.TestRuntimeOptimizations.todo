@@ -2,9 +2,15 @@ Test execution runtime optimizations
 ===================================
 
 Status
-  Phase 1 is complete and accepted by the user on 2026-11-03, including the measured timing
-  limitations. All later phases are pending. This plan covers the five prioritized optimizations
+  Phases 1 and 2 are complete and accepted by the user on 2026-11-03, including the measured
+  timing limitations and the two approved coverage reductions. All later phases are pending.
+  This plan covers the five prioritized optimizations
   from the test-runtime review and a separate water-test necessity review requested at acceptance.
+  Both Phase 2 reductions are implemented and verified, with a clean independent completion audit.
+  The user subsequently approved the representative diagnostic matrix recorded below;
+  that batch retained 68 primary cases, with focused verification recorded below.
+  The user also approved the further 38-case budget/continuity selection below;
+  the implemented primary inventory is now 38 cases, with combined verification recorded below.
   Creating the plan does not approve reductions in test coverage.
 
 Purpose and scope
@@ -117,22 +123,413 @@ Shared implementation and acceptance requirements
   ☑ Complete second review, independent coverage audit and linked-document reconciliation.
     Present measured results and limitations for user acceptance before closing the phase.
 
-☐ Phase 2 — Reevaluate water-test necessity and overlapping coverage
-  ☐ Inventory the water receiver diagnostics, continuity and budget tests covered by this plan,
+☑ Phase 2 — Reevaluate water-test necessity and overlapping coverage
+  Review and disposition record (2026-11-03)
+    The necessity review used existing source/receipts without new executions. The user then
+    approved both reductions A/B and retention of all other rows and motion samples.
+    Scope is the three water families selected by this plan, compared with existing receiver,
+    UV/pixel-normal, reduction, production-liquid, transport and publication/lifecycle witnesses.
+    The inherited performance analyses require preserved independent references, failure
+    attribution, numerical bounds and lifecycle coverage; elapsed cost alone cannot justify removal.
+    Current contracts: [PBR.WaterRefraction.md](PBR.WaterRefraction.md), sections Background
+    resolution and bilateral receivers, Optics and traversal, Water quality and receiver contract,
+    and Validation and remaining acceptance; [PBR.Liquids.md](PBR.Liquids.md), Material and optics
+    and Validation and acceptance. Historical receiver-baseline descriptions do not replace
+    the current bounded-traversal and producer-validated-depth contract.
+    Test source paths below are relative to ../VanillaGraphicsExpanded.Tests/GPU/. Shader include
+    paths such as liquids/receiver.glsl are relative to
+    ../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/.
+  Inventory before the approved reductions, and contract mapping
+    WaterRefractionDiagnosticTests.BaselineReceiverDiagnostics: 72 rows = scenarios 0..11
+    × budgets {2,4,8} × half {false,true}. Sample (64,64), except edge-motion samples
+    x={1,3,6,12,32,64}, y=64: 102 observed pixels per full selection. Seven MRT outputs are
+    produced; assertions/readbacks use decision, last sample, transport and work (0/1/2/6).
+    Sampled UV/depth and transport length/direction/fallback/receiver Z are finite/logged,
+    not independently predicted numerical values, except the positive-Z sign check below.
+    Selection, receiver-position and receiver-radiance MRT outputs 3/4/5 are not read here.
+    Every row checks finite decision/sample/transport, evaluations within budget, confidence one
+    for accepted hits, zero spatial radiance blends, selected-triangle/color-fetch accounting
+    and depth-fetch bounds. Viewport/scissor restoration and clean GL error state are asserted.
+      0 flat, 1 tilted, 2 one-centimetre separation: accepted geometric support.
+      3 adjacent foreground: accepted support with success reason, rather than blanket rejection.
+      4 sky: unavailable-data reason; no selected color reads.
+      5 range exhaustion: reason 9, exactly two evaluations, no selected radiance/triangle blend.
+      6 edge motion: all six columns accepted without confidence fade.
+      7 long path: accepted without distance-confidence fade; path length itself is not asserted.
+      8 positive view-Z: refracted Z positive; accepted at budget 8, lower-budget validity unasserted.
+      9 metadata: unavailable-data reason, currently the same depth-sentinel path as scenario 4.
+      10 depth discontinuity, 11 grazing: no geometric hit.
+    These rows exercise shared raw traversal through the diagnostic shader, not the compiled
+    production quality/resolution selectors or final OIT composition. They complement those tests.
+    WaterShallowContinuityTests.ShallowWallMotionPreservesContinuousRadiance: 24 rows =
+    quality {0,1,2,3} × half {false,true} × {planar 20 cm, shoreline 3 cm, curved 12 cm}.
+    Each retains all 201 ordered motions (4,824 total), valid/full-confidence selection,
+    explicit RAY/UV provenance, affine X-to-HDR-red association within .0001, and adjacent
+    HDR-red jumps at most .01. Planar rows also check their independently authored plane.
+    Quality 0 additionally checks submerged support and bounded lookup work, plus 201 direct
+    filter samples per row with the same .01 continuity bound (1,206 direct-filter samples).
+    Motion range is ±.006 for shoreline and ±.04 otherwise. The curved rows do not duplicate
+    the planar reference. Method/switch counts are logged, not required transition counts;
+    the budget transition test supplies that separate witness. Retain every row and motion.
+    WaterRefractionBudgetTests: 32 rows across six methods:
+      ClippedEndpointPreservesFallback (8): qualities 1/2/3 × full/half, plus quality 3 tiny
+      extents × full/half. Invalid and valid source scenes check seed/endpoint evaluation,
+      projected endpoint, selected/standalone-UV equivalence and a second-probe accepted hit.
+      Tiny extents independently prove positive movement within the same texture footprint.
+      RayAndUvTransitionsStayWithinReceiverFootprint (4): slopes {1,4} × full/half, 61 motions
+      each. Independent Snell/plane intersection and affine RGB checks bound transition error
+      by receiver footprint. Full rows require 61 ray hits; half rows require actual switches.
+      CachedPatchRequiresRepresentedCoverage (2): ordinary and irregular-source hulls. Ordinary
+      support checks one evaluation, ray provenance and corrected-hit color. Irregular support
+      currently checks only two evaluations; it does not assert final rejection/provenance.
+      ExhaustionAndTirAccountForEveryLookup (6): qualities 1/2/3 × TIR false/true. No hit or
+      selected method; exhaustion checks min(2^quality,6) ray evaluations and zero UV lookups;
+      TIR checks zero ray/UV evaluations. Only the repeated TIR rows are consolidation candidates.
+      ExhaustedFallbackReusesInitialSupport (6): qualities 1/2/3 × full/half, each across
+      {exhausted,invalid-seed,invalid-later,edge,offscreen}. Raw ray, dispatcher and standalone
+      UV outputs check original-seed reuse, validity/transport/position/radiance equivalence,
+      saved seed depth reads, UV lookup accounting and zero work for offscreen rejection.
+      TierSelectionTracksDenseReference (6): qualities 1/2/3 × full/half, four scenes
+      {floor,thin,gap,discontinuity} × seven motions. All scenes retain work ceilings and
+      valid-hit confidence/radiance checks; geometric hits must lie on an authored depth layer.
+      Floor rows independently bound position and adjacent motion error, including the reduced
+      UV approximation footprint, and require seven accepted selections. Dense-reference
+      misses/errors for other scenes are reported, not bounded correctness assertions.
+  Overlap and retained witnesses
+    WaterRefractionTests.OpaqueHitsAndUnavailableSourcesHaveDefinedComposition (95 rows) uses
+    the actual compiled liquid variants and independent composition/coordinate references,
+    including TIR across qualities/resolutions. It does not expose raw traversal work counters.
+    WaterReceiverFilterTests (20 rows after the related-suite reduction below) isolates
+    support eligibility, incompatible layers,
+    malformed RGBA, source provenance, grazing planes and false coplanar depth columns.
+    WaterRefractionReductionTests (6 correctness rows) checks paired selection, alpha/depth
+    validity, tie order, half-float limits and odd edges, not moving traversal/fallback behavior.
+    WaterUvRefractionTests (37 rows) independently checks Snell projection, thin paths, edge
+    continuity, seed repair, TIR and camera-to-interface length for standalone UV fallback.
+    WaterPixelNormalRefractionTests (12 rows) checks the distinct quality-0 normal-detail rule,
+    saturation, shallow scaling, invalid candidates and TIR. Neither suite replaces the 201-point
+    integrated shallow sweeps or the mandatory ray/UV transition witness.
+    WaterTransportTests checks linear composition and photon directions. Resolution, lifecycle,
+    capture-state and overlay-composition tests own publication/state/resize/disposal guarantees;
+    synthetic diagnostic MRT tests do not replace those integration boundaries. Retain them.
+  Initial approved dispositions
+    A — Consolidate diagnostic scenario 9 into scenario 4: remove six metadata rows, retain
+    all six sky rows and all other diagnostic rows. Fixtures/WaterReceiverTestInputs.cs encodes
+    every alpha-zero sample to depth 1; liquids/receiver.glsl rejects depth 1 before color reads.
+    At full size both scenes therefore take the same unavailable-depth path; half reduction
+    also rejects their depth before color. Surface/normal and all asserted sampler guarantees
+    are otherwise identical. Lost coverage is the duplicate authored metadata label, not an
+    independent metadata-validation path. FilterKeepsOnlyCompatibleReceiverSupport's full/half
+    mixed-invalid rows retain helper alpha conversion and zero-color-read assertions;
+    its full/nonfinite row retains partial unavailable support, and its inconsistent rows retain
+    malformed-pair rejection. Reduction's candidate-validity checks
+    and actual liquid scenario 3 retain independent invalid-metadata producer/consumer checks.
+    B — Remove only ExhaustionAndTirAccountForEveryLookup rows (quality=1,tir=true) and
+    (quality=2,tir=true); retain (3,true) and all three non-TIR rows. The dynamic selector maps
+    these positive qualities to a budget, then the shared ray helper returns for TIR before
+    using that budget or fetching depth/color. The surviving row asserts the same NONE result
+    and zero ray/UV evaluations. Production TIR variants remain covered separately. Lost
+    coverage is repeating that budget-independent early exit with two other dynamic constants.
+    C — Keep all other rows and every motion sample. No whole test family is proven unnecessary.
+    Do not delete the irregular-hull row or non-floor dense-reference scenes solely because
+    their assertions are incomplete; retain them as unresolved coverage-quality follow-ups.
+    Any future strengthening must state the missing oracle explicitly rather than claiming
+    the current test already proves it. Exact work assertions protect documented bounds/reuse;
+    they are not dismissed wholesale as private implementation details.
+    The initial A/B approval retained 120 cases (66 diagnostic, 24 continuity,
+    30 budget). No assertions, tolerances, samples, fixtures or production code otherwise change.
+    Implementation scope is removal of only those eight rows and test-local branches used only
+    by removed scenario 9. Surviving scenario IDs, assertions, tolerances, textures, shaders and
+    fixtures remain unchanged. Verification must establish exact retained membership, passing
+    retained diagnostics and zero-work TIR assertions, and passing independent metadata and
+    compiled-production TIR witnesses in Debug/Release. Unchanged continuity and other budget
+    methods retain their existing source/receipt evidence. Phase 4's 201/61-motion contract
+    remains unchanged. Setup reuse/batching can preserve that coverage without deletion.
+    Separate setup opportunity: before the further matrix reduction below, the continuity test
+    constructed its direct-filter program and three-attachment target in all 24 rows but used
+    them only in six quality-0 rows. The approved seven-row selection still constructs them
+    in every row but uses them in only three, leaving four rows with unused filter setup.
+    Avoiding that setup would preserve all observations. This remains a future optimization,
+    outside the parameter-removal scope and without a measured savings claim.
+  Cost evidence and limitations
+    Historical final-debug.trx / final-release.trx under ../TestResults/GpuTests11/final-qualification
+    report 72/24/32 passing primary cases, zero skips: diagnostic summed seconds 170.376/3.148,
+    continuity 71.785/6.045, budget 72.685/8.376. These broad runs had unrelated failures and
+    are not clean whole-suite receipts. Before the approved reductions, budget and continuity
+    sources matched their saved manifests; diagnostics already differed by the accepted scissor
+    work. The approved row removals now also change diagnostic/budget sources. Current diagnostic
+    reruns are recorded above and do not reproduce the historical Debug/Release disparity.
+    Candidate A's six rows cost 15.479/.230 historical summed seconds; latest repetition-2
+    costs were 12.164 Debug / 13.423 Release. Candidate B's two rows cost 3.980/.069 historical
+    summed seconds, with no new focused timing. These include setup/teardown and are not
+    predicted wall-time savings. No new executions were required for this read-only review.
+  Approved implementation and verification
+    Removed diagnostic scenario 9's six rows without renumbering surviving scenario IDs,
+    cleaned its test-local alpha/reason branches, and removed only budget TIR rows (1,true)
+    and (2,true). That batch retained 120 primary cases: 66 diagnostic, 30 budget and
+    24 unchanged continuity cases. Every remaining assertion, motion sample and fixture is
+    preserved; no production or shader source changed.
+    Debug and Release each passed 116/116 focused cases, zero failures/skips: all 66 retained
+    diagnostics, four remaining exhaustion/TIR rows, 31 filter rows, six reduction cases and
+    nine actual production TIR variants. Discovery proves the exact eight-row removal with
+    no unexpected omissions/additions. Both configurations retain identical diagnostic IDs
+    and all 96 logged pixel observations compared with the preceding 72-row reference.
+    The other 26 budget cases and all 24 continuity cases reuse their unchanged source/kernel
+    and historical passing evidence; they were not included in this new execution selection.
+    Both builds passed with zero errors (150.900 / 149.879 seconds Debug/Release); all 909
+    test shader hashes per configuration remained unchanged. Source hashes were stable during
+    verification. Focused command wall seconds were 255.017 / 279.562, with summed case seconds
+    250.125 / 273.167. These different selections/build conditions are correctness receipts,
+    not evidence of a runtime improvement. No performance saving is claimed.
+    Receipts: ../TestResults/TestRuntimeOptimizations/Phase2-water-coverage/summary.json,
+    commands.txt, both TRX files, membership/observation proofs and source/shader hash checks.
+    Second review and the independent completion audit found no remaining required work.
+  Follow-up diagnostic-matrix reevaluation (approved by the user on 2026-11-03)
+    The earlier eight-row reduction established exact duplicate coverage. It did not establish
+    that every remaining scene needed the full budget/resolution Cartesian product. This
+    follow-up evaluates the 66 diagnostics by failure mode and meaningful axis interactions;
+    the 30 budget and 24 continuity cases remain unchanged by this additional reduction.
+    Current raw diagnostic traversal uses one shader binary with a dynamic budget. In
+    liquids/refraction.glsl the budget selects only the loop limit; success returns immediately,
+    and rejection/proposal logic within that prefix does not otherwise vary with the budget.
+    Use budget 2 for ordinary successful scenes, so they must succeed within the lowest ceiling.
+    Use budget 8 for rejection/early-stop scenes, allowing every available probe to expose an
+    unsupported hit and proving early termination below the ceiling where asserted. Existing
+    Budget tests independently retain all three ceilings, full/half tier selection, endpoint
+    handling and fallback reuse. Actual compiled quality/resolution variants retain their
+    separate production-liquid witnesses; these dynamic rows do not add compiled variants.
+    Approved retained rows (scenario IDs remain unchanged; full/half are source resolutions):
+      1 tilted:              budget 2, full. Representative normal-dependent raw success.
+      2 shallow-plane:       budget 2, full and half. One-centimetre eligibility with both
+                             direct reconstruction and reduced original-source support.
+      3 adjacent-foreground: budget 2, full. Mixed-depth raw traversal retains valid support.
+      4 sky:                 budget 8, full. Unavailable depth, reason and zero-color-read work.
+      5 range-exhaustion:    budget 8, full. Stop after two evaluations despite a larger ceiling.
+      6 edge-motion:         budget 2, full and half. Preserve all six columns, including the
+                             center, and source-provenance/partial-edge interactions.
+      7 range-fade:          budget 2, full. A valid long path retains full confidence.
+      8 positive-view-z:     budget 8, full and half. Preserve the existing explicit hit assertion,
+                             which is conditional on budget 8, and positive-Z direction checks.
+      10 depth-discontinuity: budget 8, full and half. Maximal search must reject false geometry,
+                             including the reduced support/depth-layer interaction.
+      11 grazing:           budget 8, full. Representative unsupported geometric rejection.
+    This is 14 rows, all found exactly once and passing in both existing Phase 2 TRX receipts.
+    Their 24 logged pixel observations agree exactly between Debug and Release. Keep every
+    assertion and edge column in each retained row. Scenario 0's standalone flat rows are unnecessary because
+    scenario 6 at x=64 has identical textures, projection, default normal and shader path,
+    and asserts the flat guarantees plus confidence. The diagnostic shader has no derivative
+    or inter-pixel feedback dependency on the extra edge columns. Other rows retain one-pixel
+    scissor/state-restoration coverage.
+    The half-size adjacent-foreground case loses its only foreground pixel at (65,64): the
+    farthest-valid 2x2 reduction selects the unchanged background at (64,64), producing the same
+    reduced input pair as flat/edge-center. Full-size adjacent foreground remains selected;
+    direct filter and reducer tests retain foreground exclusion and farthest-pair selection.
+    Sky rejects depth 1 before source-resolution decoding. Tilted, range-exhaustion, long-path
+    confidence and grazing use shared logic, with half reconstruction/coverage independently
+    exercised by the retained near-interface, edge, positive-Z and discontinuity rows.
+    Existing Phase2-water-coverage Debug/Release TRX observations agree exactly. Complete logs
+    are budget-invariant in 17 of 22 scene/resolution groups. Sky evaluation counts vary 2/4/6;
+    discontinuity counts vary 2/4/8; half positive-Z fails at budget 2 and succeeds in three
+    evaluations at 4/8. Full positive-Z succeeds in two. The approved positive-Z rows retain
+    budget 8 at both resolutions so their current success assertions remain active.
+    Those observations support the source analysis; equal logs alone do not prove redundancy,
+    and the diagnostic work counters are asserted rather than logged. The new policy is
+    representative failure-mode sampling. It deliberately drops exhaustive scene×budget and
+    scene×resolution interaction detection: a future conditional bug affecting only an omitted
+    combination could escape this suite. Dedicated limit, decoder/filter and compiled-variant
+    tests retain their distinct guarantees. New budget-dependent sampling logic or a reproduced
+    omitted interaction would require reevaluating this selection.
+    The user approved removal of 52 diagnostic rows: the primary inventory becomes 68 cases
+    (14 diagnostic, 30 budget, 24 continuity). This does not remove any 201/61-motion observations,
+    change tolerances or promise wall-time savings. Independent test review supports the
+    sampling policy and its stated tradeoff. Implementation scope is the explicit 14-row
+    diagnostic selection and cleanup of the unreachable scenario-0-only assertion branch.
+    All remaining assertions and sampled coordinates must stay unchanged. Verification must
+    establish exact approved membership, unchanged retained observations in Debug/Release,
+    and source/shader identity for reused independent-witness and motion-sweep evidence.
+  Representative-matrix implementation and verification
+    Replaced the diagnostic Cartesian product with the approved 14 explicit rows, preserving
+    scenario IDs/labels, every retained assertion and all six columns in both edge-motion rows.
+    Removed only the unreachable scenario-0 arm from the accepted-hit assertion. Compared with
+    the preceding staged 66-row source, the test body is otherwise identical. The 30 budget and
+    24 continuity cases, production code, shaders and fixtures remain unchanged.
+    Discovery confirms 68 primary cases (14/30/24), exactly the approved 52 additional removals
+    and no unexpected omissions/additions. Debug and Release each passed 14/14 diagnostics,
+    zero failures/skips. All 14 identities and 24 logged pixel observations match their prior
+    Phase 2 references exactly. The 50 previously executed independent witness cases and the
+    unchanged other 26 budget/24 continuity cases retain their prior source/kernel/receipt
+    evidence; they were not rerun in this focused selection.
+    Debug/Release builds passed (18.511 / 15.496 seconds); all 909 shader hashes per configuration
+    matched prior outputs and stayed stable. Source hashes were stable during verification.
+    Diagnostic command wall seconds were 45.964 / 47.422, with summed case seconds 41.276 / 42.494.
+    These are reduced-selection correctness receipts, not a matched runtime-improvement claim.
+    Existing staged changes were preserved; this follow-up did not stage or commit files.
+    Receipts: ../TestResults/TestRuntimeOptimizations/Phase2-water-representative-matrix/summary.json,
+    both focused TRX files, membership/observation/body-equivalence proofs, commands and hashes.
+    Second review and independent completion audit are clean; the approved follow-up is complete.
+  Further budget/continuity matrix reduction (approved by the user on 2026-11-03)
+    The remaining 30 budget and 24 continuity cases had not received the same representative-axis
+    reduction as the diagnostics. The user approved 17 budget and seven continuity cases,
+    retaining the 14 diagnostics unchanged: 38 primary cases total, 30 fewer than the prior 68.
+    This is failure-mode sampling with explicitly reduced combination coverage, not a claim that
+    every removed input can never reveal a regression. Production code remains unchanged.
+    Approved diagnostic sampling principles also apply to these shared-kernel fixtures: budgets
+    select loop ceilings, while full/half decoding has dedicated independent witnesses. Current
+    production compiled quality/resolution tests remain separate from these dynamic selectors.
+    Approved budget selection (17 rows across all six existing methods):
+      ClippedEndpointPreservesFallback: retain quality 3, both resolutions, normal and tiny
+      extents (4 rows; remove 4 lower-budget normal rows). The largest ceiling proves the
+      two-probe early stop rather than merely exhausting a low ceiling. Normal extents cross
+      texture footprints; tiny positive extents stay within one footprint. Both resolutions
+      retain endpoint/fallback equivalence and the independent accepted-endpoint control.
+      RayAndUvTransitionsStayWithinReceiverFootprint: retain slope 4 at full and half size
+      (2 rows; remove the two slope-1 rows). Keep all 61 positions and every independent
+      Snell/plane/RGB/transition assertion. Full-size geometric-hit and half-size actual-switch
+      witnesses remain; the second, milder slope/input-motion range is no longer sampled here.
+      CachedPatchRequiresRepresentedCoverage: retain both rows (2). Regular support supplies
+      the independent corrected-hit color witness. Irregular support detects immediate reuse
+      outside its represented hull, although its current two-evaluation assertion remains an
+      incomplete final-validity oracle. This reduction does not silently strengthen or delete it.
+      ExhaustionAndTirAccountForEveryLookup: retain all four current rows. These independently
+      check all three mapped ceilings/endpoint termination and the distinct zero-evaluation TIR
+      early exit; other reduced tests need not repeat every budget to prove those contracts.
+      ExhaustedFallbackReusesInitialSupport: retain quality 3 at full and half size (2 rows;
+      remove 4 lower-quality rows). Preserve all five internal scenes and three compared modes.
+      The high-budget invalid-seed scene reaches later valid support before exhaustion, making
+      it an adversarial check that later recovery cannot replace the original invalid seed.
+      Both resolutions retain edge-footprint saved-read differences and fallback equivalence.
+      TierSelectionTracksDenseReference: retain quality 1 full/half and quality 3 half (3 rows;
+      remove the other 3). Keep all four internal fields and all seven positions per field.
+      The full low-budget case retains the absolute CPU intersection/motion oracle; low-budget
+      half retains approximate-UV footprint checks. High-budget half currently reaches geometric
+      floor results at positions where the low-budget case falls back, and reaches farther through
+      gaps. These outcomes are observed regimes, not newly asserted ray-count guarantees.
+      Mid-budget behavior and high-budget full-size combinations lose this dense-reference
+      witness; independent ceiling, fallback, raw discontinuity and compiled-variant checks remain.
+    Approved continuity selection (7 rows, every retained row keeps all 201 positions):
+      quality 0, half, planar 20 cm;
+      quality 0, half, shoreline 3 cm;
+      quality 0, half, curved 12 cm;
+      quality 1, half, planar 20 cm;
+      quality 1, full, curved 12 cm;
+      quality 1, half, curved 12 cm;
+      quality 3, half, curved 12 cm.
+    The first two retain the documented half-size direct-filter banding reproductions at both
+    separations. The third retains the lowest-tier nonplanar/filter-continuity regime. The
+    curved x2 pair retains the documented sparkle/selection-continuity reproductions at both
+    resolutions. The planar x2 half case also checks independently authored plane position in
+    shallow mixed RAY/UV selection; neither a curved scene nor a metres-deep transition scene
+    provides that same oracle. The final high-budget curved-half case retains a higher-budget
+    continuity witness, currently ray-only. Method counts remain logged rather than mandated.
+    This removes 17 continuity rows, including the full x4 matrix. Existing source-compatible
+    receipts show x4/x8 have identical quality-normalized logs in all six scene/resolution groups,
+    while x2 exercises actual mixed selection in the retained shallow/curved rows. The current
+    algorithm differs by loop ceiling; these observations support representative selection and
+    do not establish universal equivalence. Full-size quality-0 and other omitted shape/quality/
+    resolution continuity interactions cease to be swept. Point algorithm/filter tests retain
+    their distinct numerical coverage, without claiming to replace every removed continuity input.
+    The retained sweeps comprise 1,407 selected continuity observations, 603 direct-filter
+    observations, and 122 transition observations. Removing rows intentionally removes entire
+    combinations and their observations; no retained sweep is shortened or tolerance relaxed.
+    Evidence: existing ../TestResults/GpuTests11/final-qualification/final-{debug,release}.trx,
+    matched budget/continuity source manifests and the shallow regression record in
+    PBR.WaterRefraction.md. No new runs, timing claims, source edits or grouping of old tests
+    into fewer wrappers were used to derive the selection. Independent test review supports
+    it with its stated losses. The user's approval authorizes only the listed parameter-row
+    removals; retained bodies, sweeps, tolerances, fixtures and shaders stay unchanged.
+    Verification must prove exact 38-case membership and unchanged retained observations in
+    Debug/Release, with source/shader identity for any reused independent-witness evidence.
+  Lean-matrix implementation and combined verification
+    Removed only the approved 13 budget and 17 continuity parameter rows. Both test files
+    match their preceding bodies after excluding InlineData attributes and blank lines;
+    no method logic, assertion, tolerance, fixture, production code or shader changed.
+    Discovery proves the exact approved 38-case selection (14 diagnostic, 17 budget, seven
+    continuity), with no unexpected additions/omissions. Retained sweeps preserve all
+    1,407 continuity, 603 direct-filter, 122 transition and 84 dense-reference observations.
+    Debug and Release each passed 38/38, zero failures/skips. All retained identities and
+    stdout match their previous receipts exactly, including explicit curved=false defaults;
+    the 24 diagnostic pixel observations also match. The unchanged 46 external filter,
+    reduction and compiled-production TIR witnesses retain their preceding source/kernel/
+    passing-receipt evidence and were not rerun in this combined three-family selection.
+    Builds passed in 35.697 / 24.386 seconds Debug/Release, separately from test execution.
+    Combined test command wall seconds were 118.458 / 97.538, with summed case seconds
+    113.386 / 92.697. These are current reduced-selection timings, not a matched speedup
+    measurement. All 909 test shader hashes per configuration matched prior outputs and
+    remained stable; seven source hashes were stable during verification. Existing staged
+    changes were preserved, and no staging or commit was performed by this follow-up.
+    Receipts: ../TestResults/TestRuntimeOptimizations/Phase2-water-lean-matrix/summary.json,
+    both focused TRX files, membership/output/body-equivalence proofs, commands and hashes.
+    Second review and independent completion audit are clean; the approved 38-case reduction is complete.
+  Related water-suite overlap review (all 19 removals approved on 2026-11-03)
+    The 38-case three-family selection above remains unchanged. This review covers separate
+    WaterReceiverFilterTests (31), WaterUvRefractionTests (43), WaterPixelNormalRefractionTests
+    (14) and WaterRefractionReductionTests (six correctness cases). These are the counts before
+    the approved 19 row removals from the first three families, including the saturation cut.
+    Filter 31 -> 20: remove both resolutions of all-alpha, all-nan-rgb, all-inf-rgb,
+    all-nan-alpha and all-inf-alpha (10 rows), plus only half=true/nonfinite (one row).
+    The uniform invalid-color inputs are converted by Fixtures/WaterReceiverTestInputs.cs
+    into depth-1 images before the GPU filter runs. They therefore do not independently test
+    GPU color validation. Keep mixed-invalid full/half for helper alpha conversion and
+    unavailable support; keep inconsistent full/half, which bypasses conversion and checks
+    fail-closed color reads. The reducer's direct invalid-RGBA cases retain production
+    validation, including nonfinite fields and alpha thresholds, without that authoring helper.
+    Keep full/nonfinite: one missing depth tap must leave three valid taps usable. Reduced
+    provenance already checks a single reason-2 rejection with three valid taps, so removing
+    half/nonfinite is representative sampling of that partial-invalid-source regime.
+    The loss includes dedicated test-helper NaN/Inf conversion examples and the half-depth-
+    sentinel combination; it does not remove all partial-support or malformed-color witnesses.
+    All other filter numerical cases, grazing checks and false-coplanar-column checks remain.
+    UV 43 -> 37: reduce ProjectedSnellOffsetMatchesCoordinateRadiance from 12 rows to six.
+    Retain (fieldOfView,aspect,half,shift): (45,.5,false,0), (90,.5,false,0),
+    (90,2,false,0), (90,2,true,0), (60,1.7,false,+.23), (75,1.7,true,-.17).
+    This keeps independent FOV and aspect changes, a matched full/half baseline, and both
+    asymmetric projection-shift signs, with every existing UV/RGB/path/direction reference.
+    Other projection×resolution and shift-sign×resolution combinations are deliberately omitted.
+    Retain the other UV methods: the standalone wrapper also supplies the independently
+    seeded comparison route, so wrapper-only call sites alone do not justify deleting its tests.
+    Pixel-normal 14 -> 12: retain WaveOffsetSaturatesWithDepth rows (-.5,false) and (.5,true),
+    dropping (.5,false) and (-.5,true). Both signs and both source layouts remain represented,
+    and each retained row still checks all three depths 2.4/10/60 against its independent
+    expected offset. All three depths lie in the saturated regime; the offset uses
+    resolution-independent projection scaling before candidate sampling. The two omitted
+    sign×layout combinations lose their dedicated interaction checks.
+    Retain every other pixel-normal row and all six reducer correctness cases. These cuts
+    reduce the three separate filter/UV/pixel-normal families from 88 to 69 cases;
+    they do not reduce the already lean 38-case group or establish a repository-wide minimum.
+    Independent source review supports these specific cuts with the stated sampling losses.
+    The approved edits retain every assertion and motion/depth sample in surviving rows.
+    Only the removed all-* filter scenarios' unreachable authoring and rejection code is deleted.
+    Focused verification: Debug and Release each passed 75/75 cases, with no failures or
+    skips: 69 related-suite rows (20 filter, 37 UV, 12 pixel-normal) plus six unchanged reducer
+    correctness cases. Test-process wall times were 29.649s Debug and 32.116s Release;
+    summed case times were 25.081s and 27.136s. Separate builds passed in 23.268s and 14.922s.
+    Discovery and execution matched the retained historical IDs exactly, with only the approved
+    19 removals. These cases emit no stdout, so no numerical-log equivalence is claimed.
+    UV and pixel-normal bodies are unchanged outside InlineData; filter source matches after
+    removing the unreachable all-* setup and its equivalent rejection clause. Nine source
+    hashes stayed stable, and all 909 compiled test shaders per configuration were unchanged.
+    The unchanged core-38 and production-water evidence above is reused, not rerun. These
+    timings qualify the current selection; they do not establish a matched runtime speedup.
+    Receipts: ../TestResults/TestRuntimeOptimizations/Phase2-water-related-suites/summary.json,
+    both focused TRX files, membership/body proofs, commands and source/shader hashes.
+    Independent source and final receipt review are clean; the approved reduction is complete.
+    Existing staged
+    changes were preserved, and no staging or commit was performed by this follow-up.
+  ☑ Inventory the water receiver diagnostics, continuity and budget tests covered by this plan,
     including every scenario, parameter row, sampled field and independent reference assertion.
     Identify the production contract and failure mode each observation is intended to protect.
-  ☐ Compare those guarantees with other existing water tests and current production behavior.
+  ☑ Compare those guarantees with other existing water tests and current production behavior.
     Distinguish unique regression coverage, deliberate integration/lifecycle witnesses, redundant
     observations, obsolete behavior and checks that assert implementation details without a
     required contract. Similar inputs or outputs alone do not establish redundant coverage.
-  ☐ For each proposed consolidation or removal, identify the exact tests/rows affected, the
+  ☑ For each proposed consolidation or removal, identify the exact tests/rows affected, the
     surviving independent witness for every required guarantee, and any coverage that would be
     lost. Explain why the remaining coverage would still detect the relevant failures; timing
     cost alone does not establish that a test is unnecessary. Retain unresolved cases.
-  ☐ Present evidence-backed keep/consolidate/remove recommendations and their measured costs
+  ☑ Present evidence-backed keep/consolidate/remove recommendations and their measured costs
     where available. Obtain the user's decision on proposed coverage changes before editing
     tests; this phase initially evaluates necessity and does not presume that any test is unneeded.
-  ☐ Independently review the coverage mapping and recommendations against their source contracts.
+  ☑ Independently review the coverage mapping and recommendations against their source contracts.
     Record the user's dispositions and reconcile the later water-batching tasks with the agreed
     retained coverage and verification obligations. Scope any approved test changes explicitly;
     adding this phase does not authorize deleting tests or weakening assertions.
@@ -154,8 +551,10 @@ Shared implementation and acceptance requirements
     Present measured results and limitations for user acceptance before closing the phase.
 
 ☐ Phase 4 — Batch independent water motion observations
-  Follow the water-test necessity decisions from Phase 2. Until a coverage change is explicitly
-  agreed, the original sample counts and guarantees below remain the implementation contract.
+  Apply the latest approved Phase 2 dispositions: retain all seven shallow-continuity rows
+  with their 201 motions and both budget-transition rows with their 61 motions, independent
+  references, thresholds and diagnostics. Removed parameter combinations are recorded above;
+  no further row removal or shortening of a retained sweep is authorized by batching.
   ☐ Map all 201-position shallow-water sweeps and 61-position budget sweeps to their inputs,
     outputs and CPU reference assertions. Identify any ordering or shared-state dependencies.
   ☐ Discuss and agree on a concrete indexed-result design before implementation. Batching was
