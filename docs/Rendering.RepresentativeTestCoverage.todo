@@ -52,6 +52,10 @@ Status and objective
   skip identities/reasons remain. This is shorter than the earlier 641.200s cached sample, but the
   unmatched single full runs do not establish a stable or isolated speedup. The five-minute target
   remains unmet; no fresh complete Debug result is claimed. Detailed scoped timings appear below.
+  A subsequent AO-only test change reuses one executable within each existing case. Its six
+  Release cases change from 12.286s to 6.491s in a matched pair, with 172 focused/regression checks
+  passing per configuration. No complete timing after that change is claimed; 574.267s remains
+  the latest measured full selection. The four other audited families retain their current owners.
 
 Baseline and authority
   Current full Windows runs use AllTests.runsettings (Purpose!=Diagnostic, including stress).
@@ -313,3 +317,59 @@ Numerical class-fixture rollout (2026-11-04; initial three-suite batch qualified
   predicted wall savings or proof of safe sharing. Larger mixed runtime/publication/ownership
   subjects require method-level classification before reuse; their lifecycle guarantees remain.
   Receipts: ../TestResults/TestRuntimeOptimizations/NumericalClassFixtureRollout/20261104T154339Z/.
+
+Runtime-boundary audit and further numerical reuse (2026-11-04; AO batch qualified)
+  The user authorized the next audit and numerical reuse batch. SurfaceLightingConsumerRuntimeTests
+  and SurfaceLightingSpatialRuntimeTests retain per-case runtime/program owners. The consumer
+  methods exercise worker retries, upload admission, publication, obsolete completions, recreation
+  and callback disposal. Spatial methods exercise temporal anchors/history, physical ring retention,
+  signed streaming generations, dark-room publication and mixed-consumer replacement/invalidation.
+  SurfaceLightingConsumerRuntimeFixture creates its API-owned production shader library before
+  registered renderers demand programs; RuntimeLightingPrograms.Initialize asserts initially empty
+  demand state. Teardown stops consumers before disposing the library and its cache/platform
+  dependencies. No independent numerical reset/lease boundary was found: sharing these live owners
+  would cross API, callback, configuration and publication lifetimes. Existing validated executable
+  byte caching remains available. The audit recommends no changes to these two runtime families
+  under the numerical-only reuse authorization; a broader lifetime redesign is outside this batch.
+  Evidence: GPU/SurfaceLightingConsumerRuntimeTests.cs (registered lifetime, worker, query and
+  disposal cases), GPU/SurfaceLightingSpatialRuntimeTests.cs (camera/ring/streaming/mixed cases),
+  GPU/Fixtures/SurfaceLightingConsumerRuntimeFixture.cs and GPU/Fixtures/RuntimeLightingPrograms.cs,
+  all paths relative to ../VanillaGraphicsExpanded.Tests/.
+  The fresh pre-change Release baseline passes 120/120 with no failures/skips in separate retained-
+  cache processes: consumer runtime 13 / 35.289s; spatial runtime 6 / 19.955s; water refraction
+  33 / 29.600s; AO composite 6 / 12.286s; direct world-probe visibility 62 / 15.412s. Sources, DLL,
+  all 909 shader modules and the valid 434-entry cache remain unchanged.
+  AO composite is the narrow implementation: each row repeats VerifyComposition with
+  the same compile options. Reuse one program within the existing case-owned Programs lifetime,
+  passing it to each helper call and clearing borrowed sampler/camera references before scenario
+  resources retire. All six rows, numerical sweeps, draw order, references and tolerances remain.
+  No class-scoped production owner or new production reset API is needed. Source-derived program
+  creations fall from 96 to six: three single-scenario rows plus three rows of 31 scenarios.
+  All 96 VerifyComposition calls and their 384 draws remain. These are source-derived counts,
+  not instrumented compilation or driver-work savings. Independent source review is clean.
+  Canonical Debug/Release builds pass in 108.887s / 100.694s. Dedicated AO selections pass 6/6
+  in 9.985s / 6.491s, with unchanged case identities and output; the matched Release baseline is
+  12.286s. Separate regression processes pass 166/166 in 99.562s / 75.882s: the other 114 baseline
+  cases plus 52 related AO checks. These are 172 distinct passing checks per configuration, zero
+  failures/skips. Both regression selections retain two spatial MixedConsumers diagnostic-output
+  differences from the standalone Release controls, confined to printed minRGB values. Yaw samples,
+  threshold/replacement decisions, ray counts and asserted outcomes remain unchanged. The changed
+  AO methods do not execute in those regression processes. Raw differences remain in the receipts;
+  no exact regression-stdout equivalence is claimed across these differently grouped runs.
+  Discovery remains 5,950 per configuration, with no cases added or removed. The sole changed test
+  source and both test DLLs remain stable; all 909 shader modules per configuration match baseline.
+  The Release cache remains valid at 434 entries and 17,523,863 bytes. The dedicated timing pair
+  supports the local result, not a stable percentage or whole-suite speedup. No complete suite is
+  rerun for this test-only batch: the last complete warmed Release measurement, 574.267s, predates
+  it. No fresh full Debug/Release or under-five-minute result is established by these scoped checks.
+  WaterRefractionTests executes its comparison once per ordinary case. Cross-case sharing would
+  require persistent API/asset composition, immutable compile variants (quality, resolution and
+  capture paths), and reset of three input buffers, 12 samplers and camera/lighting/fog/material
+  state; diagnostic methods also use explicit per-case asset overrides. Leave this family unchanged.
+  DirectWorldProbeVisibilityTestBase already caches each compiled variant within its test instance.
+  Cross-case reuse would require a class-owned identity/define dictionary and complete resets for
+  debug, atlas-gather and SH9-gather bindings, near-field staging resources, frame/world publications
+  and case-owned LightingResources. No narrow existing reset seam was found; leave it unchanged.
+  These are limits of the current narrow reuse design, not proof that broader optimization is
+  impossible. Preserve their fresh owners rather than changing production lifecycle contracts.
+  Receipts: ../TestResults/TestRuntimeOptimizations/NextNumericalReuseBatch/20261104T165742Z/.
