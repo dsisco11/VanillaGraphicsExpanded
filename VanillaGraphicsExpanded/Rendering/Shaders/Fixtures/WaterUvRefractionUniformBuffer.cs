@@ -31,5 +31,12 @@ internal sealed class WaterUvRefractionUniformBuffer : CpuUniformBuffer
         set => WriteInt32(28, value);
     }
 
+    /// <summary>Clears every packed field while preserving immutable snapshots captured for prior submissions.</summary>
+    internal void Reset()
+    {
+        DataWritable.Clear();
+        MarkDirty();
+    }
+
     #endregion
 }

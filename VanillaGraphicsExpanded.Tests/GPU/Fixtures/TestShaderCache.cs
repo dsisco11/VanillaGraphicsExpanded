@@ -3,14 +3,15 @@ using System.Text;
 using OpenTK.Graphics.OpenGL4;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
-using VanillaGraphicsExpanded.Tests.TestSupport;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 /// <summary>Stores executable bytes for generated fixture kernels without sharing native owners or mutable state.</summary>
 internal static class TestShaderCache
 {
-    internal static readonly ProgramBinaryStore Store = new("VGE.TestPrograms", fileSystem: new CountingDiskCacheFileSystem());
+    /// <summary>Persists validated fixture executables per build output while bounding accumulated driver data.</summary>
+    internal static readonly ProgramBinaryStore Store = new(
+        Path.Combine(AppContext.BaseDirectory, ".test-shader-cache"), maxBytes: 512L << 20, maxEntries: 2048);
 
     #region Internal API
     #region RHI fixture construction

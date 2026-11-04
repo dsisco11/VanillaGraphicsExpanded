@@ -12,7 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Checks bounded UV receiver selection against independently projected optical geometry.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
-public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
+public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture, WaterUvRefractionProgramFixture sharedPrograms)
+    : LumOnShaderFunctionalTestBase(fixture), IClassFixture<WaterUvRefractionProgramFixture>
 {
     private const int Width = 128;
     private const int Height = 64;
@@ -329,7 +330,8 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
             reduction.SourceColor = color; reduction.SourceDepth = depth;
             TestFramework.RenderQuadTo(reduction,reducedTarget!);
         }
-        var program = Programs.Create<WaterUvRefractionShaderProgram>();
+        using var lease = sharedPrograms.Acquire();
+        var program = lease.ProgramSet;
         var inputs = (IWaterUvRefractionBindings)program;
         inputs.Surface = surface; inputs.Normal = normal; 
         Assert.True(Matrix4x4.Invert(projection, out var inverse));

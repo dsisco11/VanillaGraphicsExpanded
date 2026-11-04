@@ -11,7 +11,11 @@ internal sealed partial class WaterPixelNormalRefractionShaderProgram
 
     #region Public API
     /// <summary>Retains the shared camera used to author this optical fixture.</summary>
-    internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }
+    internal VgeFrameUniformBuffer? FrameInputs
+    {
+        get => frameInputs;
+        set { RequireInputMutation(); frameInputs = value; }
+    }
     /// <summary>Attaches input lifetime and mutation validation to the shader owner.</summary>
     public WaterPixelNormalRefractionShaderProgram() => inputs = OwnUniformBuffer(new WaterPixelNormalRefractionUniformBuffer());
 
@@ -26,6 +30,16 @@ internal sealed partial class WaterPixelNormalRefractionShaderProgram
 
     /// <summary>Supplies the underlying geometric normal before wave detail.</summary>
     public Vector3 BaseNormal { get => inputs.BaseNormal; set => inputs.BaseNormal = value; }
+
+    /// <summary>Clears packed geometry and receiver bindings before another pixel-normal case uses this executable.</summary>
+    internal void ResetInputsForReuse()
+    {
+        RequireInputMutation();
+        inputs.Reset();
+        frameInputs = null;
+        ((IWaterPixelNormalRefractionBindings)this).Color = default;
+        ((IWaterPixelNormalRefractionBindings)this).Depth = default;
+    }
     #endregion
 
     #region Binding sources

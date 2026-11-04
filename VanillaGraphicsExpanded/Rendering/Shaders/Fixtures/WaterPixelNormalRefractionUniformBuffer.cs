@@ -37,5 +37,12 @@ internal sealed class WaterPixelNormalRefractionUniformBuffer : CpuUniformBuffer
         get => MemoryMarshal.Read<Vector3>(Bytes.Slice(32));
         set => WriteVector3(32, value);
     }
+
+    /// <summary>Clears every packed field while preserving immutable snapshots captured for prior submissions.</summary>
+    internal void Reset()
+    {
+        DataWritable.Clear();
+        MarkDirty();
+    }
     #endregion
 }

@@ -12,7 +12,11 @@ internal sealed partial class WaterRefractionDiagnosticShaderProgram
 
     #region Public API
     /// <summary>Retains the shared camera used to author this optical fixture.</summary>
-    internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }
+    internal VgeFrameUniformBuffer? FrameInputs
+    {
+        get => frameInputs;
+        set { RequireInputMutation(); frameInputs = value; }
+    }
     /// <summary>Attaches input lifetime and mutation validation to the shader owner.</summary>
     public WaterRefractionDiagnosticShaderProgram() => inputs = OwnUniformBuffer(new WaterRefractionDiagnosticUniformBuffer());
 
@@ -39,6 +43,16 @@ internal sealed partial class WaterRefractionDiagnosticShaderProgram
 
     /// <summary>Publishes a bounded set of original CPU-authored motion surfaces for one indexed draw.</summary>
     internal void SetMotionBatch(ReadOnlySpan<Vector4> surfaces) => inputs.SetBatch(surfaces);
+
+    /// <summary>Clears every retained input so a subsequent numerical case starts from fresh defaults.</summary>
+    internal void ResetInputsForReuse()
+    {
+        RequireInputMutation();
+        inputs.Reset();
+        frameInputs = null;
+        ((IWaterRefractionDiagnosticBindings)this).Color = default;
+        ((IWaterRefractionDiagnosticBindings)this).Depth = default;
+    }
 
     #endregion
 

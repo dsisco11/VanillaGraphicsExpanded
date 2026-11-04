@@ -4,8 +4,10 @@ Representative rendering-test coverage
 Status and objective
   In progress. The user approved representative behavior and failure-mode coverage on
   2026-11-03, including explicit loss of exhaustive parameter combinations. The target is
-  a complete correctness run below five minutes, excluding builds. That target is not yet
-  demonstrated. Process splitting is excluded from this work.
+  a complete correctness run below five minutes, excluding builds. On 2026-11-04 the user clarified
+  that this means routine runs with validated shader caches retained; explicit uncached mechanics
+  checks must remain. Cold-start results are reported separately. The target is not yet demonstrated.
+  Process splitting is excluded from this work.
   On 2026-11-04 the user additionally approved replacing per-production SPIR-V admission
   matrices with focused mechanics tests. The last full Debug run, before this additional
   removal, took 732.960s: 6,620 passed, zero failed and seven skipped across 6,627 rows.
@@ -24,6 +26,32 @@ Status and objective
   than the historical Phase 7 Release sample and establishes no runtime saving or five-minute
   result. Review and independent completion audit are clean; the user accepted Phase 8 on 2026-11-04.
   No new full Debug run is claimed.
+  Current execution work retains fixture executable bytes across processes through the existing
+  ProgramBinaryStore, under each configuration's ignored test output directory. No test rows,
+  native-owner isolation, assertions or explicit cold/isolated cache policies are removed.
+  The empty-cache Release seed passes 5,946 with six skips; the fresh-process warm run passes
+  5,945 with seven skips, both zero failures across all 5,952 runtime identities. Command walls
+  are 681.007s / 641.200s, excluding builds. The routine five-minute target remains unmet.
+  All 434 persisted binaries (17,523,863 bytes) retain their hashes and modification times,
+  while index recency advances; no entries are added, rewritten or evicted in the warm run.
+  Explicit uncached mechanics and isolated cache-policy checks remain passing. Bounded warmed
+  attribution isolates seconds of first-use draw-wrapper/pass-completion work in two numerical
+  water cases; immediate repeats on the same program complete in milliseconds. This does not
+  identify an exclusive GPU/driver cause or establish a full-suite improvement. On 2026-11-04 the
+  user approved a bounded class-scoped live-executable pilot for the 17 numerical water-budget
+  cases, with complete input reset and fresh case textures/cameras. The bounded pilot is qualified
+  in Debug and Release: all 17 original cases plus 18 boundary/neighbor/cold checks pass in each.
+  The matched Release class pair is 46.999s before / 8.481s after, including class setup/teardown.
+  The user subsequently approved numerical-suite rollout. Shallow-continuity, UV and pixel-normal
+  cases now use class-owned executables with the same reset contract. Their 56 original cases and
+  30 supporting checks pass in each configuration with no numerical-output changes; three separate
+  ownership controls are added and no cases removed. Source and scoped-result reviews are clean.
+  The complete warmed Release run for this combined candidate takes 574.267s (9m34.3s), excluding
+  builds and including stress: 5,949 passed, seven skipped and zero failed across 5,956 runtime rows.
+  All prior full-run identities remain; only the four fixture controls are added. The same seven
+  skip identities/reasons remain. This is shorter than the earlier 641.200s cached sample, but the
+  unmatched single full runs do not establish a stable or isolated speedup. The five-minute target
+  remains unmet; no fresh complete Debug result is claimed. Detailed scoped timings appear below.
 
 Baseline and authority
   Current full Windows runs use AllTests.runsettings (Purpose!=Diagnostic, including stress).
@@ -201,3 +229,87 @@ Further representative batch qualification (2026-11-04; accepted)
   20261104T114022Z-baseline/ and 20261104T115414Z-verified-candidate/.
   Adjacent 20261104T114517Z-candidate/ and 20261104T115115Z-final-candidate/ preserve superseded
   Debug builds (122.105s / 17.080s) from before final corrections; no tests qualified against them.
+
+Warmed draw attribution (2026-11-04)
+  Persistent byte reuse alone did not reach the routine five-minute target. Two existing
+  CachedPatchRequiresRepresentedCoverage cases were measured with temporary stage clocks;
+  both retained all original calls/assertions and passed. Their combined draw-wrapper interval
+  was 5.799s, versus .499s for program/camera preparation and .033s for reads/assertions.
+  A separate refined diagnostic added one same-program draw after all original assertions;
+  the repeated decision output matched exactly. First helper calls took 2.527s / 2.914s,
+  while repeats took 2.521ms / 1.838ms. The largest first-call region, 2.395s / 2.912s, spans
+  pass completion and boundary return. These are CPU wall scopes, not exclusive GPU timings;
+  outer helper totals include nested diagnostic record-writing overhead.
+  Both temporary source changes are restored exactly. Fresh Release compilation reproduced
+  the pre-probe test DLL, with probe markers absent, unchanged 909 shader modules and intact
+  434-entry cache. Only the permanent persistent-cache/documentation changes remain.
+  The proposed next pilot would share one live diagnostic executable within the 17-case numerical
+  budget class, explicitly reset every input and retain fresh per-case scenes/cameras. This changes
+  current per-case executable ownership; the user approved this bounded pilot on 2026-11-04.
+  Cold/lifecycle tests are outside it. No wider live-program cache is included. A fresh-process
+  17-case pre-change control passed 17/17 in 46.999s with retained executable bytes; the candidate
+  will be compared against that exact selection, not against unrelated whole-suite timings.
+  The candidate retains all 17 original rows, draws, motion samples, references and tolerances;
+  one separate GPU control exercises full 1,088-byte reset, captured-input immutability, empty
+  borrowed references, exclusive/expired leases and final owner/platform retirement. Class-owned
+  dependencies are initialized before per-case platform scopes, and per-case reductions remain
+  unchanged. Source review caught and corrected a disposal guard that committed retirement before
+  rejecting an active lease; the control now rejects that disposal and verifies later cleanup.
+  Corrected-source builds pass in 13.921s Debug / 13.626s Release. The original 17 cases pass
+  in 10.081s / 8.481s with identities and numerical output unchanged from the Release control.
+  The separate 18-case selection passes in 24.409s / 24.639s: one new fixture control, seven
+  shallow-water cases, the positive-view-Z case and nine explicit cold shader mechanics checks.
+  These are 35 distinct scoped cases per configuration, zero failures/skips. Discovery is 5,947
+  per configuration: one added control and no removed cases. Both test DLLs and all five pilot
+  sources remained stable during verification; all 909 shader modules per configuration match
+  baseline. The Release executable cache retains the same 434 entries and 17,523,863 bytes.
+  Independent source, corrected-lifecycle and raw-result reviews are clean. Intermediate builds
+  and namespace-failure receipts are retained separately and do not supply passing-test evidence.
+  The recorded Release pair demonstrates the local pilot result, not a stable percentage or
+  whole-suite timing. The latest complete warmed Release run (641.200s) predates this pilot;
+  no current full Debug/Release runtime or five-minute success is established. The user subsequently
+  approved class-scoped reuse in numerical-only GPU suites on 2026-11-04, starting with shallow-water,
+  UV and pixel-normal checks. Native, reload, allocation and disposal subjects retain fresh owners.
+  Receipts: ../TestResults/TestRuntimeOptimizations/WaterBudgetClassFixturePilot/20261104T150039Z/.
+  Receipts: ../TestResults/TestRuntimeOptimizations/WarmWaterAttribution/20261104T142714Z/
+  and ../TestResults/TestRuntimeOptimizations/DrawAttribution/20261104T143728Z/.
+
+Numerical class-fixture rollout (2026-11-04; initial three-suite batch qualified)
+  Preserve every original case, numerical reference, assertion, tolerance and sample. Retain fresh
+  case-owned scene textures and cameras, with complete packed-input and borrowed-reference resets
+  for each exclusive lease. Owners remain local to one test class; there is no global live-program
+  cache, GPU concurrency or process split. Class fixtures must initialize before per-case platform
+  scopes and retire before the collection context. Cold and lifecycle subjects remain isolated.
+  The matched pre-change Release selections pass 56/56 with retained caches: shallow continuity
+  7 cases in 26.044s, UV 37 cases in 24.198s, pixel-normal 12 cases in 12.576s. These are separate
+  process walls, including startup and teardown. Sources, test DLL, 909 shader modules and the
+  434-entry executable cache remained unchanged.
+  Corrected-source builds pass in 19.265s Debug / 58.757s Release. An earlier Debug build failed
+  on a missing generic closing bracket in the shallow fixture factory; it ran no tests and its
+  separate receipts are retained. The original 56 cases pass in each configuration with zero
+  name or numerical-output differences. Candidate per-class walls are 13.486s / 11.831s for
+  shallow continuity, 9.024s / 7.485s for UV, and 8.621s / 6.618s for pixel-normal (Debug / Release).
+  Supporting selections pass 30/30 in 13.072s / 9.942s: the original 17 budget cases, the existing
+  budget isolation control, three new separate fixture controls and nine explicit cold mechanics
+  checks. These are 86 distinct focused cases per configuration, zero failures/skips. Discovery
+  is 5,950 per configuration: exactly three new controls and no removals from the pilot candidate.
+  All 14 rollout source hashes and both test DLLs remain stable; 909 shader modules per configuration
+  match baseline. Release retains the same 434 valid cache entries and 17,523,863 bytes; Debug has
+  five valid entries and 708,591 bytes. Source and scoped raw-result reviews are clean.
+  One complete warmed Release AllTests run, with the retained cache and no intervening build,
+  passes 5,949 with zero failures and seven retained skips in 574.267s (9m34.3s). All 5,952 prior
+  full-run identities remain; four fixture controls are added (the budget pilot plus this batch's
+  three). There are 5,956 unique runtime rows and 5,950 adapter identities; unchanged dynamic Poisson
+  expansion accounts for the six-row difference. The nine explicit cold checks, real-GC stress
+  and all four fixture controls pass. Skip identities and reasons exactly match the prior warm run.
+  The 14 rollout sources, test DLL and 909 Release shader modules remain unchanged through this
+  full run. The cache remains valid at 434 entries and 17,523,863 bytes. The command excludes builds
+  and includes stress. No fresh full Debug run is claimed. The earlier warmed 641.200s sample
+  predates both the budget pilot and this rollout; the shorter current sample does not isolate
+  either change or establish a stable percentage. The routine five-minute target remains unmet.
+  Remaining numerical cost leaders in this run include WaterRefractionTests (33 rows / 19.236s),
+  AmbientOcclusionCompositeTests (6 / 12.848s), LumOnDirectWorldProbeVisibilityTests (62 / 11.420s)
+  and AmbientOcclusionHorizonBehaviorTests (10 / 9.896s). These are summed case durations, not
+  predicted wall savings or proof of safe sharing. Larger mixed runtime/publication/ownership
+  subjects require method-level classification before reuse; their lifecycle guarantees remain.
+  Receipts: ../TestResults/TestRuntimeOptimizations/NumericalClassFixtureRollout/20261104T154339Z/.

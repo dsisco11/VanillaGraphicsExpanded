@@ -62,5 +62,12 @@ internal sealed class WaterReceiverFilterUniformBuffer : CpuUniformBuffer
         BatchCount = surfaces.Length;
     }
 
+    /// <summary>Resets scalar and paired motion data while preserving snapshots captured by earlier draws.</summary>
+    internal void Reset()
+    {
+        DataWritable.Clear();
+        MarkDirty();
+    }
+
     #endregion
 }

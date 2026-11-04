@@ -11,7 +11,11 @@ internal sealed partial class WaterUvRefractionShaderProgram
 
     #region Public API
     /// <summary>Retains the shared camera used to author this optical fixture.</summary>
-    internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }
+    internal VgeFrameUniformBuffer? FrameInputs
+    {
+        get => frameInputs;
+        set { RequireInputMutation(); frameInputs = value; }
+    }
     /// <summary>Attaches input lifetime and mutation validation to the shader owner.</summary>
     public WaterUvRefractionShaderProgram() => inputs = OwnUniformBuffer(new WaterUvRefractionUniformBuffer());
 
@@ -23,6 +27,16 @@ internal sealed partial class WaterUvRefractionShaderProgram
 
     /// <summary>Selects the submerged-camera exit interface.</summary>
     public int Underwater { get => inputs.Underwater; set => inputs.Underwater = value; }
+
+    /// <summary>Clears packed geometry and receiver bindings before another UV case uses this executable.</summary>
+    internal void ResetInputsForReuse()
+    {
+        RequireInputMutation();
+        inputs.Reset();
+        frameInputs = null;
+        ((IWaterUvRefractionBindings)this).Color = default;
+        ((IWaterUvRefractionBindings)this).Depth = default;
+    }
 
     #endregion
 

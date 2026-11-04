@@ -224,13 +224,21 @@ fail validation. Diagnostic reports and BMP/raw exports use memory sinks, not fi
 paths. Text reports and binary payload identities are emitted through test output. Required assembly loading and build/test-runner receipts retain their normal bootstrap I/O. These tests
 verify serialization and replacement protocols, not operating-system filesystem atomicity.
 
-`HeadlessGLFixture` enables the existing driver executable cache against one bounded in-memory
-`ProgramBinaryStore` retained across cases. Its default follows the fixture across runner threads;
-nested context setup does not reset it. A suite/case that must observe fresh specialization,
+`HeadlessGLFixture` enables the existing driver executable cache against a test-only
+`ProgramBinaryStore` retained in `.test-shader-cache` beneath the test assembly's output directory.
+The cache is bounded to 2,048 entries and 512 MiB; Debug and Release outputs have separate directories.
+Routine runs reuse validated executable bytes across processes. Each cache load creates a fresh native
+owner and uniform state. Keys include shader inputs, specialization and driver/context identity; invalid or
+rejected entries fall back to fresh preparation. Removing the directory forces an empty test executable
+cache, independently of filesystem and GPU-driver cache warmth.
+The fixture default follows runner threads; nested context setup does not reset it.
+A suite/case that must observe fresh specialization,
 linking, reload or allocation uses `DriverProgramCache.UseStoreForTesting(null)` for that interval.
 Cache-subject tests instead supply their own isolated store through the same scoped API. Explicit scopes
-override the fixture default, follow awaited thread changes, and restore it on disposal. No policy reaches the production disk store
-while a headless fixture is alive, including during teardown and context changes.
+override the fixture default, follow awaited thread changes, and restore it on disposal. The fixture
+uses its test-output store rather than the game's production cache directory, including during
+teardown and context changes. Complete cold-start and routine cached-run measurements are reported
+separately in [the runtime coverage record](docs/Rendering.RepresentativeTestCoverage.todo).
 
 Lifecycle tests that deliberately replace the registered context lifetime restore it through
 `HeadlessGLFixture.RestoreContextRegistration()`. That explicit boundary retires old observation owners
@@ -244,16 +252,19 @@ Resource-free state shaders and native compatibility fixtures use `TestShaderCac
 with exact expanded source, stage kind and driver/profile identity, storing bytes in the existing store.
 The vertex-only particle color-feedback helper also includes its varying name and interleaved mode.
 A hit creates a new native
-program with fresh uniform state. Subject owners, binding tables and assertion results remain per case;
+program with fresh uniform state. Numerical water-budget, shallow-continuity, UV and pixel-normal
+cases explicitly retain their executables within each test class under exclusive leases. Complete
+scalar/batch input blocks and borrowed camera/texture references reset between uses, while scene
+textures, cameras, reduction programs and assertions remain case-owned. Shallow-continuity cases
+lease their diagnostic and receiver-filter programs together. Each class fixture retires its programs
+and fixed dependencies before collection teardown.
+Lifetime subjects retain their per-case owners and explicit cold policies;
 the GPU fixture retains production checker shader owners for repeated observations in its physical context.
 Explicit stage integration and native creation/mutation subjects still execute their authored native
-operations. The SPIR-V assignment and shader-define compile matrices explicitly bypass cached programs.
-Graphics assignments covered by the production runtime matrix do not repeat a separate positive native
-link test. Fixture-only or differing selections retain native link coverage. Coverage matching includes
-complete stage declarations, binary paths, entry points and typed specialization values; sharing a shader
-name is insufficient. Compute assignments, borrowed asset slices, failed replacements and representative
-reload/disposal checks retain their separate guarantees. Complete-program selections exercise every current
-packaged stage's default specialization; standalone positive stage creation does not repeat that coverage.
+operations. Focused SPIR-V loading and graphics lifecycle tests explicitly bypass cached programs;
+cache-policy and corruption subjects provide isolated stores. Borrowed asset slices, failed replacements,
+native stage creation and reload/disposal checks retain their separate guarantees. Functional rendering
+tests continue checking actual outputs against their independent references with either preparation path.
 Particle SSAO restoration checks all four authored
 receiver coordinates against one completed scene, while clear, resolve and retirement milestones remain
 separate tests.

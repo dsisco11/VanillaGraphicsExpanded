@@ -12,8 +12,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Compares bounded production selection with a dense independent visible-geometry reference.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
-public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestOutputHelper output)
-    : LumOnShaderFunctionalTestBase(fixture)
+public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestOutputHelper output,
+    WaterRefractionBudgetProgramFixture budgetPrograms)
+    : LumOnShaderFunctionalTestBase(fixture), IClassFixture<WaterRefractionBudgetProgramFixture>
 {
     private const int Size = 128;
 
@@ -33,7 +34,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         using var halfDepth = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, Size/2), Height = System.Math.Max(1, Size/2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
         using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
-        var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
+        using var diagnosticLease = budgetPrograms.Acquire();
+        var program = diagnosticLease.Program;
         var inputs = (IWaterRefractionDiagnosticBindings)program;
         using var frameCamera = CreateCamera(program);
         inputs.Scenario=12; inputs.Budget=1<<quality; inputs.Quality=quality;
@@ -140,7 +142,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
             reduction.SourceColor = color; reduction.SourceDepth = depth;
             TestFramework.RenderQuadTo(reduction,reduced!);
         }
-        var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
+        using var diagnosticLease = budgetPrograms.Acquire();
+        var program = diagnosticLease.Program;
         var inputs = (IWaterRefractionDiagnosticBindings)program;
         using var frameCamera = CreateCamera(program);
         inputs.Scenario = 12; inputs.Budget = 2; inputs.Quality = 1; inputs.SelectReceiver = 1;
@@ -267,7 +270,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         Vector3 direction = Vector3.Normalize(hit - surface);
         // Invert Snell's vector relation to author the normal for this exact ray.
         Vector3 normal = Vector3.Normalize(Vector3.Normalize(surface) / 1.333f - direction);
-        var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
+        using var diagnosticLease = budgetPrograms.Acquire();
+        var program = diagnosticLease.Program;
         var inputs = (IWaterRefractionDiagnosticBindings)program;
         using var frameCamera = CreateCamera(program);
         inputs.Scenario = 12; inputs.Budget = 2; inputs.Surface = surface; inputs.Normal = normal;
@@ -297,7 +301,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         color.UploadDataImmediate(new float[Size * Size * 4]);
         depth.UploadDataImmediate(Enumerable.Repeat(1f,Size * Size).ToArray());
-        var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
+        using var diagnosticLease = budgetPrograms.Acquire();
+        var program = diagnosticLease.Program;
         var inputs = (IWaterRefractionDiagnosticBindings)program;
         using var frameCamera = CreateCamera(program);
         inputs.Scenario = 12; inputs.Budget = 1 << quality; inputs.Quality = quality; inputs.SelectReceiver = 1;
@@ -326,7 +331,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         using var halfDepth = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, Size / 2), Height = System.Math.Max(1, Size / 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
         using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
-        var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
+        using var diagnosticLease = budgetPrograms.Acquire();
+        var program = diagnosticLease.Program;
         var inputs = (IWaterRefractionDiagnosticBindings)program;
         using var frameCamera = CreateCamera(program);
         inputs.Scenario = 12; inputs.Budget = 1 << quality; inputs.Quality = quality;
@@ -419,7 +425,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         using var halfDepth = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, Size / 2), Height = System.Math.Max(1, Size / 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
         using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
-        var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
+        using var diagnosticLease = budgetPrograms.Acquire();
+        var program = diagnosticLease.Program;
         var inputs = (IWaterRefractionDiagnosticBindings)program;
         using var frameCamera = CreateCamera(program);
         inputs.Scenario = 12; inputs.Budget = budget; inputs.Quality = quality; inputs.SelectReceiver = 1;

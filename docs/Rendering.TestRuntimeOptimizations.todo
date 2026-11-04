@@ -9,6 +9,8 @@ Status
   the broader under-five-minute runtime objective remains open in the representative coverage record.
   Phase 8 is complete and accepted by the user on 2026-11-04. All eight phases are closed;
   the broader under-five-minute runtime objective remains unmet.
+  The user subsequently clarified the target as routine cached runs with explicit uncached
+  mechanics checks retained; current execution work is recorded in Rendering.RepresentativeTestCoverage.todo.
   Earlier subsequent coverage work is recorded in Rendering.RepresentativeTestCoverage.todo;
   counts in Phases 1–6 describe their accepted selections at closure.
   This plan covers the five prioritized optimizations

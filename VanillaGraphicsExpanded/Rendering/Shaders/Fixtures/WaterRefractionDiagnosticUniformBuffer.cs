@@ -84,5 +84,12 @@ internal sealed class WaterRefractionDiagnosticUniformBuffer : CpuUniformBuffer
         BatchCount = surfaces.Length;
     }
 
+    /// <summary>Resets scalar and motion data while preserving immutable copies already captured for earlier draws.</summary>
+    internal void Reset()
+    {
+        DataWritable.Clear();
+        MarkDirty();
+    }
+
     #endregion
 }

@@ -12,7 +12,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Verifies the lowest-quality production selector uses bounded normal-detail distortion.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
-public sealed class WaterPixelNormalRefractionTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
+public sealed class WaterPixelNormalRefractionTests(HeadlessGLFixture fixture,
+    WaterPixelNormalRefractionProgramFixture sharedPrograms)
+    : LumOnShaderFunctionalTestBase(fixture), IClassFixture<WaterPixelNormalRefractionProgramFixture>
 {
     private const int Width = 128;
     private const int Height = 64;
@@ -137,7 +139,8 @@ public sealed class WaterPixelNormalRefractionTests(HeadlessGLFixture fixture) :
             reduction.SourceColor = color; reduction.SourceDepth = depth;
             TestFramework.RenderQuadTo(reduction,reducedTarget!);
         }
-        var program = Programs.Create<WaterPixelNormalRefractionShaderProgram>();
+        using var lease = sharedPrograms.Acquire();
+        var program = lease.ProgramSet;
         var inputs = (IWaterPixelNormalRefractionBindings)program;
         inputs.BaseNormal = baseNormal ?? Vector3.UnitZ; inputs.Surface = surface; inputs.Normal = normal; 
         Assert.True(Matrix4x4.Invert(projection, out var inverse));

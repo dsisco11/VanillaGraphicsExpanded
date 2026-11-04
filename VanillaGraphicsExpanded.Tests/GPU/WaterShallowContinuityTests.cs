@@ -12,8 +12,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Measures subpixel receiver continuity on independently authored shallow planar and curved walls.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
-public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITestOutputHelper output)
-    : LumOnShaderFunctionalTestBase(fixture)
+public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITestOutputHelper output,
+    WaterShallowContinuityProgramFixture sharedPrograms)
+    : LumOnShaderFunctionalTestBase(fixture), IClassFixture<WaterShallowContinuityProgramFixture>
 {
     #region Public API
     /// <summary>Smooth wall motion must not acquire abrupt HDR radiance from filtering or receiver selection.</summary>
@@ -63,14 +64,16 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
             reduction.SourceColor = color; reduction.SourceDepth = depth;
             TestFramework.RenderQuadTo(reduction,reduced!);
         }
-        var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
+        using var lease = sharedPrograms.Acquire();
+        var programSet = lease.ProgramSet;
+        var program = programSet.Diagnostic;
         var inputs = (IWaterRefractionDiagnosticBindings)program;
         inputs.Scenario = 12; inputs.Quality = quality; inputs.Budget = 1 << quality; inputs.SelectReceiver = 1;
         inputs.Normal = Vector3.Normalize(new Vector3(curved ? -.7f : -.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
         using var target = CreateMRTRenderTarget(64,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
             TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
-        var filter = Programs.Create<WaterReceiverFilterShaderProgram>();
+        var filter = programSet.Filter;
         var filterInputs = (IWaterReceiverFilterBindings)filter;
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI/3,1,.1f,100);
         projection.M33 = -100.1f/99.9f; projection.M43 = -20f/99.9f;

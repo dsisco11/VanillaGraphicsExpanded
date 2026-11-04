@@ -12,7 +12,11 @@ internal sealed partial class WaterReceiverFilterShaderProgram
 
     #region Public API
     /// <summary>Retains the shared camera used to author this optical fixture.</summary>
-    internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }
+    internal VgeFrameUniformBuffer? FrameInputs
+    {
+        get => frameInputs;
+        set { RequireInputMutation(); frameInputs = value; }
+    }
     /// <summary>Attaches input lifetime and mutation validation to the shader owner.</summary>
     public WaterReceiverFilterShaderProgram() => inputs = OwnUniformBuffer(new WaterReceiverFilterUniformBuffer());
 
@@ -28,6 +32,16 @@ internal sealed partial class WaterReceiverFilterShaderProgram
     /// <summary>Publishes paired original CPU-authored motion surfaces and sample coordinates.</summary>
     internal void SetMotionBatch(ReadOnlySpan<Vector4> surfaces, ReadOnlySpan<Vector4> sampleUvs)
         => inputs.SetBatch(surfaces, sampleUvs);
+
+    /// <summary>Clears packed motion and receiver state before another numerical case uses this executable.</summary>
+    internal void ResetInputsForReuse()
+    {
+        RequireInputMutation();
+        inputs.Reset();
+        frameInputs = null;
+        ((IWaterReceiverFilterBindings)this).Color = default;
+        ((IWaterReceiverFilterBindings)this).Depth = default;
+    }
 
     #endregion
 
