@@ -188,6 +188,38 @@
             }
         },
         {
+            "label": "Test (Frequent)",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "test",
+                "${workspaceFolder}/VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj",
+                "--settings",
+                "${workspaceFolder}/VanillaGraphicsExpanded.Tests/FrequentTests.runsettings"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile",
+            "group": "test"
+        },
+        {
+            "label": "Test (Stress)",
+            "type": "process",
+            "command": "dotnet",
+            "args": [
+                "test",
+                "${workspaceFolder}/VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj",
+                "--settings",
+                "${workspaceFolder}/VanillaGraphicsExpanded.Tests/StressTests.runsettings"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile",
+            "group": "test"
+        },
+        {
             "label": "Test",
             "type": "dotnet",
             "task": "test",

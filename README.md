@@ -156,9 +156,21 @@ This project includes CPU unit tests and GPU integration tests. The test suite u
 
 ### Running Tests
 
-By default the VGE project uses `UnitTests.runsettings`, which excludes GPU integration tests and diagnostic workloads. CPU tests that touch engine globals use a serialized collection without creating a GL context. Headless renderer scenarios are integration tests; in-game visual/runtime acceptance remains separate.
+By default the VGE project uses `UnitTests.runsettings`, which selects frequent CPU correctness tests and excludes GPU integration, diagnostic, and `Workload=Stress` cases. CPU tests that touch engine globals use a serialized collection without creating a GL context. Headless renderer scenarios are integration tests; in-game visual/runtime acceptance remains separate.
 
-**Run combined VGE correctness tests locally (requires GPU):**
+**Run frequent correctness tests locally (requires GPU):**
+
+```bash
+dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/FrequentTests.runsettings --filter "Purpose!=Diagnostic&Workload!=Stress"
+```
+
+**Run the separate real-GC stress selection:**
+
+```bash
+dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/StressTests.runsettings --filter "Purpose!=Diagnostic&Workload=Stress"
+```
+
+**Run all correctness tests in one selection (requires GPU):**
 
 ```bash
 dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings
@@ -167,13 +179,13 @@ dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tes
 **Run only non-GPU tests (CI environments without GPU):**
 
 ```bash
-dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/UnitTests.runsettings --filter "Category!=GpuIntegration&Purpose!=Diagnostic"
+dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/UnitTests.runsettings --filter "Category!=GpuIntegration&Purpose!=Diagnostic&Workload!=Stress"
 ```
 
 **Run only GPU tests:**
 
 ```bash
-dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings --filter "Category=GpuIntegration&Purpose!=Diagnostic"
+dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings --filter "Category=GpuIntegration&Purpose!=Diagnostic&Workload!=Stress"
 ```
 
 **Run explicitly selected diagnostics:**
@@ -182,12 +194,22 @@ dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tes
 dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/DiagnosticTests.runsettings --filter "Purpose=Diagnostic&FullyQualifiedName~BloomRadialDiagnosticsTests"
 ```
 
-`AllTests.runsettings` selects combined correctness tests (`Purpose!=Diagnostic`); `DiagnosticTests.runsettings`
-selects `Purpose=Diagnostic`. The runner combines explicit command-line filters with the settings filter;
-select the matching settings file and include the purpose predicate when selecting individual classes.
+`FrequentTests.runsettings` selects all non-diagnostic cases except `Workload=Stress`; `StressTests.runsettings`
+selects non-diagnostic stress cases. The command examples repeat their workload predicates in `--filter`
+so the selection remains explicit even when a runner treats a command-line filter as a replacement for
+the settings filter. `AllTests.runsettings` remains the complete correctness selection (`Purpose!=Diagnostic`),
+including stress; `DiagnosticTests.runsettings`
+selects `Purpose=Diagnostic`. Include category, purpose and workload predicates in explicit command-line
+filters, and select the matching settings file when running a partial suite.
 Diagnostics requiring a capture or an additional workload opt-in
 report a skip when it is missing; they never return a successful no-op. `Scenario=HeadlessRuntime` identifies
 production renderer/lifecycle execution, independently of the CPU/GPU and diagnostic classifications.
+
+On every pull request targeting `main` or `master`, push to `main` or `master`, and manual workflow run, CI runs frequent CPU
+correctness and the stress selection as separate required steps in the same CPU job. The GPU job remains
+the frequent GPU correctness selection. For complete qualification, run both
+frequent and stress selections, or use `AllTests.runsettings`; the split moves the stress cost and does
+not remove it. `.vscode` provides `Test (Frequent)` and `Test (Stress)` tasks.
 
 Mixed workloads retain their numerical, scheduling and lifecycle assertions in ordinary correctness
 methods. Separate diagnostic entries enable warmed timing samples, allocation telemetry and cost-only
@@ -268,7 +290,7 @@ complete image buffers. Keep existing local tuple reads and tests of readback AP
 Atmosphere scheduling tests use explicit controlled producer completion; real worker/publication and
 lookup/numerical tests retain the integrator. `AtmosphereLookupTests.RecordBoundedUpdateCost` is a
 diagnostic timing workload. The repeated resource-association collection case carries `Workload=Stress`;
-its real GC/finalizer checkpoints remain included in ordinary correctness selections.
+its real GC/finalizer checkpoints run in the dedicated stress selection and complete `AllTests` selection.
 
 Comparison/statistics, domain-owned predicate/projection and layer-conversion programs are declared
 test shader assets compiled by the normal shader build. Cloud, water, surface and other domain assets
@@ -341,8 +363,10 @@ Tests are organized using the `[Trait("Category", "GpuIntegration")]` attribute:
 For CI runners without GPU access, exclude GPU tests:
 
 ```yaml
-- name: Run Tests
-  run: dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/UnitTests.runsettings --filter "Category!=GpuIntegration&Purpose!=Diagnostic"
+- name: Run frequent CPU correctness tests
+  run: dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/UnitTests.runsettings --filter "Category!=GpuIntegration&Purpose!=Diagnostic&Workload!=Stress"
+- name: Run real-GC stress tests
+  run: dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/StressTests.runsettings --filter "Category!=GpuIntegration&Purpose!=Diagnostic&Workload=Stress"
 ```
 
 #### Linux CI with Software Rendering (Mesa llvmpipe)
@@ -351,7 +375,7 @@ To run GPU tests on Linux CI without hardware acceleration, use Mesa's software 
 
 ```bash
 export LIBGL_ALWAYS_SOFTWARE=1
-dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings
+dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings --filter "Category=GpuIntegration&Purpose!=Diagnostic&Workload!=Stress"
 ```
 
 This enables **llvmpipe**, Mesa's software OpenGL implementation, which supports OpenGL 4.5 and runs entirely on CPU. Note that software rendering is significantly slower than hardware rendering.

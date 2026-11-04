@@ -1,5 +1,5 @@
 <RunSettings>
   <RunConfiguration>
-    <TestCaseFilter>Category!=GpuIntegration&amp;Purpose!=Diagnostic</TestCaseFilter>
+    <TestCaseFilter>Category!=GpuIntegration&amp;Purpose!=Diagnostic&amp;Workload!=Stress</TestCaseFilter>
   </RunConfiguration>
 </RunSettings>

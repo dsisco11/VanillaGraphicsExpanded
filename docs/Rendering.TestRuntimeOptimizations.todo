@@ -4,7 +4,7 @@ Test execution runtime optimizations
 Status
   Phases 1 and 2 are complete and accepted by the user on 2026-11-03, including the measured
   timing limitations and the two approved coverage reductions. Phase 3 is complete and accepted
-  on 2026-11-03. Phases 4 and 5 are complete and accepted on 2026-11-03; phase 6 remains pending.
+  on 2026-11-03. Phases 4, 5 and 6 are complete and accepted on 2026-11-03. All six phases are closed.
   This plan covers the five prioritized optimizations
   from the test-runtime review and a separate water-test necessity review requested at acceptance.
   Both Phase 2 reductions are implemented and verified, with a clean independent completion audit.
@@ -834,22 +834,83 @@ Shared implementation and acceptance requirements
   ☑ Complete second review, independent coverage audit and linked-document reconciliation.
     Present measured results and limitations for user acceptance before closing the phase.
 
-☐ Phase 6 — Separate real-GC stress execution from frequent correctness feedback
-  ☐ Inspect Workload=Stress classification, AllTests.runsettings and current local/CI entry
+☑ Phase 6 — Separate real-GC stress execution from frequent correctness feedback
+  Approved execution policy (2026-11-03)
+    The user approved separating Workload=Stress from frequent CPU and combined correctness
+    feedback. AllTests.runsettings retains the complete non-diagnostic selection. Explicit
+    FrequentTests.runsettings and StressTests.runsettings selections and IDE tasks expose both
+    routes; UnitTests.runsettings excludes stress. Full local qualification requires frequent
+    plus stress, or AllTests. The existing required CPU CI job runs frequent CPU correctness
+    followed by a mandatory stress step on every existing pull request, main/master push and
+    manual workflow invocation. The informational GPU job does not own the mandatory stress gate.
+    Keep the stress test source intact; this policy moves its cost rather than eliminating it.
+    Traceability: runner selection/membership -> AllTests.runsettings, UnitTests.runsettings,
+    .vscode/tasks.json, .github/workflows/build.yml and README.md Testing -> explicit disjoint
+    selections, mandatory invocation/cadence and complete accounting -> runner discovery and
+    execution receipts. Preserved workload -> GpuResourceAssociationStressTests.cs -> all
+    12x32 cycles, real collection/finalizer waits and lifecycle assertions -> unchanged-source
+    identity and dedicated execution. Reconciliation/qualification/cleanup -> the shared
+    performance analyses and accepted records above -> preserved coverage, scoped ownership,
+    raw failure receipts, source/binary provenance and honest timing limits -> retained receipts
+    plus a fresh scoped combined qualification; no full-repository passing-run claim.
+  Retained evidence reconciliation (2026-11-03)
+    Current source hashes match the final atmosphere (seven files), water-batching (eight)
+    and surface-statistics (six) manifests. The seven unaffected water sources also match
+    their retained evidence. All 761 non-test SPIR-V modules per configuration match the
+    related-water verification inventory; the 95-case production-water and nine-row TIR
+    witnesses remain identity-backed reused evidence, outside the fresh qualification count.
+    The nine batched motion rows overlap the 38 primary water cases. The two wait rows overlap
+    the surface focused/representative selections; those receipts cover 150 distinct cases,
+    not 152. The earlier clean nine-row rerun plus 49 unchanged rows reconciles the prior
+    58-case water regression; it was not a fresh clean combined 58-case pass.
+    Preserve the slower Phase 1 measurements and unresolved attribution, the corrected
+    atmosphere 32/33 failure, superseded instrumented water timings, and the six corrected
+    exact-exception assertion failures as historical receipts. None counts as final passing
+    evidence. No temporary controls/counters remain in live sources, and no temporary support
+    documents from this plan remain under docs. Archived snapshots, binaries and raw receipts
+    under TestResults are retained evidence; the authoritative tasklist and analyses remain.
+  Fresh scoped qualification (2026-11-03)
+    Runner discovery in Debug and Release finds 7,016 complete correctness rows, partitioned
+    into 7,015 frequent rows and one stress row with no overlap or multiset differences.
+    Some full-inventory display names are truncated/repeated; frequency comparisons preserve
+    those multiplicities rather than treating displayed names as unique test identities.
+    The default CPU selection has 2,183 rows and excludes stress. Actual settings-only and
+    explicit CI-filter discovery validate the intended routes in both configurations.
+    The fresh scoped union passed 296 frequent cases plus the separate stress case in each
+    configuration, zero failures/skips: 113 water, 33 atmosphere, 150 surface/statistics and
+    one stress. Every scoped executed identity is unique, and the two selections are disjoint.
+    Command wall seconds, frequent / stress / sequential total:
+      Debug   242.931 / 3.684 / 246.615.
+      Release 185.532 / 3.800 / 189.332.
+    These are fresh passing scoped qualifications after all implementation batches, not fresh
+    full-repository passes. No new build was required: both reused test DLL hashes match the
+    clean final surface-statistics binaries, and the reviewed source is unchanged. Runs used
+    --no-build --no-restore, sequential fresh Windows test processes and retained caches.
+    These single samples have no matched pre-split whole-selection control. Separating real-GC
+    stress moves its cost; neither the split nor its brief isolated duration establishes a
+    stable speedup relative to historical timings. No exclusive CPU synchronization or GPU
+    execution times were measured. Windows validation does not establish Linux CI execution.
+    Receipts: ../TestResults/TestRuntimeOptimizations/Phase6-stress-selection/raw/
+    qualification-summary.json, partition-accounting.json, per-command JSON/logs and commands;
+    the adjacent trx/ directory contains all four fresh execution results.
+    The runner/documentation second review and independent implementation/evidence audit are
+    clean. The user accepted the results and limitations on 2026-11-03. All closure requirements
+    are satisfied. No staging or commit was performed.
+  ☑ Inspect Workload=Stress classification, AllTests.runsettings and current local/CI entry
     points. Propose a frequent-correctness selection and a dedicated mandatory stress selection.
     Agree on invocation and CI cadence before changing the default selection.
-  ☐ Keep GpuResourceAssociationStressTests intact, including its 12×32 cycles, abandoned aliases,
+  ☑ Keep GpuResourceAssociationStressTests intact, including its 12×32 cycles, abandoned aliases,
     forced collections, finalizer waits and retirement/pruning assertions.
-  ☐ Make both selections explicit in runner configuration and usage documentation. Ensure the
+  ☑ Make both selections explicit in runner configuration and usage documentation. Ensure the
     dedicated stress selection remains discoverable and required by the agreed qualification
     workflow, with no accidental omission or duplication in the combined coverage accounting.
-  ☐ Validate selection membership and execute the affected stress coverage. Report faster
+  ☑ Validate selection membership and execute the affected stress coverage. Report faster
     frequent feedback separately from total qualification cost; moving work is not eliminating it.
-  ☐ Reconcile all six phases' retained evidence and run one appropriately scoped combined
+  ☑ Reconcile all six phases' retained evidence and run one appropriately scoped combined
     qualification after the implementation batches are complete. Preserve failures and focused
     correction receipts and distinguish reconciled coverage from a fresh passing full run.
-  ☐ Remove temporary instrumentation, comparison controls and temporary support documents
+  ☑ Remove temporary instrumentation, comparison controls and temporary support documents
     created for this plan after retaining required decisions and evidence. Keep this tasklist,
     authoritative documentation and the linked historical performance analyses.
-  ☐ Complete second review, independent coverage audit and documentation reconciliation.
+  ☑ Complete second review, independent coverage audit and documentation reconciliation.
     Discuss final metrics and remaining costs with the user and obtain acceptance before closure.
