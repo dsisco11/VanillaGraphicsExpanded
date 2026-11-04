@@ -12,35 +12,30 @@ public sealed class AtmosphereScatteringQualityTests
 {
     #region Public API
     #region Quality and cache ownership
-    /// <summary>The default table is independent of sky dimensions and is reused for sun motion.</summary>
-    [Fact]
-    public void QualitySizesAndReusesMediumTable()
-    {
-        const int quality = 0;
-        var lookup = new AtmosphereLookup();
-        Assert.True(lookup.Update(Vector3.UnitY, 2, 0, width: 16, height: 8, quality: quality));
-        var table = MediumTable(lookup);
-        Assert.Equal(32 * (quality + 1), table.Width);
-        Assert.Equal(16 * (quality + 1), table.Height);
-        Assert.True(table.Sample(2, .5f).LengthSquared() > 0);
-        Assert.False(lookup.Update(Vector3.UnitY, 2, 0, width: 16, height: 8, quality: quality));
-        Assert.True(lookup.Update(Vector3.UnitX, 2, 0, width: 16, height: 8, quality: quality));
-        Assert.Same(table, MediumTable(lookup));
-    }
-
-    /// <summary>A quality edit replaces the cached table even when observer, weather and sky size are identical.</summary>
+    /// <summary>Stable input reuses its table, sun motion retains it, and a quality edit replaces it.</summary>
     [Fact]
     public void QualityOnlyEditRebuildsLighting()
     {
         var lookup = new AtmosphereLookup();
-        lookup.Update(Vector3.UnitY, 2, 0, width: 16, height: 8);
+        Assert.True(lookup.Update(Vector3.UnitY, 2, 0, width: 16, height: 8, quality: 0));
         var original = lookup.Current;
         var table = MediumTable(lookup);
-        Assert.True(lookup.Update(Vector3.UnitY, 2, 0, width: 16, height: 8, quality: 1));
-        Assert.NotSame(original, lookup.Current);
+        Assert.Equal(32, table.Width);
+        Assert.Equal(16, table.Height);
+        Assert.True(table.Sample(2, .5f).LengthSquared() > 0);
+        Assert.False(lookup.Update(Vector3.UnitY, 2, 0, width: 16, height: 8, quality: 0));
+        Assert.True(lookup.Update(Vector3.UnitX, 2, 0, width: 16, height: 8, quality: 0));
+        Assert.Same(table, MediumTable(lookup));
+        int revisionBeforeQualityChange = lookup.Revision;
+        var beforeQualityChange = lookup.Current;
+
+        Assert.True(lookup.Update(Vector3.UnitX, 2, 0, width: 16, height: 8, quality: 1));
+        Assert.NotSame(beforeQualityChange, lookup.Current);
         Assert.NotSame(table, MediumTable(lookup));
         Assert.Equal(64, MediumTable(lookup).Width);
-        Assert.Equal(2, lookup.Revision);
+        Assert.Equal(32, MediumTable(lookup).Height);
+        Assert.Equal(revisionBeforeQualityChange + 1, lookup.Revision);
+        Assert.NotSame(original, lookup.Current);
     }
 
     /// <summary>Completed admitted work is published before the latest quality starts its replacement.</summary>
@@ -92,11 +87,9 @@ public sealed class AtmosphereScatteringQualityTests
             AtmosphereScatteringBudget.FromQuality(quality));
     }
 
-    /// <summary>Every quality's quadrature executes on a bounded table without incurring maximum full-table startup cost.</summary>
+    /// <summary>Endpoint qualities execute finite lighting and a dark night sample on bounded tables.</summary>
     [Theory]
     [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
     [InlineData(3)]
     public void QualityQuadratureProducesFiniteLighting(int quality)
     {

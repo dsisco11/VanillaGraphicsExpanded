@@ -14,12 +14,10 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
     #region Neighborhood Controls
     /// <summary>Blocked red neighbors contribute nothing while visible green neighbors retain full irradiance after ring remapping.</summary>
     [Theory]
-    [InlineData(31, 0)]
-    [InlineData(-1, 0)]
-    [InlineData(-2, 0)]
     [InlineData(31, 1)]
     [InlineData(-1, 1)]
     [InlineData(-2, 1)]
+    [InlineData(31, 0)]
     public void MixedNeighbors_RejectBlockedLighting_AndPreserveVisibleLighting(int consumer, int ringX)
     {
         EnsureShaderTestAvailable();
@@ -51,8 +49,6 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
 
     /// <summary>Diagonal paths through enclosing corner geometry must not admit an exterior probe.</summary>
     [Theory]
-    [InlineData(31)]
-    [InlineData(-1)]
     [InlineData(-2)]
     public void EnclosingCorner_BlocksExteriorProbe(int consumer)
     {

@@ -15,9 +15,9 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
     #region Public API
     /// <summary>Analytic planes remain neutral; wall contact survives varied projections and distances, while resolved near corners survive spatial reconstruction.</summary>
     [Theory]
-    [InlineData(60f,3f)] [InlineData(60f,10f)] [InlineData(60f,20f)]
-    [InlineData(90f,3f)] [InlineData(90f,10f)] [InlineData(90f,20f)]
-    [InlineData(110f,3f)] [InlineData(110f,10f)] [InlineData(110f,20f)]
+    [InlineData(60f,3f)] [InlineData(60f,20f)]
+    [InlineData(90f,10f)]
+    [InlineData(110f,3f)] [InlineData(110f,20f)]
     public void ProjectionAndDistancePreserveReceiverEvidence(float fov,float distance)
     {
         EnsureShaderTestAvailable();
@@ -72,7 +72,7 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
 
     /// <summary>Receivers beyond the world-distance fade publish neutral visibility and no reusable AO depth.</summary>
     [Theory]
-    [InlineData(60f)] [InlineData(90f)] [InlineData(110f)]
+    [InlineData(90f)]
     public void FarReceiversWithdrawVisibilityAtEveryProjection(float fov)
     {
         EnsureShaderTestAvailable();using var owner=new AmbientOcclusionPass();using var draw=new PostprocessDraw();

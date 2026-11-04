@@ -61,10 +61,6 @@ public sealed partial class LumOnNearFieldFunctionalTests
     /// <summary>Game voxel light levels do not silently substitute for unavailable outgoing radiance.</summary>
     [Theory]
     [InlineData(0f)]
-    [InlineData(0.001f)]
-    [InlineData(0.004f)]
-    [InlineData(0.025f)]
-    [InlineData(0.5f)]
     [InlineData(1f)]
     public void RawVoxelLightingDoesNotSubstituteForMissingCache(float intensity)
     {

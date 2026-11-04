@@ -11,7 +11,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
     #region Directional readiness
     /// <summary>Unpublished angular texels contribute neither bright stale RGB nor confidence in real consumers.</summary>
     [Theory]
-    [InlineData(31)] [InlineData(32)] [InlineData(33)] [InlineData(-1)] [InlineData(-2)]
+    [InlineData(31)] [InlineData(-1)] [InlineData(-2)]
     public void UnpublishedDirectionsRejectStaleColorAndConfidence(int consumer)
     {
         EnsureShaderTestAvailable();

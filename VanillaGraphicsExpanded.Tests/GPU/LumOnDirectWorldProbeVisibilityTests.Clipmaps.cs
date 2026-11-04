@@ -20,12 +20,6 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
     [InlineData(31, 1)]
     [InlineData(31, 2)]
     [InlineData(31, 3)]
-    [InlineData(-1, 1)]
-    [InlineData(-1, 2)]
-    [InlineData(-1, 3)]
-    [InlineData(-2, 1)]
-    [InlineData(-2, 2)]
-    [InlineData(-2, 3)]
     public void ClipmapTransition_PreservesVisibleLevels_AndRejectsBlockedLevels(int consumer, int scenario)
     {
         EnsureShaderTestAvailable();
@@ -115,9 +109,7 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
     #region Near-Field Window Lifetime
     /// <summary>Known clear segments stop contributing when either endpoint lies beyond published geometry.</summary>
     [Theory]
-    [InlineData(31)]
     [InlineData(-1)]
-    [InlineData(-2)]
     public void LocalWindowBoundary_RejectsOutsideProbeAndReceiver(int consumer)
     {
         EnsureShaderTestAvailable();
@@ -141,8 +133,6 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
 
     /// <summary>Moving the geometry ring preserves overlap and rejects reused clear cells until their new owner is published.</summary>
     [Theory]
-    [InlineData(31)]
-    [InlineData(-1)]
     [InlineData(-2)]
     public void LocalWindowMovement_DoesNotExposeStaleClearGeometry(int consumer)
     {

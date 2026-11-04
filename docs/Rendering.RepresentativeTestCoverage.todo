@@ -10,6 +10,12 @@ Status and objective
   matrices with focused mechanics tests. The last full Debug run, before this additional
   removal, took 732.960s: 6,620 passed, zero failed and seven skipped across 6,627 rows.
   The six accepted optimizations in Rendering.TestRuntimeOptimizations.todo remain closed.
+  Phase 7 in that tasklist implements 40 additional case removals and four
+  representative native water preparations while retaining all eight option-plan checks.
+  Debug/Release full correctness runs now take 656.545s / 644.030s, excluding builds; each has
+  5,975 passed, zero failed and seven skipped across 5,982 rows. Review and independent audit
+  are clean; the user accepted Phase 7 on 2026-11-04. The under-five-minute objective is still unmet.
+  The explicit keep/drop mapping and coverage losses are maintained there.
 
 Baseline and authority
   Current full Windows runs use AllTests.runsettings (Purpose!=Diagnostic, including stress).
@@ -141,5 +147,25 @@ Intermediate qualification before mechanics-only replacement
   been removed; that import was restored and the failed receipts remain separate.
   Receipts: ../TestResults/TestRuntimeOptimizations/five-minute-investigation/spirv-mechanics-only/
   20261104T085432Z/; failed builds are retained in adjacent 20261104T085117Z/.
-  No complete timing for this subsequent selection is claimed. The under-five-minute objective
-  remains open; the 732.960s intermediate full run exceeded it by 432.960s.
+  The mechanics-only selection had no separate complete timing. The subsequent Phase 7 batch
+  is now measured below; the 732.960s intermediate result remains historical evidence.
+
+Subsequent representative batch qualification (2026-11-04; accepted)
+  Phase 7 of Rendering.TestRuntimeOptimizations.todo owns the exact 40-case removal mapping,
+  transferred atmosphere assertions and intentional combination-coverage losses. Discovery is
+  5,976 in each configuration (40 removed, zero added from the 6,016 mechanics-only baseline).
+  Debug/Release focused checks pass 149/149 each, zero failures/skips, in 70.699s / 75.341s.
+  These comprise 145 affected cases and four all-quality tensor cases, all present in the full
+  runs. Both full AllTests runs include stress and produce 5,982 rows: 5,975 passed, zero failed,
+  seven skipped. Dynamic Poisson expansion accounts for the six rows beyond discovery.
+  Full wall times excluding builds are 656.545s / 644.030s; builds are 149.773s / 152.895s.
+  The seven skips match the preceding full Debug run. Retained skips do not count as savings.
+  Both configurations' 909 staged shader modules match baseline bytes and manifests. Scoped source
+  hashes, both fresh DLLs and shader outputs remained stable during execution. The second review
+  and independent completion audit are clean; the user accepted Phase 7 on 2026-11-04.
+  Serial fresh Windows processes retained caches and followed focused verification;
+  no matched pre-change full timing was rerun.
+  No stable percentage, isolated Phase 7 speedup, cold-cache result or Linux pass is established.
+  The under-five-minute full-correctness objective remains open in both configurations.
+  Receipts: ../TestResults/TestRuntimeOptimizations/Phase7-representative/
+  20261104T100346Z-baseline/ and 20261104T100910Z-candidate/.

@@ -89,10 +89,6 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
 
     /// <summary>Measures actual frame preparation with representative and maximum authored array counts.</summary>
     [Theory]
-    [InlineData(0, 0, 0)]
-    [InlineData(3, 0, 0)]
-    [InlineData(0, 4, 1)]
-    [InlineData(3, 4, 1)]
     [InlineData(0, 100, 3)]
     [InlineData(3, 100, 3)]
     public void FrameCaptureRetainsCommonInputsAcrossArrayLoads(int mode, int lights, int spheres)
@@ -341,8 +337,13 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         Assert.DoesNotContain("vge_waterRefractionQuality", LiquidShaderProgram.Contract.Bindings.UniformLocations.Keys);
         string? vertex = null;
         var fragments = new HashSet<string>();
+        var preparationPairs = new HashSet<(int Quality, int Resolution)>
+        {
+            (0, 1), (1, 2), (2, 1), (3, 2)
+        };
         // Exercise generation replacement on one retained owner, rather than only
         // enumerating settings that might never have compiled executable binaries.
+        // Selection remains exhaustive; native preparation samples each quality and resolution.
         for (int quality = 0; quality <= 3; quality++)
             for (int resolution = 1; resolution <= 2; resolution++)
             {
@@ -357,12 +358,15 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
                 vertex ??= selectedVertex;
                 Assert.Equal(vertex, selectedVertex);
                 Assert.True(fragments.Add(plan.Stages.Single(stage => stage.Stage.Kind == ShaderStageKind.Fragment).BinaryPath));
-                Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
-                Assert.False(program.RequiresPreparation);
-                Assert.Same(program.RequestedSettings, program.InstalledSettings);
-                Assert.False(program.ResourceBindings.BinaryInterface!.GetUniformLocation("vge_waterRefractionQuality") >= 0);
                 Assert.Equal(quality, program.RefractionQuality);
                 Assert.Equal(resolution, program.RefractionBackgroundScale);
+                if (preparationPairs.Contains((quality, resolution)))
+                {
+                    Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
+                    Assert.False(program.RequiresPreparation);
+                    Assert.Same(program.RequestedSettings, program.InstalledSettings);
+                    Assert.False(program.ResourceBindings.BinaryInterface!.GetUniformLocation("vge_waterRefractionQuality") >= 0);
+                }
             }
         Assert.Equal(8, fragments.Count);
         Assert.True(program.ConfigureOptions(() => program.CaptureMode = 1));

@@ -14,7 +14,6 @@ public sealed partial class LumOnNearFieldFunctionalTests
     /// <summary>Screen and offscreen geometry agree on unavailable cache lighting while preserving opaque hits.</summary>
     [Theory]
     [InlineData(0f)]
-    [InlineData(0.25f)]
     [InlineData(1f)]
     public void ScreenHits_AndOffscreenHitsRequireCachePublication(float lighting)
     {
