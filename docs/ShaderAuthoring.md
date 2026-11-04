@@ -1,112 +1,29 @@
 # Declaring owned shaders
 
-Graphics shaders use `#version 330 core` as their source-language baseline. The build preserves
-each authored version instead of silently promoting it to 450. Stages that need a higher language
-version, such as the existing 430 compute shaders, declare that requirement explicitly.
+This guide is for maintainers adding or changing VGE-owned graphics and compute shaders.
+Declare configuration and bindings on the owning C# type, author GLSL entry points, and use
+those declarations for both the shader build and runtime preparation. Engine-owned GLSL
+patches use their existing integration path.
 
-The SPIR-V build enables `GL_ARB_shading_language_420pack`, `GL_ARB_separate_shader_objects`,
-and `GL_ARB_explicit_uniform_location` for the explicit bindings and locations emitted by the
-shared interface contract, plus `GL_EXT_control_flow_attributes` for loop/branch attributes.
-Other newer language features require a source-declared extension or an explicitly higher version.
-This is a GLSL source baseline with extensions, not a claim of compatibility with an unextended
-OpenGL 3.3 runtime: owned programs still use the existing SPIR-V loading path and resource capabilities.
-The compiler's `opengl4.5` target environment is separate from the source `#version` and remains unchanged.
+```mermaid
+flowchart LR
+    Owner["Owner declarations"] --> Contract["Shared shader contract"]
+    Contract --> Build["Shader build"]
+    Source["GLSL entry points"] --> Build
+    Build --> Assets["SPIR-V and digest manifest"]
+    Contract --> Prepare["Prepare requested settings"]
+    Assets --> Prepare
+    Prepare --> Submit["Capture bindings and submit"]
+```
 
-Shader compilation uses performance optimization (`-O`) in both Debug and Release builds.
-Debug requests debug information (`-g`); Release omits it. The build receipt includes both
-settings, so compiler-policy changes invalidate previous outputs.
+## Declare the contract
 
-Owned shader numeric inputs use explicit std140 uniform blocks. Shared vertex/fragment values
-use one block declaration and one publication; the eye-relative and solar raster fixtures verify
-this under stripped Release. Retaining debug metadata or duplicating shared values is unnecessary.
-Typed setters write owned CpuUniformBuffer storage, and a ShaderBinding UniformBlock getter supplies
-it to prepared submission. Numeric UniformLocation properties are rejected by the generator, and
-linked owned executables reject active standalone numeric uniforms. Sampler/image locations remain
-resource metadata; specialization constants remain structural selections.
-
-Camera consumers import `includes/vge_frame_ubo.glsl` and declare the matching typed
-`VgeFrameUBO` binding at `GpuBindingRegistry.Ubo.Frame` (12). The retained
-`VgeFrameUniformBuffer` snapshot supplies projection, view, their inverses, previous/current
-view-projection, inverse current view-projection, full-view pixel dimensions, time, an exact
-unsigned frame index, camera position, fog, clip planes, frame duration and a precise render-origin bridge. Its std140 layout is 544 bytes;
-`screenSize`, `timeSeconds` and `frameIndex` occupy offsets 384, 392 and 396.
-The camera position occupies 400 and `fogMinimum` occupies its following scalar at 412.
-Fog color/density remain in `fog0`; effects reuse these fields instead of uploading private fog copies.
-The near/far clip pair occupies 496; `deltaTime` occupies 504, followed by unsigned `frameFlags` at 508. Bit zero marks a camera cut; temporal consumers
-reject prior camera history on startup, world/view discontinuities and long frame gaps.
-Camera adaptation reads that shared duration rather than republishing it with effect settings.
-The integer chunk origin at 512 and bounded block remainder at 528 restore camera-relative
-positions without subtracting large floating-point world coordinates.
-
-The world camera owner publishes before sky and opaque lighting, independently of lighting mode.
-Shaders reuse that snapshot instead of capturing matrices or viewport dimensions in their effect
-blocks. Alternate-view fixtures supply their own actual frame snapshot through the typed binding.
-Prepared submissions use the existing versioned uniform allocator, so unchanged snapshots reuse
-the same publication and later writes cannot replace storage already referenced by submitted draws.
-`screenSize` describes the source view; reduced-resolution target dimensions, pool/model transforms
-and clocks specific to an effect remain in their owning effect or draw contract.
-Engine mesh-pool `modelViewMatrix` is a combined per-draw transform: mini-dimensions replace it
-with their object transform composed with the camera and restore it after drawing. It is not
-interchangeable with the shared world view matrix; preserve that object-space contract and
-light-specific shadow transforms. Owned liquid shaders adapt native combined matrices into an
-object-only draw block using the shared inverse view, then compose that object transform with
-`vgeFrame.viewMatrix` in the shader. Ordinary pools and native restoration writes retain an exact
-identity object transform, so each pool no longer republishes the common camera matrix.
-Terrain subdivision retains a frozen angular metric captured before shadow rendering so shadow
-and visible edges choose identical subdivision. Its effect contract carries only the target edge
-size, subdivision cap and fade parameters; visible projection fallback reads shared frame dimensions.
-Shadow rendering does not consume an unpublished world camera.
-Random sampling tied to rendering uses the shared unsigned
-`frameIndex`, including compute consumers; work budgets and source-image dimensions stay local.
-
-Shared-frame migration validation on 2026-10-09 passed four focused batches: 21 liquid
-transform/interface checks, 86 lifecycle/binding/spatial checks, 35 native draw/water/compute/solar
-consumer checks and 88 tessellation/displacement checks. The latter includes shadow execution
-with no world-frame binding and both lighting modes. Receipts are in
-`artifacts/frame-ubo-validation/`: `liquid-object-transform-windows-env.log`,
-`frame-lifecycle-resumed.log`, `frame-consumers-final.log` and
-`tessellation-shared-viewport-final.log`. The final incremental build reused all 438 production
-and 507 test shader variants with no compiler invocations. These are headless functional
-checks; they do not establish in-game visual acceptance or GPU frame cost.
-
-Dynamic point-light consumers import `includes/vge_lights_ubo.glsl` and bind the same
-`VgeLightsUBO` snapshot at `GpuBindingRegistry.Ubo.Lights` (16). Its fixed std140 contract
-supports the engine's complete 100-light list: an unsigned light count at 0 with alignment padding, padded view-space
-positions at 16 and padded colors at 1616, for 3216 bytes. Positions retain the collector's
-world-to-view conversion and colors retain its HSV conversion and intensity calibration.
-The shader's inverse-square attenuation and surface response remain unchanged; there is no
-additional intensity multiplier or coordinate conversion in the buffer.
-
-`VgeLightsRenderer` withdraws the snapshot at Before and captures once at early Opaque,
-after engine collection at Before 0.1 and held attachment resolution at Before 0.45. It is
-owned independently of LumOn. Deferred, forward and liquid shading reuse the same immutable
-publication; their effect blocks no longer contain light arrays or light counts. The native
-shader-use hook restores both shared slots for world consumers and preserves GUI/offscreen
-route gating. Explicit alternate views supply their own light snapshot in the receiver's view
-space through typed `LightsInputs`; they never mutate the world publication.
-Solar irradiance/direction, block-light color lookup tables, probe irradiance and surface-cache
-lighting parameters represent different sources and retain their own contracts. Debug and test
-consumers use the same shared light schema instead of duplicating it. The engine collector
-and its native GUI/offscreen shading retain their original APIs; VGE world shading does not
-read or republish those standalone light uniforms.
-
-Shared-light migration validation on 2026-10-09 passed 106 packing, lifecycle, direct/forward,
-liquid and held-light checks plus 137 water, native-binding and registered lighting-path checks.
-Coverage includes all 100 supported lights, alternate-view/world-origin invariance, both lighting
-modes, no additional upload on repeated activation and old GPU slices surviving new publication.
-Receipts are `artifacts/lights-ubo-validation/focused-shared-lights.log` and
-`artifacts/lights-ubo-validation/runtime-water-shared-lights-final.log`. The final incremental build
-reused all 438 production and 507 test shader variants. These headless checks do not establish
-in-game visual acceptance or GPU frame cost.
-
-The approved engine GLSL compatibility exceptions retain their existing numeric APIs and activation
-behavior, including VGE-added atmosphere, scene-color and terrain inputs. They do not extend the
-world-frame publication epoch. See the [migration inventory](Rendering.AuthoritativePipelineState.md#standalone-numeric-input-migration-inventory)
-for owners and test-only rejection/source-processing exceptions.
-
-Declare a shader's immutable contract on its owning partial class. The generator automatically includes it in the shared build/runtime catalog; no registration list or special declaration filename is needed.
+Put the immutable contract on the shader's owning partial class. The generator includes it
+in the shared build/runtime catalog; no registration list or special declaration filename
+is needed.
 
 ```csharp
+/// <summary>Owns the example's declared graphics configuration.</summary>
 [ShaderProgram("Contract", "example", 2)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "example.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "example.fsh")]
@@ -123,159 +40,233 @@ internal partial class ExampleShader : GpuProgram
     [ShaderOption("EXAMPLE_STEPS", 10)]
     public partial int Steps { get; set; }
 
+    /// <inheritdoc />
     internal override GpuShaderContract ProgramContract => Contract;
 }
 ```
 
-Add the referenced GLSL entry points under `assets/vanillagraphicsexpanded/shaders`. Declare resource slots and interface locations through the existing `GpuBindingContract` layout API. `ShaderStage.Layout` overrides the default source-stem layout identity when necessary. The build uses TinyAst and `ShaderSyntaxTreePreprocessor`, then publishes SPIR-V compiler output. It does not infer configurable settings from GLSL macros.
+Add the GLSL entry points under `assets/vanillagraphicsexpanded/shaders`. Declare resource
+slots and interface locations through `GpuBindingContract`. Use `ShaderStage.Layout` when
+the layout identity differs from the source stem. The build does not infer configurable
+settings from GLSL macros.
 
-A program must declare every stage, even when it has no configurable options. A compute program declares one `ShaderStageKind.Compute` stage. Repeat `ShaderProgram` and `ShaderStage` attributes for a multi-program owner, using distinct contract member names. The generator emits each named contract and a read-only `Contracts` collection. A runtime family chooses its `ProgramContract` by the active program identity; callers must only update options accepted by that program.
+Declare every stage, including stages without configurable options. A compute program has
+one `ShaderStageKind.Compute` stage. For a multi-program owner, repeat `ShaderProgram` and
+`ShaderStage` with distinct contract member names. The generator emits each named contract
+and a read-only `Contracts` collection. The runtime family selects its `ProgramContract` by
+active program identity; callers update only options accepted by that program.
 
-The variant budget is the maximum supported structural assignment count. Booleans use their natural two-value domain; integer and enum structural options require an explicit `Domain`. Numeric specializations do not multiply binaries. Their IDs are explicit, stable and unique within the stage. Defaults and domain/range constants must exactly match the property type. Avoid adding restrictions that reject supported caller values.
+Reused stages must agree on identity, source, layout, fixed defines and setting uses.
+Repeat the exact uses and accepted groups when sharing a fragment with another vertex
+pairing. Conflicting shared declarations are rejected; incompatible stages need distinct
+identities and binary assets.
 
-Shared options use attributed static get-only `ShaderOption<T>` partial properties. An instance accessor can reference one with `[ShaderOptionReference(typeof(SharedOptions), nameof(SharedOptions.Enabled))]`; its type must match. Shared groups use `ShaderGroup` on their owner and `ShaderAcceptGroup` on consuming shaders. Group names and generated contract member names are string literals because those members do not exist until generation. Option references can use `nameof` on the source-declared properties. Lighting declarations in `LumOn/Shaders/LumOnShaderOptions.cs` and `LumOnShaderGroups.cs` demonstrate this pattern.
+`ShaderProgram.Scope` defaults to `production`. Dedicated fixtures can declare another
+scope, such as `build-validation`, without entering the packaged production inventory.
+Source-only packaged fixtures still declare their owner in the mod source tree.
 
-`When` references local attributed property names, including shared-option references. It accepts Boolean properties/literals, `!`, `&&`, `||`, parentheses and `Property == constant` with C# precedence. Constants are exact Boolean/int/uint literals or members of the property's enum type. Use a `u` suffix for small uint literals. Enum type names may be simple, namespace-qualified, or `global::`-qualified. No calls, arbitrary member access, arithmetic, casts, option-to-option comparisons or `!=` are accepted. Use `!(Mode == Quality.High)` for inequality. Null/omission is unconditional; empty text is invalid. Every dependency must be structural in the consuming stage. Names inside strings do not receive automatic C# rename support; stale names produce a build error at the attribute.
+The build tool reads mod declarations semantically and emits declaration-only owners; it
+does not depend on the completed mod assembly. Keep declarations independent of
+framework-specific C# conditional symbols because the tool and mod target different frameworks.
 
-Generated accessors validate and retain requested settings without scheduling compilation. EnsureReady, explicit preload or activation compares the latest request with the installed configuration, so writes that return to the installed values require no loading. Inactive numeric selections remain stored and become effective when their condition becomes true. Ordinary uniforms, buffer fields and per-frame values do not belong in the option contract. ConfigureOptions groups option edits atomically; runtime input batching occurs separately at submission. Resource-driven helpers may explicitly replace topology with sentinel values; conditional omission itself never discards a selected value.
+### Options and supported assignments
 
-The settings editor borrows the immutable requested snapshot and copies values only on the
-first normalized change. Unchanged batches, including batches that restore every original
-selection, retain that snapshot and its projected load plan. Callbacks and individual write
-validation still run; nested writes compare against the pending batch, and any failed edit
-still aborts publication. Real inactive edits remain stored even when they do not require a
-new executable. This reuse does not compare against installed settings or clear preparation
-failures/reload invalidation: consumers must still call their existing readiness boundary.
-Editor, callback and scalar-validation overhead remains; unchanged batching is not allocation-free.
+The variant budget limits supported structural assignments. Boolean options have their
+natural two-value domain; structural integer and enum options require an explicit `Domain`.
+Defaults and domain/range constants must exactly match the property type. Numeric
+specializations do not multiply binaries; their IDs must be explicit, stable and unique
+within the stage. Register options that affect declared stages, and keep ordinary per-frame
+values in uniform blocks.
 
-Compatible reused stages must agree on identity, source, layout, fixed defines and setting uses; they share one immutable stage and binary per structural assignment. A different vertex pairing can reuse the same fragment declaration by repeating its exact uses and accepted groups. The generator rejects conflicting shared declarations. Use separate stage identities and binary assets for genuinely incompatible configurations.
+Use repeated `ShaderAssignment` attributes when only specific complete structural
+assignments are supported. Each row supplies every structural option with canonical names
+and typed values, including a default row. Otherwise the catalog enumerates the Cartesian
+product. Sharing a stage does not multiply its binary count. Use `ShaderFixedDefine` for
+fixed defines; include guards and helper macros need no option declaration.
 
-`ShaderProgram.Scope` defaults to `production`. Dedicated fixtures may use an explicit separate scope, such as `build-validation`; they are available to that scope without entering the packaged production inventory. Source-only packaged fixtures still declare their owner in the mod source tree so both compilation paths see them.
+Shared options use attributed static get-only `ShaderOption<T>` partial properties. An
+instance accessor can use `[ShaderOptionReference(typeof(SharedOptions), nameof(SharedOptions.Enabled))]`
+with a matching type. Shared groups use `ShaderGroup` on their owner and `ShaderAcceptGroup`
+on consumers. Group names and generated contract member names are string literals; option
+references can use `nameof` on source-declared properties. See
+[lighting options](../VanillaGraphicsExpanded/LumOn/Shaders/LumOnShaderOptions.cs) and
+[lighting groups](../VanillaGraphicsExpanded/LumOn/Shaders/LumOnShaderGroups.cs).
 
-The build tool reads ordinary mod sources as semantic inputs and emits declaration-only owners. It never depends on the completed mod assembly. Keep declarations independent of framework-specific C# conditional symbols because the tool and mod target different frameworks. Run generator tests, the normal shader-enabled build, focused contract/source tests, and relevant GPU tests when changing declarations. Inventory tests verify source coverage, shared-stage consistency, supported assignments, and expected binary paths.
+`When` refers to local attributed properties, including shared-option references. It accepts
+Boolean properties/literals, `!`, `&&`, `||`, parentheses and `Property == constant` with C#
+precedence. Constants are exact Boolean/int/uint literals or members of the property's enum
+type; use a `u` suffix for small uint literals. Enum names may be simple, namespace-qualified
+or `global::`-qualified. Calls, arbitrary member access, arithmetic, casts, option-to-option
+comparisons and `!=` are unsupported; use `!(Mode == Quality.High)` for inequality.
+Null/omission is unconditional; empty text is invalid. Every dependency must be structural
+in the consuming stage. Names inside strings do not receive automatic rename support;
+stale names produce a build error at the attribute.
 
-The compiler enumerates supported program assignments and builds each distinct projected stage once. Its summary reports program combinations separately from stage binaries. Source enumeration checks that every owned entry point is declared and every registered source exists; identities may differ from source paths, and incompatible source reuse must have distinct binary assets. Fixed and structural values are emitted with their declared types (Boolean preprocessing macros use `0`/`1`); active specialization declarations use stable IDs and declaration defaults. Imported guarded defaults remain in GLSL after the injected configuration, with conditional evaluation left to the compiler.
+## Choose runtime inputs
 
-Global initialized `const` expressions containing parentheses are relaxed by a separate syntax-tree transformation to permit executable initialization. Layout-qualified specialization declarations, function-local constants, comments and nested expression text are preserved. Resource and interface layout editing remains the responsibility of `ShaderSourceLayout`.
-Each graphics load captures a `ShaderLoadPlan` before asset reads. Its immutable `ShaderSettings` and projected stage selections supply the binary paths, explicit stage kinds/entry points and exact specialization bits. Successful linking and interface preparation commit the installed settings only if the requested plan still matches. A superseded candidate is discarded; failures retain the old executable, interface and installed snapshot without allowing incompatible activation. The layout object and its UBO state remain stable across reloads. Explicit CompileAndLink and engine reloads force preparation. Demand preparation skips equivalent inputs and cannot resurrect an explicitly retired owner. The engine reload disposal path invalidates the executable while preserving its declaration.
+Owned numeric inputs use explicit std140 uniform blocks. Typed setters write
+`CpuUniformBuffer` storage, supplied through a `ShaderBinding` uniform-block getter.
+Stages sharing numeric data use one block declaration and publication.
+The generator rejects numeric `UniformLocation` properties, and owned executables reject
+active standalone numeric uniforms during interface preparation.
 
-`SetDefine(name, value)` remains a compatibility adapter for declared names and aliases; unknown names and invalid values fail before GPU preparation. Null and `RemoveDefine` restore the canonical default. Equivalent alias writes are no-ops; conflicting values within a supplied settings dictionary are rejected. Inactive values remain requested without reloading until enabled. The setter's Boolean result describes an effective input change, not merely a retained value change.
+Sampled resources use `GpuTextureRef` through typed binding interfaces. Declare dimensions
+and sampler policy, including optional non-2D inputs. Images use `GpuTextureBinding` for
+mip/layer/access/format; storage buffers use `GpuStorageBufferBinding` for ranges.
+Sampler/image contracts describe fixed units and activity; their native locations are
+preparation metadata. Mark an input optional only when the shader has a valid path without
+it. Optional absence clears its slot; required active resources must be usable at execution.
 
-Compute loading accepts an explicit `ShaderSettings` snapshot. The asset compatibility overload resolves its argument as a program identity; direct-file loading requires settings alongside the path and never infers a stage from the filename. Compute creation prepares a new pipeline and leaves an existing caller-owned pipeline intact on failure. The span loader consumes each selected binary synchronously and does not read source or runtime metadata to reconstruct configuration.
+Engine-owned GLSL compatibility paths retain their native numeric setters and activation
+semantics. See [binding compatibility boundaries](Rendering.ShaderBindingState.md#retained-compatibility-boundaries).
 
-## Incremental shader builds
+### Shared frame and lights
 
-Normal builds reuse validated source, variant, compiler and interface records. Editing a shader
-processes that root and its variants; editing an imported file processes its recorded dependents.
-TinyPreprocessor discovers those relationships during expansion. A declaration-only edit selects
-variants whose effective contracts changed without invalidating unrelated compiler results.
-The build still enumerates the catalogue and verifies inputs and outputs.
+Camera consumers import `includes/vge_frame_ubo.glsl` and bind `VgeFrameUBO` at
+`GpuBindingRegistry.Ubo.Frame` (12). Borrow the published frame for matrices, camera/fog data,
+clip planes, frame duration, unsigned `frameIndex` and render-origin conversion. The
+[source schema](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/vge_frame_ubo.glsl)
+and [typed buffer](../VanillaGraphicsExpanded/Rendering/VgeFrameUniformBuffer.cs) define its layout.
+Temporal consumers reject prior camera history when bit zero of `frameFlags` marks a camera cut.
 
-Read the roots expanded, variants emitted, compilerInvocations and interfaces extracted counters
-to see actual work. An unchanged build reports zero for all four; selected-variant progress does
-not imply that the whole catalogue is compiled. Reverting an edit can reuse historical results.
-Avoid routine clean builds: explicit clean discards reusable state and forces regeneration.
+`screenSize` describes the source view. Reduced-target dimensions, effect-specific clocks,
+pool/model transforms and light-specific shadow transforms stay in their owning contracts.
+An engine mesh-pool `modelViewMatrix` combines object and view transforms; adapt it explicitly
+instead of treating it as the shared view matrix. Shadow passes must not require an
+unpublished world-camera snapshot. Render-dependent random sampling uses shared `frameIndex`.
 
-Use `-p:SpirvVerifyContents=true` when checking edits that preserve file size and timestamps.
-Normal hashing uses file metadata and can miss those edits. Debug and Release have separate
-caches; `SpirvArtifactsDir` overrides their location. Copy the complete active binary/manifest
-set after a successful build, leaving private caches, receipts and recovery directories out of
-runtime assets. See [incremental build behavior](ShaderBuild.Incremental.md) for migration,
-repair, publication recovery, hard-link fallback, command options and measured build costs.
+Dynamic point-light consumers import `includes/vge_lights_ubo.glsl` and bind `VgeLightsUBO`
+at `GpuBindingRegistry.Ubo.Lights` (16). Borrow the common snapshot instead of publishing
+private light arrays/counts or applying another coordinate/intensity conversion. The
+[light schema](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/vge_lights_ubo.glsl)
+and [typed buffer](../VanillaGraphicsExpanded/Rendering/VgeLightsUniformBuffer.cs) define the contract.
+Solar, block-light, probe and surface-cache inputs remain separate sources.
 
-## Supported assignments and diagnostics
+Alternate views supply their own frame and light snapshots in the receiver's actual view
+space without mutating the world publication. Shared blocks have explicit external owners;
+borrowing shaders do not own their storage. Use `OwnUniformBuffer` for shader-owned blocks.
 
-Use repeated `ShaderAssignment` attributes when only specific complete structural assignments are supported. Each row must specify every structural option with canonical names and typed values, and the default row must be included. Otherwise the catalog enumerates the Cartesian product. The budget limits program assignments; sharing a stage does not multiply its binary count. Fixed defines belong in `ShaderFixedDefine`, and ordinary include guards or helper macros need no option declaration.
+## Prepare and submit
 
-When selection or loading fails, follow the reported owner and stage:
+Generated accessors retain validated requested settings without scheduling compilation.
+`ConfigureOptions` groups edits atomically. The editor copies its immutable requested
+snapshot on the first normalized change; a batch that restores the original values keeps
+the original snapshot and load plan. Callbacks and write validation still run, and a failed
+edit aborts publication.
+
+`EnsureReady`, explicit preload or activation compares requested and installed inputs.
+Inactive selections stay stored and become effective when their conditions become true.
+Equivalent writes require no loading, but do not clear preparation failures or reload
+invalidation. Consumers still use their readiness boundary.
+
+Graphics loading captures a `ShaderLoadPlan` before reading assets. Its immutable settings
+supply binary paths, stage kinds, entry points and specialization bits. A successful candidate
+is installed only while its requested plan remains current. Failed replacement retains the
+old executable/interface/settings; superseded candidates are discarded. Explicit
+`CompileAndLink` and engine reload force preparation. Reload preserves the layout and owned
+CPU uniform state; an explicitly retired owner cannot be reactivated.
+
+`SetDefine` adapts declared names and aliases. Unknown names and invalid values fail before
+GPU preparation. Null or `RemoveDefine` restores the default. Equivalent aliases are no-ops;
+conflicting alias/canonical values in one dictionary are rejected. The Boolean return value
+describes an effective input change, not merely a stored inactive-value change. Bent-normal
+spelling is an alias of short-range AO.
+
+Assign desired runtime inputs before `CaptureBindings`. Prepare the executable, create/select
+its exact RHI pipeline, bind the captured table and draw/dispatch through `RHICommandContext`.
+Capture freezes mutable values; execution validates the complete active input set before
+publication. References do not transfer ownership or extend borrow lifetime. Uploads, clears,
+barriers and readbacks remain explicit. See
+[prepared resource submission](Rendering.ShaderBindingState.md#prepared-resource-submission).
+
+Compute owners use `GpuComputeProgram` and `ComputeShaderAsset`. Loading accepts explicit
+`ShaderSettings`; direct-file loading requires settings alongside the path and never infers
+stage kind from a filename. The asset compatibility overload resolves its argument as a
+program identity. Creation prepares a new pipeline and preserves an existing caller-owned
+pipeline on failure. The span loader consumes selected binaries synchronously without
+reading source or runtime metadata to reconstruct configuration.
+
+### Uniform publication lifetime
+
+Typed writes advance content revision only when packed bytes change. Custom writable-span
+or array writes must call `MarkDirty`. `UniformBufferUsage` is fixed at construction and
+does not limit how often CPU contents may change:
+
+| Policy | Publication behavior |
+| --- | --- |
+| `SingleDraw` | A fresh publication for an independent activation or dispatch. |
+| `SingleFrame` | Reuse unchanged data within the current open allocation epoch; compatibility default. |
+| `MultiFrame` | Retain unchanged data across frames until replacement or owner retirement. |
+
+Capture retains logical bytes/revisions; physical allocation and upload happen at execution.
+Every `BeginFrame`, including the same frame index, opens a new epoch. `EndFrame` closes
+publication until another begin. Changed bytes get a new range, preserving submitted data.
+Failed allocation/binding preserves pending CPU work. Compatible slot changes rebind;
+incompatible layouts require repacking or replacement.
+
+Uniform allocators belong to one renderer/context lifetime. Dispose them while that context
+is current, before teardown. See [uniform publication lifetime](Rendering.UniformBufferLifetime.md)
+for allocator, fence, retirement and compatibility details.
+
+## GLSL and compiler policy
+
+Graphics sources use `#version 330 core`; stages requiring a higher version, such as 430
+compute shaders, declare it explicitly. The build preserves authored versions. It enables
+`GL_ARB_shading_language_420pack`, `GL_ARB_separate_shader_objects`,
+`GL_ARB_explicit_uniform_location` and `GL_EXT_control_flow_attributes`. Other newer features
+need a source-declared extension or higher version. These extensions and the SPIR-V runtime
+path are required; the source baseline does not imply unextended OpenGL 3.3 compatibility.
+The compiler target is `opengl4.5`, separately from the GLSL source version.
+
+Both Debug and Release use performance optimization (`-O`). Debug requests debug information
+(`-g`); Release omits it. Compiler-policy changes invalidate cached outputs through the build
+receipt. Source preprocessing uses TinyAst and `ShaderSyntaxTreePreprocessor`, with explicit
+typed fixed/structural values and stable specialization IDs. Imported guarded defaults stay
+in GLSL for compiler evaluation. `ShaderSourceLayout` owns resource/interface layout editing.
+
+## Build and validate changes
+
+When changing declarations, run generator tests, the normal shader-enabled build, focused
+contract/source tests and relevant GPU tests. Build/source inventory checks cover owned
+entry points, shared declarations, supported assignments and expected binary paths. Focused
+loading/lifecycle tests cover generic mechanics; functional tests check actual shader behavior.
+
+Run the matching shader-enabled build before GPU tests so copied assets match declarations.
+`ShaderBuildTool/Tests/ValidateBuildContract.ps1 -Configuration Debug` (or `Release`) checks
+compilation, selective reuse, repair, publication and runtime manifest compatibility with
+isolated fixtures. The normal mod build verifies MSBuild copying; the `Package` task in
+`CakeBuild` performs full packaging.
+
+Deploy `spirv-digests.json` with its matching binaries: it contains versioned compiler interface
+declarations for exact binary contents. Keep private caches, receipts and recovery directories
+out of runtime assets. Linked activity and driver resource addresses remain runtime facts;
+do not use binary rewriting, extra metadata manifests or filename-pairing rules to repair
+contract or packaging errors.
+
+### Incremental builds
+
+Normal builds reuse validated source, variant, compiler and interface records. Shader edits
+process that root and its variants; imported-file edits process recorded dependents.
+Declaration edits select variants whose effective contracts changed. The catalog and outputs
+are still checked. Avoid routine clean builds, which discard reusable state.
+
+Read `roots expanded`, `variants emitted`, `compilerInvocations` and `interfaces extracted`
+to see actual work. An unchanged build reports zero for all four; selected-variant progress
+is not a count of compiler invocations. Reverting an edit can reuse historical results.
+
+Use `-p:SpirvVerifyContents=true` for edits preserving file size and timestamps; normal
+metadata-based hashing can miss them. Debug and Release have separate caches, and
+`SpirvArtifactsDir` overrides their location. See [incremental shader builds](ShaderBuild.Incremental.md)
+for repair, publication recovery, command options and measurements.
+
+### Diagnose selection and loading failures
 
 | Symptom | What to inspect |
 | --- | --- |
-| Generator diagnostic on an attribute | Property type, constant type/domain, condition property names and structural stage uses; fix the declaration before building binaries |
-| Unknown option or conflicting aliases | The selected program's accepted keys/groups; an alias and canonical key may coexist only with equal values in one input dictionary |
-| Unsupported assignment or budget failure | Complete structural rows, declared defaults and intentional domain size |
-| Missing built asset | The selected stage's `BinaryPath` in `ShaderLoadPlan`, the normal shader build result, and the packaged asset path; there is no runtime GLSL fallback |
-| Specialization failure | Stage identity, entry point, active specialization values and driver log; inactive values are intentionally omitted |
-| Link failure | Declared stage pairing and source-owned interface layouts, then the driver link log |
-| Requested change is not visible | Compare requested and installed settings, the last explicit preparation/activation and the last load error; inactive values are retained without reloading and a failed replacement leaves the prior installed generation intact |
-
-Run the normal shader-enabled build before GPU tests so their copied assets match current declarations. `SpirvInventoryTests` enumerates every distinct stage binary and every declared graphics/compute assignment from the resolver. Rendering tests verify behavior separately from successful specialization/linking. `ShaderBuildTool/Tests/ValidateBuildContract.ps1 -Configuration Debug` (or `Release`) runs the maintained integration tests for compilation, selective reuse, repair, publication and runtime manifest compatibility against isolated fixtures. Run the normal shader-enabled mod build to check MSBuild asset copying; full mod packaging is the `Package` task in `CakeBuild`. Build receipts stay outside runtime assets. The existing spirv-digests.json also carries versioned compiler interface declarations associated with each exact binary. Deploy this manifest with its matching binaries; linked activity and driver resource addresses remain runtime responsibilities. Do not add binary rewriting, parallel metadata manifests or filename-pairing rules to repair a declaration or packaging error.
-
-## Removed ineffective option writes
-
-Unused temporal velocity-reprojection and rays-per-probe macros are not registered options. The migration removed writes that had no shader consumer: world-probe atlas update/bind switches, PBR composite AO and debug-mode writes, velocity-pass emissive writes, and PIS exploration or world-probe topology writes broadcast to programs that did not use them. CPU update budgets, actual atlas binding, current debug UBO routing and the consuming programs' settings remain separate functionality. An unknown explicit `SetDefine` key now fails instead of silently doing nothing; do not reintroduce an ineffective declaration merely to accept an obsolete writer.
-
-The bent-normal spelling remains an alias of short-range AO. Passing conflicting alias/canonical values together now fails deliberately; sequential setter calls update the same canonical option, and null restores its default. Engine-owned PBR shader patches retain their existing configuration path and are outside this owned-program catalog.
-
-## Retained runtime inputs
-
-Assign desired inputs before `CaptureBindings`. Prepare the executable, create/select its exact RHI
-pipeline, bind the captured table and draw or dispatch through `RHICommandContext`. Generated capture
-samples each source once and freezes mutable values; execution validates the complete active input set
-before publication. Unchanged desired inputs retain their value, but equality never bypasses current
-resource usability or executable-interface validation.
-
-Declare sampled resources as `GpuTextureRef` through ShaderBinding interfaces. Use explicit dimensions
-and sampler policy, including optional non-2D inputs. Images use `GpuTextureBinding` for mip/layer/access/
-format and storage buffers use `GpuStorageBufferBinding` for ranges. Sampler/image contracts describe
-fixed units and activity, not authored opaque UniformLocation values. Ordinary numeric uniforms retain
-their real upload-location contracts. Retained references transfer no ownership or borrow lifetime.
-
-Compute owners use `GpuComputeProgram` and `ComputeShaderAsset` asset policy. Uploads, clears, access
-barriers and readbacks remain explicit around dispatch. Generated resource tables carry the exact
-prepared interface, while logical CPU uniform snapshots allocate physical storage only at execution.
-See [binding contracts](Rendering.ShaderBindingState.md#prepared-resource-submission).
-
-### CPU uniform upload lifetime
-
-`CpuUniformBuffer` tracks a content revision independently of dirty flags. Typed writes advance
-it only when packed bytes change; custom writable-span or array writes must call `MarkDirty`.
-`PackedUniformBuffer.SetBytes` compares and copies the complete block before marking changes.
-`UniformBufferUsage` is fixed at construction: `SingleDraw` allocates per independent publication,
-`SingleFrame` (the compatibility default) reuses within an open epoch, and `MultiFrame` retains
-unchanged versions across frames. Usage never prohibits multiple writes within a frame.
-UniformPublication separates logical publication from physical allocation. Reuse requires matching
-revision, allocator identity and storage generation. It still calls the existing range-binding owner,
-so another shader or slot cannot leave an unrelated block bound. Program reload does not change
-the CPU bytes; normal executable validation and submission still apply.
-
-Every `BeginFrame`, including reuse of the same frame index, opens a new allocation epoch.
-`EndFrame` closes publication before inserting its fence; another `BeginFrame` is required to publish.
-Repeated begin calls fence pending work before resetting a page, and disposal invalidates the allocator.
-No transient snapshot is reused across these boundaries: a physically live page alone does not prove
-that new draws belong to the work covered by its retirement fence. A different current ring
-also requires a new upload. Changed bytes always allocate a fresh range, retaining earlier
-draw snapshots. Failed allocation or binding leaves dirty work and the previous publication
-record intact. CPU-buffer disposal resets publication and queues any retained version for safe retirement;
-CPU bytes remain publishable for compatibility. The internal logical publication owner has terminal disposal.
-Persistent pages are pooled and never orphaned while live. Each successful rebind, including scope
-restoration, extends last use; only released versions behind completed frame fences can be recycled.
-
-Use `OwnUniformBuffer` for shader-owned retained blocks. Shared blocks have one explicit external
-owner; borrowing shaders do not own their storage. Engine executable reload preserves owned blocks.
-A compatible slot change rebinds; an incompatible layout requires explicit repacking or replacement.
-Uniform allocators belong to one renderer/context lifetime and must be disposed while that context
-is current, before teardown. They do not detect or recover from context replacement.
-Lifetime creates no shader variants or implicit same-name sharing. See
-[uniform lifetime implementation](Rendering.UniformBufferLifetime.md) for policies and measurements.
-
-Historical same-frame validation covered both persistent and orphaned-buffer rings, same-owner and nested
-restoration, shared blocks, changed snapshots, repeated frame indices, page wrap, replacement,
-disposal, reload and failed publication. GPU binding/readback and actual draw/compute checks
-cover liquid and non-water consumers. Thirty-six distinct cases passed across the initial run
-and a targeted rerun correcting two old assertions that required an upload on every activation.
-The C# builds passed while reusing unchanged shader artifacts.
-
-A warmed sequence of 32 nested surface/volume scopes previously performed 288 whole-block
-allocations and copied 462,336 payload bytes. It now performs zero additional allocations or
-copies, while restoring each owner's distinct GPU-visible draw values. Changed blocks and new
-epochs still require their first upload. `AllocationsWritten` and `BytesWritten` are available only in DEBUG builds and count successful
-copies independently of binding; alignment padding is excluded from bytes. CPU timing varied
-between runs, so this establishes copy/allocation savings, not a CPU or GPU speedup. Receipts
-are retained in `artifacts/WaterLagAnalysis/uniform-reuse-*`.
-
-Mark a resource optional only when the shader has a valid path without it. Optional absence clears
-its declared slot; required active resources must be usable at execution. Pipeline or binding failure
-prevents drawing. Explicit RHI boundaries restore engine state without extending borrowed-resource
-lifetime. Recorded lists retain fixed executable/table identities and logical inputs; they do not
-allocate uniforms or commit successful-upload history until execution.
+| Generator diagnostic | Property/constant types, domains, condition names and structural stage uses. |
+| Unknown option or conflicting aliases | Accepted keys/groups and equal values for alias/canonical entries. |
+| Unsupported assignment or budget failure | Complete structural rows, defaults and intended domain size. |
+| Missing asset | Selected `BinaryPath`, build output and packaged path; there is no runtime GLSL fallback. |
+| Specialization failure | Stage identity, entry point, active values and driver log; inactive values are omitted. |
+| Link failure | Declared stage pairing, interface layouts and driver log. |
+| Requested change not visible | Requested/installed settings, readiness boundary and last error; inactive values wait for their condition. |

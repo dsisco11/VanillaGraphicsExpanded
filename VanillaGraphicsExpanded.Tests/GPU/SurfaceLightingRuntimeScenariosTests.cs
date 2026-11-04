@@ -1,5 +1,4 @@
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
-using System.Numerics;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -16,42 +15,9 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
     public SurfaceLightingRuntimeScenariosTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Source scenarios
-    /// <summary>Source changes invalidate populated history and reach every output pixel through both gather modes.</summary>
-    [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public void RetainedHistoryFollowsSourceLighting(bool sh9)
-    {
-        EnsureContextValid();
-        var scene = new SpatialLightingScene { Reflectance = .25f };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene);
-        runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame = 8;
-        runtime.Cache.Config.LumOn.TemporalAlpha = .9f;
-        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
-        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
-        // Validate the exact snapshot retained as the comparison baseline.
-        using var reference = new Assertions.GpuImageSnapshot(runtime.FinalImage);
-        Assert.True(ImageAssertions.Statistics.Inspect(reference.Texture, channelMask: 7).Minimum > .001f);
-        long revision = runtime.Screen.HistoryRevision;
-        runtime.Cache.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = runtime.Cache.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 0;
-        for (int i=0;i<8;i++) runtime.Frame();
-        Assert.Equal(revision, runtime.Screen.HistoryRevision);
-        AssertBoundaries(runtime, true);
-        foreach (int light in new[] { 0, 32 })
-        {
-            revision = runtime.Screen.HistoryRevision;
-            runtime.Cache.ChangeBlockLight(light);
-            runtime.Frame();
-            SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
-            SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
-            Assert.True(runtime.Screen.HistoryRevision > revision);
-            AssertBoundaries(runtime, light != 0);
-            if (light != 0) ImageAssertions.Comparisons.CompareHistory(runtime.FinalImage, reference).AssertEqual();
-        }
-    }
-
     /// <summary>Emission is visible with zero diffuse reflectance; disabling its source policy removes all lighting.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
     public void EmissiveOnlyCacheLightsRuntimePixels(bool sh9)
     {
         EnsureContextValid();
@@ -72,7 +38,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
 
     /// <summary>Successive published bounce generations reach final lighting without invalidating unchanged probe history.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(true)]
     public void ProgressiveBounceReachesRuntimePixels(bool sh9)
     {
         EnsureContextValid();
@@ -97,7 +63,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
     #region Geometry and validity
     /// <summary>A closed door rejects exterior illumination and reopening restores it without replacing the runtime.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
     public void DoorwayClosureAndReopeningReachRuntimePixels(bool sh9)
     {
         EnsureContextValid();
@@ -131,7 +97,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
 
     /// <summary>Unloaded source chunks reject old lighting, while resident unlit geometry produces confident darkness.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(true)]
     public void UnavailableGeometryDiffersFromValidDarkness(bool sh9)
     {
         EnsureContextValid();
@@ -210,39 +176,6 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         Assert.True(ImageAssertions.Statistics.Inspect(runtime.WorldBuffers.Resources!.ProbeMeta0, channelMask: 1).Maximum >= .25f);
         TestContext.Current.TestOutputHelper?.WriteLine($"Dark reload: retainedIndirect={retainedPeak}, finalIndirect={previous.Indirect}, completedSweeps={completedSweeps}/{maximumSweeps}, reloadFrames={runtime.Cache.Frames - reloadFrame}/{SurfaceLightingConsumerRuntimeFixture.FrameBudget}.");
     }
-    /// <summary>A dark replacement cache cannot reuse populated final lighting, and restoring its source restores the seeded image.</summary>
-    [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public void RecreatedDarkCacheRejectsRetainedFinalLighting(bool sh9)
-    {
-        EnsureContextValid();
-        var scene = new SpatialLightingScene { Reflectance = .25f };
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, sh9, scene);
-        // The production material atlas stores albedo in RGBA8 UNORM before lighting.
-        var albedo = scene.SourceAlbedo ?? new Vector3(scene.Reflectance);
-        var capturedAlbedo = GgxHemisphereReference.CapturedDiffuse(albedo);
-        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
-        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
-        AssertBoundaries(runtime, true);
-        using var reference = new Assertions.GpuImageSnapshot(runtime.FinalImage);
-        var oldAtlas = runtime.Cache.IrradianceAtlas();
-        long revision = runtime.Screen.HistoryRevision;
-        runtime.Cache.ChangeBlockLight(0);
-        runtime.Cache.RequestAtlasRecreation();
-        runtime.Frame();
-        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
-        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
-        Assert.NotSame(oldAtlas, runtime.Cache.IrradianceAtlas());
-        Assert.False(oldAtlas!.IsValid);
-        Assert.True(runtime.Screen.HistoryRevision > revision);
-        AssertBoundaries(runtime, false);
-        runtime.Cache.ChangeBlockLight(32);
-        runtime.Frame();
-        SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
-        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
-        AssertClose(reference, runtime.FinalImage, .01f);
-    }
-
     #endregion
 
     #region Observations and budgets

@@ -74,17 +74,31 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
         }
     }
 
-    /// <summary>Covers opaque, late and OIT families with cascades and first-person depth offsets.</summary>
+    /// <summary>Covers each installed family with representative cascade, OIT, lighting and depth modes.</summary>
     public static IEnumerable<object[]> Variants()
     {
         foreach (bool lumon in new[] { false, true })
         {
-            foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent", "chunkliquid" })
-                foreach (int shadow in new[] { 0, 1, 2 })
-                    foreach (int oit in family is "chunktransparent" or "chunkliquid" ? new[] { 1 } : new[] { 0, 1 })
-                        yield return [family, shadow, oit, 0, 0, 1, lumon];
+            string[] families = ["standard", "entityanimated", "instanced", "chunktransparent", "chunkliquid"];
+            foreach (string family in families)
+            {
+                int oit = family is "chunktransparent" or "chunkliquid" ? 1 : 0;
+                foreach (int shadow in new[] { 0, 2 })
+                    yield return [family, shadow, oit, 0, 0, 1, lumon];
+            }
+
+            // SHADOWQUALITY 0, 1, and 2 exercise the no-cascade, first-cascade, and
+            // additional-cascade branches in the shared forward lighting include.
+            yield return ["standard", 1, 0, 0, 0, 1, lumon];
+
+            // Entity OIT is conditional; transparent and liquid families always publish OIT outputs.
+            yield return ["entityanimated", 2, 1, 0, 0, 1, lumon];
+
+            // Exercise the per-family SSAO/SSBO define path while disabling depth offset.
             foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent", "chunkliquid" })
                 yield return [family, 2, family is "chunktransparent" or "chunkliquid" ? 1 : 0, 1, family is "chunktransparent" or "chunkliquid" ? 1 : 0, 0, lumon];
+
+            // Keep the high-cascade and stronger SSAO combination as a boundary case.
             yield return ["standard", 4, 1, 2, 0, 1, lumon];
         }
     }

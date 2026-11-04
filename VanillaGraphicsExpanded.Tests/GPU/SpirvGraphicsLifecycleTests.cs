@@ -22,62 +22,6 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
 
     #region Public API
     #region Binary execution
-    /// <summary>Retains runtime packaged-interface validation for every declared graphics assignment.</summary>
-    public static IEnumerable<object[]> GraphicsVariants() => SpirvInventoryTests.GraphicsPrograms()
-        .Where(row => VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.Programs.ContainsKey((string)row[0]));
-
-    /// <summary>Validates every runtime assignment and exercises repeated replacement on representative stage families.</summary>
-    [Theory]
-    [MemberData(nameof(GraphicsVariants))]
-    public void RuntimeAssignmentsValidateAndRepresentativesRetirePreviousExecutable(string shaderName, string variant)
-    {
-        EnsureContextValid();
-        using var freshStages = DriverProgramCache.UseStoreForTesting(null);
-        using var assets = new BinaryShaderApiFixture();
-        // Replacement uses only packaged binary assets.
-        assets.BeforeRead = AssertBinaryAsset;
-        var program = new FixtureProgram(shaderName);
-        program.SetDefines(variant.Split(';', StringSplitOptions.RemoveEmptyEntries)
-            .Select(setting => setting.Split('=', 2)).ToDictionary(pair => pair[0], pair => (string?)pair[1]));
-        program.Initialize(assets.Api);
-        try
-        {
-            Assert.True(program.CompileAndLink(), string.Join("\n", assets.Logs));
-            Assert.True(GL.IsProgram(program.ProgramId));
-            Assert.False(program.IsRetired);
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
-            // Every assignment passes the runtime packaged/native interface checks. The extra
-            // replacement cycles exercise common ownership code once per distinct stage family.
-            var contract = VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(shaderName);
-            string family = string.Join(",", contract.Stages.Select(stage => stage.Kind).Order());
-            var representative = GraphicsVariants().First(row => string.Join(",",
-                VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram((string)row[0])
-                    .Stages.Select(stage => stage.Kind).Order()) == family);
-            if ((string)representative[0] != shaderName || (string)representative[1] != variant) return;
-            GL.UseProgram(0);
-            int previous = program.ProgramId;
-            program.InvalidateAssets();
-            Assert.True(GL.IsProgram(previous));
-            Assert.True(program.CompileAndLink(), string.Join("\n", assets.Logs));
-            Assert.True(GL.IsProgram(program.ProgramId));
-            Assert.False(program.IsRetired);
-            // Verify the linked executable directly without publishing this fixture's intentionally absent inputs.
-            GL.UseProgram(program.ProgramId);
-            Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-            GL.UseProgram(0);
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
-            int reloaded = program.ProgramId;
-            program.InvalidateAssets();
-            Assert.True(GL.IsProgram(reloaded));
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
-            // A second replacement checks monotonic ownership beyond the first install.
-            Assert.True(program.CompileAndLink(), string.Join("\n", assets.Logs));
-            Assert.False(program.IsRetired);
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
-        }
-        finally { program.Dispose(); }
-    }
-
     /// <summary>Retains active and optimized-out diagnostic locations from compiled contracts without engine storage.</summary>
     [Fact]
     public void BinaryOnlyReloadPreservesContractUniformDictionary()

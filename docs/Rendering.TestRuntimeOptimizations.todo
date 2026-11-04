@@ -5,6 +5,8 @@ Status
   Phases 1 and 2 are complete and accepted by the user on 2026-11-03, including the measured
   timing limitations and the two approved coverage reductions. Phase 3 is complete and accepted
   on 2026-11-03. Phases 4, 5 and 6 are complete and accepted on 2026-11-03. All six phases are closed.
+  Subsequent coverage work is tracked in Rendering.RepresentativeTestCoverage.todo; counts below
+  describe the accepted selections at closure of this plan.
   This plan covers the five prioritized optimizations
   from the test-runtime review and a separate water-test necessity review requested at acceptance.
   Both Phase 2 reductions are implemented and verified, with a clean independent completion audit.

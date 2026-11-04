@@ -1,0 +1,145 @@
+Representative rendering-test coverage
+======================================
+
+Status and objective
+  In progress. The user approved representative behavior and failure-mode coverage on
+  2026-11-03, including explicit loss of exhaustive parameter combinations. The target is
+  a complete correctness run below five minutes, excluding builds. That target is not yet
+  demonstrated. Process splitting is excluded from this work.
+  On 2026-11-04 the user additionally approved replacing per-production SPIR-V admission
+  matrices with focused mechanics tests. The last full Debug run, before this additional
+  removal, took 732.960s: 6,620 passed, zero failed and seven skipped across 6,627 rows.
+  The six accepted optimizations in Rendering.TestRuntimeOptimizations.todo remain closed.
+
+Baseline and authority
+  Current full Windows runs use AllTests.runsettings (Purpose!=Diagnostic, including stress).
+  Debug: 872.548s wall, 7,015 passed / one failed / six skipped.
+  Release: 953.882s wall, 7,016 passed / zero failed / six skipped.
+  Both produce 7,022 runtime result rows; dynamic Poisson theories add six rows beyond the
+  7,016 discovery identities. Debug's snapshot-startup timeout is retained as a failure,
+  not silently excluded. Sources, DLLs and SPIR-V were stable during these measurements.
+  Receipts: ../TestResults/TestRuntimeOptimizations/full-suite-current/20261104T053712Z/.
+  Method ranking: ../TestResults/TestRuntimeOptimizations/five-minute-investigation/
+  coverage-review/method-costs.csv. Summed case durations can overlap and are not wall savings.
+  Current independent CPU collections already use xUnit parallel execution. GPU collection
+  concurrency requires isolation of shared rendering services; no such change is included.
+  The cancelled four-process trial supplies no valid timing or qualification evidence.
+
+  Applicable sources:
+  - GPU.IntegrationTestPerformance.Analysis.md and GPU.IntegrationTestPerformance.RemainingCosts.md:
+    preserve independent references, ownership, meaningful lifecycle paths and honest measurement.
+  - PBR.WaterRefraction.md and PBR.Liquids.md: public optical/fallback behavior, bounded traversal,
+    signed projection, scene composition, continuity and material compatibility.
+  - Current shader contracts and focused loading/ownership tests: preserve generic mechanics and
+    their failure paths. Functional rendering tests own feature-specific numerical behavior.
+    Per-production shader driver admission is intentionally no longer a separate inventory guarantee.
+
+Implementation constraints
+  Remove unneeded scenarios and repeated combinations; do not merely hide the same work in fewer
+  wrappers. Preserve each required behavior and failure mode through a named surviving witness.
+  Retained numerical references, tolerances and motion sweeps remain intact. No production shader,
+  resource ownership, readiness condition, default selection or stress-workload change is included.
+  Record exact removed identities and intentional coverage losses. Use configured test writers and
+  independent test review; delegate builds/tests. Finish the related source batch before verification.
+
+☑ Shader loading mechanics and installed-shader representatives
+  Replace the 247-row compute and 35-row graphics inventory sweeps with two fixture-only tests:
+  successful specialization/linking from a guarded unaligned slice without backing-buffer mutation,
+  and three compute-asset generations with old-facade re-disposal after the new owner exists.
+  Retain native program/pipeline readiness, deletion, idempotent disposal and GL-error assertions.
+  Remove the 324-row generic runtime assignment matrix. Keep its seven dedicated lifecycle/failure
+  cases, including raw SPIR-V graphics drawing, invalid replacement and uniform-dictionary checks.
+  Remove the now-unused pairwise-selector helper and registry-enumeration infrastructure.
+  Intentional loss: independent native-driver admission for production shader identities and
+  assignments. Focused settings, stage plans, binary/metadata validation, specialization, execution,
+  bindings, reload and ownership tests remain; numerical feature tests still use real shaders.
+  The successful guarded-slice and old-compute-facade controls have no exact focused substitutes
+  elsewhere, so they remain rather than deleting the inventory class's guarantees wholesale.
+  Installed PBR: 60 -> 36 linking variants; its 12 other cases remain. Keep all five mesh families
+  in both lighting modes, shadow endpoints 0/2, an intermediate shadow-1 witness, the conditional
+  entity OIT-on branch, each family's SSAO/SSBO/depth-off case and the high-shadow standard case.
+  Its intentional loss is the installed-source shadow/OIT/lighting cross-product coverage.
+  No claim is made that an omitted production assignment can never reveal a defect.
+  Superseded intermediate selection: runtime 480 -> 324 and compute 372 -> 247 retained all
+  identities, option values and valid option pairs. That selection was built and independently
+  verified in both configurations before the user approved removing the admission sweeps.
+  Prototype estimates of 268/153 were superseded by actual compiled counts; they are not evidence.
+
+☑ Water behavior representatives
+  Production composition: 95 -> 33 rows. Keep baseline scenarios 0..14, 16 and 17; add three
+  scenario-0 full-size quality-0/1/2 rows, one high-quality half-size row, scene-linear scenarios
+  0/9/14, both nondefault scattering sources for scene 9, all five material compatibility cases,
+  and both quality-0 captured-receiver sizes. Keep all four quality selections in real composition.
+  Diagnostic traversal: 14 -> one positive-view-Z ray, scenario 8 / budget 8 / full source.
+  Budget 17, continuity seven, filter 20, UV 37, pixel-normal 12 and reducer six remain unchanged.
+  Surviving production, budget, continuity, filter, UV and reducer witnesses cover the removed
+  fallback, invalid-source, bounded-work, edge and grazing behaviors. The signed geometric ray
+  retains its direct positive-view-Z assertion.
+  Intentional loss: most scene/quality/resolution/lighting-source cross-products, three intermediate
+  camera combinations, and standalone diagnostic reason-code/read-counter oracles except where
+  counters establish required loop ceilings, fallback reuse and zero-lookup TIR behavior.
+
+☑ Surface and cloud overlap
+  Surface families: 41 -> 26 rows. Consumer runtime retains all 13 rows, including all CPU/GPU x
+  gather-mode startup rows and both directional-budget backends. Dedicated numerical checks for
+  both gather implementations remain unchanged.
+  Scenarios: 12 -> four. Keep emission-only and doorway transitions in SH0, progressive bounce
+  and unavailable-versus-dark geometry in SH9. Retire the indirect-only retained-source and
+  dark-replacement methods after transferring their unique intermediate-output/confidence
+  assertions into the stronger numerical PBR lifetime witnesses.
+  Spatial: ten -> six. Keep SH0 camera alignment and signed streaming, SH9 ring overlap and
+  sealed-neighbor movement, and both mixed-consumer regression/control rows.
+  PBR lifetime: six -> three. Keep SH0 source restoration and sealed-neighbor composition, SH9
+  cache replacement. Preserve independent numerical composition, direct snapshots and lifetime
+  checks; transfer the removed scenarios' boundary observations at matching indirect states.
+  Cloud publication retains its existing Fact but samples complete solutions at profiles 0/2/4
+  (endpoints/default), rather than all five. Keep all five quality mappings and actual direction
+  budgets in their owning tests, and the independent density CPU oracle remains unchanged.
+  Intentional loss: each shared transition crossed with both gather modes, and complete-solution
+  publication smoke at cloud profiles 1/3. Every retained profile keeps its update/publication work.
+
+Intermediate qualification before mechanics-only replacement
+  Debug/Release builds passed in 83.224s / 68.547s using the canonical NuGet cache. The compiled
+  pairwise selections had complete identity/value/pair coverage and identical Debug/Release data.
+  Discovery listed 6,621 cases in each configuration. Positive-view-Z and both transferred PBR
+  restoration tests passed 3/3 in each configuration; the original exact source-restoration and
+  .01 indirect replacement-restoration tolerances were preserved alongside PBR numerical oracles.
+  Independent review is clean after those oracle transfers, preservation of all five cloud
+  diagnostic profiles, and correction of native-inventory ownership wording.
+  The full Debug run passed 6,620 with zero failures and seven skips in 732.960s, excluding builds.
+  Six skips match baseline; the additional ProfilerEventSource EventListener skip is unrelated to
+  the reduction and is not a saving. The old snapshot-startup timeout did not recur; no fix is claimed.
+  There are 395 fewer runtime rows: 396 old IDs removed and one positive-view-Z Fact ID added.
+  The 823 changed-suite cases matched the intended selections. All 16 scoped source hashes,
+  both test DLLs and per-configuration shader binaries remained stable during their checks;
+  all 909 test SPIR-V modules per configuration match the original full-run baseline.
+  These single sequential samples retain caches and do not establish a stable speedup.
+  Receipts: ../TestResults/TestRuntimeOptimizations/five-minute-investigation/representative-candidate/
+  builds-scoped-canonical-cache-20261104T072403Z/, including compiled selector lists/proofs,
+  focused-tests-20261104T073541Z/ and full-suite/full-debug-20261104T074720Z/.
+  The earlier pre-compilation missing-package failure and abandoned broad metadata scans remain
+  separate receipts; the corrected build used C:/Users/Sisco/.nuget/packages explicitly.
+
+☐ Verification, review and target assessment
+  Reconcile exact baseline/current membership and unchanged retained observations; run focused
+  Debug/Release checks on the finished batch and independently review the coverage mapping.
+  Reuse valid evidence; retain failures and correction receipts without passing-run claims.
+  Measure the complete current selection once the finished changes justify a full timing run.
+  Separate build/process/case timings and record cache conditions. Report whether the five-minute
+  target was achieved; fewer cases alone do not establish it. Keep unmet work and limitations open.
+  Mechanics-only replacement removes 605 discovery cases: both fresh configurations list 6,016
+  (previously 6,621). With the unchanged dynamic Poisson rows, 6,022 runtime rows are expected.
+  The two loading mechanics Facts and seven dedicated lifecycle/failure cases pass 9/9 in both
+  Debug and Release, zero failures/skips. Focused command walls are 6.429s / 6.042s; these are not
+  whole-suite timings. Builds passed in 15.654s / 13.433s with the canonical NuGet cache.
+  All nine case names match the intended selection; the seven dedicated bodies are unchanged.
+  Independent review confirms both raw focused results and all seven retained test-ID/name pairs
+  against their corresponding prior Debug and Release receipts, with zero differences.
+  Old inventory, matrix and selector symbols are absent from both compiled test assemblies.
+  All 909 staged SPIR-V modules per configuration and owned source hashes remained stable.
+  The first build attempts failed before tests because a required helper namespace import had
+  been removed; that import was restored and the failed receipts remain separate.
+  Receipts: ../TestResults/TestRuntimeOptimizations/five-minute-investigation/spirv-mechanics-only/
+  20261104T085432Z/; failed builds are retained in adjacent 20261104T085117Z/.
+  No complete timing for this subsequent selection is claimed. The under-five-minute objective
+  remains open; the 732.960s intermediate full run exceeded it by 432.960s.

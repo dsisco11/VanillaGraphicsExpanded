@@ -1329,6 +1329,10 @@ independent completion audit found no remaining scoped traversal requirements.
 shader framework. Ordinary shader variants
 expand these hooks to nothing. The historical baseline below predates bilateral filtering and bounded
 traversal; its budgets, rejection margins and confidence fades describe that baseline only.
+The current standalone diagnostic retains the positive-view-Z geometric ray witness. Production
+composition, budget, continuity, filter, UV and reduction tests own the other behavioral checks;
+the [representative coverage record](Rendering.RepresentativeTestCoverage.todo) lists retained
+cases and the omitted diagnostic metadata and parameter combinations.
 The original three diagnostic outputs recorded hit/reason/evaluation count/confidence, last receiver
 UV and positive view depth, and submerged length/refracted Z/fallback mixing weight/returned Z.
 On rejection, the sample is the last attempted lookup, not a selected valid receiver; a projection

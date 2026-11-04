@@ -10,58 +10,30 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Records exact production traversal decisions on controlled opaque receiver fields.</summary>
+/// <summary>Checks positive-view-Z production traversal against a controlled opaque receiver field.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
 public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
-    /// <summary>Enumerates representative traversal cases across selected budgets and source resolutions.</summary>
-    public static IEnumerable<object[]> ReceiverCases()
-    {
-        string[] labels = ["flat","tilted","shallow-plane","adjacent-foreground","sky","range-exhaustion",
-            "edge-motion","range-fade","positive-view-z","metadata","depth-discontinuity","grazing"];
-        // Keep each scenario's budget and source-resolution evidence explicit while preserving shader IDs.
-        yield return [1, labels[1], 2, false];
-        yield return [2, labels[2], 2, false];
-        yield return [2, labels[2], 2, true];
-        yield return [3, labels[3], 2, false];
-        yield return [4, labels[4], 8, false];
-        yield return [5, labels[5], 8, false];
-        yield return [6, labels[6], 2, false];
-        yield return [6, labels[6], 2, true];
-        yield return [7, labels[7], 2, false];
-        yield return [8, labels[8], 8, false];
-        yield return [8, labels[8], 8, true];
-        yield return [10, labels[10], 8, false];
-        yield return [10, labels[10], 8, true];
-        yield return [11, labels[11], 8, false];
-    }
-
-    /// <summary>Separates unavailable geometric support from fully weighted accepted receivers.</summary>
-    [Theory]
-    [MemberData(nameof(ReceiverCases))]
-    public void BaselineReceiverDiagnostics(int scenario, string label, int budget, bool half)
+    /// <summary>Verifies an oblique submerged receiver is reached by a positive-view-Z Snell ray.</summary>
+    [Fact]
+    public void PositiveViewZRayCrossesReceiver()
     {
         EnsureContextValid();
         const int size = 128;
-        float receiverDepth = scenario switch { 2 => 2.01f, 5 => 80f, 7 => 30f, 8 => 1.7f, _ => 10f };
+        const int budget = 8;
+        float receiverDepth = 1.7f;
         float deviceDepth = DeviceDepth(receiverDepth);
-        var depths = Enumerable.Repeat(scenario == 4 ? 1f : deviceDepth, size * size).ToArray();
-        if (scenario == 3) depths[64 * size + 65] = DeviceDepth(1);
+        var depths = Enumerable.Repeat(deviceDepth, size * size).ToArray();
         // An oblique submerged plane remains eligible while the bent ray moves toward the camera.
-        if (scenario == 8)
-            for (int y = 0; y < size; ++y)
-                for (int x = 0; x < size; ++x)
-                {
-                    float rayX = (2f * (x + .5f) / size - 1) / .1f;
-                    float distance = -6.572f / (-.7f * rayX + .714f);
-                    depths[y * size + x] = distance > .1f ? DeviceDepth(distance) : 1f;
-                }
-        if (scenario == 10)
-            for (int y = 0; y < size; ++y)
-                for (int x = 0; x < size; ++x)
-                    depths[y * size + x] = DeviceDepth(x < 69 ? 20 : 3);
+        for (int y = 0; y < size; ++y)
+            for (int x = 0; x < size; ++x)
+            {
+                float rayX = (2f * (x + .5f) / size - 1) / .1f;
+                float distance = -6.572f / (-.7f * rayX + .714f);
+                depths[y * size + x] = distance > .1f ? DeviceDepth(distance) : 1f;
+            }
         using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var colors = Enumerable.Range(0, size * size).SelectMany(_ => new[] { 4f, 2f, 1f, 1f }).ToArray();
@@ -70,32 +42,21 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
         color.UploadDataImmediate(colors);
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
-        inputs.Scenario = scenario;
-        float focal = scenario == 8 ? .1f : MathF.Sqrt(3);
+        inputs.Scenario = 8;
+        const float focal = .1f;
         var projection = new Matrix4x4(focal,0,0,0, 0,focal,0,0, 0,0,-100.1f/99.9f,-1, 0,0,-20f/99.9f,0);
         Assert.True(Matrix4x4.Invert(projection, out var inverse));
         using var frameCamera = TestFrameCamera.CreateFromProjection(projection, size, size);
         program.FrameInputs = frameCamera;
         inputs.Budget = budget;
-        
         inputs.Color = color;
         inputs.Depth = depth;
-        using var halfColor = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size / 2), Height = System.Math.Max(1, size / 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
-        using var halfDepth = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size / 2), Height = System.Math.Max(1, size / 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
-        using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
-        if (half)
-        {
-            var reduction = Programs.Create<WaterRefractionReductionShaderProgram>();
-            reduction.SourceColor = color; reduction.SourceDepth = depth;
-            TestFramework.RenderQuadTo(reduction,reduced!);
-            inputs.Color = halfColor!; inputs.Depth = halfDepth!;
-        }
         using var target = CreateMRTRenderTarget(size, size, TextureFormat.Rgba32f, TextureFormat.Rgba32f,
             TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f,
             TextureFormat.Rgba32f, TextureFormat.Rgba32f);
-        // The six edge-motion observations fit inside one row; all other cases use their sole observed pixel.
+        // A single center pixel isolates the positive-view-Z traversal decision.
         // The render pass still clears every attachment over the full viewport before this bounded draw.
-        var scissor = scenario == 6 ? (X: 1, Y: 64, Width: 64, Height: 1) : (X: 64, Y: 64, Width: 1, Height: 1);
+        var scissor = (X: 64, Y: 64, Width: 1, Height: 1);
         int[] viewportBefore = new int[4];
         int[] scissorBefore = new int[4];
         GL.GetInteger(GetPName.Viewport, viewportBefore);
@@ -109,7 +70,7 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
         Assert.Equal(viewportBefore, viewportAfter);
         Assert.Equal(scissorBefore, scissorAfter);
         Assert.Equal(scissorEnabledBefore, GL.IsEnabled(EnableCap.ScissorTest));
-        int[] columns = scenario == 6 ? [1, 3, 6, 12, 32, 64] : [64];
+        int[] columns = [64];
         foreach (int x in columns)
         {
             float[] decision = target[0].ReadPixelsRegion(x, 64, 1, 1);
@@ -123,34 +84,12 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
             Assert.Equal(decision[0] * 3, work[1]);
             Assert.InRange(work[1], 0, work[0]);
             Assert.InRange(work[0], 0, decision[2] * 6);
-            if (scenario == 4) Assert.Equal(0, work[1]);
-            output.WriteLine($"{label} x={x}: hit/reason/evaluations/confidence=[{string.Join(",", decision)}]; uv/depth=[{string.Join(",", sampled)}]; length/directionZ/fallback/receiverZ=[{string.Join(",", transport)}]");
+            output.WriteLine($"positive-view-z x={x}: hit/reason/evaluations/confidence=[{string.Join(",", decision)}]; uv/depth=[{string.Join(",", sampled)}]; length/directionZ/fallback/receiverZ=[{string.Join(",", transport)}]");
             Assert.All(decision.Concat(sampled).Concat(transport), value => Assert.True(float.IsFinite(value)));
             Assert.InRange(decision[2], 0, budget);
             if (decision[0] == 1) Assert.Equal(1,decision[3]);
-            if (scenario is 1 or 2 or 7) Assert.Equal(1, decision[0]);
-            if (scenario == 3) { Assert.Equal(1, decision[0]); Assert.Equal(0, decision[1]); }
-            if (scenario == 4) Assert.Equal(2, decision[1]);
-            if (scenario == 5)
-            {
-                Assert.Equal(9, decision[1]);
-                Assert.Equal(2, decision[2]);
-                Assert.Equal(0, work[2] + work[3]);
-            }
-            if (scenario == 6)
-            {
-                Assert.Equal(1, decision[0]);
-                Assert.Equal(1, decision[3]);
-            }
-            // Valid 28 metre transmission retains its full weight, without a range fade.
-            if (scenario == 7) Assert.Equal(1,decision[3]);
-            if (scenario == 8)
-            {
-                Assert.True(transport[1] > 0);
-                if (budget == 8) Assert.Equal(1, decision[0]);
-            }
-            if (scenario == 10) Assert.Equal(0,decision[0]);
-            if (scenario == 11) Assert.Equal(0,decision[0]);
+            Assert.True(transport[1] > 0);
+            Assert.Equal(1, decision[0]);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

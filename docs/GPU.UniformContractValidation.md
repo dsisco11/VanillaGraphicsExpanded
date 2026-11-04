@@ -13,8 +13,10 @@ Current coverage lives with existing owners:
 - `ProbeParameterPackingTests` writes distinct values through production temporal/filter setters in
   both orders and checks their raw packed components. This catches swapped components or clobbering
   that a getter round-trip or a vec4-at-offset reflection check would miss.
-- Existing functional tests continue to check actual parameter effects, and SPIR-V inventory tests
-  retain load/link coverage. No claim is made that every CPU field has exhaustive behavioral coverage.
+- Existing functional tests continue to check actual parameter effects. Focused SPIR-V loading and
+  lifecycle tests cover generic preparation, ownership, replacement and failure mechanics. The
+  [coverage record](Rendering.RepresentativeTestCoverage.todo) describes the removal of production
+  admission sweeps. No claim is made that every CPU field has exhaustive behavioral coverage.
 
 The removed suite provided some structural shape checks, but its 124 labels were not 124 independent
 behavioral guarantees. It did not execute setters, identify same-shaped fields semantically, or prove

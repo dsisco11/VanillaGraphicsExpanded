@@ -21,7 +21,7 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
     #region Camera movement
     /// <summary>Rotation, translation and view bob retain alignment with fixed voxel faces and recover the reference lighting.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
     public void MovingCameraKeepsAnchorsOnWorldSurfaces(bool sh9)
     {
         EnsureContextValid();
@@ -46,7 +46,7 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
     #region Streaming and neighboring rooms
     /// <summary>Entity-relative camera motion wraps probe storage while unchanged world coverage preserves overlapping lighting.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(true)]
     public void ProbeRingPreservesOverlapWithinStableGeometryCoverage(bool sh9)
     {
         EnsureContextValid();
@@ -144,7 +144,7 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
     }
     /// <summary>Signed chunk crossings preserve allocations; reused unavailable slots cannot expose old light before reload.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
     public void SignedStreamingRejectsReusedUnavailableSlots(bool sh9)
     {
         EnsureContextValid();
@@ -184,7 +184,7 @@ public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
 
     /// <summary>Bright adjacent rooms must never illuminate any final pixel of a sealed dark room during movement or coverage reuse.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(true)]
     public void SealedDarkNeighborsRemainDarkWhileMoving(bool sh9)
     {
         EnsureContextValid();

@@ -38,12 +38,14 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         finally { recordTimings=false; }
     }
 
-    /// <summary>Records complete unchanged and density-changing updates at fixed geometry for all quality profiles.</summary>
+    /// <summary>Uses representative profiles for correctness and all five profiles for selected timing diagnostics.</summary>
     [Fact]
     public void RecordQualityProfileUpdates()
     {
         EnsureShaderTestAvailable();
-        foreach(int quality in Enumerable.Range(0,5))MeasureCompleteUpdates(quality,true);
+        // Keep routine publication checks to low, default, and high specializations; explicit timing runs retain the full profile sweep.
+        int[] profiles=recordTimings?Enumerable.Range(0,5).ToArray():[0,2,4];
+        foreach(int quality in profiles)MeasureCompleteUpdates(quality,true);
     }
     /// <summary>Separates maximum metadata selection from fixed nonempty direct and diffuse transport.</summary>
     [Fact]

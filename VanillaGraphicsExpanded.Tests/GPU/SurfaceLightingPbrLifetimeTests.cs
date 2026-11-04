@@ -16,7 +16,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
     #region Retained lighting transitions
     /// <summary>Source removal leaves exactly direct plus emission; restoration recovers indirect with retained consumers.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
     [Trait("Scenario", "HeadlessRuntime")]
     public void SourceChangesReachRetainedComposition(bool sh9)
     {
@@ -31,6 +31,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene);
         Assert.True(ImageAssertions.Statistics.Inspect(runtime.FinalImage, channelMask: 7).Minimum > .001f);
+        using var indirectReference = new Assertions.GpuImageSnapshot(runtime.FinalImage);
         using var reference = new Assertions.GpuImageSnapshot(runtime.SceneLinearImage);
         var screen = runtime.Screen.IndirectFullTex;
         var direct = runtime.Direct.Radiance;
@@ -39,6 +40,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         long stableRevision = runtime.Screen.HistoryRevision;
         for (int frame = 0; frame < 8; frame++) runtime.Frame();
         Assert.Equal(stableRevision, runtime.Screen.HistoryRevision);
+        AssertIndirectBoundaries(runtime, true);
         foreach (int light in new[] { 0, 32 })
         {
             long revision = runtime.Screen.HistoryRevision;
@@ -51,17 +53,20 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
             Assert.Same(direct, runtime.Direct.Radiance);
             Assert.Same(atlas, runtime.Cache.IrradianceAtlas());
             ImageAssertions.Comparisons.CompareHistory(runtime.Direct.Radiance!, primary).AssertEqual();
+            AssertIndirectBoundaries(runtime, light != 0);
             var expectedIncident = SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene);
             SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.SceneLinearImage,
                 (x, y) => SurfaceLightingPbrRuntimeTests.DiffuseResponse(scene, x, y, receiver, expectedIncident),
                 light == 0 ? .002f : .055f, "retained source composition", additiveLayers: primary.Texture);
+            if (light != 0)
+                ImageAssertions.Comparisons.CompareHistory(runtime.FinalImage, indirectReference).AssertEqual();
             if (light != 0) ImageAssertions.Comparisons.CompareHistory(runtime.SceneLinearImage, reference, tolerance: .01f, channelMask: 7).AssertEqual();
         }
     }
 
     /// <summary>A dark replacement atlas must reject old bright history before source restoration recovers the final image.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(true)]
     [Trait("Scenario", "HeadlessRuntime")]
     public void CacheReplacementInvalidatesComposedHistory(bool sh9)
     {
@@ -74,10 +79,12 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene,
             expectedWorldRadiance: SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene));
         Assert.True(ImageAssertions.Statistics.Inspect(runtime.FinalImage, channelMask: 7).Minimum > .001f);
+        using var indirectReference = new Assertions.GpuImageSnapshot(runtime.FinalImage);
         using var reference = new Assertions.GpuImageSnapshot(runtime.SceneLinearImage);
         var oldAtlas = runtime.Cache.IrradianceAtlas();
         var screen = runtime.Screen.IndirectFullTex;
         long revision = runtime.Screen.HistoryRevision;
+        AssertIndirectBoundaries(runtime, true);
         runtime.Cache.ChangeBlockLight(0);
         runtime.Cache.RequestAtlasRecreation();
         runtime.Frame();
@@ -88,12 +95,14 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         Assert.False(oldAtlas!.IsValid);
         Assert.Same(screen, runtime.Screen.IndirectFullTex);
         Assert.True(runtime.Screen.HistoryRevision > revision);
+        AssertIndirectBoundaries(runtime, false);
         SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime, runtime.SceneLinearImage, (_, _) => Vector3.Zero, .0001f, "dark replacement composition");
         runtime.Cache.ChangeBlockLight(32);
         runtime.Frame();
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene,
             expectedWorldRadiance: SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene));
+        ImageAssertions.Comparisons.CompareHistory(runtime.FinalImage, indirectReference, tolerance: .01f, channelMask: 7).AssertEqual();
         ImageAssertions.Comparisons.CompareHistory(runtime.SceneLinearImage, reference, tolerance: .01f, channelMask: 7).AssertEqual();
     }
     #endregion
@@ -101,7 +110,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
     #region Spatial rejection
     /// <summary>Bright neighboring rooms cannot illuminate any composed dark-room pixel, including immediately after movement.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
     [Trait("Scenario", "HeadlessRuntime")]
     public void SealedNeighborRejectsLocalizedLeakage(bool sh9)
     {
@@ -131,6 +140,34 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
     #endregion
 
     #region Private
+    /// <summary>Preserves runtime history, filter, gather and confidence checks separately from scene-linear PBR composition.</summary>
+    private void AssertIndirectBoundaries(SurfaceLightingConsumerRuntimeFixture runtime, bool lit)
+    {
+        foreach (var pixels in new[]
+        {
+            runtime.Screen.ScreenProbeAtlasHistoryTex!,
+            runtime.Screen.ScreenProbeAtlasFilteredTex!,
+            runtime.Screen.IndirectHalfTex!,
+            runtime.FinalImage
+        })
+        {
+            float peak = runtime.Energy(pixels);
+            if (lit) Assert.True(peak > .001f);
+            else Assert.InRange(peak, 0, .0001f);
+        }
+
+        // FinalImage is the indirect output; SceneLinearImage still contains direct and emissive terms.
+        var final = lit
+            ? ImageAssertions.Statistics.Inspect(runtime.FinalImage, channelMask: 7)
+            : ImageAssertions.Statistics.Inspect(runtime.FinalImage, -.0001f, .0001f, channelMask: 7);
+        if (lit)
+            Assert.True(final.NonFinite == 0 && final.Minimum > .001f);
+        else
+            Assert.True(final.NonFinite == 0 && final.OutsideRange == 0);
+
+        Assert.True(ImageAssertions.Statistics.Inspect(runtime.Screen.ScreenProbeAtlasMetaHistoryTex!, channelMask: 1).Maximum > .5f);
+    }
+
     /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
     private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservationPrograms programs)
     {
