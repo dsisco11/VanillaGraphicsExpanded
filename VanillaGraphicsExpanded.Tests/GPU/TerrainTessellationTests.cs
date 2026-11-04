@@ -163,9 +163,8 @@ public sealed class TerrainTessellationTests : RenderTestBase
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
     }
 
-    /// <summary>Compiles installed alpha-tested terrain shadow stages with both terrain mesh layouts.</summary>
+    /// <summary>Compiles installed alpha-tested terrain shadow stages with the SSBO terrain mesh layout.</summary>
     [Theory]
-    [InlineData(0)]
     [InlineData(1)]
     public void InstalledShadowInterfaceLinksAdaptive(int ssbo)
     {
@@ -182,7 +181,6 @@ public sealed class TerrainTessellationTests : RenderTestBase
     #region Installed interfaces
     /// <summary>Exercises both terrain families, SSBO layouts, SSAO outputs and both shadow cascades.</summary>
     [Theory]
-    [InlineData("chunkopaque", 0, 0)]
     [InlineData("chunkopaque", 1, 1)]
     [InlineData("chunktopsoil", 0, 0)]
     [InlineData("chunktopsoil", 1, 1)]

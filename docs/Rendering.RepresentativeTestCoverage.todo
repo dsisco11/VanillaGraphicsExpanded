@@ -12,10 +12,18 @@ Status and objective
   The six accepted optimizations in Rendering.TestRuntimeOptimizations.todo remain closed.
   Phase 7 in that tasklist implements 40 additional case removals and four
   representative native water preparations while retaining all eight option-plan checks.
-  Debug/Release full correctness runs now take 656.545s / 644.030s, excluding builds; each has
+  The accepted Phase 7 Debug/Release full runs took 656.545s / 644.030s, excluding builds; each had
   5,975 passed, zero failed and seven skipped across 5,982 rows. Review and independent audit
   are clean; the user accepted Phase 7 on 2026-11-04. The under-five-minute objective is still unmet.
   The explicit keep/drop mapping and coverage losses are maintained there.
+  Phase 8 in that tasklist implements a further 30-case reduction across installed PBR,
+  terrain, scene-color, shared tracing and fallback commit coverage. Fresh discovery is 5,946
+  per configuration (30 removed, zero added); focused Debug/Release each pass 122/122 with no
+  failures/skips. The new complete Release run takes 666.179s (11m06.2s), excluding builds:
+  5,945 passed, zero failed and seven skipped across 5,952 rows, including stress. This is slower
+  than the historical Phase 7 Release sample and establishes no runtime saving or five-minute
+  result. Review and independent completion audit are clean; the user accepted Phase 8 on 2026-11-04.
+  No new full Debug run is claimed.
 
 Baseline and authority
   Current full Windows runs use AllTests.runsettings (Purpose!=Diagnostic, including stress).
@@ -169,3 +177,27 @@ Subsequent representative batch qualification (2026-11-04; accepted)
   The under-five-minute full-correctness objective remains open in both configurations.
   Receipts: ../TestResults/TestRuntimeOptimizations/Phase7-representative/
   20261104T100346Z-baseline/ and 20261104T100910Z-candidate/.
+
+Further representative batch qualification (2026-11-04; accepted)
+  Phase 8 of Rendering.TestRuntimeOptimizations.todo owns the exact 30-case removal mapping,
+  named surviving witnesses and intentional combination-coverage losses. The corrected six-file
+  batch retains all other test bodies and the deferred audit candidates. The initially incorrect
+  terrain row deletion was corrected before candidate execution; both ordinary modes remain.
+  Fresh discovery is 5,946 per configuration (30 removed, zero added). Final Debug/Release builds
+  pass in 15.863s / 120.240s. Both focused selections pass 122/122, zero failures/skips, in
+  98.747s / 83.063s: 75 affected cases plus 47 supporting witnesses, including depth/coverage,
+  AO rendering and the complete fallback runtime suite. These overlap the full selection.
+  The single full Release AllTests run includes stress and produces 5,952 rows: 5,945 passed,
+  zero failed and seven skipped in 666.179s, excluding builds. Four Poisson placeholders expand
+  into ten rows, accounting for the six rows beyond discovery. No fresh full Debug result is claimed.
+  Stress passes and the seven skip identities/reasons match Phase 7's full Release run. Both
+  configurations' 909 shader modules match baseline bytes and manifests. All ten scoped sources,
+  both fresh DLLs and shader outputs remained stable. The second review and independent completion
+  audit are clean; the user accepted Phase 8 on 2026-11-04. Serial fresh Windows processes
+  retained caches and followed focused verification; no matched pre-change full timing was rerun.
+  The new Release sample is slower than Phase 7's historical 644.030s and establishes no causal
+  change, stable improvement, cold-cache result or Linux pass. The five-minute objective is unmet.
+  Receipts: ../TestResults/TestRuntimeOptimizations/Phase8-representative/
+  20261104T114022Z-baseline/ and 20261104T115414Z-verified-candidate/.
+  Adjacent 20261104T114517Z-candidate/ and 20261104T115115Z-final-candidate/ preserve superseded
+  Debug builds (122.105s / 17.080s) from before final corrections; no tests qualified against them.

@@ -41,10 +41,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
     /// <summary>Prepared sky radiance survives primary while reused programs reset on offscreen and final boundaries.</summary>
     [Theory]
     [InlineData(0, false)]
-    [InlineData(0, true)]
     [InlineData(1, false)]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
     [InlineData(2, true)]
     public void OwnedSceneRetainsHdrAcrossFailuresAndUnclassifiedRegistrations(int ssaoQuality, bool lumOn)
     {

@@ -5,8 +5,10 @@ Status
   Phases 1 and 2 are complete and accepted by the user on 2026-11-03, including the measured
   timing limitations and the two approved coverage reductions. Phase 3 is complete and accepted
   on 2026-11-03. Phases 4, 5 and 6 are complete and accepted on 2026-11-03. All six phases are closed.
-  Phase 7 is complete and accepted by the user on 2026-11-04. All seven phases are closed;
+  Phase 7 is complete and accepted by the user on 2026-11-04. The first seven phases are closed;
   the broader under-five-minute runtime objective remains open in the representative coverage record.
+  Phase 8 is complete and accepted by the user on 2026-11-04. All eight phases are closed;
+  the broader under-five-minute runtime objective remains unmet.
   Earlier subsequent coverage work is recorded in Rendering.RepresentativeTestCoverage.todo;
   counts in Phases 1–6 describe their accepted selections at closure.
   This plan covers the five prioritized optimizations
@@ -51,7 +53,7 @@ Shared implementation and acceptance requirements
   Separate build time, summed case duration, CPU synchronization time and GPU execution time.
   Use bounded attribution to resolve specific uncertainties. Do not infer causes or percentage
   improvements from unmatched Debug/Release or historical runs.
-  No fixed performance threshold applies to Phases 1–6. Phase 7 contributes to the subsequent
+  No fixed performance threshold applies to Phases 1–6. Phases 7 and 8 contribute to the subsequent
   full-correctness target below five minutes, excluding builds; it does not promise to reach it.
   Discuss the resulting metrics and limitations with
   the user and obtain acceptance before closing each phase.
@@ -1040,3 +1042,125 @@ Shared implementation and acceptance requirements
     Receipts: ../TestResults/TestRuntimeOptimizations/Phase7-representative/
     20261104T100346Z-baseline/ and 20261104T100910Z-candidate/ (commands, build and test logs,
     exact membership deltas, focused/full TRX, result summaries and provenance).
+
+☑ Phase 8 — Remove redundant linkage checks and repeated integration combinations
+  Scope and authority
+    The user requested this phase on 2026-11-04 after the next read-only test-removal audit.
+    The proposed batch removes 30 cases: two redundant terrain linkage rows and 28 representative
+    combinations. Apply the representative behavior/failure-mode policy and record each coverage
+    loss. Adding this phase does not implement the reductions or claim measured savings.
+    Inherit Rendering.RepresentativeTestCoverage.todo and the shared performance analyses above:
+    preserve retained assertions, independent references, tolerances, full retained sweeps,
+    production behavior, ownership and runner policy. No process splitting or concurrent GPU
+    collections is included. Keep the seven accepted phases closed and their counts historical.
+  ☑ Reduce PbrSurfaceInstalledShaderTests.Variants from 36 to 15 native admission rows.
+    Tuple order is (family, shadow, OIT, SSAO, SSBO, depth, LumOn). Retain:
+    - All ten existing shadow=2, SSAO=1, depth=0 rows: standard, entityanimated, instanced,
+      chunktransparent and chunkliquid in both LumOn modes. Preserve each family's existing
+      OIT and SSBO values (1 for transparent/liquid, 0 for the other three families).
+    - (standard,0,0,0,0,1,false) and (standard,0,0,0,0,1,true).
+    - LumOn=true only: (standard,1,0,0,0,1,true), (standard,4,1,2,0,1,true),
+      (entityanimated,2,1,0,0,1,true).
+    Keep all other installed tests: raw-field transform feedback, capability declarations,
+    sky compatibility and OIT diagnostic compilation. Real installed engine-GLSL patching and
+    vertex/fragment linking remain distinct from SPIR-V loading mechanics.
+    Loss: per-family no-cascade/depth-on admission and repeated maximum-option × LumOn
+    interactions. All five families, both lighting modes and every authored option value remain;
+    PbrInstalledDepthTests and PbrInstalledCoverageTests retain actual depth/coverage witnesses.
+  ☑ Remove two redundant TerrainTessellationTests linkage rows after confirming the surviving
+    tests still exercise the same installed stages and settings.
+    - InstalledShadowInterfaceLinksAdaptive: remove ssbo=0; keep ssbo=1.
+      TessellatedShadowExecutableRejectsOrdinaryEntityTriangles already links that ssbo=0
+      configuration and additionally checks native draw rejection and ordinary-triangle success.
+    - InstalledTerrainInterfaceLinks: remove (chunkopaque,0,0).
+      EngineProgramInstallationPreservesStageOwnership compiles the same installed configuration,
+      prepares the tessellated executable and checks retirement, ownership and topology.
+    Keep the other family/layout rows, both AdaptiveFamilyPublishesTogetherAndReloadInvalidates
+    lighting modes, and ordinary-mode controls. No unique linkage guarantee is intended to be lost.
+  ☑ Reduce SceneColorRuntimeTests.OwnedSceneRetainsHdrAcrossFailuresAndUnclassifiedRegistrations
+    from six to three rows: retain (ssaoQuality,LumOn) (0,false), (1,false), (2,true).
+    Keep all per-row AO disable/re-enable/retirement, HDR handoff, final display, failure/reload,
+    resize and world-retirement assertions. AmbientOcclusionPassTests retains numerical rendering
+    at qualities 1/2; it does not replace the retained full owner lifecycle.
+    Loss: (0,true), (1,true), (2,false) AO × lighting-mode interactions.
+  ☑ Reduce SharedTraceSceneScreenTests.SealedRoomUsesSharedHitLighting from five to three rows.
+    Retain (anchor,light,surfaceSize) (0,0,32), (-16777216,.25,32), (16777216,.25,32).
+    Remove the negative-anchor surfaceSize=64/128 rows. Keep real shared publication, captured
+    cache-radiance and screen-trace checks, valid darkness and both large signed coordinates.
+    Loss: surface-domain-size × screen-consumer combinations; the screen domain remains fixed.
+  ☑ Reduce SharedTraceSceneSurfaceTests.ValidSharedSurfaceCapturesAndAccumulates from four
+    to three rows: remove anchor=-32; keep 0 and ±16777216. Preserve material capture,
+    cosine-normalized irradiance, accumulation and reset checks at every retained origin.
+    Loss: the separate small-negative chunk-boundary example; retained anchors also lie on boundaries.
+  ☑ Reduce SurfaceFallbackGpuTests.CommitUsesTheNormalTemporalFormula from three to two rows:
+    retain history caps 1/12 and remove 4. Preserve the independent reciprocal-history expectation,
+    unchanged direct-lighting and untouched-neighbor assertions. Keep all five commit-identity
+    rejection controls, both rotating-selection modes and the entire fallback runtime suite.
+    Loss: intermediate history-cap repetition. CPU queue/accounting checks do not replace real
+    GPU commit, publication or asynchronous runtime failure/lifetime boundaries.
+  ☑ Finish the coherent batch before verification; use configured test writers/reviewers and
+    delegate builds/tests. Record exact removed identities and named surviving witnesses.
+    Expected removals: installed PBR 21, terrain 2, scene color 3, shared screen 2, shared surface 1,
+    fallback commit 1; total 30, with no added cases. Revalidate the actual starting inventory.
+    Verify affected Debug/Release selections, unchanged retained observations and source/DLL/shader
+    provenance; reconcile Rendering.RepresentativeTestCoverage.todo with the final selection.
+  ☑ Measure the complete AllTests correctness selection, including stress, after implementation.
+    Report configuration, actual counts, failures/skips, wall time excluding builds and cache
+    conditions. The accepted Phase 7 full runs were 656.545s Debug / 644.030s Release; these are
+    historical context, not a matched baseline or predicted savings. State whether the broader
+    five-minute objective is met and retain it as open when unmet. Complete second review,
+    independent completion audit and documentation reconciliation, then obtain user acceptance.
+  Deferred audit candidates (outside the 30-case batch)
+    Separate coverage agreement is required before removing the production-registration timing
+    Fact (whole-registry integration loss), an expanded-geometry GPU row (maximum-size/origin/reuse
+    interaction loss), or the default-size CPU convergence row (exact default-size budget loss).
+    Likewise defer broad-preload removal inside the debug-demand correctness test and reducing
+    twelve equivalent metallic AO-composition samples to one. These change internal workloads
+    and are not part of the 30-case count. Keep their numerical/cache/lifecycle oracles intact
+    unless a later concrete selection is agreed. No whole AO-composition mode or fallback runtime
+    failure test is nominated for removal by this phase.
+  Implementation and verification record (2026-11-04; accepted)
+    The coherent six-file batch implements the listed 30 removals. Retained test bodies and
+    assertions are unchanged. Terrain survivors exercise the same installed configurations and
+    add native draw rejection/success or executable ownership/retirement checks. Deferred audit
+    candidates remain unchanged. Baseline discovery is 5,976 cases in each configuration using
+    the verified Phase 7 binaries; fresh candidate discovery confirms 5,946 in each configuration.
+    Traceability: Phase 8 tuple lists -> Rendering.RepresentativeTestCoverage.todo implementation
+    constraints and shared performance analyses' assertion/lifecycle/reuse requirements -> named
+    surviving witnesses and stated losses above -> source review, exact compiled membership,
+    focused Debug/Release execution and a complete Release AllTests run. Supporting selections
+    include PbrInstalledDepthTests, PbrInstalledCoverageTests, AmbientOcclusionPassTests and
+    SurfaceFallbackRuntimeTests. Keep build time separate and record source/DLL/shader stability;
+    the complete Release run includes stress and does not establish a new full Debug result.
+    The second review caught an incorrect terrain row deletion: ordinary mode 0 was initially
+    removed instead of the redundant shadow ssbo=0 row. The writer restored both ordinary modes,
+    removed the intended shadow row and clarified a PBR comment before candidate verification.
+    The overlapping intermediate Debug build is retained as superseded evidence (122.105s);
+    no tests ran against it. A later 17.080s Debug build predates the final XML-only correction
+    and is also retained separately from qualification. Neither superseded build supplies test proof.
+    Final-source Debug/Release builds pass in 15.863s / 120.240s with actual test-compiler
+    invocations confirmed. Fresh discovery is 5,946 cases in each configuration: exactly the
+    listed 30 identities removed, zero added, with identical Debug/Release membership.
+    Focused execution passes 122/122 in each configuration, zero failures/skips, in 98.747s /
+    83.063s. These are 75 affected cases plus 47 supporting cases; all four named supporting
+    classes and both restored ordinary terrain controls are included. Independent source,
+    compiled-membership and focused-evidence reviews are clean after the recorded corrections.
+    The complete Release AllTests run, including stress, passes 5,945 with zero failures and
+    seven skips across 5,952 runtime rows in 666.179s (11m06.2s), excluding builds. Four dynamic
+    Poisson placeholders expand into ten runtime rows, explaining the six rows beyond discovery.
+    All 122 focused identities occur in the full selection and must not be added to its totals.
+    Stress passes; the seven skip identities and reasons match Phase 7's full Release run and
+    are not treated as savings. No new full Debug result is claimed.
+    The five-minute objective remains unmet. This single Release sample is slower than Phase 7's
+    historical 644.030s; no runtime improvement or causal attribution is established. Tests used
+    serial fresh Windows processes after focused qualification with retained package, filesystem
+    and driver caches. There is no matched pre-change full timing, cold-cache or Linux qualification.
+    Both configurations' 909 shader modules match baseline bytes and manifests. All ten scoped
+    source/support hashes, both fresh DLLs and shader outputs remained unchanged during execution.
+    The second source/membership/evidence review and independent completion audit are clean.
+    The user accepted the results and limitations on 2026-11-04. All closure requirements are
+    satisfied; the broader five-minute runtime target remains unmet. No staging or commit was performed.
+    Receipts: ../TestResults/TestRuntimeOptimizations/Phase8-representative/
+    20261104T114022Z-baseline/ and 20261104T115414Z-verified-candidate/.
+    The 20261104T114517Z-candidate/ and 20261104T115115Z-final-candidate/ folders retain the
+    superseded builds explicitly and contain no qualifying test runs.

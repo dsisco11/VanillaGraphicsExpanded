@@ -21,7 +21,6 @@ public sealed class SharedTraceSceneScreenTests : NearFieldShaderTestBase
     /// <summary>Captured cache lighting resolves shared geometry hits consistently at signed large coordinates, including valid darkness.</summary>
     [Theory]
     [InlineData(0, 0f, 32)] [InlineData(-16777216, .25f, 32)] [InlineData(16777216, .25f, 32)]
-    [InlineData(-16777216, .25f, 64)] [InlineData(-16777216, .25f, 128)]
     public void SealedRoomUsesSharedHitLighting(int anchor, float light, int surfaceSize)
     {
         EnsureShaderTestAvailable();

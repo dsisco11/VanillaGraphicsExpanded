@@ -83,23 +83,27 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             foreach (string family in families)
             {
                 int oit = family is "chunktransparent" or "chunkliquid" ? 1 : 0;
-                foreach (int shadow in new[] { 0, 2 })
-                    yield return [family, shadow, oit, 0, 0, 1, lumon];
+                // Sample depth-enabled no-cascade admission on the standard family.
+                if (family == "standard")
+                    yield return [family, 0, oit, 0, 0, 1, lumon];
             }
 
-            // SHADOWQUALITY 0, 1, and 2 exercise the no-cascade, first-cascade, and
-            // additional-cascade branches in the shared forward lighting include.
-            yield return ["standard", 1, 0, 0, 0, 1, lumon];
+            // Exercise the first-cascade branch while retaining the per-family shadow
+            // values in the SSAO/SSBO checks below.
+            if (lumon)
+                yield return ["standard", 1, 0, 0, 0, 1, lumon];
 
-            // Entity OIT is conditional; transparent and liquid families always publish OIT outputs.
-            yield return ["entityanimated", 2, 1, 0, 0, 1, lumon];
+            // Entity OIT is conditional; retain its enabled branch as an interaction witness.
+            if (lumon)
+                yield return ["entityanimated", 2, 1, 0, 0, 1, lumon];
 
             // Exercise the per-family SSAO/SSBO define path while disabling depth offset.
             foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent", "chunkliquid" })
                 yield return [family, 2, family is "chunktransparent" or "chunkliquid" ? 1 : 0, 1, family is "chunktransparent" or "chunkliquid" ? 1 : 0, 0, lumon];
 
             // Keep the high-cascade and stronger SSAO combination as a boundary case.
-            yield return ["standard", 4, 1, 2, 0, 1, lumon];
+            if (lumon)
+                yield return ["standard", 4, 1, 2, 0, 1, lumon];
         }
     }
 

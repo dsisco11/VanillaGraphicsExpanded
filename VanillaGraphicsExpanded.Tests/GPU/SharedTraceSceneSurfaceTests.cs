@@ -41,7 +41,6 @@ public sealed class SharedTraceSceneSurfaceTests : RenderTestBase
     /// <summary>Preserves material capture, integer coordinates and cosine-weighted irradiance normalization.</summary>
     [Theory]
     [InlineData(0)] [InlineData(-16777216)] [InlineData(16777216)]
-    [InlineData(-32)]
     public void ValidSharedSurfaceCapturesAndAccumulates(int anchor)
     {
         EnsureContextValid();

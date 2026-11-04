@@ -78,7 +78,7 @@ public sealed class SurfaceFallbackGpuTests(HeadlessGLFixture fixture):RenderTes
     #region Commit history
     /// <summary>A validated completion uses reciprocal previous history while preserving direct light and other texels.</summary>
     [Theory]
-    [InlineData(1)] [InlineData(4)] [InlineData(12)]
+    [InlineData(1)] [InlineData(12)]
     public void CommitUsesTheNormalTemporalFormula(int cap)
     {
         EnsureContextValid();using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:35);
