@@ -104,24 +104,68 @@ public sealed class AtmosphereSeasonTests(ITestOutputHelper output)
     #endregion
 
     #region Transport admission
-    /// <summary>Both CPU owners invalidate changed reflectance but reuse the same quantized bucket.</summary>
+    /// <summary>The lookup integrates changed reflectance while worker admission reuses its quantized bucket.</summary>
     [Fact]
-    public async Task GroundAlbedoInvalidatesCpuTransport()
+    public void GroundAlbedoInvalidatesCpuTransport()
     {
         var lookup = new AtmosphereLookup();
         lookup.Update(Vector3.UnitY, 0, 0, width: 16, height: 8);
         var bare = lookup.Current!;
         Assert.False(lookup.Update(Vector3.UnitY, 0, 0, width: 16, height: 8, groundAlbedo: .101f));
         Assert.True(lookup.Update(Vector3.UnitY, 0, 0, width: 16, height: 8, groundAlbedo: .8f));
-        Assert.True(lookup.Current!.Environment.Length() > bare.Environment.Length());
-        using var worker = new AtmosphereComputation();
-        worker.Update(Vector3.UnitY, 0, 0, 16, 8);
-        var first = await worker.Pending!.WaitAsync(TimeSpan.FromSeconds(30));
-        Assert.Same(first, worker.Update(Vector3.UnitY, 0, 0, 16, 8, groundAlbedo: .8f));
-        var second = await worker.Pending!.WaitAsync(TimeSpan.FromSeconds(30));
-        Assert.Same(second, worker.Update(Vector3.UnitY, 0, 0, 16, 8, groundAlbedo: .801f));
+        var snowy = lookup.Current!;
+        Assert.True(snowy.Environment.Length() > bare.Environment.Length());
+        Assert.NotSame(bare, snowy);
+
+        var producer = new ControlledProducer();
+        using var worker = new AtmosphereComputation(producer.Start);
+        Assert.Null(worker.Update(Vector3.UnitY, 0, 0, 16, 8, groundAlbedo: .1f));
+        var bareRequest = Assert.Single(producer.Requests);
+        Assert.Equal(Vector3.UnitY, bareRequest.Request.Sun);
+        Assert.Equal((0f, 0f, 16, 8, 0, .1f),
+            (bareRequest.Request.Altitude, bareRequest.Request.Clouds, bareRequest.Request.Width,
+                bareRequest.Request.Height, bareRequest.Request.Quality, bareRequest.Request.GroundAlbedo));
+        Assert.NotNull(worker.Pending);
+
+        producer.Complete(0, bare);
+        Assert.Same(bare, worker.Update(Vector3.UnitY, 0, 0, 16, 8, groundAlbedo: .8f));
+        Assert.Equal(2, producer.Requests.Count);
+        var snowyRequest = producer.Requests[1];
+        Assert.Equal(Vector3.UnitY, snowyRequest.Request.Sun);
+        Assert.Equal((0f, 0f, 16, 8, 0, .8f),
+            (snowyRequest.Request.Altitude, snowyRequest.Request.Clouds, snowyRequest.Request.Width,
+                snowyRequest.Request.Height, snowyRequest.Request.Quality, snowyRequest.Request.GroundAlbedo));
+        Assert.NotNull(worker.Pending);
+
+        producer.Complete(1, snowy);
+        var published = worker.Update(Vector3.UnitY, 0, 0, 16, 8, groundAlbedo: .801f);
+        Assert.Same(snowy, published);
         Assert.Null(worker.Pending);
-        Assert.Equal(lookup.Current.Environment, second.Environment);
+        Assert.Equal(2, producer.Requests.Count);
+        Assert.Null(worker.Update(Vector3.UnitY, 0, 0, 16, 8, groundAlbedo: .8f));
+        Assert.Equal(2, producer.Requests.Count);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Controls asynchronous completion while retaining the snapshots computed by the synchronous lookup.</summary>
+    private sealed class ControlledProducer
+    {
+        #region Internal API
+        /// <summary>Records each frozen worker request and its independently controlled completion.</summary>
+        internal List<(AtmosphereBuildRequest Request, TaskCompletionSource<AtmosphereLighting> Completion)> Requests { get; } = [];
+
+        /// <summary>Admits a worker request without repeating numerical integration.</summary>
+        internal Task<AtmosphereLighting> Start(AtmosphereBuildRequest request, CancellationToken token)
+        {
+            var completion = new TaskCompletionSource<AtmosphereLighting>(TaskCreationOptions.RunContinuationsAsynchronously);
+            Requests.Add((request, completion));
+            return completion.Task;
+        }
+
+        /// <summary>Completes one request with the independently integrated lookup snapshot.</summary>
+        internal void Complete(int index, AtmosphereLighting snapshot) => Requests[index].Completion.SetResult(snapshot);
+        #endregion
     }
     #endregion
 }

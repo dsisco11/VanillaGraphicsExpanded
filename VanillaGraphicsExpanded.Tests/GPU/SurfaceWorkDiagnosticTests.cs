@@ -35,13 +35,13 @@ public sealed class SurfaceWorkDiagnosticTests(HeadlessGLFixture fixture):Render
     public void StagesSeparateUnchangedSeedFromCompletedWrites()
     {
         EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
-        GpuTestFence.WaitForGpuOrSkip("Stage setup counters");room.Diagnostics.Poll();
+        SurfaceWorkDiagnosticsTestWait.Drain(room.Diagnostics,"Stage setup counters");
         (uint Operation,SurfaceWorkStage Stage)[] stages=[(0u,SurfaceWorkStage.Seed),(4u,SurfaceWorkStage.Direct),(2u,SurfaceWorkStage.Combine),(3u,SurfaceWorkStage.Reset)];
         foreach(var entry in stages)
         {
             var before=room.Diagnostics.Snapshot(entry.Stage);
             room.DispatchDiagnosticWork(entry.Operation);
-            GpuTestFence.WaitForGpuOrSkip("Separated surface stage");room.Diagnostics.Poll();
+            SurfaceWorkDiagnosticsTestWait.Drain(room.Diagnostics,"Separated surface stage");
             var after=room.Diagnostics.Snapshot(entry.Stage);
             Assert.Equal(1,after.Collected-before.Collected);Assert.Equal(4,after.Pages-before.Pages);
             Assert.Equal(256ul,after.Counters[(int)SurfaceWorkCounter.Texels]-before.Counters[(int)SurfaceWorkCounter.Texels]);
@@ -77,7 +77,7 @@ public sealed class SurfaceWorkDiagnosticTests(HeadlessGLFixture fixture):Render
             floor.Geometry.Dirty();floor.Geometry.Publish();
         }
         Assert.Equal(completed,floor.BounceSample(rays:1,steps:scenario=="budget"?0u:256u));
-        GpuTestFence.WaitForGpuOrSkip("Surface outcome counters");floor.Diagnostics.Poll();
+        SurfaceWorkDiagnosticsTestWait.Drain(floor.Diagnostics,"Surface outcome counters");
         var measurement=floor.Diagnostics.Snapshot(SurfaceWorkStage.Indirect);
         Assert.Equal(1,measurement.Submitted);Assert.Equal(1,measurement.Collected);Assert.Equal(0,measurement.ReadFailures);
         Assert.Equal(1ul,measurement.Counters[(int)SurfaceWorkCounter.Texels]);
@@ -92,7 +92,7 @@ public sealed class SurfaceWorkDiagnosticTests(HeadlessGLFixture fixture):Render
     {
         EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();room.WithholdPages();
         Assert.False(room.BounceSample(rays:1));
-        GpuTestFence.WaitForGpuOrSkip("Missing hit lighting counters");room.Diagnostics.Poll();
+        SurfaceWorkDiagnosticsTestWait.Drain(room.Diagnostics,"Missing hit lighting counters");
         var counters=room.Diagnostics.Snapshot(SurfaceWorkStage.Indirect).Counters;
         Assert.Equal(1ul,counters[(int)SurfaceWorkCounter.Rays]);Assert.Equal(1ul,counters[(int)SurfaceWorkCounter.Hit]);
         Assert.Equal(1ul,counters[(int)SurfaceWorkCounter.HitLighting]);Assert.Equal(0ul,counters[(int)SurfaceWorkCounter.Completed]);
@@ -136,27 +136,35 @@ public sealed class SurfaceWorkDiagnosticTests(HeadlessGLFixture fixture):Render
     [Fact]
     public void CollectorIsBoundedAndSnapshotsAreIndependent()
     {
-        EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture(ImageAssertions);room.Seed();
-        GpuTestFence.WaitForGpuOrSkip("Diagnostics setup");room.Diagnostics.Poll();
-        var saved=room.Diagnostics.Snapshot(SurfaceWorkStage.Indirect);
+        // Arrange: exercise the collector through a small precompiled compute writer, without constructing a lighting enclosure.
+        EnsureContextValid();using var diagnostics=new SurfaceWorkDiagnostics();using var assets=new BinaryShaderApiFixture();
+        using var probe=SurfaceWorkCollectorComputeProgram.Create(assets.Api,diagnostics);
+        var saved=diagnostics.Snapshot(SurfaceWorkStage.Indirect);
         for(int dispatch=0;dispatch<32;dispatch++)
         {
-            room.DispatchDiagnosticWork(1,frame:(uint)dispatch);
-            Assert.InRange(room.Diagnostics.PendingCount,0,8);
-            int pending=room.Diagnostics.PendingCount;
-            _=room.Diagnostics.Snapshot(SurfaceWorkStage.Indirect);
-            Assert.Equal(pending,room.Diagnostics.PendingCount);
+            // Act: each admitted slot receives a real GPU counter write before its timestamp and fence are closed.
+            if(diagnostics.Begin(SurfaceWorkStage.Indirect,1))probe.Dispatch(1);
+            diagnostics.End();
+            Assert.InRange(diagnostics.PendingCount,0,8);
+            int pending=diagnostics.PendingCount;
+            _=diagnostics.Snapshot(SurfaceWorkStage.Indirect);
+            Assert.Equal(pending,diagnostics.PendingCount);
         }
-        GpuTestFence.WaitForGpuOrSkip("Bounded diagnostics completion");room.Diagnostics.Poll();
-        var current=room.Diagnostics.Snapshot(SurfaceWorkStage.Indirect);
+        Assert.Equal(32,diagnostics.Snapshot(SurfaceWorkStage.Indirect).Submitted);
+        SurfaceWorkDiagnosticsTestWait.Drain(diagnostics,"Bounded diagnostics completion");
+        var current=diagnostics.Snapshot(SurfaceWorkStage.Indirect);
+        Assert.True(current.Collected>0,"At least one admitted diagnostic slot must complete timestamp and SSBO readback.");
         Assert.Equal(32,current.Submitted);Assert.Equal(current.Submitted,current.Collected+current.Skipped);
-        Assert.Equal(0,room.Diagnostics.PendingCount);Assert.Equal(0,current.ReadFailures);
+        Assert.Equal(0,diagnostics.PendingCount);Assert.Equal(0,current.ReadFailures);
         Assert.Equal(0,saved.Submitted);Assert.All(saved.Counters,count=>Assert.Equal(0ul,count));
-        room.Diagnostics.Enabled=false;room.DispatchDiagnosticWork(1);
-        Assert.Equal(current.Collected,room.Diagnostics.Snapshot(SurfaceWorkStage.Indirect).Collected);
-        Assert.Equal(current.Skipped+1,room.Diagnostics.Snapshot(SurfaceWorkStage.Indirect).Skipped);
-        room.Diagnostics.Dispose();Assert.Equal(0,room.Diagnostics.PendingCount);
-        Assert.Throws<ObjectDisposedException>(()=>room.Diagnostics.Begin(SurfaceWorkStage.Indirect,1));
+        Assert.Equal((ulong)(current.Collected*64),current.Counters[(int)SurfaceWorkCounter.Texels]);
+        Assert.Equal((ulong)current.Collected,current.Counters[(int)SurfaceWorkCounter.Completed]);
+        // Assert: disabled samples skip collection, snapshots remain detached, and disposal rejects new work.
+        diagnostics.Enabled=false;Assert.False(diagnostics.Begin(SurfaceWorkStage.Indirect,1));diagnostics.End();
+        Assert.Equal(current.Collected,diagnostics.Snapshot(SurfaceWorkStage.Indirect).Collected);
+        Assert.Equal(current.Skipped+1,diagnostics.Snapshot(SurfaceWorkStage.Indirect).Skipped);
+        diagnostics.Dispose();Assert.Equal(0,diagnostics.PendingCount);
+        Assert.Throws<ObjectDisposedException>(()=>diagnostics.Begin(SurfaceWorkStage.Indirect,1));
     }
     #endregion
 }

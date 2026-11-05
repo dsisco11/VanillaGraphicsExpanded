@@ -20,10 +20,10 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
     [InlineData(110f,3f)] [InlineData(110f,20f)]
     public void ProjectionAndDistancePreserveReceiverEvidence(float fov,float distance)
     {
-        EnsureShaderTestAvailable();
+        EnsureShaderTestAvailable();var scenePrograms=new AmbientOcclusionScenePrograms(Programs);
         using var owner=new AmbientOcclusionPass();using var draw=new PostprocessDraw();
         foreach(int quality in new[]{1,2})foreach(int scene in new[]{0,1,4,5,9}) {
-            using var inputs=new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework,Programs,640,360,scene,receiverDistance:distance,verticalFov:fov);
+            using var inputs=new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework,Programs,640,360,scene,receiverDistance:distance,verticalFov:fov,sharedPrograms:scenePrograms);
             inputs.Render(owner,draw,quality);
             using var stages=AmbientOcclusionSceneFixture.CaptureStages(owner);
             AssertStage(stages.Raw);AssertStage(stages.Filtered);AssertStage(stages.Reconstructed);
@@ -44,6 +44,7 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
             var depthAgreement=ImageAssertions.Predicates.Predicate(stages.Reconstructed, AoPredicates.AmbientOcclusionHorizonBehaviorTests_ProjectionAndDistancePreserveReceiverEvidence_2,inputs.Depth);
             depthAgreement.AssertEqual();Assert.Equal(216u,depthAgreement.MatchingTexels);
         }
+        scenePrograms.AssertSceneReleased();
     }
 
     /// <summary>Clipped rays never invent occlusion; visible contact can still occlude near either image boundary.</summary>
@@ -51,10 +52,10 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
     [InlineData(0f)] [InlineData(.05f)] [InlineData(.95f)] [InlineData(1f)]
     public void ScreenEdgesUseOnlyVisibleGeometry(float edgeFraction)
     {
-        EnsureShaderTestAvailable();using var owner=new AmbientOcclusionPass();using var draw=new PostprocessDraw();
+        EnsureShaderTestAvailable();var scenePrograms=new AmbientOcclusionScenePrograms(Programs);using var owner=new AmbientOcclusionPass();using var draw=new PostprocessDraw();
         const int width=257,height=129;
         foreach(int quality in new[]{1,2}) {
-            using var inputs=new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework,Programs,width,height,4,edgeFraction:edgeFraction);
+            using var inputs=new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework,Programs,width,height,4,edgeFraction:edgeFraction,sharedPrograms:scenePrograms);
             inputs.Render(owner,draw,quality);using var stages=AmbientOcclusionSceneFixture.CaptureStages(owner);
             AssertStage(stages.Raw);AssertStage(stages.Filtered);AssertStage(stages.Reconstructed);
             float final=Minimum(stages.Reconstructed);
@@ -68,6 +69,7 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
             }
             log.WriteLine($"Screen edge fraction={edgeFraction} quality={quality}: rawMin={Minimum(stages.Raw):R}, finalMin={final:R}");
         }
+        scenePrograms.AssertSceneReleased();
     }
 
     /// <summary>Receivers beyond the world-distance fade publish neutral visibility and no reusable AO depth.</summary>
@@ -75,14 +77,17 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
     [InlineData(90f)]
     public void FarReceiversWithdrawVisibilityAtEveryProjection(float fov)
     {
-        EnsureShaderTestAvailable();using var owner=new AmbientOcclusionPass();using var draw=new PostprocessDraw();
-        using var inputs=new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework,Programs,129,73,7,verticalFov:fov);
-        inputs.Render(owner,draw,2);using var stages=AmbientOcclusionSceneFixture.CaptureStages(owner);
-        foreach(var stage in new[]{stages.Raw,stages.Filtered,stages.Reconstructed})
+        EnsureShaderTestAvailable();var scenePrograms=new AmbientOcclusionScenePrograms(Programs);using var owner=new AmbientOcclusionPass();using var draw=new PostprocessDraw();
+        using(var inputs=new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework,Programs,129,73,7,verticalFov:fov,sharedPrograms:scenePrograms))
         {
-            ImageAssertions.Comparisons.CompareConstant(stage,1,channelMask:1).AssertEqual();
-            ImageAssertions.Comparisons.CompareConstant(stage,0,channelMask:2).AssertEqual();
+            inputs.Render(owner,draw,2);using var stages=AmbientOcclusionSceneFixture.CaptureStages(owner);
+            foreach(var stage in new[]{stages.Raw,stages.Filtered,stages.Reconstructed})
+            {
+                ImageAssertions.Comparisons.CompareConstant(stage,1,channelMask:1).AssertEqual();
+                ImageAssertions.Comparisons.CompareConstant(stage,0,channelMask:2).AssertEqual();
+            }
         }
+        scenePrograms.AssertSceneReleased();
     }
 
     /// <summary>Compares quality at identical geometry, allocation and pass count using warm ABBA submissions.</summary>

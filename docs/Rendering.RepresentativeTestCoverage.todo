@@ -54,14 +54,31 @@ Status and objective
   remains unmet; no fresh complete Debug result is claimed. Detailed scoped timings appear below.
   A subsequent AO-only test change reuses one executable within each existing case. Its six
   Release cases change from 12.286s to 6.491s in a matched pair, with 172 focused/regression checks
-  passing per configuration. No complete timing after that change is claimed; 574.267s remains
-  the latest measured full selection. The four other audited families retain their current owners.
+  passing per configuration. Those scoped checks did not include a complete run; the subsequent
+  Phase 9 qualification below supersedes the 574.267s full timing. The four other audited families
+  retain their current owners.
   Subsequent temporary probes find multi-second first-use waits despite validated binary hits.
   Earlier completion waits move the observed delay without removing it. Process/thread sampling
   shows substantial CPU activity on the render thread and a worker whose entry maps to NVIDIA's
   OpenGL driver; entry provenance does not identify executing functions or prove compilation.
   All instrumentation is removed, restoration is verified, and no production optimization follows
   these measurements. Detailed scopes, limitations and receipts are recorded below.
+  Phase 9 of Rendering.TestRuntimeOptimizations.todo has a qualified test-only source batch;
+  second review and independent completion audit are clean. The user accepted Phase 9 and its
+  measured limitations on 2026-11-05; it is closed with the broader five-minute target still unmet.
+  The user approved twelve representative atmosphere environments, smaller
+  publication/resize grids and controlled albedo-worker completion while retaining real
+  numerical integration and an independent real-worker witness. No test cases are removed.
+  AO horizon reuses programs within each case; collector-only coverage uses a focused real
+  compute writer and bounded query-completion polling. Production and stress source are unchanged.
+  Debug/Release each pass 153 distinct focused checks, zero failures/skips; discovery remains
+  5,950 identities, with all original shader payloads unchanged. The complete warmed Release run
+  takes 434.103s (7m14.1s), excluding builds and including stress: 5,949 passed, seven skipped,
+  zero failed across 5,956 runtime rows. The routine five-minute target remains unmet. This is
+  shorter than the historical 574.267s run, but unmatched single full samples do not isolate
+  these changes or establish a stable percentage improvement. No fresh complete Debug result
+  is claimed. Exact approved losses and receipts are recorded in Phase 9;
+  ../TestResults/TestRuntimeOptimizations/Phase9/20261105T162857Z/.
 
 Baseline and authority
   Current full Windows runs use AllTests.runsettings (Purpose!=Diagnostic, including stress).

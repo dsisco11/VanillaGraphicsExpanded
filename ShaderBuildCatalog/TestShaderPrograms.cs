@@ -17,6 +17,10 @@ internal static partial class TestShaderPrograms
             programs.Add(new("tests/" + name, [Fixture(name, "vsh", ShaderStageKind.Vertex), Fixture(name, "fsh", ShaderStageKind.Fragment)], 1));
         programs.Add(new("tests/deletion", [Fixture("deletion", "vsh", ShaderStageKind.Vertex), Fixture("complete-state", "fsh", ShaderStageKind.Fragment)], 1));
         programs.Add(new("tests/temporal-debug", [Fixture("temporal-debug", "csh", ShaderStageKind.Compute)], 1));
+        var surfaceWorkCollector = new GpuBindingContract();
+        surfaceWorkCollector.RegisterShaderStorageBlockBinding("DiagnosticCounters", 4);
+        programs.Add(new("tests/surface-work-collector",
+            [new("tests/surface-work-collector.csh", "tests/surface-work-collector.csh", ShaderStageKind.Compute, surfaceWorkCollector)], 1));
         foreach (string name in new[] { "aerial-lookup", "displacement-metric", "displacement-height", "sun-segment", "relief-on", "relief-off" })
             programs.Add(new("tests/" + name, [Fixture("complete-state", "vsh", ShaderStageKind.Vertex), Numerical(name)], 1));
         // Shadow subdivision runs before world-camera publication, so its fixture contract deliberately omits VgeFrameUBO.

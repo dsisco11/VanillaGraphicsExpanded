@@ -57,15 +57,15 @@ public sealed class AtmosphereResolutionTests
     public void ResizePublishesCompleteSnapshotImmediately()
     {
         var lookup = new AtmosphereLookup();
-        Assert.True(lookup.Update(Vector3.UnitY, 0, 0, complete: true));
+        Assert.True(lookup.Update(Vector3.UnitY, 0, 0, complete: true, width: 17, height: 9));
         var previous = lookup.Current!;
         float[] previousPixels = previous.Sky.ToArray();
-        Assert.True(lookup.Update(Vector3.UnitY, 0, 0, width: 17, height: 9));
-        AssertSnapshot(lookup.Current!, 17, 9);
+        Assert.True(lookup.Update(Vector3.UnitY, 0, 0, width: 16, height: 9));
+        AssertSnapshot(lookup.Current!, 16, 9);
         Assert.Equal(previousPixels, previous.Sky.ToArray());
         Assert.Equal(2, lookup.Revision);
         var resized = lookup.Current;
-        Assert.False(lookup.Update(Vector3.UnitY, 0, 0, width: 17, height: 9));
+        Assert.False(lookup.Update(Vector3.UnitY, 0, 0, width: 16, height: 9));
         Assert.Same(resized, lookup.Current);
         Assert.Equal(2, lookup.Revision);
     }
@@ -78,14 +78,14 @@ public sealed class AtmosphereResolutionTests
     {
         var lookup = new AtmosphereLookup();
         if (hasCompletedSnapshot)
-            Assert.True(lookup.Update(Vector3.UnitY, 0, 0, complete: true, width: 32, height: 24));
-        Assert.False(lookup.Update(Vector3.UnitY, 0, .5f, complete: false, width: 32, height: 24));
-        Assert.True(lookup.Update(Vector3.UnitX, 1, 1, width: 17, height: 9));
-        AssertSnapshot(lookup.Current!, 17, 9);
+            Assert.True(lookup.Update(Vector3.UnitY, 0, 0, complete: true, width: 17, height: 9));
+        Assert.False(lookup.Update(Vector3.UnitY, 0, .5f, complete: false, width: 17, height: 9));
+        Assert.True(lookup.Update(Vector3.UnitX, 1, 1, width: 16, height: 9));
+        AssertSnapshot(lookup.Current!, 16, 9);
         Assert.Equal(Vector3.UnitX, lookup.Current!.Sun);
         // Compare all outputs with a fresh complete build to exclude mixed old/new rows or integrals.
         var expected = new AtmosphereLookup();
-        Assert.True(expected.Update(Vector3.UnitX, 1, 1, complete: true, width: 17, height: 9));
+        Assert.True(expected.Update(Vector3.UnitX, 1, 1, complete: true, width: 16, height: 9));
         Assert.Equal(expected.Current!.Sky.ToArray(), lookup.Current.Sky.ToArray());
         Assert.Equal(expected.Current.Environment, lookup.Current.Environment);
         Assert.Equal(expected.Current.Horizon, lookup.Current.Horizon);

@@ -18,15 +18,20 @@ public sealed class AtmosphereMultipleScatteringTensorTests
         Vector3[] directions = AtmosphereTensorTests.Directions(count).Select(Vector3.Normalize).ToArray();
         var sources = new Vector3[count];
         var feedback = new Vector3[count];
-        foreach (float altitude in new[] { .001f, 2f, 25f, 99f })
-        foreach (float aerosol in new[] { .1f, 1f, 8f })
-        foreach (float ground in new[] { 0f, .1f, 1f })
-        foreach (Vector3 sun in new[] { Vector3.UnitY, Vector3.Normalize(new Vector3(1, -.03f, 0)), -Vector3.UnitY })
+        // Each altitude spans every aerosol, ground and sun category while avoiding the full Cartesian product.
+        (float Altitude, float Aerosol, float Ground, Vector3 Sun)[] scenarios =
+        [
+            (.001f, .1f, 0f, Vector3.UnitY), (.001f, 1f, .1f, Vector3.Normalize(new Vector3(1, -.03f, 0))), (.001f, 8f, 1f, -Vector3.UnitY),
+            (2f, .1f, .1f, Vector3.Normalize(new Vector3(1, -.03f, 0))), (2f, 1f, 1f, -Vector3.UnitY), (2f, 8f, 0f, Vector3.UnitY),
+            (25f, .1f, 1f, -Vector3.UnitY), (25f, 1f, 0f, Vector3.UnitY), (25f, 8f, .1f, Vector3.Normalize(new Vector3(1, -.03f, 0))),
+            (99f, .1f, 0f, Vector3.UnitY), (99f, 1f, .1f, -Vector3.UnitY), (99f, 8f, 1f, Vector3.Normalize(new Vector3(1, -.03f, 0)))
+        ];
+        foreach (var scenario in scenarios)
         {
-            AtmosphereModel.MultipleScatteringTransferBatch(directions, sun, altitude, aerosol, ground, 24, 12, sources, feedback);
+            AtmosphereModel.MultipleScatteringTransferBatch(directions, scenario.Sun, scenario.Altitude, scenario.Aerosol, scenario.Ground, 24, 12, sources, feedback);
             for (int i = 0; i < count; i++)
             {
-                var expected = AtmosphereModel.MultipleScatteringTransfer(directions[i], sun, altitude, aerosol, ground, 24, 12);
+                var expected = AtmosphereModel.MultipleScatteringTransfer(directions[i], scenario.Sun, scenario.Altitude, scenario.Aerosol, scenario.Ground, 24, 12);
                 Close(expected.Source, sources[i]);
                 Close(expected.Feedback, feedback[i]);
                 for (int channel = 0; channel < 3; channel++) Assert.InRange(feedback[i][channel], 0, 1.00001f);

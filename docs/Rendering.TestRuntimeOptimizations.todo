@@ -9,6 +9,10 @@ Status
   the broader under-five-minute runtime objective remains open in the representative coverage record.
   Phase 8 is complete and accepted by the user on 2026-11-04. All eight phases are closed;
   the broader under-five-minute runtime objective remains unmet.
+  Phase 9 is complete and accepted by the user on 2026-11-05. Its test-only source batch passes focused
+  Debug/Release checks and full Release in 434.103s (7m14.1s). The five-minute target is still
+  unmet. Second review and independent completion audit are clean. All nine phases are closed;
+  the broader routine cached runtime target remains open in Rendering.RepresentativeTestCoverage.todo.
   The user subsequently clarified the target as routine cached runs with explicit uncached
   mechanics checks retained; current execution work is recorded in Rendering.RepresentativeTestCoverage.todo.
   Earlier subsequent coverage work is recorded in Rendering.RepresentativeTestCoverage.todo;
@@ -1167,21 +1171,154 @@ Shared implementation and acceptance requirements
     The 20261104T114517Z-candidate/ and 20261104T115115Z-final-candidate/ folders retain the
     superseded builds explicitly and contain no qualifying test runs.
 
-☐ Phase 9 — Reduce repeated GPU setup and atmosphere construction in expensive suites
+☑ Phase 9 — Reduce repeated GPU setup and atmosphere construction in expensive suites
   Scope and authority
     The user requested this phase on 2026-11-05 after the runtime optimization audit.
     Prioritize AO horizon program reuse, surface-lighting fixture specialization and atmosphere
     construction reduction; evaluate broader numerical reuse and GC stress costs afterward.
     Inherit Rendering.RepresentativeTestCoverage.todo and the shared performance analyses above.
     Preserve the eight accepted phases and the subsequently qualified cache, numerical-fixture
-    and AO-composite changes. This phase is planned work, not an implementation or savings claim.
+    and AO-composite changes. The execution and qualification records below distinguish measured
+    results from the original planning estimates.
     Target routine cached complete correctness runs below five minutes, excluding builds.
     Retain explicit uncached mechanics, real-GC stress, independent references, tolerances and
     meaningful ownership/publication boundaries. No process splitting, global live-program cache,
     GPU parallelism or runner-selection change is included.
-  ☐ Establish the current candidate and focused timing baseline before implementation.
-    Reuse the recorded source and timing evidence where applicable. The latest full warmed Release
-    run is 574.267s with 5,949 passed, seven skipped and zero failures; it predates AO-composite
+  Execution decisions (2026-11-05; implemented, qualified and accepted)
+    AO horizon: retain the existing case-owned ComponentShaderPrograms lifetime and create one
+    four-program bundle per case, borrowing it from fresh scene fixtures. Rebind changing inputs
+    and clear borrowed sampler/camera references before scene resources retire. The 236 -> 40
+    creation count applies to ten correctness cases; diagnostic cases remain separately selected.
+    Surface-work collection: specialize the bounded collector case with a real precompiled compute
+    submission and the production collector, preserving fences, readback, capacity, independent
+    snapshots and disposal. CPU-written counters cannot replace its compute submission boundary.
+    Preserve ConsumerRuntime and SpatialRuntime owners and publication chains. Water composition
+    and direct-visibility owners also remain unchanged unless a bounded complete reset design is
+    established; their API/asset, variant and mutable resource lifetimes exceed the existing seam.
+    Atmosphere reductions approved by the user on 2026-11-05 (qualified):
+      Keep all current cases. GroundAlbedoInvalidatesCpuTransport retains its real synchronous
+      .1/.8 numerical integrations; controlled completions replace its two worker integrations,
+      asserting exact admitted requests, publication identity and .801 bucket reuse. The independent
+      real-worker PublishesOnlyCompletedSnapshotAndReusesStableInputs witness remains unchanged.
+      RefreshNeverPublishesPartialResults and StableQuantizedInputsDoNotRefresh use 17x9 grids
+      (153 samples, two 128-sample update intervals with a 25-sample tail) instead of 32x24/768.
+      ChangingInputsFinishAdmittedSnapshotThenRefreshLatest uses 20x20/400 (four intervals), retaining
+      two changed requests during the pending build. Both resize methods use old 17x9 -> new 16x9,
+      retaining distinct dimensions, both pending/publication states and independent full expected
+      snapshots. WeatherRefreshStillPublishesOnlyAfterPartialFinalBatch and the timing diagnostic
+      remain unchanged. Default-size real construction remains in CancelledLookupPreservesPreviousSnapshot;
+      explicit 33x25 and 128x96 complete dimension witnesses and quality mapping remain unchanged.
+      TransferMatchesScalar keeps counts 1, 7, 128 and 129 and the exact scalar oracle/tolerances.
+      Approved twelve (altitude, aerosol, ground, sun) tuples per count:
+        (.001, .1, 0, day); (.001, 1, .1, horizon); (.001, 8, 1, night);
+        (2, .1, .1, horizon); (2, 1, 1, night); (2, 8, 0, day);
+        (25, .1, 1, night); (25, 1, 0, day); (25, 8, .1, horizon);
+        (99, .1, 0, day); (99, 1, .1, night); (99, 8, 1, horizon).
+      Sun is UnitY / Normalize(1, -.03, 0) / -UnitY for day/horizon/night. This changes 432 -> 48
+      batches and 28,620 -> 3,180 scalar-vector records; all four table-quality parity cases remain.
+      Intentional loss: exhaustive within-altitude aerosol/ground/sun combinations, default-size
+      refresh/resize combinations and separate real-worker albedo numerical transport in this case.
+      These workload reductions do not establish numerical equivalence or timing improvement.
+    Broader surface-lighting audit retains existing setup for its tested responsibilities:
+      SurfaceLightingConsumerRuntimeTests and SurfaceLightingSpatialRuntimeTests: callbacks, worker
+      retries, pending/stale completions, rings, temporal history, replacement and retirement.
+      SurfaceLightingRuntimeScenariosTests: actual emission/bounce/door and unavailable-versus-dark
+      producer-to-consumer transitions. SurfaceLightingPbrLifetimeTests: retained direct/cache/screen
+      resources, source edits, replacement, history invalidation and numerical composition.
+      SurfaceLightingRefreshTests: live budgets, identities, continuation, dirty/light changes and
+      unresolved retention. SurfaceLightingEnvironmentTests: producer calibration, sky/source
+      duplication, complete floor publication and mixed-ray behavior. SurfaceLightingPartialWorldProbeTests:
+      partial page admission, pending invalidation, accessor loss, anchors and dirty history.
+      These sources are in ../VanillaGraphicsExpanded.Tests/GPU/. No smaller equivalent setup seam
+      was established for these assertions; do not replace their real publication/owner boundaries.
+  Baseline observations (2026-11-05; captured before the candidate)
+    The unchanged 40-case AO/atmosphere selection passes twice per configuration, zero failures
+    or skips: Debug 18.962 / 19.152s and Release 13.888 / 13.813s command wall, builds excluded.
+    The wider 55-case selection passes three Debug runs (28.251 / 24.440 / 26.001s), but Release
+    fails the same 12 SurfaceWorkDiagnosticTests twice (43/55 passed, 20.414 / 20.438s). An isolated
+    unchanged Release surface-work selection reproduces 12 failures (3/15 passed, 11.170s).
+    Failures include incomplete collection after one poll; a signaled GPU fence does not establish
+    that the collector's timestamp queries have been retrieved. The exact delay cause is unresolved.
+    Preserve these failures and validate a bounded test-only completion wait without weakening
+    counter assertions or changing production asynchronous collection. The failed selections are
+    not passing performance controls. Separate unchanged water/direct-visibility/stress selections
+    pass 96/96 per configuration in 41.169s Debug / 38.495s Release. These timings retain caches.
+    Receipts and original source/DLL/shader provenance:
+      ../TestResults/TestRuntimeOptimizations/Phase9/20261105T162857Z/.
+  Bounded stress attribution (2026-11-05; original source restored before qualification)
+    Temporary clocks preserve all 12 lifetimes, 32 cycles, 16 aliases and original assertions.
+    The isolated instrumented Release case passes 1/1 in 4.496s process wall after a separately
+    passing 118.902s build. Its 384 collection attempts take 110.149ms in GC.Collect and 7.318ms
+    in WaitForPendingFinalizers within a 189.191ms measured body; initial/final observed managed
+    heap is 1,398,488 / 566,280 bytes. Each generation records 384 collections; process CPU advances
+    156.250ms. These nested scopes are not additive and exclude test startup/JIT outside the body.
+    This small fresh-process heap differs from the historical full-suite environment. It does
+    not explain the earlier 26.360s case or establish a stress/full-suite speedup. The workload
+    and runner policy remain unchanged; restore exact source bytes before final qualification.
+    A second probe uses the same instrumented DLL, without rebuilding, for the original 96-case
+    water/direct-visibility/stress selection: 96/96 pass, zero failures/skips, 40.272s process wall.
+    Stress body time is 1,570.470ms, including 1,509.223ms in collection and 22.291ms in finalizer
+    waits; all 384 original attempts remain. Observed heap is 45,678,688 -> 26,339,576 bytes,
+    versus the isolated probe's much smaller heap. Process CPU advances 1,609.375ms. This establishes
+    a measured association with process conditions and collection cost, not a diagnosis of the
+    historical 26-second sample or a reason to remove stress iterations. The archived instrumented
+    build source governs both probes; live source was restored separately to its original SHA-256,
+    32728DD6E8E36FDDD299656266F654F60380E8097C16701AE7DAEAF5CE93AA8F. Final builds must use that
+    restored source. No stress or runner changes remain in the candidate.
+  Focused qualification (2026-11-05; verified)
+    Finished Debug/Release builds pass with zero errors in 71.282s / 14.814s, excluding all test
+    timings below. The original 40-case AO/atmosphere selection passes twice per configuration:
+      Debug baseline 18.962 / 19.152s; candidate 16.132 / 18.736s.
+      Release baseline 13.888 / 13.813s; candidate 9.749 / 11.263s.
+    Separate controls pass 123/123 in 40.575s / 28.887s, Debug/Release. The overlapping selections
+    cover 153 distinct passing cases per configuration, zero failures/skips, including all 15
+    surface-work diagnostics, relevant ownership/cold paths and independent numerical controls.
+    The formerly failing Release diagnostics now collect through the bounded test-only wait;
+    production polling is unchanged. The minimal collector requires a positive collection count
+    and exact GPU-written counter totals, rejecting a vacuous all-skipped result.
+    Second source review found that missing positive-collection assertion; the correction is
+    independently rechecked, with no remaining source findings. Final test discovery remains
+    5,950 identities per configuration, no additions/removals. All 58 logged AO scene observations
+    per run exactly match baseline (232 candidate lines across repeats/configurations); the far
+    receiver retains its assertion-only checks. Source, DLL and shader hashes remain stable through
+    focused verification. All 909 original shader payloads per configuration are unchanged; exactly
+    one test collector module is added per configuration. No production files are changed.
+    Release cache eligibility is confirmed before the full run: 435 valid payloads / 17,530,799
+    bytes, including the original 434 byte-identical entries and one 6,936-byte collector entry.
+    Debug has 81 valid payloads. Builds, cache warmth and process conditions are recorded separately.
+    These selected repeated wall times do not establish a stable percentage or full-suite speedup;
+    atmosphere workload reductions intentionally lose the agreed combinations above.
+    Receipts: candidate/ and candidate-reconciliation.json under the Phase 9 receipt directory.
+    The interrupted preliminary build is preserved separately; no tests qualified against it.
+  Complete qualification (2026-11-05; independently audited and accepted)
+    The finished retained-cache Release AllTests run passes 5,949 with seven retained skips and
+    zero failures across 5,956 unique runtime identities in 434.103s (7m14.1s) command wall,
+    excluding builds and including real-GC stress and explicit uncached mechanics. All runtime
+    identities and skip reasons exactly match the historical full run. Unchanged adapter discovery
+    is 5,950; four dynamic Poisson placeholders expand to ten runtime rows, accounting for +6.
+    All 3,887 recorded sources, four DLLs and 1,820 emitted shader payloads remain stable across
+    qualification. The 435-entry Release cache retains its 17,530,799 bytes with no payload
+    additions/removals, invalid entries, hash changes or modification-time changes during the run.
+    Only index read-recency may advance. The original 909 modules per configuration remain
+    byte-identical to baseline; the sole added module per configuration is the test collector.
+    The routine five-minute target remains unmet. The historical 574.267s sample predates this
+    batch and AO-composite reuse; the observed 140.164s difference is not an isolated Phase 9
+    effect or stable percentage improvement. Driver/filesystem cache warmth is uncontrolled.
+    No fresh full Debug, Linux CI, live-game appearance or GPU frame-time result is claimed.
+    Current summed case attribution: AO horizon 10 cases / 3.616s; surface-work diagnostics
+    15 / 5.217s; CPU atmosphere 163 / 76.190s; GPU SurfaceLighting 143 / 114.797s; real-GC stress
+    1 / 20.728s. These can overlap and omit fixture costs; do not add them as wall-time savings.
+    The full stress sample is much slower than either attribution probe despite identical
+    iterations, reinforcing the process-condition limitation without diagnosing its exact cause.
+    Receipts: full-warm-release/ plus full-reconciliation.json, full-cache-proof.json,
+    full-membership-and-attribution.json and full-comparison-summary.json under the Phase 9
+    receipt directory; class/family cost inventories retain the current ranking.
+    Second source/evidence review and the independent linked-document completion audit are clean.
+    The user accepted these results and limitations on 2026-11-05, closing the phase while
+    retaining the broader five-minute target as unmet.
+  ☑ Establish the current candidate and focused timing baseline before implementation.
+    Reuse the recorded source and timing evidence where applicable. At phase entry the latest full
+    warmed Release run was 574.267s with 5,949 passed, seven skipped and zero failures; it predates AO-composite
     reuse. Recent temporary shader-loading benchmarks establish no new full-suite runtime.
     Ranking evidence from that full run: AO horizon 9.896s/10 cases; GPU SurfaceLighting classes
     168.010s/143; CPU atmosphere classes 87.747s/163; water refraction 19.236s/33; direct world-probe
@@ -1189,7 +1326,7 @@ Shared implementation and acceptance requirements
     may overlap and exclude some fixture costs; they are not expected wall savings.
     Capture matched retained-cache baselines for selected changes, with actual membership,
     configuration and source/DLL/shader provenance. Keep build time separate.
-  ☐ Reuse AO horizon helper programs within each existing case.
+  ☑ Reuse AO horizon helper programs within each existing case.
     AmbientOcclusionHorizonBehaviorTests constructs 59 scenes across ten correctness cases;
     AmbientOcclusionSceneFixture creates horizon, filter, depth-hierarchy and minimum-child-mask
     programs per scene. Target four case-owned programs instead: 236 creations become 40 by
@@ -1197,7 +1334,7 @@ Shared implementation and acceptance requirements
     Keep all scene/quality/projection combinations, draw order, numerical references and assertions.
     Retain fresh scene textures/cameras, overwrite every mutable binding and clear borrowed
     references before their resources retire. Verify ownership, quality transitions and cleanup.
-  ☐ Audit and specialize expensive surface-lighting fixture setup by tested responsibility.
+  ☑ Audit and specialize expensive surface-lighting fixture setup by tested responsibility.
     Start with SurfaceWorkDiagnosticTests.CollectorIsBoundedAndSnapshotsAreIndependent: assess a
     focused collector/compute fixture instead of constructing and seeding a complete enclosure.
     Preserve real submission, fences, readback, bounded capacity, snapshot independence and disposal.
@@ -1208,7 +1345,7 @@ Shared implementation and acceptance requirements
     retirement contracts; do not share those owners under numerical-only reuse authorization.
     Record concrete setup changes and supporting witnesses before implementing the coherent batch;
     retain an evidence-backed no-change decision where setup is essential to the tested boundary.
-  ☐ Reduce atmosphere construction where policy coverage does not require repeated integration.
+  ☑ Reduce atmosphere construction where policy coverage does not require repeated integration.
     Assess GroundAlbedoInvalidatesCpuTransport for controlled asynchronous completion while
     retaining real numerical albedo response and an independent real-worker publication witness.
     Audit lookup/resolution publication checks for smaller representative workloads that still
@@ -1219,7 +1356,7 @@ Shared implementation and acceptance requirements
     witnesses. Do not silently remove the previously retained all-quality table-parity or real-worker
     guarantees. Present any concrete row/workload reduction, surviving witnesses and lost interaction
     coverage for agreement before applying it; adding this phase does not approve unspecified cuts.
-  ☐ Evaluate remaining reuse and stress candidates after the narrower changes.
+  ☑ Evaluate remaining reuse and stress candidates after the narrower changes.
     WaterRefractionTests and LumOnDirectWorldProbeVisibilityTests require complete variant/input
     reset and lifetime separation before cross-case executable reuse can be safe. Document the
     reset/ownership design and measured opportunity; retain current owners if no bounded design
@@ -1227,12 +1364,12 @@ Shared implementation and acceptance requirements
     Attribute GpuResourceAssociationStressTests cost to collection/finalization and process conditions.
     Keep its workload and runner policy intact; investigate before proposing any workload change.
     Record rejected candidates and reasons rather than forcing a change in every audited suite.
-  ☐ Finish each coherent implementation batch before builds, tests and independent review.
+  ☑ Finish each coherent implementation batch before builds, tests and independent review.
     Use configured test writers/reviewers and delegate builds/tests. Run affected Debug/Release
     selections with relevant ownership, cold-path and numerical controls. Reconcile exact membership,
     transferred assertions, intentional coverage losses, failures/skips and provenance. Measure
     matched focused timings; distinguish reduced setup counts from measured runtime improvement.
-  ☐ Qualify the finished candidate and reconcile documentation before closure.
+  ☑ Qualify the finished candidate and reconcile documentation before closure.
     Run the complete warmed Release AllTests selection, including stress, with validated caches
     retained. Report wall time excluding builds, actual membership, failures/skips and cache conditions.
     Compare with the recorded baseline without treating unmatched single runs as causal speedups.

@@ -127,7 +127,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
             GL.MemoryBarrier(MemoryBarrierFlags.AllBarrierBits);
             if(diagnostics)
             {
-                GpuTestFence.WaitForGpuOrSkip("Capture diagnostics");captureShader.Diagnostics.Poll();
+                SurfaceWorkDiagnosticsTestWait.Drain(captureShader.Diagnostics,"Capture diagnostics");
                 measurement=captureShader.Diagnostics.Snapshot(SurfaceWorkStage.Capture);
             }
         }

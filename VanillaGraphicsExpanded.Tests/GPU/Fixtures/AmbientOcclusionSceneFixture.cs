@@ -24,6 +24,7 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     private readonly DepthHierarchyPass hierarchy=new();
     private readonly DynamicTexture2D normal,material,environment;
     private readonly float availability;
+    private readonly AmbientOcclusionScenePrograms scenePrograms;
 
     #region Public API
     internal int Width { get; }
@@ -42,13 +43,13 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     /// <summary>Projects planes and exact corner intersections using the same camera later borrowed by AO and lighting.</summary>
     internal AmbientOcclusionSceneFixture(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations, ShaderTestFramework framework,ComponentShaderPrograms programs,int width,int height,int scene,
         float receiverDistance=3,float verticalFov=90,float edgeFraction=.5f,float roughness=.5f,float metallic=0,float availability=.5f,
-        float occluderTransmission=0,float receiverTransmission=0)
+        float occluderTransmission=0,float receiverTransmission=0,AmbientOcclusionScenePrograms? sharedPrograms=null)
     {
         this.observations = observations;
         observations.Programs.Prepare("layer", 0, 0);
         this.framework=framework;Width=width;Height=height;this.availability=availability;
-        horizon=programs.Create<PostSsaoShaderProgram>();filter=programs.Create<AmbientOcclusionFilterShaderProgram>();compute=programs.CreateDepthHierarchy();
-        maskShader=programs.Create<MinimumChildMaskShaderProgram>();
+        scenePrograms=sharedPrograms??new AmbientOcclusionScenePrograms(programs);
+        horizon=scenePrograms.Horizon;filter=scenePrograms.Filter;compute=scenePrograms.DepthHierarchy;maskShader=scenePrograms.MinimumChildMask;
         float aspect=(float)width/height,tanHalf=MathF.Tan(verticalFov*MathF.PI/360);
         const float near=.1f,far=100f;
         float a=-(far+near)/(far-near),b=-2*far*near/(far-near);
@@ -178,6 +179,7 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     /// <summary>Retires dependent hierarchy views and layered inputs before their source storage.</summary>
     public void Dispose()
     {
+        scenePrograms.ClearBorrowedInputs();
         comparisonMasks.Dispose();hierarchy.Dispose();Surface.Dispose();Camera.Dispose();Position.Dispose();Albedo.Dispose();
         environment.Dispose();material.Dispose();normal.Dispose();Depth.Dispose();
     }
