@@ -59,10 +59,17 @@ public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture,
             Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
             Assert.Empty(assets.PreparedPrograms);
             // Capture the authored declaration set before native preparation; linked output cannot define its own oracle.
-            var production = GpuShaderProgramLibraries.GetAll(assets.Api)
+            var declaredProduction = GpuShaderProgramLibraries.GetAll(assets.Api)
                 .Where(program => program is not LumOnDebugShaderProgram).ToImmutableArray();
+            var declaredNames = declaredProduction.Select(program => program.PassName).ToHashSet(StringComparer.Ordinal);
+            Assert.NotEmpty(declaredNames);
+            Assert.Equal(declaredProduction.Length, declaredNames.Count);
+            // The ordinary row keeps one real nondebug coexistence witness; its diagnostic row still preloads all declarations.
+            var production = reportTiming
+                ? declaredProduction
+                : declaredProduction.Where(program => string.Equals(program.PassName, "lumon_combine", StringComparison.Ordinal)).ToImmutableArray();
+            if (!reportTiming) Assert.Single(production);
             var expectedPrograms = production.Select(program => program.PassName).ToHashSet(StringComparer.Ordinal);
-            Assert.NotEmpty(expectedPrograms);
             Assert.Equal(production.Length, expectedPrograms.Count);
             Assert.True(GpuShaderProgramLibraries.Preload(assets.Api, production));
             if (reportTiming) output.WriteLine($"Generation={generation}, explicitproductionpreload={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F3} ms, registered={assets.PreparedPrograms.Count}.");

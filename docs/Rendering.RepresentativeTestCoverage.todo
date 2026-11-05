@@ -8,11 +8,25 @@ Status and objective
   that this means routine runs with validated shader caches retained; explicit uncached mechanics
   checks must remain. Cold-start results are reported separately. The target is not yet demonstrated.
   Process splitting is excluded from this work.
-  Planned follow-up is Phase 10 in Rendering.TestRuntimeOptimizations.todo: attribute and batch
-  repeated GPU observations, assess immutable atmosphere-table reuse and narrower debug-demand
-  setup, investigate full-suite GC cost, and consolidate sky-floor readbacks. These candidates
-  are not implemented; the plan does not approve additional coverage reductions or establish
-  enough savings to reach the target. Phases 1–9 retain their accepted closure status.
+  Phase 10 in Rendering.TestRuntimeOptimizations.todo is complete and accepted by the user on
+  2026-11-05, including its no-change dispositions and measured limitations. Its three-file test-source
+  batch has clean second review and independent completion audit. Frame/wait and directional
+  mechanisms remain; an atmosphere provider seam is deferred. The user approved ordinary debug
+  demand preparing only lumon_combine per generation, losing full-catalog/debug coexistence there
+  while retaining the complete registration witness and diagnostic workload. Sky-floor comparison
+  keeps every original texel/value while reducing post-bounce reads from 512 to eight.
+  Debug/Release each pass 75 distinct scoped checks, zero failures/skips. Full retained-cache
+  Release passes 5,950 with six retained skips and zero failures in 435.814s (7m15.8s), excluding
+  builds; all 5,956 runtime names and name/ID associations match Phase 9, with reconciled
+  source/DLL/shader/cache stability.
+  Original TRX parsing resolves wrapper metadata naming/Unicode defects without rerunning tests.
+  The former conditional profiling-counter skip passes; no new skips or case removals occur.
+  This single full result is slightly slower than Phase 9's 434.103s and shows no overall runtime
+  improvement. The routine five-minute target remains unmet. Temporary sources are restored;
+  the unchanged stress body attributed 21.256s of its 21.359s to GC.Collect in full-suite context.
+  Detailed decisions, approved coverage loss, provenance and limitations are recorded in Phase 10;
+  ../TestResults/TestRuntimeOptimizations/Phase10/20261105T1845Z/.
+  Phases 1–10 are closed; the broader routine five-minute target remains open.
   On 2026-11-04 the user additionally approved replacing per-production SPIR-V admission
   matrices with focused mechanics tests. The last full Debug run, before this additional
   removal, took 732.960s: 6,620 passed, zero failed and seven skipped across 6,627 rows.

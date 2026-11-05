@@ -128,15 +128,31 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     [Fact]
     public void EntireSkyFloorCompletesAndPublishes()
     {
+        // Arrange
         EnsureContextValid();
         using var floor=new SurfaceLightingEnclosureFixture(ImageAssertions, skyFloor:true,worldHeight:34,surfaceResolution:64);
         floor.RaysPerTexel=1; floor.Seed();
         var outgoing=floor.Read(floor.Snapshot.OutgoingRadiance);
+        // Act
         floor.Bounce();
-        for(int page=0;page<4;page++) for(int linear=0;linear<64;linear++)
+        // Assert each exact mapped page tile; the fixture decodes RGB with the same persistent scale as scalar reads.
+        const int pages=4, texelsPerPage=64, componentsPerTexel=4;
+        for(int page=0;page<pages;page++)
         {
-            Assert.Equal(new float[]{0,0,0,1},floor.Read(floor.Snapshot.IndirectIrradiance,page,linear));
-            Assert.Equal(outgoing,floor.Read(floor.Snapshot.OutgoingRadiance,page,linear));
+            float[] indirect=floor.ReadPage(floor.Snapshot.IndirectIrradiance,page);
+            float[] outgoingPage=floor.ReadPage(floor.Snapshot.OutgoingRadiance,page);
+            Assert.Equal(texelsPerPage*componentsPerTexel,indirect.Length);
+            Assert.Equal(texelsPerPage*componentsPerTexel,outgoingPage.Length);
+            for(int linear=0;linear<texelsPerPage;linear++)
+            {
+                int offset=linear*componentsPerTexel;
+                Assert.True(indirect[offset]==0f,$"page={page}, texel={linear}, channel=R expected=0 actual={indirect[offset]:R}");
+                Assert.True(indirect[offset+1]==0f,$"page={page}, texel={linear}, channel=G expected=0 actual={indirect[offset+1]:R}");
+                Assert.True(indirect[offset+2]==0f,$"page={page}, texel={linear}, channel=B expected=0 actual={indirect[offset+2]:R}");
+                Assert.True(indirect[offset+3]==1f,$"page={page}, texel={linear}, channel=A expected=1 actual={indirect[offset+3]:R}");
+                for(int channel=0;channel<componentsPerTexel;channel++)
+                    Assert.True(outgoing[channel]==outgoingPage[offset+channel],$"page={page}, texel={linear}, channel={channel} expected={outgoing[channel]:R} actual={outgoingPage[offset+channel]:R}");
+            }
         }
     }
 

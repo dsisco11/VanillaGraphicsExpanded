@@ -13,9 +13,13 @@ Status
   Debug/Release checks and full Release in 434.103s (7m14.1s). The five-minute target is still
   unmet. Second review and independent completion audit are clean. Phases 1–9 are closed;
   the broader routine cached runtime target remains open in Rendering.RepresentativeTestCoverage.todo.
-  Phase 10 is planned: attribute and reduce repeated GPU observations and atmosphere table
-  construction, assess narrower debug-demand setup, and investigate full-suite GC cost.
-  Its six candidates are unimplemented; no additional coverage reduction is approved by this plan.
+  Phase 10 is complete and accepted by the user on 2026-11-05. Debug/Release
+  each have 75 distinct passing scoped checks; full retained-cache Release passes 5,950 with six
+  skips in 435.814s (7m15.8s), excluding builds. The five-minute target remains unmet and no overall
+  runtime improvement is established. The approved ordinary debug-demand narrowing and sky-floor
+  bulk reads are implemented; the other candidates have documented no-change decisions.
+  Second source/test review and independent completion audit are clean. All ten phases are closed;
+  the broader routine cached runtime target remains open.
   The user subsequently clarified the target as routine cached runs with explicit uncached
   mechanics checks retained; current execution work is recorded in Rendering.RepresentativeTestCoverage.todo.
   Earlier subsequent coverage work is recorded in Rendering.RepresentativeTestCoverage.todo;
@@ -1380,8 +1384,8 @@ Shared implementation and acceptance requirements
     Update Rendering.RepresentativeTestCoverage.todo, complete second review and independent
     completion audit, then obtain user acceptance of the results and limitations before closure.
 
-☐ Phase 10 — Reduce repeated observation and construction costs in the remaining expensive suites
-  Scope and evidence (2026-11-05; planned)
+☑ Phase 10 — Reduce repeated observation and construction costs in the remaining expensive suites
+  Scope and evidence (2026-11-05)
     Use the accepted Phase 9 full retained-cache Release receipt as ranking evidence:
     TestResults/TestRuntimeOptimizations/Phase9/20261105T162857Z/full-warm-release/ and its
     full-class-cost-inventory.json and full-family-cost-inventory.json siblings.
@@ -1401,7 +1405,149 @@ Shared implementation and acceptance requirements
     Coverage reductions and any new production construction seam require concrete review and
     user agreement before implementation. Record a measured no-change decision when warranted;
     completing this phase does not require forcing an implementation for every candidate.
-  ☐ Establish matched baselines and attribute the expensive operations before choosing changes.
+  Execution decisions and focused attribution (2026-11-05)
+    Traceability: shared implementation/acceptance requirements, both linked GPU performance
+    analyses, Phase 5's observation contract and Rendering.RepresentativeTestCoverage.todo govern
+    this work. Retain full domains, finite/nonempty checks, explicit uniform retirement, fresh
+    owners, completion boundaries, uncached mechanics and honest measurement attribution.
+    Receipts: ../TestResults/TestRuntimeOptimizations/Phase10/20261105T1845Z/.
+    Current Debug/Release DLLs match Phase 9's accepted full-run provenance. The first attempted
+    baseline stopped before tests because its script referenced an older binary probe receipt;
+    correcting the proof source to Phase 9 resolved that setup error. No failed test is hidden.
+    The uninstrumented focused Release baseline passes 73/73, zero failures/skips, in 75.589s.
+    Instrumented Release build passes in 100.880s; the same 73 identities pass in 81.096s.
+    Builds are separate. Retained caches are not controlled cold/warm driver-cache conditions.
+    These single runs are attribution evidence, not a causal performance comparison.
+    Across that selection, 7,588 observation dispatches and result-image allocations return
+    971,264 bytes. CPU elapsed around synchronous reads totals 1.809s, submission 0.278s,
+    initialization 0.049s and barrier/context checks 0.006s. Allocation time was not isolated;
+    a zero elapsed field in that counter denotes an untimed count, not free allocation.
+    Interpretation records 7,491 copies / 0.213s and 136 views / 0.009s of CPU setup.
+    The 726,491,468 represented copy bytes are an extent-derived estimate, not physical traffic.
+    Nested scopes overlap and GL scopes can include preceding work; no exclusive GPU time or
+    isolated synchronization cost is established. Aggregated counter bookkeeping is 14.475ms;
+    other instrumentation effects and production receipt I/O are not separately isolated.
+    There are 3,752 frames, 4,943 frame energy observations and 154 required wait boundaries
+    (770 outputs). Wait-output parent time totals 0.239s. Directional validation observes the
+    same 297 independently selected slots with 891 checks in 0.281s. Retain both mechanisms:
+    adding a general batch API or new directional predicate is not justified by this small
+    measured scope. No observation, frame, predicate, publication or history check is removed.
+    Medium-table attribution records 17 default-budget builds across the focused selection:
+    the first takes 817ms, later builds 122–160ms. Records lack case identity, aerosol and
+    albedo, so they cannot assign a specific elapsed cost to the three candidate rows.
+    Source-derived counts are nine builds in those rows versus five with two class-local
+    table providers. A possible internal provider would take aerosol, albedo, the complete
+    scattering budget and cancellation, with bounded test caches keyed by every effective
+    numerical Build input and cancellation checked even on hits. Defer that seam: the four
+    avoided warm default builds offer only a small opportunity while changing construction
+    coverage. No provider or production construction seam is authorized or implemented.
+    Full-context instrumentation additionally records 50 default-budget builds with 41.532s
+    of summed CPU elapsed scopes (119ms–6.495s), plus one quality-1 build at 8.437s. Concurrent
+    work and unrecorded case identities prevent assigning this larger elapsed cost to the
+    selected rows or treating it as removable wall time. The deferral claims no stable table
+    cost or established saving from a provider; finer attribution would be needed to revisit it.
+    The ordinary debug-demand case takes 6.829s instrumented; its two full-catalog preloads
+    prepare 92 program owners in 4.791s. The user approved preparing only lumon_combine in
+    each ordinary-test generation. Retain all production declarations, isolated storage,
+    fresh generations, both cold/cached debug loads, mode switching, reuse and pixel checks.
+    Intentional loss: full-catalog-plus-debug coexistence in both ordinary-test generations.
+    ShaderLinkProductionTests remains the complete preparation/settings/reload witness;
+    ProfileSelectedAndCachedPrograms retains its full diagnostic workload. This is an
+    approved coverage tradeoff, not equivalence of every omitted interaction.
+    The sky-floor scalar loop performs exactly 512 reads in 57.7ms. Implement only a bounded
+    bulk comparison of the same four pages' 64 texels per image, retaining physical decoding,
+    independent pre-bounce outgoing expectation, exact assertions and positive counts.
+    The focused real-GC body retains 384 cycles and 384 full collection/finalizer attempts:
+    collection 1.640s, waits 0.030s, body 1.732s; managed heap 44,179,816 → 25,052,768 bytes.
+    The instrumented full Release run passes 5,950 with six skips and zero failures in
+    415.594s, excluding builds. All 5,956 runtime identities remain. The six skip identities
+    are retained; the previously conditional profiling-counter skip passes in this run.
+    This instrumented sample is attribution, not final qualification or a measured speedup.
+    Its unchanged stress body takes 21.359s: 384 full collections consume 21.256s and
+    384 finalizer waits 0.062s. Each generation records 384 collections. Heap size changes
+    from 367,621,184 to 197,200,184 bytes; process private/working-set samples are
+    578,715,648 / 731,742,208 bytes. Focused process samples are 196,132,864 / 275,329,024 bytes.
+    The full-context delay is measured inside GC.Collect with a larger managed heap;
+    object/retention sources, exclusive collector CPU and a stable heap-cost relationship
+    are not identified. Keep all 12 lifetimes × 32 cycles × 16 aliases and original attempts,
+    generations, assertions and runner policy. No workload-preserving shortcut is established.
+    All nine temporarily changed source files are restored byte-exactly against the initial
+    working-tree hashes. Four normalized Git restorations initially failed that comparison;
+    hash-matching archived source copies resolve it. The temporary helper is removed.
+    A historical post-baseline binary receipt initially read the wrong hash property; its
+    corrected proof uses the already-captured actuals, with the failed-schema copy retained.
+    All four DLLs and recorded shader hashes match the baseline through that capture.
+    The finished candidate's clean builds, focused checks and full qualification follow below.
+  Source batch and scoped qualification (2026-11-05)
+    The source batch changes three test files only. Ordinary debug demand prepares exactly
+    one nondebug native executable per generation (lumon_combine), reducing those preparations
+    from 92 to two. All declarations and their uniqueness checks remain. The diagnostic branch
+    retains full preparation; no production shader, runtime owner, stress or runner source changes.
+    Sky-floor ReadPage uses the same physical-page identity and eight-by-eight tile coordinates
+    as scalar ReadStored, with identical RGB division by PersistentScale and unchanged alpha.
+    The post-bounce loop makes eight requests instead of 512, with unchanged payload and exact
+    per-component expectations over 256 texels per image. Its one pre-bounce oracle read remains.
+    Array lengths, page/texel/channel diagnostics, publication completion flags and positive
+    exact matching counts remain. No expected values are derived from the post-bounce output.
+    Root second review corrected an initially narrowed diagnostic branch, an unsupported
+    assertion-message overload and a redundant helper before any candidate build/test.
+    Configured independent test review is source-clean. The completion audit requested placing
+    the new helper in a top-level Public API region; only that method is relocated. Rebuilds
+    and minimal affected rechecks for this layout correction passed before final qualification.
+    Initial forced mod/test rebuild seconds: Debug 79.277 / 93.249, Release 40.602 / 53.189.
+    All four rebuilt DLLs exclude the temporary markers; all 1,820 shader hashes match baseline.
+    Initial candidate focused checks pass 73/73 each: Debug 101.686s; Release 79.645s / 75.785s.
+    Ordinary catalog/demand controls pass 2/2 per configuration in 10.818s / 10.828s.
+    Explicit diagnostic demand passes 1/1 per configuration in 10.918s / 10.941s; its logs
+    confirm 46 prepared production programs in each generation, cold then cached debug loads,
+    repeated-selection reuse and original pixel assertions. Diagnostic time is outside routine runs.
+    The single Release baseline is 75.589s; neither candidate repeat establishes an overall
+    focused wall-time improvement. Ordinary debug-demand case times are 6.756s baseline versus
+    3.730s / 1.710s candidate; sky-floor 0.438s versus 0.400s / 0.360s. These sequential samples
+    retain uncontrolled driver/cache warmth and do not establish stable or causal percentages.
+    Receipts: candidate-verification/ and demand-diagnostic-controls/ beneath the root above.
+    The final layout correction preserves every method body and all other source changes.
+    Final test-project rebuilds pass in 15.221s / 12.835s, Debug/Release. Per configuration,
+    affected sky/ordinary-demand rows pass 2/2, full-catalog registration 1/1 and diagnostic
+    demand 1/1, zero failures/skips. The refreshed four-DLL marker/hash proof and all 1,820
+    shader hashes are clean. Prior focused evidence is retained for the unchanged method bodies;
+    final-layout receipts are in layout-revalidation/, with the prior clean proof preserved.
+    The union is 75 distinct passing scoped checks per configuration (74 routine, one diagnostic),
+    rather than the sum of repeated/overlapping runs. No cases are removed or added.
+  Final qualification, review and acceptance (2026-11-05)
+    Finished uninstrumented retained-cache Release AllTests passes 5,950 with six skipped,
+    zero failed, in 435.814s (7m15.8s), excluding builds and provenance processing. Stress and
+    explicit uncached mechanics remain selected. All 5,956 unique runtime names and their
+    name/ID associations match the accepted Phase 9 full run. Raw testId attributes have 5,950
+    distinct values because existing parameterized groups share IDs. The same six skip reasons
+    remain; the formerly conditional profiling-counter skip passes. Exact identities/reasons are in
+    final-release/reconciliation.json. Real-GC stress passes in 21.930s of case duration.
+    All 3,887 source files, four DLLs and 1,820 SPIR-V modules remain stable across the run.
+    Only the three intended test-source files differ from the initial baseline; production,
+    stress and runner source are unchanged. Rebuilt binaries contain no temporary markers.
+    Both cache indexes validate: Debug 82 entries / 5,936,999 bytes; Release 435 /
+    17,530,799 bytes. Payload hashes and modification times remain unchanged; no payload is
+    added, removed or rewritten. Index read-recency updates are permitted.
+    The test command exits zero. Its wrapper initially exits one during metadata reconciliation:
+    text decoding corrupts Unicode theory display names. Direct XmlDocument.Load parsing of
+    both original TRX files proves zero ID/name differences. Original/superseded JSON and the
+    executed wrapper are preserved. A PowerShell case-insensitive variable collision also
+    gives snapshots an unintended filename; the pre-run snapshot was preserved during execution
+    and the post-run snapshot after completion. Their capture times bracket the test command,
+    and an independent comparison confirms unchanged source/DLL/shader identities. These are
+    resolved metadata defects; no full test rerun or altered timing is substituted.
+    See final-release/summary.json, before-run.json, after-run.json, reconciliation.json and
+    independent-metadata-reconciliation.json, with the original final-release.trx and test.log.
+    Driver/filesystem cache warmth remains uncontrolled; candidate qualification follows focused
+    and diagnostic runs. The single later full result is slightly slower than Phase 9's 434.103s;
+    neither it nor the focused samples establish an overall, stable or causal speedup.
+    Structural work reductions are supported, but the routine five-minute target stays open.
+    This is Windows headless qualification; no complete current Debug or Linux CI run is claimed.
+    Root second review, configured independent test/evidence review and the independent completion
+    audit are clean, with no unresolved findings. The user accepted the results, no-change
+    dispositions, approved coverage reduction and measured limitations on 2026-11-05. Phase 10
+    is closed; the five-minute target remains unmet. No staging or commit is performed.
+  ☑ Establish matched baselines and attribute the expensive operations before choosing changes.
     Confirm current source, selection and receipt applicability. Measure focused retained-cache
     selections with source/DLL/shader provenance and build time separated from test wall time.
     Count observation dispatches, result allocations, readbacks and directional interpretation
@@ -1409,7 +1555,8 @@ Shared implementation and acceptance requirements
     measurable; record instrumentation overhead and unresolved attribution instead of inferring it.
     Measure debug-demand preload intervals and atmosphere medium-table construction separately.
     Prefer the highest measured avoidable cost; do not extrapolate savings from whole-class totals.
-  ☐ Batch independent runtime image observations at each existing frame and wait boundary.
+  ☑ Batch independent runtime image observations at each existing frame and wait boundary.
+    Accepted disposition: measured and retained the existing mechanism; no batching API added.
     Inspect SurfaceLightingConsumerRuntimeFixture.Frame, its WaitObservations partial and
     GpuObservationDispatch. Frame validates up to two outputs; completed waits validate five.
     Assess submitting the independent inspections together and transporting their separate
@@ -1419,7 +1566,8 @@ Shared implementation and acceptance requirements
     Do not cache results between calls or combine observations separated by a write/publication.
     Preserve fresh owners, callbacks, worker completion, replacement and retirement behavior.
     Qualify any new observation mechanism with independent outputs and invalid-result controls.
-  ☐ Combine directional refresh validation over the same independently selected supported slots.
+  ☑ Combine directional refresh validation over the same independently selected supported slots.
+    Accepted disposition: measured and retained the existing checks; no combined predicate added.
     Inspect SurfaceLightingRefreshSynchronization and GpuObservationImage interpretation copies.
     Replace repeated per-slot confidence, RGB comparison and finite/range inspections only where
     one combined predicate preserves all existing conditions over exactly the same tile domains.
@@ -1427,7 +1575,7 @@ Shared implementation and acceptance requirements
     all RGB tolerances, exact visited-texel counts and useful slot/channel failure diagnostics.
     Keep both completed publications and screen-history convergence checks. Independently qualify
     the combined predicate; do not derive its expected values from the output under test.
-  ☐ Assess bounded immutable medium-table reuse for atmosphere publication and resize checks.
+  ☑ Assess bounded immutable medium-table reuse for atmosphere publication and resize checks.
     Start with AtmosphereLookupTests.RefreshNeverPublishesPartialResults and both
     AtmosphereResolutionTests.ResizeSupersedesPendingBuild rows. Smaller sky grids still build
     medium tables; there is currently no provider seam for sharing those immutable inputs.
@@ -1440,7 +1588,7 @@ Shared implementation and acceptance requirements
     PublishesOnlyCompletedSnapshotAndReusesStableInputs, QualityOnlyEditRebuildsLighting and
     every TableMatchesScalarAtEveryQuality row. Sharing mutable lookups or whole expected
     snapshots is outside this candidate. Retain existing ownership and cancellation semantics.
-  ☐ Assess removing unrelated complete catalog preloads from debug-demand correctness checks.
+  ☑ Assess removing unrelated complete catalog preloads from debug-demand correctness checks.
     LumOnDebugShaderDemandTimingTests.RunDemandComparison preloads every nondebug production
     program in both generations. Retain declarations, fresh generation owners, isolated cache,
     cold/cached debug loading, repeated selection reuse, mode switching and pixel assertions.
@@ -1449,7 +1597,7 @@ Shared implementation and acceptance requirements
     Document the lost full-catalog-plus-debug interaction under both generations and obtain user
     agreement before narrowing it. Do not substitute binary hits for explicit uncached checks or
     alter the diagnostic benchmark workload without separately identifying that scope change.
-  ☐ Attribute real-GC stress cost in the full-suite environment without reducing its workload.
+  ☑ Attribute real-GC stress cost in the full-suite environment without reducing its workload.
     Reuse Phase 9's bounded attribution approach and compare the same 12 lifetimes × 32 cycles,
     16 aliases per cycle, collection attempts, generation counts, heap sizes, collection/finalizer
     times and process conditions. Preserve every pruning, replacement, release and retirement
@@ -1459,20 +1607,20 @@ Shared implementation and acceptance requirements
     Do not lower generations, iteration counts or checkpoints, defer collections, change runner
     selections or split processes. Any later workload proposal needs an explicit coverage map
     and agreement. Remove temporary instrumentation and verify source restoration before closure.
-  ☐ Replace the complete sky-floor assertion's 512 individual pixel readbacks with bulk comparison.
+  ☑ Replace the complete sky-floor assertion's 512 individual pixel readbacks with bulk comparison.
     SurfaceLightingEnvironmentTests.EntireSkyFloorCompletesAndPublishes observes two textures
     over all 64 texels of four pages after one bounce. Retain those exact 256 texels per texture,
     exact zero/weight and outgoing-value equality, persistent encoding and positive completion
     counts. Capture the independent pre-bounce outgoing expectation once; preserve useful mismatch
     diagnostics and do not expand the domain to unrelated atlas storage. Use existing assertion
     services where suitable. The whole row costs 0.407s; treat this as a low-priority cleanup.
-  ☐ Verify the coherent implementation batch and independently review preserved coverage.
+  ☑ Verify the coherent implementation batch and independently review preserved coverage.
     Use configured test writers/reviewers and delegated builds/tests. Run affected Debug/Release
     selections and relevant numerical, observation, lifecycle, cold/cache and real-worker controls.
     Reconcile original membership, every retained assertion and any explicitly approved losses.
     Record matched focused timings, operation counts, failures/skips and cache/source provenance;
     distinguish structural reductions from measured wall savings. Batch corrections before reruns.
-  ☐ Qualify the finished candidate, reconcile both tasklists and obtain acceptance.
+  ☑ Qualify the finished candidate, reconcile both tasklists and obtain acceptance.
     Run full retained-cache Release AllTests including stress and explicit uncached mechanics,
     excluding build time. Verify actual membership, skip identities/reasons, source/DLL/shader
     stability and cache validity; report warmth and instrumentation limitations explicitly.

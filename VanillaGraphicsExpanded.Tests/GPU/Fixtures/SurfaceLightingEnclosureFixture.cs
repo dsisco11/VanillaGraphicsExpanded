@@ -56,6 +56,19 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     public SurfaceLightingSnapshot Snapshot => new(outgoing[generation % 2], direct, indirect, pages, captured,
         metadata, slots, readiness, new(firstChunk,1,0), new(chunkCount,1,1), default, Edge, TilesPerAxis, TilesPerAxis*TilesPerAxis, generation, DependencyRevision);
 
+    #region Public API
+    /// <summary>Decodes one exact physical page tile using the fixture's persistent RGB scale.</summary>
+    public float[] ReadPage(GpuTexture texture, int page)
+    {
+        int local=(int)lightingItems[page].PhysicalPageId-1;
+        int x=(local%TilesPerAxis)*Edge, y=(local/TilesPerAxis)*Edge;
+        float[] pixels = texture.ReadPixelsRegion(x,y,Edge,Edge);
+        for (int offset = 0; offset < pixels.Length; offset += 4)
+            for (int channel = 0; channel < 3; channel++) pixels[offset + channel] /= LightingStorage.PersistentScale;
+        return pixels;
+    }
+    #endregion
+
     #region Setup
     /// <summary>Captures the authored enclosure faces or an open floor within configurable authoritative geometry coverage.</summary>
     public SurfaceLightingEnclosureFixture(VanillaGraphicsExpanded.Tests.GPU.Assertions.GpuObservations observations, float reflectance = .25f, int blockLight = 32, float emission = 0f, int xOffset = 0, bool dividedRoom = false, bool skyFloor = false, int worldHeight = 256, int surfaceResolution = 32)
