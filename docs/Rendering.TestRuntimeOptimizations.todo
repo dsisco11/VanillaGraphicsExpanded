@@ -1166,3 +1166,76 @@ Shared implementation and acceptance requirements
     20261104T114022Z-baseline/ and 20261104T115414Z-verified-candidate/.
     The 20261104T114517Z-candidate/ and 20261104T115115Z-final-candidate/ folders retain the
     superseded builds explicitly and contain no qualifying test runs.
+
+☐ Phase 9 — Reduce repeated GPU setup and atmosphere construction in expensive suites
+  Scope and authority
+    The user requested this phase on 2026-11-05 after the runtime optimization audit.
+    Prioritize AO horizon program reuse, surface-lighting fixture specialization and atmosphere
+    construction reduction; evaluate broader numerical reuse and GC stress costs afterward.
+    Inherit Rendering.RepresentativeTestCoverage.todo and the shared performance analyses above.
+    Preserve the eight accepted phases and the subsequently qualified cache, numerical-fixture
+    and AO-composite changes. This phase is planned work, not an implementation or savings claim.
+    Target routine cached complete correctness runs below five minutes, excluding builds.
+    Retain explicit uncached mechanics, real-GC stress, independent references, tolerances and
+    meaningful ownership/publication boundaries. No process splitting, global live-program cache,
+    GPU parallelism or runner-selection change is included.
+  ☐ Establish the current candidate and focused timing baseline before implementation.
+    Reuse the recorded source and timing evidence where applicable. The latest full warmed Release
+    run is 574.267s with 5,949 passed, seven skipped and zero failures; it predates AO-composite
+    reuse. Recent temporary shader-loading benchmarks establish no new full-suite runtime.
+    Ranking evidence from that full run: AO horizon 9.896s/10 cases; GPU SurfaceLighting classes
+    168.010s/143; CPU atmosphere classes 87.747s/163; water refraction 19.236s/33; direct world-probe
+    visibility 11.420s/62; resource-association stress 26.360s/1. These are summed case durations,
+    may overlap and exclude some fixture costs; they are not expected wall savings.
+    Capture matched retained-cache baselines for selected changes, with actual membership,
+    configuration and source/DLL/shader provenance. Keep build time separate.
+  ☐ Reuse AO horizon helper programs within each existing case.
+    AmbientOcclusionHorizonBehaviorTests constructs 59 scenes across ten correctness cases;
+    AmbientOcclusionSceneFixture creates horizon, filter, depth-hierarchy and minimum-child-mask
+    programs per scene. Target four case-owned programs instead: 236 creations become 40 by
+    source-derived counts, subject to confirming the current paths and immutable options.
+    Keep all scene/quality/projection combinations, draw order, numerical references and assertions.
+    Retain fresh scene textures/cameras, overwrite every mutable binding and clear borrowed
+    references before their resources retire. Verify ownership, quality transitions and cleanup.
+  ☐ Audit and specialize expensive surface-lighting fixture setup by tested responsibility.
+    Start with SurfaceWorkDiagnosticTests.CollectorIsBoundedAndSnapshotsAreIndependent: assess a
+    focused collector/compute fixture instead of constructing and seeding a complete enclosure.
+    Preserve real submission, fences, readback, bounded capacity, snapshot independence and disposal.
+    Extend the audit across the expensive SurfaceLighting families, identifying which geometry,
+    capture, transport and program setup is actually required by each retained assertion.
+    Keep distinct rejection-counter rows and genuine end-to-end publication/consumer witnesses.
+    ConsumerRuntime and SpatialRuntime fresh owners exercise callback, replacement, history and
+    retirement contracts; do not share those owners under numerical-only reuse authorization.
+    Record concrete setup changes and supporting witnesses before implementing the coherent batch;
+    retain an evidence-backed no-change decision where setup is essential to the tested boundary.
+  ☐ Reduce atmosphere construction where policy coverage does not require repeated integration.
+    Assess GroundAlbedoInvalidatesCpuTransport for controlled asynchronous completion while
+    retaining real numerical albedo response and an independent real-worker publication witness.
+    Audit lookup/resolution publication checks for smaller representative workloads that still
+    exercise incremental construction, complete snapshots, resize supersession and batch tails.
+    Assess TransferMatchesScalar's batch-length × altitude × aerosol × ground × sun combinations
+    for representative numerical coverage, preserving independent scalar comparisons and tolerances.
+    Keep quality mapping/clamping, vector boundaries, night/horizon/ground behavior and refinement
+    witnesses. Do not silently remove the previously retained all-quality table-parity or real-worker
+    guarantees. Present any concrete row/workload reduction, surviving witnesses and lost interaction
+    coverage for agreement before applying it; adding this phase does not approve unspecified cuts.
+  ☐ Evaluate remaining reuse and stress candidates after the narrower changes.
+    WaterRefractionTests and LumOnDirectWorldProbeVisibilityTests require complete variant/input
+    reset and lifetime separation before cross-case executable reuse can be safe. Document the
+    reset/ownership design and measured opportunity; retain current owners if no bounded design
+    preserves isolation. Near-field already caches variants within each case; avoid duplicating it.
+    Attribute GpuResourceAssociationStressTests cost to collection/finalization and process conditions.
+    Keep its workload and runner policy intact; investigate before proposing any workload change.
+    Record rejected candidates and reasons rather than forcing a change in every audited suite.
+  ☐ Finish each coherent implementation batch before builds, tests and independent review.
+    Use configured test writers/reviewers and delegate builds/tests. Run affected Debug/Release
+    selections with relevant ownership, cold-path and numerical controls. Reconcile exact membership,
+    transferred assertions, intentional coverage losses, failures/skips and provenance. Measure
+    matched focused timings; distinguish reduced setup counts from measured runtime improvement.
+  ☐ Qualify the finished candidate and reconcile documentation before closure.
+    Run the complete warmed Release AllTests selection, including stress, with validated caches
+    retained. Report wall time excluding builds, actual membership, failures/skips and cache conditions.
+    Compare with the recorded baseline without treating unmatched single runs as causal speedups.
+    State whether the five-minute target is achieved; retain it explicitly as unmet otherwise.
+    Update Rendering.RepresentativeTestCoverage.todo, complete second review and independent
+    completion audit, then obtain user acceptance of the results and limitations before closure.

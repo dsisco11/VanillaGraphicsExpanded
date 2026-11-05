@@ -56,6 +56,12 @@ Status and objective
   Release cases change from 12.286s to 6.491s in a matched pair, with 172 focused/regression checks
   passing per configuration. No complete timing after that change is claimed; 574.267s remains
   the latest measured full selection. The four other audited families retain their current owners.
+  Subsequent temporary probes find multi-second first-use waits despite validated binary hits.
+  Earlier completion waits move the observed delay without removing it. Process/thread sampling
+  shows substantial CPU activity on the render thread and a worker whose entry maps to NVIDIA's
+  OpenGL driver; entry provenance does not identify executing functions or prove compilation.
+  All instrumentation is removed, restoration is verified, and no production optimization follows
+  these measurements. Detailed scopes, limitations and receipts are recorded below.
 
 Baseline and authority
   Current full Windows runs use AllTests.runsettings (Purpose!=Diagnostic, including stress).
@@ -373,3 +379,399 @@ Runtime-boundary audit and further numerical reuse (2026-11-04; AO batch qualifi
   These are limits of the current narrow reuse design, not proof that broader optimization is
   impossible. Preserve their fresh owners rather than changing production lifecycle contracts.
   Receipts: ../TestResults/TestRuntimeOptimizations/NextNumericalReuseBatch/20261104T165742Z/.
+
+Post-draw native-binary export probe (2026-11-04; measured and removed)
+  The user approved a temporary isolated experiment: export the heavy water executable before
+  and after its first draw, reload each payload into fresh owners, and compare first/repeated
+  draw costs and output. Production cache policy and existing tests are unchanged. The temporary
+  Diagnostic Fact mirrors CachedPatchRequiresRepresentedCoverage(false), including its original
+  four result assertions, 128-square inputs, budget two and one-pixel seven-attachment output.
+  Each process uses a unique in-memory ProgramBinaryStore. ABBA and BAAB denote before/after
+  reload orders, with four fresh cached owners per process and fresh scene resources per trial.
+  Corrected-source Release build passes in 18.902s. Both diagnostic processes pass exactly one
+  case with no skips in 28.943s / 29.940s. All eight reloads assert actual native binary hits;
+  both source preparations assert misses. Seed/repeated/reloaded observations match across all
+  seven attachments: 504 bitwise float comparisons across the two processes, plus the original
+  independent expected-result checks. Before/after payload hashes differ in both processes,
+  but every payload has native format 36385 and length 413,252 bytes. Opaque byte differences
+  alone do not identify an optimization or explain timing.
+  Pre-draw payload reloads take 3.533–4.103s for the first RenderQuadTo helper call; post-draw
+  payloads take 3.209–3.822s. Loading plus first draw and explicit completion totals
+  3.551–4.121s / 3.226–3.842s, respectively. Reload preparation itself takes 14.732–19.555ms;
+  repeated draw plus completion takes .927–1.829ms. Fresh source creation/loading takes
+  8.264s / 8.999s including automatic initial cache export; first source draws take .171s / .164s.
+  The additional explicit pre-draw exports take 1.435ms / 1.925ms; post-draw exports take
+  1.116ms / 1.163ms. Successful cached reloads do not re-export under the existing policy.
+  These are CPU wall scopes: RenderQuadTo includes preparation, submission and boundary return,
+  not exclusive GPU execution. Driver warmth is shared within each process and uncontrolled
+  across processes. Fresh native owners remain retained by the case's Programs owner until
+  teardown. Counterbalancing does not make these eight observations a stable performance study.
+  Post-draw export does not eliminate the multi-second first-use cost in this workload; overlapping
+  ranges do not establish a stable benefit or justify a production cache-policy change. The
+  routine five-minute objective remains unmet. No whole-suite timing or new Debug pass is claimed.
+  All 434 default persistent cache payloads, their modification times and index recency remain
+  unchanged through measurement (17,523,863 bytes, zero invalid entries). The experiment writes
+  only its isolated in-memory store. All 909 Release shader modules match baseline.
+  Review corrected missing independent seed oracles and partial-construction cleanup before any
+  measurement. The superseded 148.481s build supplied no results; a zero-selection launch inherited
+  ordinary runner exclusions and was rejected by the row-count guard. Actual measurements use
+  receipt-local diagnostic-inclusive settings. Source-hash guards rejected a comment edit after
+  premature freeze; final measured source hash is recorded with its archived bytes in the receipts.
+  The temporary source is removed and its exact final bytes archived outside the compile tree.
+  Restored Release compilation passes in 17.035s with the Csc task confirmed; probe class and
+  environment markers are absent. Discovery returns to the original 5,950 identities with zero
+  differences. Nine cold mechanics cases and both existing cached-patch controls pass 11/11 in
+  10.075s. Captured original source inputs, all 909 Release shader modules and the Debug test DLL
+  remain unchanged. The fresh Release DLL differs from the pre-probe hash; its generated metadata
+  identifies the current commit, but the old DLL bytes were not archived, so the exact cause of
+  that difference is unproven. Restoration is established by original sources, fresh compilation,
+  marker absence, exact discovery and passing controls, not byte-identical Release output.
+  Control execution advances one default-cache read-recency record without adding or rewriting
+  binaries; all 434 payload hashes and modification times remain unchanged. Only this evidence
+  record remains modified. No production or permanent test change results from the experiment.
+  Receipts: ../TestResults/TestRuntimeOptimizations/PostDrawBinaryProbe/20261104T184746Z/.
+
+First-use boundary wait attribution (2026-11-04; measured and removed)
+  The user authorized continued diagnosis of the persistent first-draw stall. Temporary counters
+  covered RenderQuadTo, boundary.Run, EndRenderPass, cleanup by declared resource order, drawing-
+  state restoration, cache boundary release and ReadBoundaryError. No native interception generator
+  changed. Fixed thread-local counters performed no allocation or I/O during collection; all output
+  formatting, explicit waits and readback remained outside the baseline capture. Timed regions are
+  inclusive: error polls include entry queries plus polls nested within cleanup and restoration.
+  Cache boundary release is narrower than the outer RHI logical release. This is managed CPU wall
+  around selected calls, not complete native-call coverage or exclusive GPU execution time.
+  The diagnostic used an actual default-store cache hit and the exact non-irregular cached-patch
+  input, four independent original assertions and bitwise equality of all seven attachment tuples
+  between first and repeated draws. A corrected-source Release build passed in 49.700s after one
+  missing-System-import build failure (30.402s, no tests); the actual diagnostic passed 1/1 in
+  9.646s with no skips. The first helper took 2868.218ms, including boundary.Run 2780.315ms,
+  binding cleanup 2716.259ms, EndRenderPass .201ms, drawing-state restore 5.204ms and cache-boundary
+  release .140ms. Error polls totalled 2713.518ms across 165 calls, with one 2712.491ms maximum.
+  The repeat helper took 2.747ms: binding cleanup .172ms, 30 polls totalling .194ms with .025ms
+  maximum. The overlapping cleanup/poll intervals localize where the observed wait surfaces; they
+  are not separate additive costs or proof of driver/JIT/GPU causality. Program creation/loading
+  was not separately timed by this experiment.
+  One bounded follow-up added an explicitly timed existing WaitIdle after DrawIndexed and before
+  EndRenderPass through the existing afterDraw callback. Its opt-in environment flag left the
+  default path unchanged; callback allocation preceded capture. All original calls, guards, error
+  checks and output assertions remained. The RHI/backend path permits this and calls GL.Finish
+  between context checks. The control build passed in 18.137s; its fresh-process diagnostic passed
+  1/1 in 9.702s. First helper time was 3032.162ms, of which the inserted completion wait took
+  2870.969ms. Binding cleanup fell to 3.044ms and all error polls to 1.002ms, maximum .101ms.
+  Poll counts remained 165 first / 30 repeat, and the repeat helper took 2.977ms. Original oracles
+  and all 28 first/repeat float bit comparisons passed in each process.
+  The observed latency moves from checked polling to an earlier explicit completion wait while
+  the complete helper remains approximately three seconds. This supports waiting for outstanding
+  work rather than a demonstrated error-bookkeeping cost. It does not establish the underlying
+  GPU/driver/JIT mechanism or a stable timing percentage. Removing error checks is not supported
+  as a runtime fix by this evidence. Production validation and cache policy remain unchanged.
+  Both probes retain 909 identical Release shader modules and the same 434 valid cache payloads
+  (17,523,863 bytes), with unchanged binary hashes/modification times and ordinary read-recency
+  updates reported separately. Raw sources, binaries, commands and timings are archived.
+  The three original source files are now restored byte-for-byte and both temporary files removed.
+  Restored Release compilation passes in 37.481s with actual main and test Csc tasks confirmed.
+  Release main/test DLLs, Debug main/test DLLs and the generator DLL are byte-identical to their
+  archived pre-probe copies. Temporary markers are absent; discovery returns to the original
+  5,950 identities with zero differences. Nine cold mechanics cases and both cached-patch controls
+  pass 11/11 in 10.965s. Release shader modules and manifest remain unchanged. The same 434 cache
+  payload hashes/modification times remain valid; ordinary read-recency updates are separated from
+  binary writes in each receipt. Independent source, raw measurement and control reviews are clean.
+  Only this evidence record remains modified. No complete-suite timing, new Debug qualification,
+  production optimization or five-minute success is claimed.
+  Receipts: ../TestResults/TestRuntimeOptimizations/FirstDrawNativeCallProbe/20261104T195313Z/.
+
+First-use process CPU and GPU timestamp probe (2026-11-04; measured and removed)
+  The user authorized further diagnosis of the first-use delay. A temporary test and an appended
+  optional beforeDraw callback bracketed DrawIndexed with timestamp commands; the existing
+  afterDraw callback issued the end timestamp. Four query objects, two equivalent one-pixel
+  seven-attachment outputs and all scene resources were created before timing. Separate outputs
+  preserved first/repeat images without readback or query-result synchronization between draws.
+  The executable had a confirmed default-store cache hit. The exact non-irregular cached-patch
+  values, four original independent oracles and 28 first/repeat float bit comparisons were retained.
+  CPU endpoints used refreshed aggregate process TotalProcessorTime around each helper call;
+  the observation includes all process threads and sampling overhead, not just the render thread.
+  The probe required a 64-bit timestamp counter, ordered nonnegative raw timestamps and checked
+  subtraction. It explicitly reported unavailable caching/counter support rather than accepting
+  missing data. Result availability was bounded after both draws and WaitIdle; retrieval/readback
+  occurred outside the helper clocks. GPU timestamps measure ordered command-completion intervals,
+  not exclusive GPU-busy or shader execution time; submission gaps and work outside the bracket
+  limit causal interpretation. See [Khronos ARB_timer_query](https://raw.githubusercontent.com/KhronosGroup/OpenGL-Registry/main/extensions/ARB/ARB_timer_query.txt),
+  especially timer semantics and issues 1, 5 and 8.
+  Corrected-source Release compilation passes in 16.778s. The actual diagnostic passes 1/1 with
+  no skips in 10.178s. First RenderQuadTo wall is 3344.548ms, aggregate process CPU is 6375 core-ms,
+  and the ordered GPU timestamp interval is 17.830912ms. Repeat helper wall is 3.6246ms and its
+  timestamp interval .007168ms. Repeat process CPU is reported as zero at this sampling resolution;
+  this does not mean zero CPU work. The first CPU total can exceed wall time because threads run
+  concurrently. The final completion wait is .618ms, availability polling 1.5275ms, result retrieval
+  .134ms and combined seven-MRT readback 32.2544ms, all outside both helper measurement windows.
+  All original assertions and bit comparisons pass. Raw 64-bit timestamp endpoints are preserved
+  as decimal strings in the receipt to avoid precision loss during JSON postprocessing.
+  This shows substantial process CPU activity during first use alongside a much shorter timed
+  DrawIndexed command interval. It does not identify the CPU component, establish driver/JIT
+  causality, exclude GPU work outside the timestamp window, or demonstrate a speedup. One
+  first/repeat pair is not a stable performance study. No production or cache policy change follows.
+  An earlier 15.090s build failed on an out-of-scope expected-color value and supplied no results;
+  review also corrected narrow-counter wrap ambiguity before measurement. Failed and superseded
+  source/build receipts remain separate from the corrected measured source.
+  All 909 Release shader modules and the same 434 valid default-cache payloads remain unchanged
+  (17,523,863 bytes); ordinary read-recency updates are recorded separately. The temporary test
+  is removed and the helper restored byte-for-byte. Restored Release compilation passes in
+  18.246s with actual test Csc confirmed. All five captured DLLs (Release main/test, Debug main/test
+  and generator) match their pre-probe bytes; temporary class and added callback markers are absent.
+  Discovery returns to the original 5,950 identities with zero differences. Nine cold mechanics
+  cases and both cached-patch controls pass 11/11 in 10.800s. Shader modules/manifest and all 434
+  cache payload hashes/modification times remain unchanged; control reads advance one recency
+  record. Only this evidence record remains modified. No new full-suite runtime, Debug qualification
+  or five-minute result is established.
+  Receipts: ../TestResults/TestRuntimeOptimizations/FirstDrawCpuGpuProbe/20261104T203742Z/.
+
+First-use hot-thread CPU and entry provenance (2026-11-04; measured and removed)
+  The user requested continued diagnosis of the first-use CPU activity. One temporary Diagnostic
+  test measured the same cached heavy water program and original scene/oracles, with two separate
+  first/repeat MRT targets and bitwise equality across all seven attachments. Process helper CPU
+  and wall clocks remained separate from non-atomic own-process thread censuses. Thread identities
+  used OS ID plus creation time; new, exited, reused, unreadable and unknown samples were reported
+  separately. Module enumeration and thread scans stayed outside the helper clocks. The repeat
+  follows a thread census and is not an undisturbed immediate repeat. No systemwide tracing,
+  thread suspension/injection, privilege changes or other-process inspection occurred.
+  Baseline Release build passes in 24.029s; its diagnostic passes 1/1 with a cache hit in 13.530s.
+  First helper wall is 2050.011ms, process CPU 4140.625 core-ms (user 2671.875, kernel 1468.750).
+  The render thread accounts for 2000ms; two workers account for 1906.25ms and 250ms. All 21 thread
+  identities match, with no new/exited/reused/unreadable identities. Observed thread CPU totals
+  4156.25ms, leaving a -15.625ms process-minus-thread residual from scan/endpoint skew. The .NET
+  StartAddress property yields no usable address, so that run establishes no module attribution.
+  One opt-in metadata follow-up dynamically resolves the system ntdll NtQueryInformationThread
+  export. Query-only thread handles must belong to this process and match the sample's creation
+  FILETIME; success requires a valid status, pointer-sized returned data and nonzero address.
+  Handles/library references are released, and unsupported/error cases remain unknown. The .NET
+  address and native fallback fields remain distinct. Microsoft documents this start-address query
+  and ABI but the installed SDK omits its numeric value; ordinal 9 is corroborated by the primary
+  PHNT header and explicitly treated as a guarded current-Windows diagnostic convention, not a
+  portable production dependency. Sources: [Microsoft NtQueryInformationThread](https://learn.microsoft.com/en-us/windows/win32/api/winternl/nf-winternl-ntqueryinformationthread)
+  and [PHNT thread information classes](https://raw.githubusercontent.com/winsiderss/phnt/master/ntpsapi.h).
+  The metadata control builds in 14.682s and passes 1/1 with a cache hit in 7.429s. First helper
+  wall is 2269.343ms and process CPU 4484.375 core-ms (user 2906.250, kernel 1578.125). The render
+  thread accounts for 2187.5ms (671.875 user, 1515.625 kernel); its entry maps to coreclr.dll.
+  A worker accounts for 2078.125ms (2015.625 user, 62.5 kernel), with a successfully queried
+  Win32 start address mapping to nvoglv64.dll in both before/after module censuses. The installed
+  file identifies NVIDIA Corporation, NVIDIA Compatible OpenGL ICD, version 32.0.16.1088.
+  Another coreclr-entry worker accounts for 234.375ms. All 21 identities match with no losses;
+  matched CPU totals 4500ms and the residual is -15.625ms. Thread scans take 19.343ms before and
+  16.6796ms after the first draw, outside its helper clock; their CPU/skew costs remain explicit.
+  Repeat-after-census helper wall is 1.9888ms; process CPU reports zero at this resolution, while
+  the longer thread scan window observes 15.625ms. Neither observation implies zero CPU work.
+  Both runs retain the original four expected-result assertions and all 28 float bit comparisons.
+  The supported finding is substantial CPU activity on the render thread and a worker with
+  NVIDIA-driver entry provenance. Start-address provenance is not a current instruction pointer
+  or sampled execution stack. In particular, a coreclr-entry thread can call native code; its
+  kernel CPU cannot be assigned to coreclr execution. No exact driver/compiler function, shader
+  compilation diagnosis, stable percentage or production optimization is established.
+  Both probes preserve 909 Release shader modules and the same 434 cache payload hashes and
+  modification times (17,523,863 bytes), with ordinary read-recency updates separated. The
+  temporary test is removed. Restored Release compilation passes in 12.528s with actual test Csc
+  confirmed. All five saved DLLs (Release main/test, Debug main/test and generator) match their
+  pre-probe bytes; temporary class, environment and native-interop markers are absent. Discovery
+  returns to the original 5,950 identities with zero differences. Nine cold mechanics cases and
+  both cached-patch controls pass 11/11 in 7.790s. Shader modules/manifest and all 434 cache payload
+  hashes/modification times remain unchanged; control reads update one recency record. Only this
+  evidence record remains modified. No new full-suite time, Debug qualification or under-five-
+  minute result is claimed.
+  Receipts: ../TestResults/TestRuntimeOptimizations/FirstDrawThreadCpuProbe/20261104T232516Z/.
+
+First-use native CPU-stack capture (2026-11-05; measured and removed)
+  A temporary Diagnostic test retained the same cached water executable, original scene and four
+  independent oracles, with separate first/repeat targets and all 28 float bit comparisons.
+  Both draws ran consecutively without intervening logging, waits or readback. Process identity,
+  render thread ID and invariant-string QPC/UTC endpoints identify the measured helper windows.
+  After explicit Windows administrator approval, only the owned recorder ran elevated; the test
+  retained its ordinary token. A bounded memory-mode WPR session sampled CPU stacks and required
+  process/thread/image metadata. Recording was briefly systemwide; analysis selects only the test
+  process and marked windows. The owned session stopped successfully; existing loggers were left
+  untouched. All 38 original logger names remain; one additional unattributed GUID logger appears
+  afterward, so identical global logger inventories are not claimed. No command targeted it.
+  The 75,497,472-byte trace covers both windows and reports zero lost events/buffers.
+  The diagnostic passes 1/1 without skips on an actual cache hit. First helper wall is 3192.048ms;
+  immediate repeat is 2.950ms. Original assertions and bit comparisons pass. First-window exports
+  contain 6,351 sampled CPU hits across the test process. Exclusive leaf-module hits include
+  nvgpucomp64.dll 2,817 (44.36%), ntkrnlmp.exe 2,254 (35.49%), ntdll.dll 581 (9.15%), clrjit.dll
+  302 (4.76%) and nvoglv64.dll 129 (2.03%); unknown-module hits total 19 (.30%). These are shares
+  of CPU samples across concurrent threads, not shares of elapsed draw time. Inclusive stack
+  counts remain separate and must not be summed as exclusive CPU costs. The repeat has only four
+  samples and cannot support a meaningful module distribution. Local symbols only were used;
+  unresolved private functions do not establish a specific compiler operation or kernel cause.
+  The render thread has 3,105 samples, including 2,172 kernel, 573 ntdll and 114 nvoglv leaf hits.
+  One NVIDIA-entry worker has 2,920 samples, including 2,817 nvgpucomp64 leaf hits (96.47%). These
+  two threads account for 6,025 of 6,351 hits; the remaining 326 process hits were not expanded
+  further. Five other NVIDIA-entry threads have zero first-window hits. The mapped compiler file
+  identifies NVIDIA GPU Compiler Driver 610.88, file version 32.0.16.1088. All function names in
+  the two dominant thread reports remain unresolved; module/offset evidence does not name the
+  internal work or explain the render thread's kernel cost.
+  The capture narrows the first-use cost to sampled native execution, including NVIDIA's compiler
+  module, rather than merely a worker's entry-address provenance. It establishes no production
+  optimization, stable speedup or new full-suite runtime. Independent capture/result review is
+  clean. The temporary source is removed after verifying its archived hash. Restored Release
+  compilation passes in 39.330s with actual test Csc confirmed and temporary markers absent.
+  This capture's promised fresh pre-probe binary/cache/shader snapshots were not retained. The corrected
+  restoration comparison instead uses the preceding thread-CPU probe's independently verified
+  archives: all five current DLLs match those bytes. This is explicit inherited-baseline evidence,
+  not a newly captured before/after pair. The failed missing-snapshot proof is preserved and
+  superseded; its empty comparison cannot establish identity. Discovery returns to the original
+  5,950 identities with zero differences. Nine cold mechanics cases and both cached-patch controls
+  pass 11/11 in 13.904s with no failures/skips. The 909 Release shader modules and manifest match
+  the same trusted prior receipt. Its 434 valid cache payloads (17,523,863 bytes) also retain their
+  hashes/modification times; one read-recency record advances separately. These comparisons share
+  the inherited-baseline limitation and do not replace a missing fresh pre-capture snapshot.
+  Independent capture, result, prose and restoration review is clean. Only this evidence document
+  remains modified; no new full-suite or Debug qualification is established.
+  Receipts: ../TestResults/TestRuntimeOptimizations/FirstDrawNativeCpuStacks/20261105T110246Z/.
+
+First-use driver diagnostics and context control (2026-11-05; measured and removed)
+  The user requested identification of the delay after a successful native program-binary load.
+  Source inspection confirms the accepted cache path skips native stage creation/specialization;
+  LastLoadWasHit is published only after that binary candidate completes successfully. This is
+  not an application-requested fallback to GLSL or SPIR-V compilation. OpenGL nevertheless permits
+  state-dependent recompilation after restoring a binary and only requires sufficient retained
+  information to support it. Deferred post-draw export may reduce such work but is not guaranteed
+  to eliminate it; the earlier counterbalanced export probe already found repeated multi-second
+  first draws for new owners in the same process, including post-draw binaries and identical scenes.
+  Reference: [ARB_get_program_binary](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_get_program_binary.txt),
+  program-binary semantics on external GL state and deferred retrieval.
+  One existing regular cached-patch Debug case passes in 12.561s process wall, with no GLDBG lines.
+  Its best-effort callback setup and console delivery were not independently verified, so this
+  silence supplies no compiler-message evidence. A temporary isolated Release diagnostic instead
+  installs a synchronous all-message callback before program creation and asserts delivery of a
+  known application marker. It captures up to 4,096 records in memory, with phase/timestamps and
+  no callback-thread output, and emits records after consecutive first/repeat draws. The exact
+  scene, four independent oracles and all 28 seven-MRT float bit comparisons remain unchanged.
+  The diagnostic passes 1/1 on an actual cache hit, with sentinel observed, zero overflow and zero
+  callback exceptions. First helper wall is 2368.401ms; repeat is 2.375ms. Its 17 messages comprise
+  one marker, two first-draw buffer-placement notifications and 14 post-draw readback notifications.
+  There are no shader-compiler/performance/recompilation messages. Verified silence cannot rule
+  out internal compilation, already implicated by sampled instruction addresses in the prior trace.
+  A second temporary control varies only the headless context's requested debug flag, verifies the
+  actual flag and uses a receipt-local cache whose keys include context flags. Two cache-miss seed
+  skips populate separate entries; neither is counted as a rendering pass. Both measured reloads
+  pass with cache hits, verified callback delivery and unchanged original oracles/bit comparisons.
+  Debug context flags 3: first 2016.834ms, repeat 1.676ms. Ordinary context flags 1: first 1711.247ms,
+  repeat 1.468ms. Removing the debug flag does not eliminate the multi-second first-use cost. One
+  instrumented timing pair does not establish a stable percentage or attribute the difference to
+  that flag. Synchronous callback collection can perturb timings; no full-suite result follows.
+  The supported boundary is native first-use work associated with a newly restored executable;
+  the exact compiler operation, state dependency and render-thread kernel cause remain unresolved.
+  Neither public symbols nor verified driver diagnostics identify those internals. No production
+  cache, shader or context policy is changed. Callback/user-data/enable flags are restored; the
+  unqueryable prior message-filter matrix is explicitly not restored within the exiting isolated
+  process. The temporary test is removed and the fixture restored byte-for-byte to its archived
+  original. Restored Release compilation passes in 14.263s with actual test Csc confirmed. All five
+  DLLs match this investigation's fresh pre-probe snapshots, and temporary class/environment markers
+  are absent. Discovery returns to the original 5,950 identities with zero differences; nine cold
+  mechanics cases and both cached-patch controls pass 11/11 in 9.888s with no failures/skips.
+  Both configurations retain all 909 shader modules and their manifests. Debug's 78 default-cache
+  payloads and Release's 434 retain hashes/modification times, with no new default keys. Restored
+  controls advance one Release read-recency record separately; isolated context entries remain
+  receipt-local. Only this evidence document remains modified.
+  Independent source, raw measurement, documentation and restoration reviews are clean.
+  Receipts: ../TestResults/TestRuntimeOptimizations/FirstDrawDriverDiagnostics/20261105T115333Z/.
+
+Direct native binary first-use reproduction (2026-11-05; measured)
+  The user approved a standalone direct-OpenGL reproduction and isolated state comparisons.
+  The retained console project under the receipt uses OpenTK 4.9.4 and native GLFW only, with
+  no VGE/game assembly or project references, rendering wrappers, interception, or fallback shader
+  compilation. Offline restore/build uses cached packages; no original project is rebuilt.
+  A read-only copy of the existing diagnostic cache entry is verified against its index before
+  use: native format 36385, 413,252 bytes, SHA-256 0E6F51BF122D79B406BEA80ADED6BA227F65A39E3DF845C38816BC33BDB657F7.
+  Native ProgramBinary must link successfully. The live context reports RTX 4090, NVIDIA 610.88,
+  OpenGL 4.5, core-profile mask 1 and context flags 3. Direct calls recreate the regular cached-patch
+  textures, UBO layouts, triangle geometry and seven RGBA32F one-pixel attachments. Sampler and
+  block assignments are validated numerically when names are unavailable. Packed UBO hashes are
+  retained. System.Numerics inverse-matrix arithmetic is not claimed byte-identical to Mat4f;
+  baseline equivalence is gated by the original four assertions and 28 first/repeat float bit
+  comparisons, not an unmeasured canonical-buffer byte comparison.
+  Baseline passes binary admission, all original assertions, all 28 comparisons and GL error
+  checks. Contiguous first-use wall is 2496.563ms; the separately summed timed stages are
+  2496.504ms. Native DrawElements returns in .079ms, its following GetError takes 2468.213ms,
+  and Finish takes .569ms. Repeat draw/error/Finish take .001/.0196/.0443ms. Both completion
+  and error-query costs remain explicit; this protocol includes Finish/error checks between draws
+  and is not the earlier unsynchronized first/repeat timing protocol.
+  With only draw-buffer zero active, all seven attachments/data/formats remain allocated and
+  unchanged. That run passes the two decision-output assertions and four first/repeat comparisons;
+  the other six outputs are intentionally unverified. First-use wall remains 2422.792ms, with
+  DrawElements .0776ms, GetError 2393.080ms and Finish .3545ms. Both runs use identical copied
+  binary/context/UBO hashes. Reducing active output count does not eliminate the delay; one
+  pair and uncontrolled driver-cache warmth establish no stable percentage or MRT cause.
+  An additional native loading-policy comparison requests the binary-retrieval hint on/off and
+  verifies its effective value after loading. The enabled run passes all baseline assertions and
+  28 comparisons, with first-use wall 1996.003ms and first GetError 1968.395ms. The disabled request
+  reports effective hint 1 after successful binary loading and therefore fails the factor gate
+  before drawing. There is no qualifying disabled-hint timing and no causal hint comparison.
+  An earlier incorrect pre-load equality assertion also stopped before binary loading; it supplies
+  no performance evidence. It was corrected because the hint takes effect at successful link/load,
+  as described in [ARB_get_program_binary](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_get_program_binary.txt)
+  and OpenGL 4.6 sections 7.3/7.5. The observed post-load value is not presented as a conformance bug.
+  Initial compile/API and texture-binding setup defects were corrected and independently reviewed
+  before any qualifying execution; their failed/superseded receipts remain separate.
+  The significant first-use stall reproduces with native calls and the copied executable outside
+  VGE's rendering path. Together with the earlier CPU samples, this points to native driver work;
+  these wall clocks alone do not identify a compiler pass, exact state dependency or kernel cause.
+  No production/test behavior is changed and no full-suite speedup is established. All five
+  original DLLs and ten captured source/project files match fresh before/after hashes. Both sets
+  of 909 shader payloads and manifests remain unchanged. Release's 434 cache payloads (17,523,863
+  bytes) and Debug's 78 (5,751,747 bytes), plus their index/metadata files, retain hashes, sizes
+  and modification times; even default-store recency is unchanged. No canonical build/test was
+  repeated because none of its sources or binaries changed. Independent source, measurement,
+  documentation and invariant reviews are clean. The standalone source, inputs, executable
+  snapshots and raw commands/results are retained.
+  Receipts and runnable reproduction: ../TestResults/TestRuntimeOptimizations/FirstDrawDirectOpenGl/20261105T123416Z/.
+
+SPIR-V miss versus native-binary hit benchmark (2026-11-05; measured and removed)
+  The user requested the cost of the actual production loading paths, including compilation
+  versus restoring a previously compiled native binary. After the user requested benchmark
+  tooling, the measurement uses BenchmarkDotNet 0.15.8 rather than ordinary xUnit test durations.
+  The superseded xUnit timing harness was compiled but never measured. Framework-validation and
+  packaging attempts that executed zero workloads are retained separately and supply no samples.
+  ColdStart jobs use four fresh process launches per path, zero warmups, one iteration, one
+  invocation and unroll factor one. No diagnosers or automatic power-plan changes are enabled.
+  A workload guard rejects repeated invocations; managed-thread/current-context guards retain
+  OpenGL affinity. Setup creates the fixture and isolated store without creating the program.
+  The benchmark measures Programs.Create through scene setup, first RenderQuadTo and WaitIdle.
+  Repeat rendering, readback, four original assertions and 28 first/repeat float bit comparisons
+  run afterward, outside the benchmark interval. There is no cross-mode 28-float bit assertion.
+  Both paths use an enabled ProgramBinaryStore and the same regular cached-patch water scene,
+  selected shader assets, typed inputs and seven-MRT outputs. Binary cases start with a copy of
+  the validated existing native cache entry and require a real hit. Each SPIR-V case starts with
+  its own empty store and requires a miss; normal native-binary export/save is INCLUDED in its
+  create/load cost. This compares actual hit/miss behavior, not isolated compiler-only time.
+  The runner references the prebuilt canonical test/production assemblies without rebuilding
+  the shader toolchain under BenchmarkDotNet's redirected output. Matching library-only xUnit
+  dependencies avoid test-runner entry points. All 1,489 manifest-listed assets are explicitly
+  staged and hashed. Generated outputs use a short owned workspace path to fit Windows limits;
+  completed outputs are archived under the receipt. No global path, registry or cache setting changes.
+  Eight launches qualify: four hits and four misses, each with exactly one actual operation,
+  successful post-timing assertions and exit zero. All actual samples remain in WorkloadResult;
+  detected outliers were not removed. Primary BenchmarkDotNet first-use seconds are:
+    binary: 2.5328527, 2.6640870, 3.2448363, 2.5341002;
+    SPIR-V: 7.2215005, 6.0866240, 5.8649709, 5.8033370.
+  Binary mean/median are 2.744/2.599s, range 2.533-3.245s. SPIR-V mean/median are 6.244/5.976s,
+  range 5.803-7.222s. Median internal phases are binary load .237s/setup .053s/first helper 2.315s,
+  versus SPIR-V load 5.798s/setup .054s/first helper .120s. Completion waits are below .5ms
+  in both paths. Diagnostic repeats are approximately 2-4ms. Phase medians do not sum
+  exactly to the primary benchmark median; the primary interval also includes its entry guards.
+  In these samples, native caching reduces mean first-use cost by about 3.500s, despite moving
+  substantial work into the first draw. This supports a benefit for this shader/configuration;
+  it does not identify the internal NVIDIA operation or establish a whole-suite speedup.
+  Actual execution groups four binary launches before four SPIR-V launches, not the earlier
+  planned ABBA/BAAB ordering. Driver and OS caches remain uncontrolled and retained. ColdStart
+  means fresh benchmark processes here, not a purged driver cache; the descending SPIR-V samples
+  are preserved rather than attributed to a specific warming mechanism. Small grouped samples
+  do not establish a stable universal percentage or apply to every shader. Power-plan receipts match.
+  The temporary workload source is removed after verifying its measured hash. Restored Release
+  compilation passes in 16.239s with actual test Csc confirmed. All five DLLs and ten source/helper
+  files match fresh before snapshots. Discovery returns to the same 5,950 identities with zero
+  differences; nine cold mechanics cases and both cached-patch controls pass 11/11 in 10.127s,
+  without failures/skips. Both configurations retain all 909 shader payloads and manifests.
+  Release's 434 default-cache payloads (17,523,863 bytes) and Debug's 78 (5,751,747 bytes) retain
+  hashes/modification times, with no key or format/size/digest changes. Only one Release read-recency
+  value advances during restored controls; Debug's index is unchanged. The owned short-output
+  directory is archived and absent; no owned process remains. Independent source, measurement,
+  documentation and restoration reviews are clean.
+  Receipts: ../TestResults/TestRuntimeOptimizations/SpirvVersusNativeBinary/20261105T135204Z/.
