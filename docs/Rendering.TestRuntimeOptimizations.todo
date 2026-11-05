@@ -11,14 +11,17 @@ Status
   the broader under-five-minute runtime objective remains unmet.
   Phase 9 is complete and accepted by the user on 2026-11-05. Its test-only source batch passes focused
   Debug/Release checks and full Release in 434.103s (7m14.1s). The five-minute target is still
-  unmet. Second review and independent completion audit are clean. All nine phases are closed;
+  unmet. Second review and independent completion audit are clean. Phases 1–9 are closed;
   the broader routine cached runtime target remains open in Rendering.RepresentativeTestCoverage.todo.
+  Phase 10 is planned: attribute and reduce repeated GPU observations and atmosphere table
+  construction, assess narrower debug-demand setup, and investigate full-suite GC cost.
+  Its six candidates are unimplemented; no additional coverage reduction is approved by this plan.
   The user subsequently clarified the target as routine cached runs with explicit uncached
   mechanics checks retained; current execution work is recorded in Rendering.RepresentativeTestCoverage.todo.
   Earlier subsequent coverage work is recorded in Rendering.RepresentativeTestCoverage.todo;
   counts in Phases 1–6 describe their accepted selections at closure.
-  This plan covers the five prioritized optimizations
-  from the test-runtime review and a separate water-test necessity review requested at acceptance.
+  This plan covers the original five prioritized optimizations, the water-test necessity review,
+  and subsequent measured coverage, fixture and observation-cost reviews.
   Both Phase 2 reductions are implemented and verified, with a clean independent completion audit.
   The user subsequently approved the representative diagnostic matrix recorded below;
   that batch retained 68 primary cases, with focused verification recorded below.
@@ -59,8 +62,8 @@ Shared implementation and acceptance requirements
   Separate build time, summed case duration, CPU synchronization time and GPU execution time.
   Use bounded attribution to resolve specific uncertainties. Do not infer causes or percentage
   improvements from unmatched Debug/Release or historical runs.
-  No fixed performance threshold applies to Phases 1–6. Phases 7 and 8 contribute to the subsequent
-  full-correctness target below five minutes, excluding builds; it does not promise to reach it.
+  No fixed performance threshold applies to Phases 1–6. Later phases contribute to the subsequent
+  full-correctness target below five minutes, excluding builds; no individual phase promises to reach it.
   Discuss the resulting metrics and limitations with
   the user and obtain acceptance before closing each phase.
   Each phase is a separate reviewable commit boundary. Staging and committing require a request.
@@ -1376,3 +1379,105 @@ Shared implementation and acceptance requirements
     State whether the five-minute target is achieved; retain it explicitly as unmet otherwise.
     Update Rendering.RepresentativeTestCoverage.todo, complete second review and independent
     completion audit, then obtain user acceptance of the results and limitations before closure.
+
+☐ Phase 10 — Reduce repeated observation and construction costs in the remaining expensive suites
+  Scope and evidence (2026-11-05; planned)
+    Use the accepted Phase 9 full retained-cache Release receipt as ranking evidence:
+    TestResults/TestRuntimeOptimizations/Phase9/20261105T162857Z/full-warm-release/ and its
+    full-class-cost-inventory.json and full-family-cost-inventory.json siblings.
+    Wall time is 434.103s, excluding builds: 5,949 passed, seven skipped, zero failed.
+    The remaining distance to 300 seconds is 134.103s. Summed case time is 546.227s because
+    tests overlap; GPU-namespace cases sum to 402.317s and CPU atmosphere to 76.190s.
+    These are attribution totals, not additive wall savings or isolated GPU execution times.
+    Consumer/spatial runtime suites total 31.199s; the broader SurfaceLighting family totals
+    114.797s. Three selected atmosphere resize/publication rows total 14.426s, debug demand
+    4.247s, real-GC stress 20.728s, and the complete sky-floor row 0.407s.
+    No measured savings or five-minute outcome is established for these candidates.
+    Preserve fresh runtime/lifecycle owners, all-quality scalar parity, real-worker and
+    quality-change integration witnesses, explicit uncached mechanics and runner selections.
+    No process splitting, GPU parallelism, global live-program cache or cross-case owner reuse.
+    The Phase 5 prohibition on caching observations across calls, writes, frames or replacements
+    remains in force. Batching means independent observations at the same existing boundary.
+    Coverage reductions and any new production construction seam require concrete review and
+    user agreement before implementation. Record a measured no-change decision when warranted;
+    completing this phase does not require forcing an implementation for every candidate.
+  ☐ Establish matched baselines and attribute the expensive operations before choosing changes.
+    Confirm current source, selection and receipt applicability. Measure focused retained-cache
+    selections with source/DLL/shader provenance and build time separated from test wall time.
+    Count observation dispatches, result allocations, readbacks and directional interpretation
+    copies. Attribute their CPU wait/transport cost separately from setup and GPU work where
+    measurable; record instrumentation overhead and unresolved attribution instead of inferring it.
+    Measure debug-demand preload intervals and atmosphere medium-table construction separately.
+    Prefer the highest measured avoidable cost; do not extrapolate savings from whole-class totals.
+  ☐ Batch independent runtime image observations at each existing frame and wait boundary.
+    Inspect SurfaceLightingConsumerRuntimeFixture.Frame, its WaitObservations partial and
+    GpuObservationDispatch. Frame validates up to two outputs; completed waits validate five.
+    Assess submitting the independent inspections together and transporting their separate
+    results once, retaining each image's full domain, initialized storage, completion sentinel,
+    expected count, finite checks, extrema and RGB peak, plus image-specific failure diagnostics.
+    Keep every frame, predicate call, external wait and final observation boundary unchanged.
+    Do not cache results between calls or combine observations separated by a write/publication.
+    Preserve fresh owners, callbacks, worker completion, replacement and retirement behavior.
+    Qualify any new observation mechanism with independent outputs and invalid-result controls.
+  ☐ Combine directional refresh validation over the same independently selected supported slots.
+    Inspect SurfaceLightingRefreshSynchronization and GpuObservationImage interpretation copies.
+    Replace repeated per-slot confidence, RGB comparison and finite/range inspections only where
+    one combined predicate preserves all existing conditions over exactly the same tile domains.
+    Retain independent slot selection from geometry and ring coordinates, positive finite alpha,
+    all RGB tolerances, exact visited-texel counts and useful slot/channel failure diagnostics.
+    Keep both completed publications and screen-history convergence checks. Independently qualify
+    the combined predicate; do not derive its expected values from the output under test.
+  ☐ Assess bounded immutable medium-table reuse for atmosphere publication and resize checks.
+    Start with AtmosphereLookupTests.RefreshNeverPublishesPartialResults and both
+    AtmosphereResolutionTests.ResizeSupersedesPendingBuild rows. Smaller sky grids still build
+    medium tables; there is currently no provider seam for sharing those immutable inputs.
+    Propose a narrow provider keyed by every effective construction input, with bounded lifetime,
+    while retaining fresh lookup owners, actual sky/aerial integration, pending transitions,
+    resize supersession, immutable publication and complete independent expected comparisons.
+    Record the construction interaction no longer exercised separately in each selected case.
+    Obtain agreement on the seam and that coverage tradeoff before implementing it; do not use
+    reflection to bypass construction. Preserve real uncached construction/cache invalidation,
+    PublishesOnlyCompletedSnapshotAndReusesStableInputs, QualityOnlyEditRebuildsLighting and
+    every TableMatchesScalarAtEveryQuality row. Sharing mutable lookups or whole expected
+    snapshots is outside this candidate. Retain existing ownership and cancellation semantics.
+  ☐ Assess removing unrelated complete catalog preloads from debug-demand correctness checks.
+    LumOnDebugShaderDemandTimingTests.RunDemandComparison preloads every nondebug production
+    program in both generations. Retain declarations, fresh generation owners, isolated cache,
+    cold/cached debug loading, repeated selection reuse, mode switching and pixel assertions.
+    Keep ShaderLinkProductionTests as the full catalog preparation, settings and reload witness;
+    use a narrow nondebug coexistence witness if required by the demand-loading contract.
+    Document the lost full-catalog-plus-debug interaction under both generations and obtain user
+    agreement before narrowing it. Do not substitute binary hits for explicit uncached checks or
+    alter the diagnostic benchmark workload without separately identifying that scope change.
+  ☐ Attribute real-GC stress cost in the full-suite environment without reducing its workload.
+    Reuse Phase 9's bounded attribution approach and compare the same 12 lifetimes × 32 cycles,
+    16 aliases per cycle, collection attempts, generation counts, heap sizes, collection/finalizer
+    times and process conditions. Preserve every pruning, replacement, release and retirement
+    assertion. Isolated timings do not explain the latest 20.728s full-suite case.
+    Prefer collecting this evidence during a necessary full qualification run where practical,
+    but distinguish instrumented evidence from the final restored-source qualification.
+    Do not lower generations, iteration counts or checkpoints, defer collections, change runner
+    selections or split processes. Any later workload proposal needs an explicit coverage map
+    and agreement. Remove temporary instrumentation and verify source restoration before closure.
+  ☐ Replace the complete sky-floor assertion's 512 individual pixel readbacks with bulk comparison.
+    SurfaceLightingEnvironmentTests.EntireSkyFloorCompletesAndPublishes observes two textures
+    over all 64 texels of four pages after one bounce. Retain those exact 256 texels per texture,
+    exact zero/weight and outgoing-value equality, persistent encoding and positive completion
+    counts. Capture the independent pre-bounce outgoing expectation once; preserve useful mismatch
+    diagnostics and do not expand the domain to unrelated atlas storage. Use existing assertion
+    services where suitable. The whole row costs 0.407s; treat this as a low-priority cleanup.
+  ☐ Verify the coherent implementation batch and independently review preserved coverage.
+    Use configured test writers/reviewers and delegated builds/tests. Run affected Debug/Release
+    selections and relevant numerical, observation, lifecycle, cold/cache and real-worker controls.
+    Reconcile original membership, every retained assertion and any explicitly approved losses.
+    Record matched focused timings, operation counts, failures/skips and cache/source provenance;
+    distinguish structural reductions from measured wall savings. Batch corrections before reruns.
+  ☐ Qualify the finished candidate, reconcile both tasklists and obtain acceptance.
+    Run full retained-cache Release AllTests including stress and explicit uncached mechanics,
+    excluding build time. Verify actual membership, skip identities/reasons, source/DLL/shader
+    stability and cache validity; report warmth and instrumentation limitations explicitly.
+    Compare with applicable baselines without claiming a stable speedup from unmatched single runs.
+    Report whether the routine five-minute target is met and leave it open if not demonstrated.
+    Record implemented, rejected and deferred candidates with evidence in this phase; update
+    Rendering.RepresentativeTestCoverage.todo. Complete second review and independent completion
+    audit, then obtain user acceptance of the results and limitations before checking the phase.

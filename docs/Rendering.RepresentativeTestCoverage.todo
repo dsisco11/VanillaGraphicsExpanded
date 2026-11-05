@@ -8,6 +8,11 @@ Status and objective
   that this means routine runs with validated shader caches retained; explicit uncached mechanics
   checks must remain. Cold-start results are reported separately. The target is not yet demonstrated.
   Process splitting is excluded from this work.
+  Planned follow-up is Phase 10 in Rendering.TestRuntimeOptimizations.todo: attribute and batch
+  repeated GPU observations, assess immutable atmosphere-table reuse and narrower debug-demand
+  setup, investigate full-suite GC cost, and consolidate sky-floor readbacks. These candidates
+  are not implemented; the plan does not approve additional coverage reductions or establish
+  enough savings to reach the target. Phases 1–9 retain their accepted closure status.
   On 2026-11-04 the user additionally approved replacing per-production SPIR-V admission
   matrices with focused mechanics tests. The last full Debug run, before this additional
   removal, took 732.960s: 6,620 passed, zero failed and seven skipped across 6,627 rows.
