@@ -20,6 +20,9 @@ Status
   bulk reads are implemented; the other candidates have documented no-change decisions.
   Second source/test review and independent completion audit are clean. All ten phases are closed;
   the broader routine cached runtime target remains open.
+  Phase 11 is planned: reduce geometry-fixture payload retention and unused AO setup, qualify
+  further numerical executable reuse, and separate blue-noise policy checks from generation.
+  Its candidates are unimplemented; the plan does not approve additional coverage reductions.
   The user subsequently clarified the target as routine cached runs with explicit uncached
   mechanics checks retained; current execution work is recorded in Rendering.RepresentativeTestCoverage.todo.
   Earlier subsequent coverage work is recorded in Rendering.RepresentativeTestCoverage.todo;
@@ -1629,3 +1632,127 @@ Shared implementation and acceptance requirements
     Record implemented, rejected and deferred candidates with evidence in this phase; update
     Rendering.RepresentativeTestCoverage.todo. Complete second review and independent completion
     audit, then obtain user acceptance of the results and limitations before checking the phase.
+
+☐ Phase 11 — Reduce fixture payload retention and repeated numerical setup
+  Scope and ranking evidence (2026-11-05; planned)
+    Use the accepted Phase 10 retained-cache Release run and its original XML:
+    ../TestResults/TestRuntimeOptimizations/Phase10/20261105T1845Z/final-release/.
+    Wall time is 435.814s, excluding builds: 5,950 passed, six skipped, zero failed across
+    5,956 unique runtime names. The remaining distance to 300 seconds is 135.814s.
+    The audit verified all current source, DLL and shader hashes against that receipt.
+    GPU test intervals occupy about 402.557s. Atmosphere cases sum to 77.505s but occupy
+    17.154s of elapsed intervals, 13.775s overlapping GPU tests. GC stress takes 21.930s
+    without overlapping GPU rows. These are case/timeline observations, not exclusive GPU
+    execution or additive savings. Reducing CPU work may affect contention; that is unmeasured.
+    Affected case sums: expanded geometry coverage 6.519s (two rows), AO lighting contribution
+    4.887s (eight), near-field numerical 9.340s (50), direct-probe visibility 9.597s (62),
+    water composition 16.346s (33), and three blue-noise policy/conversion rows 2.755s.
+    No candidate has demonstrated savings or enough benefit to reach five minutes.
+    Inherit the shared acceptance requirements and both GPU performance analyses above.
+    Rendering.RepresentativeTestCoverage.todo controls existing numerical reuse/reset boundaries,
+    fresh runtime subjects, retained cold mechanics and the routine cached qualification target.
+    Preserve all rows, numerical inputs, references, tolerances, frame limits and stress work
+    except for a specifically mapped and user-approved incidental blue-noise integration loss.
+    Bounded class-owned executable reuse is limited to numerical subjects with complete reset
+    and lifetime proof; case-owned scenes, textures, geometry, histories and outputs remain fresh.
+    No global live-program cache, GPU parallelism, process splitting or production behavior change.
+    Runtime/publication/lifecycle owners, terrain link/reload subjects and compute-batch/cloud
+    storage ownership checks remain fresh. Existing observation executables already belong to
+    the shared headless context; do not introduce a second cache for them.
+    Record any proposed deferral or rejection as the implementer's recommendation, with evidence
+    and remaining uncertainty, and include it explicitly in final user acceptance. Creating this
+    phase does not make those recommendations approved or waive an unresolved ownership gate.
+  ☐ Establish matched baselines and attribute the specific avoidable work.
+    Confirm receipt/source applicability and map affected cases to their owning contracts.
+    Measure retained-cache focused selections with complete fixture setup/teardown and builds
+    separate. Count retained payloads, allocations, source completions, publications, program
+    preparations and draws. Separate executable preparation from first-use work where measurable.
+    Preserve all assertions during bounded attribution; remove instrumentation and prove source
+    restoration and clean managed compilation before final timing. Reuse valid baseline evidence
+    and avoid full-suite or verification cycles between individual source edits.
+  ☐ Bound geometry-workload observation storage without reducing coordinator work.
+    Inspect Fixtures/NearField/TraceGeometryFixture.cs and the two
+    TraceGeometryWorkBudgetTests.ExpandedCoverageConvergesWithBoundedStorage rows, paths relative
+    to ../VanillaGraphicsExpanded.Tests/. Requests retains completed completion handles whose
+    tasks retain 393,216-byte chunks; RecordingBackend.Ready retains 49,152-byte cell payloads.
+    These rows inspect counts, keys and budgets rather than historical payload contents.
+    Separate request metadata/history from pending completion ownership, and use a count/key
+    observer that releases published payloads for these rows. Retain full payload observations
+    for content, identity, invalidation and stale-completion tests. Do not substitute null or
+    fabricated cells for real production extraction or publication.
+    Reuse authored uniform source input where safe; retain TraceGeometryChunk's defensive copy.
+    Avoid repeatedly scanning completed request history for pending work. Preserve both 192/256
+    rows, the 700-frame ceiling, real coordinator/cache/extraction, per-frame admission/publication
+    limits, in-flight/snapshot bounds, final coverage and unique key/version assertions.
+    Compare allocated bytes, peak live payloads and retained completion roots with the original.
+  ☐ Determine whether fixture retention contributes to the full-context GC tail.
+    Use the geometry evidence to distinguish live fixture payloads from temporary allocations
+    and objects retained after fixture disposal. The Phase 10 full-context sample measured
+    21.256s inside GC.Collect, but did not identify retained object types or roots.
+    Attribute heap composition and ownership before claiming that fixture changes reduce this
+    cost. Prefer collecting bounded evidence during a necessary full run; disclose profiling
+    overhead and distinguish instrumented results from final uninstrumented qualification.
+    Keep all 12 lifetimes × 32 cycles × 16 aliases, generations, collection attempts, checkpoints,
+    assertions and runner selections. Neither isolated heap reduction nor concurrent CPU case
+    sums establish a full-suite saving. Remove temporary probes and verify restoration.
+  ☐ Eliminate unused AO program setup within each lighting-contribution case.
+    Inspect GPU/AmbientOcclusionLightingContributionTests.cs, AmbientOcclusionSceneFixture and
+    AmbientOcclusionLightingFixture. Strong and weak scenes both create four AO programs, but
+    only the strong scene renders AO: the eight weak bundles add 32 program-creation calls.
+    Use the existing case-owned sharedPrograms seam where suitable, retaining separate authored
+    scene inputs and all eight combinations. Respect disposal's clearing of borrowed references;
+    keep the owner alive until the final use and clear bindings before input resources retire.
+    Assess direct/composite program duplication separately: share within the case only with
+    complete rebinding while both scene fixtures and their independently observed outputs live.
+    Preserve generated strong AO, the scalar BRDF oracle, weak/strong loss ratio, rejected-depth
+    checks, original draw order and tolerances. Measure preparations and complete case time.
+  ☐ Qualify a bounded near-field numerical executable-reuse pilot.
+    Inspect GPU/Fixtures/NearFieldShaderTestBase.cs and LumOnNearFieldFunctionalTests.
+    The existing TraceProgramKey and dictionary already select variants within each case;
+    prove that the key covers every effective compile input before extending its lifetime.
+    Own executables under the original headless context/manager and explicitly reject retired
+    authority. Fully reset or rebind geometry, surface lighting, textures, histories, suppression,
+    frame/world publications and uniform-provider references between cases. Clear borrowed inputs
+    before case resources retire, including exception paths; do not retain scene or history owners.
+    Keep NearField_CompilesWithImportanceSelection independently fresh. Verify isolated-row
+    execution, variant/neighbor round trips and retirement with independent authored outputs.
+    Measure a matched pilot before expanding the lease to the remaining numerical rows.
+  ☐ Assess direct-probe and water reuse against their documented ownership blockers.
+    Consult the Runtime-boundary audit and further numerical reuse section of
+    Rendering.RepresentativeTestCoverage.todo before changing either family.
+    DirectWorldProbeVisibilityTestBase needs its complete identity/define key and debug,
+    atlas-gather, SH9-gather, near-field staging and frame/world binding resets; case-owned
+    LightingResources remain fresh. WaterRefractionTests additionally needs persistent API/asset
+    composition, immutable quality/resolution/capture variants, three input buffers, 12 samplers
+    and camera/lighting/fog/material resets. Diagnostic asset overrides retain isolated owners.
+    Establish a concrete reset/lease design and discuss any new ownership seam before expansion.
+    Preserve all 62 direct and 33 water rows, captured-receiver subjects and cold/failure witnesses.
+    No runtime-owner reuse or binary-cache substitution for loading tests is included. If safety
+    or measured benefit is unproven, report the exact blocker and proposed disposition for review.
+  ☐ Separate three blue-noise policy/conversion checks from expensive generation.
+    Inspect Unit/Noise/BlueNoiseTests.cs: Conversions_AreInRange_AndLengthsMatch,
+    BinaryMask_FillRatio_ProducesExpectedOnCount and Cache_CreatesOnce_PerKey.
+    Propose authored complete rank permutations at the existing 32×32 size for conversion/fill
+    assertions and an identifiable valid result from a cheap cache factory. Preserve factory
+    call count, object identity, cache lookup, conversion lengths/ranges and exact fill count.
+    Map the three incidental generator-to-consumer combinations lost by removing their generator
+    calls; identify independent surviving generation and consumer witnesses and obtain agreement
+    before changing inputs. Retain real generation for determinism, seed response and seam behavior.
+    No row deletion, generator approximation or relaxed assertion is authorized by this plan.
+  ☐ Verify the coherent batch and independently review coverage and ownership.
+    Use configured test writers/reviewers and delegated builds/tests. Complete related source
+    changes before Debug/Release affected selections and relevant numerical, observation,
+    generation, cache, cold/lifecycle and stale-work controls. Batch review corrections before
+    rechecking; retain evidence for unchanged behavior rather than repeating broad selections.
+    Reconcile all retained rows/assertions and every explicitly approved coverage loss. Compare
+    matched focused timings, allocation/retention counts and preparation counts without treating
+    class sums as wall savings. Verify current source, DLL and shader provenance and remove probes.
+  ☐ Qualify the finished result, reconcile both tasklists and obtain acceptance.
+    Run full retained-cache Release AllTests with stress and explicit uncached mechanics,
+    excluding builds. Preserve raw TRX and parse it through encoding-aware XML APIs. Compare
+    runtime names and name/ID associations, not just distinct raw testId counts; reconcile skips
+    and reasons, cache digests/payload modification times, and source/DLL/shader stability.
+    Report whether the routine five-minute target is met, leaving it open unless demonstrated.
+    Record implemented work, proposed deferrals/rejections, approved losses and measurement
+    limitations here and update Rendering.RepresentativeTestCoverage.todo. Complete second review
+    and independent completion audit, then obtain user acceptance before checking the phase.

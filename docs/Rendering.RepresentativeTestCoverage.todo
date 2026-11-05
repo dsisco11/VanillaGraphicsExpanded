@@ -8,6 +8,11 @@ Status and objective
   that this means routine runs with validated shader caches retained; explicit uncached mechanics
   checks must remain. Cold-start results are reported separately. The target is not yet demonstrated.
   Process splitting is excluded from this work.
+  Planned follow-up is Phase 11 in Rendering.TestRuntimeOptimizations.todo: bound geometry-fixture
+  payload retention, attribute its possible contribution to GC cost, eliminate unused AO setup,
+  qualify broader numerical executable reuse and assess authored blue-noise policy inputs.
+  The candidates are unimplemented; reset/ownership proof and coverage agreements remain required.
+  No runtime saving or five-minute outcome is established by the plan.
   Phase 10 in Rendering.TestRuntimeOptimizations.todo is complete and accepted by the user on
   2026-11-05, including its no-change dispositions and measured limitations. Its three-file test-source
   batch has clean second review and independent completion audit. Frame/wait and directional
