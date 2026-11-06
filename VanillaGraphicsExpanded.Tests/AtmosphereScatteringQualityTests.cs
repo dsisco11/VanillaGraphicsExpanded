@@ -1,43 +1,16 @@
 using System.Collections.Generic;
 using System.Numerics;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 
 namespace VanillaGraphicsExpanded.Tests;
 
-/// <summary>Verifies quality admission, medium-table reuse, and bounded multiple-scattering resolution.</summary>
+/// <summary>Verifies quality admission and bounded multiple-scattering resolution.</summary>
 public sealed class AtmosphereScatteringQualityTests
 {
     #region Public API
-    #region Quality and cache ownership
-    /// <summary>Stable input reuses its table, sun motion retains it, and a quality edit replaces it.</summary>
-    [Fact]
-    public void QualityOnlyEditRebuildsLighting()
-    {
-        var lookup = new AtmosphereLookup();
-        Assert.True(lookup.Update(Vector3.UnitY, 2, 0, width: 16, height: 8, quality: 0));
-        var original = lookup.Current;
-        var table = MediumTable(lookup);
-        Assert.Equal(32, table.Width);
-        Assert.Equal(16, table.Height);
-        Assert.True(table.Sample(2, .5f).LengthSquared() > 0);
-        Assert.False(lookup.Update(Vector3.UnitY, 2, 0, width: 16, height: 8, quality: 0));
-        Assert.True(lookup.Update(Vector3.UnitX, 2, 0, width: 16, height: 8, quality: 0));
-        Assert.Same(table, MediumTable(lookup));
-        int revisionBeforeQualityChange = lookup.Revision;
-        var beforeQualityChange = lookup.Current;
-
-        Assert.True(lookup.Update(Vector3.UnitX, 2, 0, width: 16, height: 8, quality: 1));
-        Assert.NotSame(beforeQualityChange, lookup.Current);
-        Assert.NotSame(table, MediumTable(lookup));
-        Assert.Equal(64, MediumTable(lookup).Width);
-        Assert.Equal(32, MediumTable(lookup).Height);
-        Assert.Equal(revisionBeforeQualityChange + 1, lookup.Revision);
-        Assert.NotSame(original, lookup.Current);
-    }
-
+    #region Quality admission
     /// <summary>Completed admitted work is published before the latest quality starts its replacement.</summary>
     [Fact]
     public void AsyncCompletionAdmitsQualityOnlyChange()
@@ -145,9 +118,5 @@ public sealed class AtmosphereScatteringQualityTests
         }
         #endregion
     }
-
-    /// <summary>Reads cache ownership without adding an observation-only production API.</summary>
-    private static AtmosphereMultipleScattering MediumTable(AtmosphereLookup lookup) =>
-        (AtmosphereMultipleScattering)typeof(AtmosphereLookup).GetField("multipleScattering", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(lookup)!;
     #endregion
 }

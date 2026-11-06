@@ -92,6 +92,12 @@ all quality integration budgets on compact 2x2 tables, solar-step refinement and
 and full quality-1 cache replacement and asynchronous publication. Full quality-2/3 source-table
 construction was deliberately not run under the expanded budgets; their complete build latency is unmeasured.
 
+The quality-only lookup cache-replacement test was subsequently removed. Controlled quality
+admission and publication order, plus the quality-budget mapping, remain tested. The earlier
+full quality-1 construction result above is historical; current tests do not directly check
+lookup table identity and revision on a quality-only edit. Production lookup construction uses
+the full budget.
+
 The earlier dimension-only shared-quality validation passed 77 focused Release atmosphere tests, with three optional measurement
 tests skipped, in `artifacts/AtmosphereTensor/atmosphere-scattering-quality.trx`. This constructs all
 four source-table sizes at normal quadrature, verifies sun-motion reuse and quality-only invalidation,

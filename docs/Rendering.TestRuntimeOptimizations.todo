@@ -55,6 +55,24 @@ Status
   warmth and run variance prevent attributing that difference to the removed 20.904s case or
   claiming a stable speedup. The routine five-minute target remains 76.294s away.
   Receipts: ../TestResults/TestRuntimeOptimizations/AssociationRedesign/.
+  Subsequent user direction on 2026-11-06 skips the six CPU multiple-scattering numerical
+  methods in AtmosphereMultipleScatteringTests and AtmosphereMultipleScatteringTensorTests.
+  Scalar transport parity, all-quality table parity, energy/finite-source/ground checks and
+  default-versus-refined quadrature no longer run in ordinary selections. Their bodies remain
+  available as skipped tests. Cancellation and CPU publication checks remain active, as do GPU
+  scattering checks; publication still constructs CPU scattering data indirectly. A fresh Release
+  build and focused two-class run report four passes, six skipped methods and no failures in
+  0.954s. No updated complete-run time is available. Earlier numerical-retention decisions below
+  describe historical qualifications, not the current active selection.
+  The user subsequently chose to remove QualityOnlyEditRebuildsLighting and its test-specific
+  table-builder seam. AsyncCompletionAdmitsQualityOnlyChange still checks controlled quality
+  admission and publication order; QualitySelectsCompleteBudget still checks every quality
+  budget. The explicit loss is a direct active check of AtmosphereLookup table identity,
+  snapshot replacement and revision on a quality-only edit. Production lookup construction
+  again uses its original full-budget builder with no injected test dependency. Earlier
+  quality-change test receipts below describe historical qualifications, not current selection.
+  A fresh Release build passes; the remaining quality suite passes 9/9 and a default-builder
+  lookup check passes 1/1, with no failures or skips. The complete-run effect remains unmeasured.
   The user subsequently clarified the target as routine cached runs with explicit uncached
   mechanics checks retained; current execution work is recorded in Rendering.RepresentativeTestCoverage.todo.
   Earlier subsequent coverage work is recorded in Rendering.RepresentativeTestCoverage.todo;

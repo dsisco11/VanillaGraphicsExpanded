@@ -31,6 +31,20 @@ Status and objective
   The 62.084s difference from the previous single full sample is not a stable or causal speedup;
   the five-minute target remains 76.294s away.
   Receipts: ../TestResults/TestRuntimeOptimizations/AssociationRedesign/.
+  On 2026-11-06 the user directed skipping the six CPU multiple-scattering numerical methods
+  in AtmosphereMultipleScatteringTests and AtmosphereMultipleScatteringTensorTests. Their bodies
+  remain as skipped tests; the active cancellation, CPU publication and GPU scattering checks
+  remain. The prior independent scalar/parity and physical-bound witnesses in those methods
+  are no longer active. A fresh Release build and focused run report four passes, six skipped
+  methods and no failures in 0.954s. Complete-run timing has not been measured after this change.
+  The user then chose to remove QualityOnlyEditRebuildsLighting and its test-only table-builder
+  seam. Controlled quality admission and publication order remain in
+  AsyncCompletionAdmitsQualityOnlyChange; all quality budgets remain checked by
+  QualitySelectsCompleteBudget. The direct lookup table-identity, snapshot-replacement and
+  revision witness for a quality-only edit is lost. Production lookup uses its original full
+  builder. A fresh Release build passes; the remaining quality suite passes 9/9 and a
+  default-builder lookup check passes 1/1. No updated complete-run timing or stable speedup
+  is established.
   Phase 11 in Rendering.TestRuntimeOptimizations.todo is complete and accepted by the user on
   2026-11-06, including the recorded deferrals and limitations. Second review and independent
   completion audit are clean. Expanded workloads retain
