@@ -8,11 +8,17 @@ Status and objective
   that this means routine runs with validated shader caches retained; explicit uncached mechanics
   checks must remain. Cold-start results are reported separately. The target is not yet demonstrated.
   Process splitting is excluded from this work.
-  Phase 12 in Rendering.TestRuntimeOptimizations.todo is planned on 2026-11-06 for all 20
-  subsequent audit candidates: 14 prioritized reductions and six lower-priority water/publication
-  reductions. It records retained witnesses, assertion transfers and lost parameter interactions.
-  All implementation tasks remain unchecked; the planning request does not approve coverage
-  losses or demonstrate savings. Phases 1–11 remain closed and the five-minute target remains open.
+  Phase 12 in Rendering.TestRuntimeOptimizations.todo implements all 20 reductions approved on
+  2026-11-06: 14 prioritized and six additional water/publication reductions. Its retained
+  witnesses, assertion transfers and lost interactions are recorded there. Focused Debug/Release
+  each pass 135 cases; complete retained-cache Release passes 5,931 with seven reconciled skips
+  and no failures in 438.378s (7m18.4s), excluding builds. Exact membership is reduced by 20,
+  with all other name/ID associations preserved. The focused matched Release pair is 80.217s ->
+  55.600s; the complete run is slower than Phase 11's single 411.182s sample. Cache warmth and
+  single-run variance preclude a stable or causal whole-suite speedup claim. Second review and
+  independent completion audit are clean; the user accepted Phase 12 on 2026-11-06. Its checklist
+  is closed, while the five-minute target remains open.
+  Receipts: ../TestResults/TestRuntimeOptimizations/Phase12/.
   Phase 11 in Rendering.TestRuntimeOptimizations.todo is complete and accepted by the user on
   2026-11-06, including the recorded deferrals and limitations. Second review and independent
   completion audit are clean. Expanded workloads retain

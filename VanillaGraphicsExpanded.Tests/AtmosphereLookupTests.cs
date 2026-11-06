@@ -22,6 +22,15 @@ public sealed class AtmosphereLookupTests
         var lookup = new AtmosphereLookup();
         Assert.True(lookup.Update(Vector3.UnitY, 0, 0, complete: true, width: RefreshWidth, height: RefreshHeight));
         var original = Assert.IsType<AtmosphereLighting>(lookup.Current);
+        Assert.Equal(RefreshWidth, original.Width);
+        Assert.Equal(RefreshHeight, original.Height);
+        Assert.Equal(RefreshWidth * RefreshHeight * 4, original.Sky.Length);
+        for (int pixel = 0; pixel < RefreshWidth * RefreshHeight; pixel++)
+        {
+            Assert.Equal(1f, original.Sky[pixel * 4 + 3]);
+            for (int channel = 0; channel < 3; channel++)
+                Assert.True(float.IsFinite(original.Sky[pixel * 4 + channel]) && original.Sky[pixel * 4 + channel] >= 0);
+        }
         Assert.False(lookup.Update(Vector3.UnitY, 0, 0, complete: true, width: RefreshWidth, height: RefreshHeight));
         Assert.Same(original, lookup.Current);
         Assert.Equal(1, lookup.Revision);
@@ -35,6 +44,16 @@ public sealed class AtmosphereLookupTests
         }
         Assert.True(lookup.Update(Vector3.UnitY, 0, 1, complete: false, width: RefreshWidth, height: RefreshHeight));
         Assert.NotSame(original, lookup.Current);
+        var refreshed = lookup.Current!;
+        Assert.Equal(RefreshWidth, refreshed.Width);
+        Assert.Equal(RefreshHeight, refreshed.Height);
+        Assert.Equal(RefreshWidth * RefreshHeight * 4, refreshed.Sky.Length);
+        for (int pixel = 0; pixel < RefreshWidth * RefreshHeight; pixel++)
+        {
+            Assert.Equal(1f, refreshed.Sky[pixel * 4 + 3]);
+            for (int channel = 0; channel < 3; channel++)
+                Assert.True(float.IsFinite(refreshed.Sky[pixel * 4 + channel]) && refreshed.Sky[pixel * 4 + channel] >= 0);
+        }
         Assert.Equal(originalPixels, original.Sky.ToArray());
         Assert.Equal(2, lookup.Revision);
         Assert.True(lookup.Current!.Solar.X < original.Solar.X);

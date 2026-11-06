@@ -37,18 +37,6 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         Assert.True(runtime.World.WorkerReads > 0);
     }
 
-    /// <summary>The registered renderer publishes cached radiance without requesting vanilla hit lighting.</summary>
-    [Fact]
-    public void WorldProbePublication_DoesNotReadVanillaHitLighting()
-    {
-        EnsureContextValid();
-        using var runtime = new SurfaceLightingConsumerRuntimeFixture(ImageAssertions, false);
-        runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=false;
-        runtime.RunUntil(() => runtime.Energy(runtime.WorldImage) > .001f);
-        Assert.True(runtime.World.WorkerReads > 0);
-        Assert.Equal(0, runtime.World.VanillaLightReads);
-    }
-
     /// <summary>Unavailable surface lighting keeps geometry workers active, retries unresolved hits, and resumes publication when ready.</summary>
     [Fact]
     public void MissingSurfaceLighting_ContinuesTracingAndRetriesUntilReady()
@@ -99,7 +87,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
 
     /// <summary>Registered callbacks generate anchors and propagate real produced lighting into both probe paths and full-resolution output.</summary>
     [Theory]
-    [InlineData(false,false)] [InlineData(true,false)] [InlineData(false,true)] [InlineData(true,true)]
+    [InlineData(false,false)] [InlineData(true,true)]
     public void RegisteredConsumersPropagateLightingAcrossLifetime(bool sh9,bool gpu)
     {
         EnsureContextValid();
@@ -109,6 +97,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
             && runtime.Energy(runtime.FinalImage)>.001f
             && runtime.WorldBuffers.Resources!=null && runtime.Energy(runtime.WorldImage)>.001f);
         if(gpu)Assert.Equal(0,runtime.World.WorkerReads);else Assert.True(runtime.World.WorkerReads>0);
+        if(!gpu)Assert.Equal(0,runtime.World.VanillaLightReads);
         Assert.True(runtime.Energy(runtime.Screen.ScreenProbeAtlasHistoryTex!)>.001f);
         Assert.True(runtime.Energy(runtime.Screen.ScreenProbeAtlasFilteredTex!)>.001f);
         Assert.True(runtime.DrawnPrograms.Count>0);

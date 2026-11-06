@@ -99,7 +99,12 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
 
             // Exercise the per-family SSAO/SSBO define path while disabling depth offset.
             foreach (string family in new[] { "standard", "entityanimated", "instanced", "chunktransparent", "chunkliquid" })
+            {
+                // Legacy liquid preprocessing is independent of the LumOn mode.
+                if (family == "chunkliquid" && lumon)
+                    continue;
                 yield return [family, 2, family is "chunktransparent" or "chunkliquid" ? 1 : 0, 1, family is "chunktransparent" or "chunkliquid" ? 1 : 0, 0, lumon];
+            }
 
             // Keep the high-cascade and stronger SSAO combination as a boundary case.
             if (lumon)

@@ -28,8 +28,6 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
     [InlineData(false, false, true)]
     [InlineData(false, true, false)]
     [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
     [InlineData(true, true, false)]
     [InlineData(true, true, true)]
     public void CleanCaptureRestoresWorldBehindFirstPersonPixels(bool lumon, bool overlay, bool captured)

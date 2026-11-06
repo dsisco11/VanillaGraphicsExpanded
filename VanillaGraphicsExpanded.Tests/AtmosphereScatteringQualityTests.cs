@@ -87,21 +87,6 @@ public sealed class AtmosphereScatteringQualityTests
             AtmosphereScatteringBudget.FromQuality(quality));
     }
 
-    /// <summary>Endpoint qualities execute finite lighting and a dark night sample on bounded tables.</summary>
-    [Theory]
-    [InlineData(0)]
-    [InlineData(3)]
-    public void QualityQuadratureProducesFiniteLighting(int quality)
-    {
-        var budget = AtmosphereScatteringBudget.FromQuality(quality);
-        var table = AtmosphereMultipleScattering.Build(1, sunSamples: 2, altitudeSamples: 2,
-            directionSamples: budget.DirectionSamples, raySamples: budget.RaySamples, lightSamples: budget.LightSamples);
-        Vector3 value = table.Sample(0, 1);
-        for (int channel = 0; channel < 3; channel++)
-            Assert.True(float.IsFinite(value[channel]) && value[channel] > 0);
-        Assert.True(table.Sample(0, -1).Length() < 1e-6f);
-    }
-
     /// <summary>Solar optical-depth refinement affects source radiance without altering isotropic feedback.</summary>
     [Fact]
     public void LightQuadratureRefinesSourceOnly()

@@ -24,35 +24,24 @@ public sealed class BlueNoiseTests
         for(int slice=0;slice<8;slice++)Assert.Equal(input.AsSpan(slice*pixels,pixels).ToArray().Order(),result.AsSpan(slice*pixels,pixels).ToArray().Order());
     }
 
-    /// <summary>Generation produces the same complete rank permutation for identical settings.</summary>
+    /// <summary>Generation is deterministic for a fixed seed, preserves all ranks and responds to a seed change.</summary>
     [Fact]
-    public void VoidAndCluster_IsDeterministic_ForSameConfig()
+    public void VoidAndCluster_IsDeterministic_AndChangesWithSeed()
     {
         // Arrange
-        var config = CreateFastConfig(seed: 123u, tileable: true);
+        var repeatedConfig = CreateFastConfig(seed: 123u, tileable: true);
+        var changedConfig = CreateFastConfig(seed: 124u, tileable: true);
         // Act
-        BlueNoiseRankMap a = VoidAndClusterGenerator.GenerateRankMap(config);
-        BlueNoiseRankMap b = VoidAndClusterGenerator.GenerateRankMap(config);
+        BlueNoiseRankMap first = VoidAndClusterGenerator.GenerateRankMap(repeatedConfig);
+        BlueNoiseRankMap second = VoidAndClusterGenerator.GenerateRankMap(repeatedConfig);
+        BlueNoiseRankMap changed = VoidAndClusterGenerator.GenerateRankMap(changedConfig);
         // Assert
-        Assert.Equal(a.Width, b.Width);
-        Assert.Equal(a.Height, b.Height);
-        Assert.Equal(a.Length, b.Length);
-        Assert.True(a.RanksSpan.SequenceEqual(b.RanksSpan));
-        Assert.True(a.RanksSpan.ToArray().Order().SequenceEqual(Enumerable.Range(0, a.Length).Select(rank => (ushort)rank)));
-    }
-
-    /// <summary>Changing the generator seed changes the generated rank ordering.</summary>
-    [Fact]
-    public void VoidAndCluster_DifferentSeed_ChangesOutput()
-    {
-        // Arrange
-        var aCfg = CreateFastConfig(seed: 123u, tileable: true);
-        var bCfg = CreateFastConfig(seed: 124u, tileable: true);
-        // Act
-        BlueNoiseRankMap a = VoidAndClusterGenerator.GenerateRankMap(aCfg);
-        BlueNoiseRankMap b = VoidAndClusterGenerator.GenerateRankMap(bCfg);
-        // Assert
-        Assert.False(a.RanksSpan.SequenceEqual(b.RanksSpan));
+        Assert.Equal(first.Width, second.Width);
+        Assert.Equal(first.Height, second.Height);
+        Assert.Equal(first.Length, second.Length);
+        Assert.True(first.RanksSpan.SequenceEqual(second.RanksSpan));
+        Assert.True(first.RanksSpan.ToArray().Order().SequenceEqual(Enumerable.Range(0, first.Length).Select(rank => (ushort)rank)));
+        Assert.False(first.RanksSpan.SequenceEqual(changed.RanksSpan));
     }
 
     /// <summary>Tileable generation keeps wrap-neighbor differences in a plausible range.</summary>

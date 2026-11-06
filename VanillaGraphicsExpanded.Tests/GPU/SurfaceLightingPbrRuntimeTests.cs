@@ -71,7 +71,7 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
 
     /// <summary>Four authored receiver regions constrain channel order, linear albedo scaling, black diffuse response and metallic rejection.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(false)]
     public void RegisteredCompositionRespectsReceiverRegions(bool sh9)
     {
         EnsureContextValid();
@@ -98,7 +98,7 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
 
     /// <summary>Registered direct and emissive outputs are added exactly once to cache-originating diffuse light.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
+    [InlineData(true)]
     public void RegisteredCompositionAddsLightingTermsOnce(bool sh9)
     {
         EnsureContextValid();

@@ -20,17 +20,6 @@ public sealed class AmbientOcclusionCompositeTests(HeadlessGLFixture fixture) : 
 
 
     #region Public API
-    /// <summary>Occlusion suppresses only ambient lighting; mismatched depth and first-person receiver metadata bypass it.</summary>
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void VisibilityAffectsOnlyMatchedIndirectLighting(bool lumon, bool pbr)
-    {
-        var shader = CreateCompositeProgram(lumon, pbr);
-        VerifyComposition(shader, lumon,pbr,.5f,1f,0f,0f,1f,1f);
-    }
-
     /// <summary>Checks split material response, actual view angle, neutral/full/partial AO and independent strengths in both lighting modes.</summary>
     [Theory]
     [InlineData(false,false)]
@@ -39,6 +28,8 @@ public sealed class AmbientOcclusionCompositeTests(HeadlessGLFixture fixture) : 
     public void DiffuseAndSpecularVisibilityRespectMaterialAndView(bool lumon,bool pbr)
     {
         var shader = CreateCompositeProgram(lumon, pbr);
+        // Retain the baseline receiver, unmatched-depth and proxy checks in each executable variant.
+        VerifyComposition(shader, lumon,pbr,.5f,1f,0f,0f,1f,1f);
         foreach(float roughness in new[]{0f,.05f,.5f,1f})
         foreach(float nDotV in new[]{.1f,.5f,1f}) {
             VerifyComposition(shader,lumon,pbr,roughness,nDotV,0f,.35f,1f,1f);

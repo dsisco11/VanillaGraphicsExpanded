@@ -55,6 +55,10 @@ public sealed class AtmosphereMultipleScatteringTensorTests
         foreach (float altitude in new[] { .001f, 2f, 24.751f, 50f, 99.001f })
         foreach (float cosine in new[] { -1f, -.2f, 0f, .5f, 1f })
             Close(expected.Sample(altitude, cosine), actual.Sample(altitude, cosine));
+        Vector3 daytime = actual.Sample(0, 1);
+        for (int channel = 0; channel < 3; channel++)
+            Assert.True(float.IsFinite(daytime[channel]) && daytime[channel] > 0);
+        Assert.True(actual.Sample(0, -1).Length() < 1e-6f);
     }
 
     /// <summary>Ensures canceled batches do not perform transport work.</summary>

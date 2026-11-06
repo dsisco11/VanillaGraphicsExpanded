@@ -13,8 +13,15 @@ public sealed class AtmosphereComputationTests
     {
         var lookup = new AtmosphereLookup();
         Assert.True(lookup.Update(Vector3.UnitY, 1, .2f, width: 33, height: 25));
+        Assert.Equal(33, lookup.Current!.Width);
+        Assert.Equal(25, lookup.Current.Height);
         Assert.Equal(33 * 25 * 4, lookup.Current!.Sky.Length);
-        for (int pixel = 0; pixel < 33 * 25; pixel++) Assert.Equal(1f, lookup.Current.Sky[pixel * 4 + 3]);
+        for (int pixel = 0; pixel < 33 * 25; pixel++)
+        {
+            Assert.Equal(1f, lookup.Current.Sky[pixel * 4 + 3]);
+            for (int channel = 0; channel < 3; channel++)
+                Assert.True(float.IsFinite(lookup.Current.Sky[pixel * 4 + channel]) && lookup.Current.Sky[pixel * 4 + channel] >= 0);
+        }
         int layer = lookup.Current.Sky.Length;
         Assert.Equal(layer * AtmosphereAerialPerspective.Depth, lookup.Current.AerialRadiance.Length);
         for (int value = 0; value < layer; value++)
@@ -24,6 +31,10 @@ public sealed class AtmosphereComputationTests
             float terminal = lookup.Current.AerialRadiance[(AtmosphereAerialPerspective.Depth - 1) * layer + value];
             Assert.InRange(Math.Abs(terminal - lookup.Current.Sky[value]), 0, 1e-6f + 2e-6f * Math.Abs(lookup.Current.Sky[value]));
         }
+        var complete = lookup.Current;
+        Assert.False(lookup.Update(Vector3.UnitY, 1, .2f, width: 33, height: 25));
+        Assert.Same(complete, lookup.Current);
+        Assert.Equal(1, lookup.Revision);
     }
 
     /// <summary>Admission never publishes synchronously; the completed immutable result matches a full lookup.</summary>

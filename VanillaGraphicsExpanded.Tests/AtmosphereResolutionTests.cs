@@ -41,7 +41,6 @@ public sealed class AtmosphereResolutionTests
     /// <summary>Initial completion honors requested dimensions and fills every RGBA sample.</summary>
     [Theory]
     [InlineData(16, 8)]
-    [InlineData(33, 25)]
     [InlineData(128, 96)]
     public void InitialSnapshotUsesRequestedDimensions(int width, int height)
     {
@@ -94,28 +93,6 @@ public sealed class AtmosphereResolutionTests
         Assert.Equal(hasCompletedSnapshot ? 2 : 1, lookup.Revision);
     }
 
-    /// <summary>Unchanged dimensions retain bounded weather refresh, including its partial final batch.</summary>
-    [Fact]
-    public void WeatherRefreshStillPublishesOnlyAfterPartialFinalBatch()
-    {
-        const int width = 17, height = 9;
-        var lookup = new AtmosphereLookup();
-        Assert.True(lookup.Update(Vector3.UnitY, 0, 0, complete: true, width: width, height: height));
-        var previous = lookup.Current!;
-        float[] previousPixels = previous.Sky.ToArray();
-        int updates = (width * height + AtmosphereLookup.SamplesPerUpdate - 1) / AtmosphereLookup.SamplesPerUpdate;
-        for (int update = 0; update < updates - 1; update++)
-        {
-            Assert.False(lookup.Update(Vector3.UnitX, 0, 1, complete: false, width: width, height: height));
-            Assert.Same(previous, lookup.Current);
-            Assert.Equal(1, lookup.Revision);
-        }
-        Assert.True(lookup.Update(Vector3.UnitX, 0, 1, complete: false, width: width, height: height));
-        AssertSnapshot(lookup.Current!, width, height);
-        Assert.Equal(Vector3.UnitX, lookup.Current!.Sun);
-        Assert.Equal(previousPixels, previous.Sky.ToArray());
-        Assert.Equal(2, lookup.Revision);
-    }
     /// <summary>Checks dimensions, allocation and initialized samples in a completed table.</summary>
     private static void AssertSnapshot(AtmosphereLighting snapshot, int width, int height)
     {
