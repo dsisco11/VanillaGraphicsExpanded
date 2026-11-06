@@ -29,6 +29,9 @@ Status
   and the three approved blue-noise checks use authored inputs. Proposed direct/water and AO
   direct/composite deferrals, the unresolved GC cause and measurement limits are accepted.
   Phases 1–11 are closed; the broader routine five-minute target remains open.
+  Phase 12 is planned on 2026-11-06 to cover the subsequent removal/consolidation audit:
+  14 prioritized case reductions and six additional candidates. All implementation tasks remain
+  unchecked; adding the phase does not approve its coverage losses or establish runtime savings.
   The user subsequently clarified the target as routine cached runs with explicit uncached
   mechanics checks retained; current execution work is recorded in Rendering.RepresentativeTestCoverage.todo.
   Earlier subsequent coverage work is recorded in Rendering.RepresentativeTestCoverage.todo;
@@ -1884,3 +1887,140 @@ Shared implementation and acceptance requirements
     Record implemented work, proposed deferrals/rejections, approved losses and measurement
     limitations here and update Rendering.RepresentativeTestCoverage.todo. Complete second review
     and independent completion audit, then obtain user acceptance before checking the phase.
+
+☐ Phase 12 — Consolidate overlapping checks and reduce repeated integration combinations
+  Scope and evidence (2026-11-06)
+    Cover all 20 proposed case reductions from the read-only audit: 14 prioritized reductions
+    plus six lower-priority candidates. Counts describe net discovered-case reductions, not
+    eliminated assertions or guaranteed runtime savings. Paths below are relative to
+    ../VanillaGraphicsExpanded.Tests/. Preserve the accepted work and historical counts of
+    Phases 1–11, and inherit the shared requirements and Rendering.RepresentativeTestCoverage.todo.
+    The latest qualified retained-cache Release run is 411.182s, with 5,952 passed, six reconciled
+    skips and zero failures across 5,958 runtime names. Evidence is under
+    ../TestResults/TestRuntimeOptimizations/Phase11/final-full-release/.
+    The five proposed surface-lighting matrix removals account for 8.90s of individual case
+    durations; the two atmosphere quality endpoints account for 3.14s. The three water rows
+    account for 1.37s, while the entire eight-row overlay suite accounts for only .61s.
+    These historical case times prioritize investigation; they are not additive wall savings.
+    The remaining 111.182s gap to five minutes is not demonstrated recoverable by these changes.
+    This phase plans test changes only. Do not change production rendering, stress workloads,
+    runner selection, GPU parallelism, process boundaries or the accepted executable-owner
+    deferrals. Do not reopen AO direct/composite sharing or direct-probe/water class ownership.
+  ☐ Confirm selections, surviving witnesses and coverage-loss agreement before implementation.
+    Reconcile the proposed rows against current source and applicable timing receipts. Map each
+    removal to its contract, failure mode, retained assertions and surviving independent witness.
+    Obtain the user's agreement to the concrete reductions and disclosed losses before editing
+    tests; the request to add this phase is planning authorization. Record any revised selection
+    or rejected candidate explicitly rather than silently substituting or dropping an item.
+    Establish matched retained-cache focused baselines where existing evidence no longer applies;
+    keep builds separate and delegate all builds/tests. Preserve original names and name/ID
+    associations for membership reconciliation, including theory expansion and conditional skips.
+  ☐ Combine blue-noise determinism and seed-response checks: two cases to one.
+    In Unit/Noise/BlueNoiseTests.cs, combine VoidAndCluster_IsDeterministic_ForSameConfig and
+    VoidAndCluster_DifferentSeed_ChangesOutput. Generate seed 123 twice and seed 124 once using
+    the existing settings, reducing these methods' generator calls from four to three.
+    Preserve dimensions, length, same-seed equality, complete rank permutation and different-seed
+    inequality assertions. Keep the real seed-999 seam witness and authored conversion/cache
+    inputs unchanged. Loss: separate discovery/failure reporting and independent setup for the
+    two seed checks; no authored numerical scenario or assertion is removed.
+  ☐ Consolidate AO composite baseline and material/view theories: six cases to three.
+    In GPU/AmbientOcclusionCompositeTests.cs, move VisibilityAffectsOnlyMatchedIndirectLighting's
+    VerifyComposition(.5,1,0,0,1,1) scenario into the start of each corresponding
+    DiffuseAndSpecularVisibilityRespectMaterialAndView row. Keep all three (LumOn,PBR) variants
+    and all 31 existing material/view invocations per variant, with every original oracle,
+    depth-mismatch/proxy check and tolerance. Keep fresh textures, camera, target and geometry
+    per helper invocation and clear borrowed bindings before their resources retire.
+    Program creation falls from six to three without a cross-case ownership change.
+    Loss: independently discovered baseline rows and fresh executables specifically for those
+    baselines. No test currently asserts that freshness; numerical inputs/assertions remain.
+  ☐ Remove the duplicate installed liquid shader mode row: 15 admission rows to 14.
+    In GPU/PbrSurfaceInstalledShaderTests.cs, retain one chunkliquid tuple
+    (shadow=2,OIT=1,SSAO=1,SSBO=1,depth=0) instead of repeating it for both LumOn values.
+    Confirm the current legacy pre/post-processing path remains independent of LumOn and that
+    both rows produce the same effective source and assertions. Retain the native liquid
+    compile/link/output-interface witness and both lighting modes for actual forward families.
+    Loss: repeated execution under an unused setting; no distinct liquid shader branch.
+  ☐ Reduce registered lighting lifetime combinations: four rows to two.
+    In GPU/SurfaceLightingConsumerRuntimeTests.cs, retain RegisteredConsumersPropagateLightingAcrossLifetime
+    for atlas/CPU (sh9=false,gpu=false) and SH9/GPU (true,true). Preserve every retained row's
+    initial publication, light removal/restoration, atlas/world/screen recreation, leave-world
+    recovery, renderer-order and numerical assertion. Keep both-gather analytic coverage in
+    SurfaceLightingNumericalRuntimeTests.ConstantRadianceMatchesBothGatherConventions, both
+    MinimumDirectionalUploadBudgetDefersPendingQueries backend rows, and stale/pending controls.
+    Loss: SH9/CPU and atlas/GPU crossed with the full lifetime sequence. This is representative
+    coverage, not proof that the two dropped interactions are equivalent.
+  ☐ Reduce repeated PBR composition gather combinations: four rows to two.
+    In GPU/SurfaceLightingPbrRuntimeTests.cs, retain RegisteredCompositionRespectsReceiverRegions
+    with sh9=false and RegisteredCompositionAddsLightingTermsOnce with sh9=true. Preserve all
+    material-region, single-intensity, direct/specular/emission and final pixel assertions.
+    Keep independent constant-radiance numerical checks for both gather conventions.
+    Loss: receiver material/intensity checks with SH9 and additive-term checks with atlas gathering.
+    Both gather modes still execute actual PBR composition; no tolerance or oracle is relaxed.
+  ☐ Reduce display-grading isolation to one gather representative: two rows to one.
+    In GPU/SurfaceLightingDisplayBoundaryTests.cs, retain DisplayGradingDoesNotEnterSceneLinearLighting
+    with sh9=true, including both real engine grading settings, persistent generation/resource
+    identity, history revision, HDR reference and unchanged scene-linear image assertions.
+    Keep both-gather numerical witnesses. Loss: grading isolation crossed with atlas gathering.
+  ☐ Consolidate overlapping atmosphere publication and dimension checks: two fewer cases.
+    Move WeatherRefreshStillPublishesOnlyAfterPartialFinalBatch from AtmosphereResolutionTests.cs
+    into AtmosphereLookupTests.RefreshNeverPublishesPartialResults by retaining the latter's
+    complete baseline, stable-input reuse, bounded 17×9 refresh, partial final batch, publication
+    identity/revision, immutable prior pixels and solar-darkening assertions, and adding the
+    former's complete dimensions/RGB-finite/nonnegative/alpha checks.
+    ChangingInputsFinishAdmittedSnapshotThenRefreshLatest remains the changing-sun witness.
+    Loss: simultaneous UnitY-to-UnitX sun and weather change specifically in the 17×9 tail sequence.
+    Remove only InitialSnapshotUsesRequestedDimensions(33,25); transfer its dimension, complete
+    sample, stable-input/no-refresh and revision checks to AtmosphereComputationTests.
+    LookupDefaultsToCompleteBuild, which already builds 33×25 and checks aerial completeness.
+    Retain initial 16×8 and 128×96 rows. Loss: 33×25 with altitude=0/cloud=0 and explicit complete;
+    the retained default-completion witness uses altitude=1/cloud=.2. Explicit completion remains
+    covered by the endpoint dimension rows. Neither consolidation is claimed input-equivalent.
+  ☐ Consolidate atmosphere endpoint physical checks into quality parity: two fewer cases.
+    Remove AtmosphereScatteringQualityTests.QualityQuadratureProducesFiniteLighting(0/3) only
+    after transferring positive daytime and dark-night assertions into all four retained
+    AtmosphereMultipleScatteringTensorTests.TableMatchesScalarAtEveryQuality rows.
+    Preserve independent scalar construction/interpolation comparisons, all exact quality budgets
+    and tolerances. QualitySelectsCompleteBudget and SourceRemainsFiniteAndNightIsDark remain.
+    Loss: endpoint transport at aerosol=1, ground=.1 and 2×2 tables; quality parity uses aerosol=.1,
+    ground=1 and 3×3 tables. Agreement with a scalar result alone must not replace physical bounds.
+  ☐ Reduce three secondary water composition combinations: 33 rows to 30.
+    In GPU/WaterRefractionTests.cs, remove ordinary rows (11), (12) and (0,true), leaving
+    diagnostic-only rows untouched. Retain combined rigid rotation 13, fixed-world camera-ray
+    and independent Snell rows 14/16/17, encoded flat-plane 0 and scene-linear HDR gradient 9.
+    Preserve all retained samples, scalar oracles and tolerances.
+    Loss: isolated yaw-only and pitch-only rigid-scene integrations, plus HDR flat-plane
+    composition. Fixed-world tests cover a distinct coordinate-space regression and stay intact.
+  ☐ Reduce secondary water overlay combinations: eight rows to six.
+    In GPU/WaterRefractionOverlayCompositionTests.cs, remove (lumon=true,overlay=false,captured=false)
+    and (true,false,true). Keep all four overlay/capture combinations with LumOn=false and both
+    overlay=true capture outcomes with LumOn=true. Preserve presentation, source RGB, eligibility
+    alpha and source-depth assertions. Loss: GI-enabled non-overlay publication combinations;
+    shared downstream logic supports representative coverage, not equivalent compiled variants.
+  ☐ Fold standalone CPU world-probe publication assertions into the lifetime witness: one fewer fact.
+    In GPU/SurfaceLightingConsumerRuntimeTests.cs, move WorldProbePublication_DoesNotReadVanillaHitLighting's
+    WorkerReads>0 and VanillaLightReads==0 assertions into the retained atlas/CPU lifetime row
+    immediately after initial real world-radiance readiness, before later transitions.
+    Remove the separate fact only after confirming the same CPU publication boundary is reached.
+    Loss: independently isolated initial-publication setup/reporting; both behavioral assertions
+    remain and later recovery must not hide an initial violation.
+  ☐ Verify the coherent source batch and independently review the retained coverage.
+    Use configured test writers/reviewers and delegated builds/tests. Complete related edits
+    before focused Debug/Release validation, covering all modified suites and their nominated
+    surviving witnesses. Keep real-worker atmosphere publication, real quality-change rebuild,
+    both expanded geometry tiers, all direct-probe camera regressions, and distinct cold-load,
+    disposal, stale-result, missing-provider and fallback-rejection checks unchanged.
+    Compare exact retained inputs/assertions for assertion-preserving consolidations and record
+    every approved interaction loss separately. Reconcile case renames/merges and the planned
+    net reduction of 20 if every candidate is implemented; do not infer coverage from count alone.
+    Measure matched focused selections and avoided generator/program/build work; do not treat
+    fewer discovered tests or sums of individual durations as demonstrated wall-clock improvement.
+  ☐ Qualify the final result, reconcile both tasklists and obtain acceptance.
+    Run full uninstrumented retained-cache Release AllTests, including stress and explicit
+    uncached mechanics, with builds excluded. Preserve raw TRX and encoding-aware parsed results;
+    reconcile runtime names and name/ID associations, conditional skips/reasons, source/DLL/shader
+    identities and cache integrity. Report the measured wall time and remaining five-minute gap
+    without promising a stable or causal speedup from a single pair.
+    Record implemented candidates, approved losses and any proposed deferrals/rejections here,
+    and update Rendering.RepresentativeTestCoverage.todo. Complete second review and independent
+    completion audit, then obtain user acceptance before checking this phase. Keep the broader
+    five-minute objective open unless the required complete run demonstrates it.
