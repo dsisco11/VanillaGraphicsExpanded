@@ -19,6 +19,18 @@ Status and objective
   independent completion audit are clean; the user accepted Phase 12 on 2026-11-06. Its checklist
   is closed, while the five-minute target remains open.
   Receipts: ../TestResults/TestRuntimeOptimizations/Phase12/.
+  A subsequent user-approved resource-association test redesign removes the 384-collection soak
+  case and its empty stress runner. The existing CPU weak-retention test now checks eight abandoned
+  aliases alongside one live alias with a bounded real-GC witness; deterministic registry tests
+  continue to cover ID reuse, unregistration, retirement and concurrent publication. Repeated-GC
+  churn coverage is intentionally lost. Focused Debug/Release registry selections each pass 23/23.
+  Complete retained-cache Release passes 5,930 with seven unchanged skips and zero failures across
+  5,937 runtime names in 376.294s (6m16.3s), excluding builds. The focused weak witness takes
+  .0609s in the full run. One test name is removed, all retained name/ID associations match and
+  source/binary/shader/cache payload integrity holds; cache index field-only change is unproven.
+  The 62.084s difference from the previous single full sample is not a stable or causal speedup;
+  the five-minute target remains 76.294s away.
+  Receipts: ../TestResults/TestRuntimeOptimizations/AssociationRedesign/.
   Phase 11 in Rendering.TestRuntimeOptimizations.todo is complete and accepted by the user on
   2026-11-06, including the recorded deferrals and limitations. Second review and independent
   completion audit are clean. Expanded workloads retain

@@ -1098,6 +1098,9 @@ Phase 6: Qualify the integrated design and reconcile documentation
   binds from 4 to 6. Context-local discovery also reads more facts; these regressions remain disclosed.
   Retention stress covers 6144 collected recipients across 12 logical manager lifetimes and 384 reuse
   cycles. Context/thread admission tests preserve availability, revisions, pending links and native size.
+  This describes the qualification at closure. On 2026-11-06 the user approved retiring the
+  repeated-GC soak from the current suite in favor of a focused real-GC weak-retention witness
+  and separate deterministic lifecycle tests; see Rendering.TestRuntimeOptimizations.todo status.
   This is not qualification of multiple simultaneously live native contexts or actual older hardware.
   The two particle admission failures reproduce on the untouched baseline. An additional exploratory
   broad Debug run was stopped and remains unqualified: some unrelated failures reproduce on baseline,

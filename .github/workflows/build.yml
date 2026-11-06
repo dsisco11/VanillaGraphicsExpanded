@@ -44,11 +44,8 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore
 
-    - name: Run frequent CPU correctness tests
-      run: dotnet test --settings VanillaGraphicsExpanded.Tests/UnitTests.runsettings --filter "Category!=GpuIntegration&Purpose!=Diagnostic&Workload!=Stress" --logger "console;verbosity=normal"
-
-    - name: Run real-GC stress tests
-      run: dotnet test --settings VanillaGraphicsExpanded.Tests/StressTests.runsettings --filter "Category!=GpuIntegration&Purpose!=Diagnostic&Workload=Stress" --logger "console;verbosity=normal"
+    - name: Run CPU correctness tests
+      run: dotnet test --settings VanillaGraphicsExpanded.Tests/UnitTests.runsettings --filter "Category!=GpuIntegration&Purpose!=Diagnostic" --logger "console;verbosity=normal"
 
   # ============================================================================
   # GPU Shader Tests (VintageStory client + Mesa llvmpipe software renderer)
@@ -86,7 +83,7 @@ jobs:
 
     - name: Run GPU shader tests (with Xvfb)
       run: |
-        xvfb-run -a dotnet test --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings --filter "Category=GpuIntegration&Purpose!=Diagnostic&Workload!=Stress" --logger "console;verbosity=normal"
+        xvfb-run -a dotnet test --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings --filter "Category=GpuIntegration&Purpose!=Diagnostic" --logger "console;verbosity=normal"
       env:
         DISPLAY: ":99"
 

@@ -148,22 +148,37 @@ public sealed class GpuResourceMetadataRegistryTests
         Assert.Throws<InvalidOperationException>(() => second.AssociateResource(sync, alias));
     }
 
-    /// <summary>Explicit removal and wrapper collection preserve the live object's canonical entry.</summary>
+    /// <summary>Collected aliases are pruned while a live alias keeps the canonical entry and metadata.</summary>
     [Fact]
     public void WeakAssociationsArePrunedWithoutDiscardingMetadata()
     {
+        // Arrange: keep one recipient alive while a bounded batch leaves scope inside the helper.
         using var manager = CreateManager();
         var entry = DiscoverPreexistingBuffer(manager, 7, new BufferReader())!;
-        var weak = AssociateTemporary(manager, entry);
-        for (int attempt = 0; attempt < 5 && weak.IsAlive; attempt++) { GC.Collect(); GC.WaitForPendingFinalizers(); }
-        Assert.False(weak.IsAlive);
+        using var survivor = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
+        manager.AssociateResource(entry, survivor);
+        var expectedMetadata = entry.Metadata;
+        var expectedRevision = entry.MetadataRevision;
+        var abandoned = AssociateTemporaryBatch(manager, entry);
+
+        // Act: request collection until the abandoned wrappers are no longer reachable. These wrappers have no finalizers.
+        for (int attempt = 0; attempt < 5 && abandoned.Any(value => value.IsAlive); attempt++)
+            GC.Collect();
+
+        // Assert: pruning dead weak associations leaves the live registration and canonical facts intact.
+        Assert.All(abandoned, value => Assert.False(value.IsAlive));
         Assert.Same(entry, manager.AcquireResource(GpuResourceKind.Buffer, 7, new BufferReader()));
-        Assert.Equal(0, entry.AssociationCount);
-        using var resource = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
-        manager.AssociateResource(entry, resource);
-        manager.UnregisterResource(entry, resource);
-        Assert.False(manager.IsResourceMetadataTracked(resource));
-        Assert.False(manager.IsResourceMetadataAvailable(resource));
+        Assert.Equal(1, entry.AssociationCount);
+        Assert.True(manager.IsResourceMetadataTracked(survivor));
+        Assert.True(manager.IsResourceMetadataAvailable(survivor));
+        Assert.Equal(expectedMetadata, entry.Metadata);
+        Assert.Equal(expectedMetadata, survivor.Snapshot);
+        Assert.Equal(expectedRevision, entry.MetadataRevision);
+        Assert.Same(entry, manager.GetResourceRegistration(survivor));
+
+        manager.UnregisterResource(entry, survivor);
+        Assert.False(manager.IsResourceMetadataTracked(survivor));
+        Assert.False(manager.IsResourceMetadataAvailable(survivor));
         Assert.True(entry.IsUsable);
         Assert.Same(entry, manager.FindResource(GpuResourceKind.Buffer, 7));
     }
@@ -515,13 +530,18 @@ public sealed class GpuResourceMetadataRegistryTests
     /// <summary>Creates a context-scoped registry without loading or invoking native graphics.</summary>
     private static RHIResourceManager CreateManager() => new(static () => (1, 1), static _ => true);
 
-    /// <summary>Ends the local strong-reference scope so collection tests measure registry retention.</summary>
+    /// <summary>Associates a small batch and ends their strong-reference scope before collection.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference AssociateTemporary(RHIResourceManager manager, GpuResourceMetadataEntry<GpuBufferMetadata> entry)
+    private static WeakReference[] AssociateTemporaryBatch(RHIResourceManager manager, GpuResourceMetadataEntry<GpuBufferMetadata> entry)
     {
-        var resource = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
-        manager.AssociateResource(entry, resource);
-        return new(resource);
+        var abandoned = new WeakReference[8];
+        for (int index = 0; index < abandoned.Length; index++)
+        {
+            var resource = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
+            manager.AssociateResource(entry, resource);
+            abandoned[index] = new(resource);
+        }
+        return abandoned;
     }
 
     /// <summary>Models a validated native metadata reader with observable failure and query behavior.</summary>

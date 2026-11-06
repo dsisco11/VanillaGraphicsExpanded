@@ -1,5 +1,0 @@
-<RunSettings>
-  <RunConfiguration>
-    <TestCaseFilter>Purpose!=Diagnostic&amp;Workload=Stress</TestCaseFilter>
-  </RunConfiguration>
-</RunSettings>

@@ -37,6 +37,24 @@ Status
   established. Second review and independent completion audit are clean; the user accepted
   Phase 12 on 2026-11-06. Phases 1–12 are closed.
   The five-minute target remains unmet.
+  Subsequent approved resource-association test redesign (2026-11-06) replaces the sole
+  12-lifetime/384-cycle repeated-GC stress case with the existing focused weak-retention witness,
+  strengthened to keep one live alias while eight abandoned aliases are collected and pruned.
+  Deterministic registry tests retain ID reuse, explicit unregistration, retirement and concurrent
+  publication checks. The explicit loss is repeated-GC/churn soak coverage recorded in
+  Rendering.GpuResourceHandles.todo; the earlier stress-preservation decisions describe their
+  historical qualification, not the current test selection. With no stress cases remaining, the
+  empty stress runsettings and CI/IDE route are removed; AllTests selects every non-diagnostic case.
+  Focused Debug/Release registry tests each pass 23/23. The complete retained-cache Release run
+  passes 5,930 with seven unchanged skips and zero failures across 5,937 names in 376.294s
+  (6m16.3s), excluding builds. The focused real-GC witness takes .0609s in that full process;
+  exactly one test name is removed and all retained name/ID associations match the preceding run.
+  Source, binaries, shader payloads and cache payloads stay stable during qualification; both
+  cache indexes validate. The Release index hash changes with pre-run field-level bytes unavailable.
+  This single full run is 62.084s shorter than Phase 12's 438.378s sample, but uncontrolled cache
+  warmth and run variance prevent attributing that difference to the removed 20.904s case or
+  claiming a stable speedup. The routine five-minute target remains 76.294s away.
+  Receipts: ../TestResults/TestRuntimeOptimizations/AssociationRedesign/.
   The user subsequently clarified the target as routine cached runs with explicit uncached
   mechanics checks retained; current execution work is recorded in Rendering.RepresentativeTestCoverage.todo.
   Earlier subsequent coverage work is recorded in Rendering.RepresentativeTestCoverage.todo;
