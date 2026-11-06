@@ -1,0 +1,133 @@
+Test suite organization and reviewability
+========================================
+
+Status
+  Planned. This document authorizes an inventory and proposes a migration sequence; it does
+  not classify every existing case or authorize test removal. The four test projects are
+  VanillaGraphicsExpanded.Tests, OpenGLInterceptionGenerator.Tests, ShaderBuildTool.Tests,
+  and ShaderContractGenerator.Tests. A source-file count is not a runtime-case count.
+
+Objective and authority
+  Make each test's actual boundary, behavior, and ownership clear enough to apply the
+  configured test-reviewer rules consistently. Use the configured test-workflow skill
+  and its reviewer guidance at execution time, plus the project instructions in
+  VanillaGraphicsExpanded.Tests/agents.md and any more specific instructions. The
+  primary agent delegates test edits and independent review through test-workflow.
+  This plan summarizes the reviewer audit; the skill files remain the authority if
+  their guidance changes.
+
+  Classify the behavior actually exercised, not the current directory or class name.
+  Distinguish test level (unit, component, integration, end-to-end) from purpose
+  (correctness, diagnostic, benchmark) and environment (CPU, GPU/native, filesystem,
+  generated code). Roslyn compilation, a GPU fixture, a mock, or a name containing
+  Integration, EndToEnd, or Smoke does not by itself determine the level.
+
+  Organization is the primary objective. Preserve behavioral coverage and existing
+  runner membership while moving tests. Test removal, parameter reduction, execution
+  policy changes, and performance claims require separate evidence and decisions.
+
+Current inventory and confirmed examples
+  The main project currently has test files at its root and under Unit, GPU, and Profiling.
+  Its UnitTests.runsettings excludes Category=GpuIntegration and Purpose=Diagnostic;
+  therefore its current selection is not a strict unit-level selection. AllTests.runsettings
+  excludes diagnostics. Record the complete discovery and selected memberships before
+  changing either filter or runner name.
+
+  - AtmosphereLookupTests mixes lookup/publication behavior with a diagnostic cost
+    workload. Classify and separate the responsibilities while retaining its diagnostic
+    selection.
+  - Unit/LumOn/LumonScene/LumonSceneRegionSchedulerIntegrationSmokeTests composes a real
+    scheduler and PartitionCoordinator. Determine its component or integration boundary
+    and place it accordingly; Smoke describes intent, not level.
+  - Unit/LumOn/WorldProbes/WorldProbeTraceEndToEndVoxelArrangementTests uses a substituted
+    block accessor with real tracing components. Determine its actual boundary and rename
+    the behavior without claiming deployed end-to-end coverage.
+  - ShaderBuildTool.Tests/ShaderCacheKeyTests mixes pure key/encoder checks with a real
+    disk-cache reopen. Split only those distinct responsibilities; retain real I/O for
+    the persistence contract.
+  - ShaderBuildTool.Tests/ShaderCompilerProcessTests mixes process execution behavior
+    with an optimized build-receipt workflow. Give the receipt test its build/publication
+    owner.
+  - OpenGLInterceptionGenerator.Tests/StateDeliveryTests and
+    ShaderContractGenerator.Tests/RuntimeSubmissionTests exercise generated behavior
+    against controlled fixtures. Classify their generated-runtime boundary explicitly;
+    keep them in their owning auxiliary projects.
+
+Phase 1: Inventory and agree on classification
+  ☐ Capture all discovered cases across the four projects, including theories, skips,
+    diagnostic cases, traits, runner selections, and stable test names/IDs. Inventory
+    test code that does not end in Tests.cs as well.
+  ☐ For each coherent behavior group, record the contract, exercised subject, real and
+    substituted collaborators, external effects, expected-result source, level, purpose,
+    environment, fixture lifetime, current owner, proposed owner, and uncertainty.
+  ☐ Identify mixed-boundary files, misleading names, misplaced tests, duplicated setup,
+    helper ownership, and tests whose action cannot reach the asserted outcome. Review
+    behavioral value and failure-mode witnesses without treating this inventory as
+    permission to delete cases.
+  ☐ Resolve ambiguous boundaries against implementation and reviewer guidance. Record
+    the resulting conventions and the exact migration inventory before moving files.
+
+Phase 2: Establish coherent ownership and layout
+  ☐ Define a small directory and namespace convention for the main project by actual
+    level and domain. Keep purpose and environment orthogonal through traits/selection;
+    use GPU/native and diagnostic folders only when they aid discovery without implying
+    an incorrect level. Place fixtures near their consuming boundary and keep shared
+    helpers in a clearly scoped support area.
+  ☐ Apply the same boundary convention within the three auxiliary test projects. Keep
+    their tests with their respective tool; do not combine projects solely to make
+    directory names uniform.
+  ☐ Specify file naming by owned behavior. Split a file when it mixes contracts or
+    levels; consolidate only when the result has one clear responsibility. Avoid a
+    mechanical rename or a new end-to-end category without a deployed-path witness.
+  ☐ Map source moves to namespace changes, linked files, fixture assets, runsettings,
+    project references, CI/IDE commands, and documentation before editing them.
+
+Phase 3: Migrate the main test project in coherent batches
+  ☐ Migrate confirmed mixed root suites by domain and actual level, beginning with
+    atmosphere lookup/publication versus diagnostic workload. Preserve assertions,
+    data rows, skips, traits, and fixture behavior.
+  ☐ Audit and move misclassified Unit groups, beginning with LumOn scheduler and
+    world-probe voxel-arrangement examples. Rename overclaimed tests to state the
+    behavior they prove; record discovery-name changes.
+  ☐ Audit GPU, Profiling, fixtures, and support code for actual test boundary and
+    ownership. Retain serialized execution where shared context/state requires it;
+    change lifetime or parallelism only with isolation evidence.
+  ☐ Within each migrated group, make Arrange/Act/Assert boundaries and scenario intent
+    legible. Explain non-obvious order and expected results. Avoid comments that merely
+    repeat the next call. Check independence, cleanup, pending work, randomness, time,
+    scheduling, and unnecessary real I/O while keeping I/O that proves the contract.
+
+Phase 4: Migrate auxiliary tool suites
+  ☐ Separate ShaderBuildTool key/encoding rules from disk-cache persistence and
+    process behavior from build-receipt workflow. Review its remaining build, cache,
+    publication, and compiler groups by their actual boundary.
+  ☐ Classify OpenGLInterceptionGenerator diagnostics, generated-source contracts, and
+    generated-runtime behavior. Keep fixtures and expected outputs with their owner.
+  ☐ Classify ShaderContractGenerator declaration/diagnostic contracts and generated
+    runtime submission behavior. Preserve compile-and-execute witnesses where they
+    prove generated code works, even when all inputs are in memory.
+  ☐ Apply the same clarity, independence, cleanup, and meaningful-assertion checks as
+    in the main project; keep edits scoped to coherent ownership batches.
+
+Phase 5: Reconcile selection and qualify the result
+  ☐ Compare pre/post discovery across all four projects. Reconcile every missing,
+    added, skipped, or renamed case and its trait/runner membership. Preserve all
+    existing behavior and selection unless a separately approved decision says otherwise.
+  ☐ Review runsettings names and filters against their actual meaning. If level traits
+    or selection changes are useful, specify them explicitly and prove both ordinary
+    and complete selections still cover the intended cases before adopting them.
+  ☐ For each finished migration batch, use the configured test writer, focused
+    verification, and independent test reviewer. Correct findings as one batch and
+    recheck affected behavior. Run builds/tests through subagents as project instructions
+    require.
+  ☐ Run the final applicable project selections and complete-suite qualification,
+    inspect linked assets and CI/IDE entry points, and reconcile documentation. Record
+    residual ambiguities, coverage decisions, and measured runtime separately.
+
+Completion criteria
+  Every discovered test group has a documented actual boundary and one coherent owner;
+  file names and locations no longer overclaim the exercised path. Reviewer quality
+  findings are resolved or explicitly recorded. Discovery and intended runner membership
+  reconcile across all four projects, with assertions, rows, skips, and required fixture
+  lifetimes preserved except for separately accepted changes. Independent review and
+  final verification pass. No runtime improvement is inferred from relocation alone.
