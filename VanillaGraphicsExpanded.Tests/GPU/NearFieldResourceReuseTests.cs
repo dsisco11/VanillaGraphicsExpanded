@@ -2,18 +2,26 @@ using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using Vintagestory.Client;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies the migrated trace harness actually borrows and retains its supplied branch resources.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
-public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
+public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase, IClassFixture<NearFieldNumericalProgramFixture>
 {
+    private readonly HeadlessGLFixture context;
+    private readonly NearFieldNumericalProgramFixture numericalPrograms;
 
 
     /// <summary>Uses the shared GPU context and real component shader owners.</summary>
-    public NearFieldResourceReuseTests(HeadlessGLFixture fixture) : base(fixture) { }
+    public NearFieldResourceReuseTests(HeadlessGLFixture fixture, NearFieldNumericalProgramFixture numericalPrograms)
+        : base(fixture, numericalPrograms)
+    {
+        context = fixture;
+        this.numericalPrograms = numericalPrograms;
+    }
 
     #region Trace ownership
     /// <summary>Switching branches, shader variants and suppression cannot contaminate a reused bright trace program.</summary>
@@ -26,10 +34,14 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
         using var first = new ShaderLightingResources(Programs.Api);
         using var second = new ShaderLightingResources(Programs.Api);
         var bright = Trace(geometry, resources: first);
+        Assert.True(numericalPrograms.CaseInputsAreReset);
         var suppressed = Trace(geometry, resources: second, suppress: true);
+        Assert.True(numericalPrograms.CaseInputsAreReset);
         // Interleave a different compiled selection, then return to the original program and branch.
         var disabled = Trace(geometry, resources: second, worldCache: false);
+        Assert.True(numericalPrograms.CaseInputsAreReset);
         var restored = Trace(geometry, resources: first);
+        Assert.True(numericalPrograms.CaseInputsAreReset);
         Assert.NotSame(first.EnsureScreen(4, 4, 2).ScreenProbeAtlasTraceTex,
             second.EnsureScreen(4, 4, 2).ScreenProbeAtlasTraceTex);
         ImageAssertions.Predicates.Predicate(bright.Radiance, CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5, restored.Radiance).AssertEqual();
@@ -38,6 +50,63 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
         ObserveTrace(restored, GeometryPredicates.NearFieldResourceReuseTests_TraceRebindsInputsAfterBranchAndVariantChanges, suppressed).AssertEqual();
         ObserveTrace(disabled, GeometryPredicates.NearFieldResourceReuseTests_TraceRebindsInputsAfterBranchAndVariantChanges_2).AssertEqual();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
+
+        // Arrange a failure after the draw and readback so this checks lease cleanup on the consumer callback path.
+        var injectedFailure = new InvalidOperationException("Injected consumer failure after trace readback.");
+        // Act and verify the exact callback exception escapes Trace rather than an unrelated invalid operation.
+        var observedFailure = Assert.Throws<InvalidOperationException>(() => Trace(geometry, resources: second,
+            consume: _ => throw injectedFailure));
+        Assert.Same(injectedFailure, observedFailure);
+
+        // Assert cleanup, then render the same bright selection again to prove the program remains reusable.
+        Assert.True(numericalPrograms.CaseInputsAreReset);
+        var afterException = Trace(geometry, resources: second);
+        Assert.True(numericalPrograms.CaseInputsAreReset);
+        ImageAssertions.Predicates.Predicate(bright.Radiance,
+            CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5,
+            afterException.Radiance).AssertEqual();
+        ImageAssertions.Predicates.Predicate(bright.Meta,
+            CloudPredicates.CloudStoredVolumeViewTests_TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight_5,
+            afterException.Meta).AssertEqual();
+    }
+
+    /// <summary>Rejects overlapping leases and retires a compiled variant only after its inputs have cleared.</summary>
+    [Fact]
+    public void NumericalProgramOwnerRejectsActiveRetirementAndReleasesNativeProgram()
+    {
+        EnsureShaderTestAvailable();
+        var owner = new NearFieldNumericalProgramFixture(context);
+        var key = new NearFieldTraceProgramKey(true, 1, 64, true, 1, 8, 16, 4);
+        NearFieldNumericalProgramFixture.Lease? lease = null;
+        try
+        {
+            // Arrange one live owner and acquire its executable; overlapping acquisition and active retirement must fail.
+            lease = owner.Acquire(key);
+            Assert.Throws<InvalidOperationException>(() => owner.Acquire(key));
+            Assert.Throws<InvalidOperationException>(() => owner.Dispose());
+            var originalShader = lease.Program.Shader;
+
+            // Act: release and reacquire the same immutable key, then verify the native shader survived the lease gap.
+            lease.Dispose();
+            Assert.Throws<ObjectDisposedException>(() => _ = lease.Program);
+            lease = null;
+            using (var repeatedLease = owner.Acquire(key))
+            {
+                Assert.Equal(originalShader, repeatedLease.Program.Shader);
+            }
+
+            // Assert the lease reset contract and complete owner retirement after the native identity check.
+            Assert.True(owner.CaseInputsAreReset);
+            owner.Dispose();
+            Assert.True(owner.ProgramsAreRetired);
+            Assert.Same(owner.PreviousPlatform, ScreenManager.Platform);
+            Assert.Throws<ObjectDisposedException>(() => owner.Acquire(key));
+        }
+        finally
+        {
+            try { lease?.Dispose(); }
+            finally { owner.Dispose(); }
+        }
     }
 
     /// <summary>Repeated real draws retain buffers and do not overwrite a simultaneous branch or retire external world resources.</summary>

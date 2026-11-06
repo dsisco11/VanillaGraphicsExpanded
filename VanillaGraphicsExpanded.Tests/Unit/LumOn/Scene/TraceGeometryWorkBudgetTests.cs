@@ -8,6 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.Scene;
 /// <summary>Checks configurable geometry work against retained publication and storage invariants.</summary>
 public sealed class TraceGeometryWorkBudgetTests
 {
+    #region Public API
     #region Configuration
     /// <summary>Persisted coverage requests round upward to supported bounded tiers.</summary>
     [Theory]
@@ -125,20 +126,22 @@ public sealed class TraceGeometryWorkBudgetTests
     public void ExpandedCoverageConvergesWithBoundedStorage(int resolution)
     {
         var coverage=TraceGeometryCoverage.Plan(new(-1,128,-1),true,resolution,256);
-        using var fixture=new TraceGeometryFixture(coverage.Resolution);
+        using var fixture=new TraceGeometryFixture(coverage.Resolution, observationMode:TraceGeometryObservationMode.MetadataOnly);
         int expected=new PartitionLayout(new(16,16,16)).Intersecting(coverage.Clip(coverage.Surface!.Value)).Count();
-        for(int frame=0;frame<700 && fixture.Backend.Ready.Count<expected;frame++)
+        for(int frame=0;frame<700 && fixture.Backend.PublishedKeys.Count<expected;frame++)
         {
-            int requests=fixture.Requests.Count, publications=fixture.Backend.Publications.Count;
+            int requests=fixture.RequestHistory.Count, publications=fixture.Backend.Publications.Count;
             fixture.Frame(coverage);fixture.Complete();
-            Assert.InRange(fixture.Requests.Count-requests,0,2);
+            Assert.InRange(fixture.RequestHistory.Count-requests,0,2);
             Assert.InRange(fixture.Backend.Publications.Count-publications,0,16);
             Assert.InRange(fixture.Cache.InFlight,0,8);
             Assert.InRange(fixture.Cache.SnapshotBytes,0,8L * 393216);
         }
-        Assert.Equal(expected,fixture.Backend.Ready.Count);
+        Assert.Equal(expected,fixture.Backend.PublishedKeys.Count);
         Assert.Equal(expected,fixture.Backend.Publications.Count);
-        Assert.Equal(fixture.Requests.Count,fixture.Requests.Select(r=>(r.Key,r.Version)).Distinct().Count());
+        Assert.Equal(fixture.RequestHistory.Count,fixture.RequestHistory.Distinct().Count());
     }
+
+    #endregion
     #endregion
 }

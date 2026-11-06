@@ -14,12 +14,13 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Exercises production near-field geometry, lighting and cache handoff through actual screen-probe rays.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
-public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestBase
+public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestBase, IClassFixture<NearFieldNumericalProgramFixture>
 {
 
 
     /// <summary>Shares the headless GPU context.</summary>
-    public LumOnNearFieldFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
+    public LumOnNearFieldFunctionalTests(HeadlessGLFixture fixture, NearFieldNumericalProgramFixture numericalPrograms)
+        : base(fixture, numericalPrograms) { }
 
     #region Shader Variants
     /// <summary>Production near-field tracing compiles alongside importance selection, with and without a world cache.</summary>

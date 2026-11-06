@@ -8,11 +8,32 @@ Status and objective
   that this means routine runs with validated shader caches retained; explicit uncached mechanics
   checks must remain. Cold-start results are reported separately. The target is not yet demonstrated.
   Process splitting is excluded from this work.
-  Planned follow-up is Phase 11 in Rendering.TestRuntimeOptimizations.todo: bound geometry-fixture
-  payload retention, attribute its possible contribution to GC cost, eliminate unused AO setup,
-  qualify broader numerical executable reuse and assess authored blue-noise policy inputs.
-  The candidates are unimplemented; reset/ownership proof and coverage agreements remain required.
-  No runtime saving or five-minute outcome is established by the plan.
+  Phase 11 in Rendering.TestRuntimeOptimizations.todo is complete and accepted by the user on
+  2026-11-06, including the recorded deferrals and limitations. Second review and independent
+  completion audit are clean. Expanded workloads retain
+  request/publication metadata instead of unused payloads; default content/stale-work observers
+  remain full. AO shares one case-owned program bundle with fresh scene inputs. Numerical
+  near-field classes use keyed executables under the original context/manager, complete input
+  reset and fresh case resources; importance compilation and explicit cold/lifecycle subjects
+  keep fresh owners. Three user-approved blue-noise consumer/cache checks use authored 32×32
+  ranks, with real generation retained for determinism, complete ranks, seed response and seams.
+  Debug/Release each pass 234 distinct scoped checks. Full retained-cache Release takes 411.182s
+  (6m51.2s), excluding builds: 5,952 passed, six skips, zero failures across 5,958 names. All older
+  name/ID associations remain; two owner controls are added. The six skips include a reconciled
+  swap between two existing conditional EventListener witnesses, not six unchanged identities.
+  Clean builds, 1,820 unchanged shader hashes and source/DLL/cache stability reconcile. Debug
+  adds 15 valid cache entries without rewriting old payloads; Release's 435 payloads are unchanged.
+  The measured near-field class pair is 17.737s -> 11.620s; geometry's two instrumented scopes
+  allocate about 371 MB fewer bytes on the test thread, and AO creation calls fall 64 -> 32.
+  These local observations and the 435.814s -> 411.182s full samples do not establish a stable
+  percentage or causal whole-suite speedup. The five-minute target remains unmet.
+  Bounded GC profiling finds no actual geometry fixture/chunk/cell at its later boundary;
+  root enumeration is not performed and the roughly 20.7s collection cost remains unexplained.
+  Stress source and all temporary probes are restored/removed. Fresh direct-probe/water owners
+  and separate AO direct/composite programs are accepted deferrals. Phases 1–11 are closed;
+  the broader routine five-minute target remains open.
+  Detailed limits, approved losses and receipts: Rendering.TestRuntimeOptimizations.todo Phase 11;
+  ../TestResults/TestRuntimeOptimizations/Phase11/.
   Phase 10 in Rendering.TestRuntimeOptimizations.todo is complete and accepted by the user on
   2026-11-05, including its no-change dispositions and measured limitations. Its three-file test-source
   batch has clean second review and independent completion audit. Frame/wait and directional

@@ -20,9 +20,15 @@ Status
   bulk reads are implemented; the other candidates have documented no-change decisions.
   Second source/test review and independent completion audit are clean. All ten phases are closed;
   the broader routine cached runtime target remains open.
-  Phase 11 is planned: reduce geometry-fixture payload retention and unused AO setup, qualify
-  further numerical executable reuse, and separate blue-noise policy checks from generation.
-  Its candidates are unimplemented; the plan does not approve additional coverage reductions.
+  Phase 11 is complete and accepted by the user on 2026-11-06, including its recorded deferrals
+  and measurement limitations. Second review and independent completion audit are clean.
+  Debug/Release each pass 234 distinct scoped checks. Full retained-cache Release passes 5,952
+  with six reconciled skips and zero failures in 411.182s (6m51.2s), excluding builds. The
+  five-minute target remains unmet. Geometry observers retain keys instead of unused payloads;
+  AO shares its case-owned bundle, near-field numerical executables have class-owned leases,
+  and the three approved blue-noise checks use authored inputs. Proposed direct/water and AO
+  direct/composite deferrals, the unresolved GC cause and measurement limits are accepted.
+  Phases 1–11 are closed; the broader routine five-minute target remains open.
   The user subsequently clarified the target as routine cached runs with explicit uncached
   mechanics checks retained; current execution work is recorded in Rendering.RepresentativeTestCoverage.todo.
   Earlier subsequent coverage work is recorded in Rendering.RepresentativeTestCoverage.todo;
@@ -1633,8 +1639,8 @@ Shared implementation and acceptance requirements
     Rendering.RepresentativeTestCoverage.todo. Complete second review and independent completion
     audit, then obtain user acceptance of the results and limitations before checking the phase.
 
-☐ Phase 11 — Reduce fixture payload retention and repeated numerical setup
-  Scope and ranking evidence (2026-11-05; planned)
+☑ Phase 11 — Reduce fixture payload retention and repeated numerical setup
+  Scope and ranking evidence (2026-11-05)
     Use the accepted Phase 10 retained-cache Release run and its original XML:
     ../TestResults/TestRuntimeOptimizations/Phase10/20261105T1845Z/final-release/.
     Wall time is 435.814s, excluding builds: 5,950 passed, six skipped, zero failed across
@@ -1662,7 +1668,129 @@ Shared implementation and acceptance requirements
     Record any proposed deferral or rejection as the implementer's recommendation, with evidence
     and remaining uncertainty, and include it explicitly in final user acceptance. Creating this
     phase does not make those recommendations approved or waive an unresolved ownership gate.
-  ☐ Establish matched baselines and attribute the specific avoidable work.
+  Execution decisions and evidence (2026-11-05; accepted 2026-11-06)
+    The user approved authored complete 32×32 rank permutations in the three blue-noise
+    conversion/fill/cache tests. Their existing assertions remain, and a complete-rank assertion
+    is added to the existing real-generation determinism test. Intentional loss: the particular
+    seed-42 generator-to-conversion, seed-7 generator-to-fill and seed-123 cache-to-generator
+    combinations. Real generation remains in determinism, different-seed and seam witnesses.
+    Original-source retained-cache Release baselines pass 180/180 in 50.077s and near-field
+    50/50 in 17.737s. The corrected clear-scene plus branch/variant pilot passes 2/2 in 6.706s.
+    Builds are excluded. These are control measurements, not optimization results. The initial
+    pilot filter named the branch control's class incorrectly and selected one row; that partial
+    receipt is retained separately and excluded from the intended two-row comparison.
+    Receipts: ../TestResults/TestRuntimeOptimizations/Phase11/baseline-release/,
+    nearfield-baseline-release/ and nearfield-pilot-corrected-baseline-release/ under that root.
+    Traceability: shared requirements and both performance analyses govern preserved work,
+    scoped ownership and measurement boundaries for every task. The companion tasklist's
+    numerical reuse/reset and runtime-boundary sections govern the near-field pilot and
+    direct/water assessment. The source and qualification evidence for each group follows.
+    Bounded geometry/AO attribution passes 10/10 before and after (12.466s / 11.051s command
+    wall). The instrumented two-row geometry scopes allocate 555,971,888 -> 440,889,960 bytes
+    and 1,520,547,296 -> 1,264,698,368 bytes on the test thread, including fixture disposal.
+    Request/publication counts remain 294/2,028 and 648/4,624. Maximum observed completed
+    fixture handles fall from 294/648 to two each; retained backend cell payloads fall from
+    2,028/4,624 to zero. Cache snapshots remain bounded at 3,145,728 bytes. Post-helper
+    collections find zero observed chunks alive in both revisions; these do not prove a
+    full-context GC cause. The shared authored source array is separate from chunk copies.
+    AO creation calls fall eight -> four per case; each still executes one scene Render call
+    and 32 lighting draws. All eight authored numerical output records match exactly.
+    The candidate fixture archive was reconstructed after measurement and verified byte-for-byte
+    against both recorded source hashes: candidate-probe-source/TraceGeometryFixture.verified.cs
+    under the Phase 11 receipt root. It supersedes the unverified reconstruction with later regions.
+    Initial reset controls failed before rendering because binding inspection had no camera.
+    A class-owned inspection camera now restores the previous reference in finally; actual
+    traces keep fresh authored cameras. The corrected seven-row controls pass, followed by
+    all 50 near-field rows in 11.620s against 17.737s baseline, with unchanged name/ID pairs.
+    Blue-noise seven plus full-payload/stale-work backend 23 checks pass 30/30. These are
+    scoped Release checkpoint receipts; finished-batch qualification is recorded below.
+    The first isolated GC protocol check passed stress but WMI ancestry inspection was denied,
+    so it supplied no heap snapshot. The direct-process-query retry passes with a walkable,
+    untruncated heap capture; both retain 384 collection calls and 384 finalizer waits.
+    These protocol/attribution runs are not full-context or uninstrumented runtime evidence.
+    Dispositions accepted by the user on 2026-11-06: retain fresh owners for all 62 direct-probe
+    and 33 water rows. Direct debug/atlas/SH9 consumers need a common complete variant key,
+    binding/staging/publication reset and independent LightingResources lifetime; no qualified
+    narrow cross-case seam was established. Water additionally needs persistent API/assets,
+    immutable quality/resolution/capture variants and reset of three buffers, 12 samplers and
+    camera/lighting/fog/material state. Diagnostic asset overrides and captured-receiver subjects
+    retain their existing owners. This accepted disposition defers expansion; it is not proof that
+    it is impossible or that its benefit is negligible. Their current source is unchanged.
+    Retain separate AO direct/composite programs: both lighting fixtures and their output images
+    coexist, and the strong fixture is used again after weak captures for rejected-depth checks.
+    There is no complete per-capture rebinding seam in that fixture; the existing AO-only
+    sharedPrograms seam is the implemented scope. The user accepted these deferrals with the
+    qualified result and its limitations on 2026-11-06.
+    The full-context instrumented run passes 5,951 with seven skips and zero failures across
+    5,958 rows in 459.218s, including profiler overhead and excluding builds. It retains every
+    earlier runtime name/ID association and adds only the two owner controls. Six skips match
+    the accepted baseline; the seventh is the existing conditional EventListener-not-observed
+    skip in VgeProfilingCountersTests.Provider_Emits_ChunkProcessing_Counters_WhenEnabled.
+    This run is attribution evidence, not final runtime qualification or a speedup comparison.
+    The heap census occurs about 214.7 seconds after the expanded geometry rows finish. It walks
+    369,373,318 bytes across 1,820,976 objects, including 110,140,608 bytes of free blocks.
+    No actual TraceGeometryFixture/TraceGeometryChunk/TraceGeometryCell instances are present;
+    root enumeration is not performed. Strings account for about 80.352 MB and byte arrays
+    52.634 MB, without ownership/root-path attribution. The 1.882s observer wall bounds suspension.
+    Stress body time is 20.799s after acknowledgement; its 384 original collection calls take
+    20.707s and 384 finalizer waits about .050s. These observations do not establish the GC-tail
+    cause or a causal effect of geometry allocations. Temporary instrumentation is now removed;
+    stress source matches its original SHA-256 exactly.
+    Finished-batch qualification (2026-11-05)
+      Clean managed Debug/Release rebuilds pass in 153.875s / 54.206s, excluded from test walls.
+      All 1,820 staged shader payload hashes match the original baseline. Four rebuilt managed
+      DLLs and live sources contain no temporary probe markers. Stress source is byte-identical
+      to its original SHA-256 32728DD6E8E36FDDD299656266F654F60380E8097C16701AE7DAEAF5CE93AA8F.
+      Matched 180-case selections pass 180/180 each: Debug 81.400s and Release 47.200s.
+      The Release baseline is 50.077s; no matched Debug baseline exists. Supplemental 54-case
+      selections pass 54/54 in 7.725s / 7.215s. Each configuration therefore has 234 distinct
+      passing scoped checks, zero failures/skips, with no overlap between the two selections.
+      Supplemental checks include 23 default full-payload/stale-work geometry cases, three
+      near-field resource/owner controls, one retired-generation control, two uncached loading
+      mechanics, seven fresh graphics lifecycle cases and 18 program-binary cache policy cases.
+      The 180 retain all 62 direct-probe and 33 water cases; near-field importance compile rows
+      keep fresh owners. The eight variable shader selections and fixed defaults are shared
+      through NearFieldTraceProgramKey. Within the two class-fixture suites, each Trace leases
+      executables under its original context/manager, rebinds fresh case inputs and clears all
+      borrowed references on return or exception.
+      Independent authored outputs, reference-selection checks, expired/overlap rejection,
+      same-native reuse, recovery and final retirement controls pass.
+      Full uninstrumented retained-cache Release AllTests, including stress and uncached
+      mechanics, passes 5,952 with six skips and zero failures across 5,958 unique runtime names
+      in 411.182s (6m51.2s), excluding builds/provenance. All earlier names and name/ID pairs
+      remain; only the two owner controls are added. Dynamic theory expansion still produces
+      six more runtime names than distinct raw IDs; raw ID counts are not the membership oracle.
+      Final skips are five unchanged permanent skips plus the existing conditional Provider_Emits_
+      ChunkProcessing_Counters_WhenEnabled EventListener skip. Compared with Phase 10, that
+      conditional row changes pass -> skip while ProfilerEventSourceTests.BeginScope_EmitsStartAndStop_
+      WhenEnabled changes skip -> pass, with the same not-observed reason. Thus the count is six,
+      but the identities are not the same six. No skip policy or source body is changed.
+      Real-GC stress passes in 20.112s uninstrumented. Its original 12 × 32 × 16 workload,
+      collection arguments, attempt limits, assertions and runner selection remain intact.
+      All 3,891 captured source/input identities, four DLLs, 1,820 shader payloads and existing
+      cache payloads remain stable through final runs. Release stays at 435 valid entries /
+      17,530,799 bytes with unchanged payload hashes/mtimes. Debug legitimately adds 15 valid
+      entries during focused qualification (82 -> 97; 7,125,996 bytes), preserving old payloads.
+      Debug names match the intended 180 rows; cross-configuration Debug/Release ID differences
+      are disclosed and do not substitute for a missing same-configuration Debug baseline.
+      Source/test second review is clean after logical-process comments; the independent
+      completion audit confirms implementation, verification and document reconciliation.
+      The user accepted the qualified result on 2026-11-06, including the direct/water and AO
+      direct/composite deferrals, unresolved GC attribution, reconciled conditional skip swap
+      and absence of a demonstrated stable or causal speedup. All Phase 11 gates are satisfied;
+      the broader routine five-minute target remains open.
+      The 435.814s -> 411.182s full samples and 50.077s -> 47.200s matched scoped pair do not
+      establish a stable percentage or causal whole-suite speedup. Driver/filesystem warmth
+      is uncontrolled; the full workload includes two added controls and the approved blue-noise
+      input separation. The routine target remains unmet by 111.182s; no full Debug, Linux CI
+      or live-game performance result is claimed.
+      Receipts under ../TestResults/TestRuntimeOptimizations/Phase11/: final-clean-build-{debug,release}/,
+      final-clean-proof/proof.json, final-matched-{debug,release}/, final-supplemental-{debug,release}/,
+      final-full-release/ (original TRX, command, qualification-summary.json and reconciliation.json),
+      and instrumented-full-release/ for the separate heap/GC attribution. Intermediate failed
+      build, inspection-control and WMI protocol receipts remain and are excluded from passing
+      qualification. Earlier valid measurements are retained rather than repeated after comments.
+  ☑ Establish matched baselines and attribute the specific avoidable work.
     Confirm receipt/source applicability and map affected cases to their owning contracts.
     Measure retained-cache focused selections with complete fixture setup/teardown and builds
     separate. Count retained payloads, allocations, source completions, publications, program
@@ -1670,7 +1798,7 @@ Shared implementation and acceptance requirements
     Preserve all assertions during bounded attribution; remove instrumentation and prove source
     restoration and clean managed compilation before final timing. Reuse valid baseline evidence
     and avoid full-suite or verification cycles between individual source edits.
-  ☐ Bound geometry-workload observation storage without reducing coordinator work.
+  ☑ Bound geometry-workload observation storage without reducing coordinator work.
     Inspect Fixtures/NearField/TraceGeometryFixture.cs and the two
     TraceGeometryWorkBudgetTests.ExpandedCoverageConvergesWithBoundedStorage rows, paths relative
     to ../VanillaGraphicsExpanded.Tests/. Requests retains completed completion handles whose
@@ -1685,7 +1813,7 @@ Shared implementation and acceptance requirements
     rows, the 700-frame ceiling, real coordinator/cache/extraction, per-frame admission/publication
     limits, in-flight/snapshot bounds, final coverage and unique key/version assertions.
     Compare allocated bytes, peak live payloads and retained completion roots with the original.
-  ☐ Determine whether fixture retention contributes to the full-context GC tail.
+  ☑ Determine whether fixture retention contributes to the full-context GC tail.
     Use the geometry evidence to distinguish live fixture payloads from temporary allocations
     and objects retained after fixture disposal. The Phase 10 full-context sample measured
     21.256s inside GC.Collect, but did not identify retained object types or roots.
@@ -1695,7 +1823,7 @@ Shared implementation and acceptance requirements
     Keep all 12 lifetimes × 32 cycles × 16 aliases, generations, collection attempts, checkpoints,
     assertions and runner selections. Neither isolated heap reduction nor concurrent CPU case
     sums establish a full-suite saving. Remove temporary probes and verify restoration.
-  ☐ Eliminate unused AO program setup within each lighting-contribution case.
+  ☑ Eliminate unused AO program setup within each lighting-contribution case.
     Inspect GPU/AmbientOcclusionLightingContributionTests.cs, AmbientOcclusionSceneFixture and
     AmbientOcclusionLightingFixture. Strong and weak scenes both create four AO programs, but
     only the strong scene renders AO: the eight weak bundles add 32 program-creation calls.
@@ -1706,7 +1834,7 @@ Shared implementation and acceptance requirements
     complete rebinding while both scene fixtures and their independently observed outputs live.
     Preserve generated strong AO, the scalar BRDF oracle, weak/strong loss ratio, rejected-depth
     checks, original draw order and tolerances. Measure preparations and complete case time.
-  ☐ Qualify a bounded near-field numerical executable-reuse pilot.
+  ☑ Qualify a bounded near-field numerical executable-reuse pilot.
     Inspect GPU/Fixtures/NearFieldShaderTestBase.cs and LumOnNearFieldFunctionalTests.
     The existing TraceProgramKey and dictionary already select variants within each case;
     prove that the key covers every effective compile input before extending its lifetime.
@@ -1717,7 +1845,7 @@ Shared implementation and acceptance requirements
     Keep NearField_CompilesWithImportanceSelection independently fresh. Verify isolated-row
     execution, variant/neighbor round trips and retirement with independent authored outputs.
     Measure a matched pilot before expanding the lease to the remaining numerical rows.
-  ☐ Assess direct-probe and water reuse against their documented ownership blockers.
+  ☑ Assess direct-probe and water reuse against their documented ownership blockers.
     Consult the Runtime-boundary audit and further numerical reuse section of
     Rendering.RepresentativeTestCoverage.todo before changing either family.
     DirectWorldProbeVisibilityTestBase needs its complete identity/define key and debug,
@@ -1729,7 +1857,7 @@ Shared implementation and acceptance requirements
     Preserve all 62 direct and 33 water rows, captured-receiver subjects and cold/failure witnesses.
     No runtime-owner reuse or binary-cache substitution for loading tests is included. If safety
     or measured benefit is unproven, report the exact blocker and proposed disposition for review.
-  ☐ Separate three blue-noise policy/conversion checks from expensive generation.
+  ☑ Separate three blue-noise policy/conversion checks from expensive generation.
     Inspect Unit/Noise/BlueNoiseTests.cs: Conversions_AreInRange_AndLengthsMatch,
     BinaryMask_FillRatio_ProducesExpectedOnCount and Cache_CreatesOnce_PerKey.
     Propose authored complete rank permutations at the existing 32×32 size for conversion/fill
@@ -1739,7 +1867,7 @@ Shared implementation and acceptance requirements
     calls; identify independent surviving generation and consumer witnesses and obtain agreement
     before changing inputs. Retain real generation for determinism, seed response and seam behavior.
     No row deletion, generator approximation or relaxed assertion is authorized by this plan.
-  ☐ Verify the coherent batch and independently review coverage and ownership.
+  ☑ Verify the coherent batch and independently review coverage and ownership.
     Use configured test writers/reviewers and delegated builds/tests. Complete related source
     changes before Debug/Release affected selections and relevant numerical, observation,
     generation, cache, cold/lifecycle and stale-work controls. Batch review corrections before
@@ -1747,7 +1875,7 @@ Shared implementation and acceptance requirements
     Reconcile all retained rows/assertions and every explicitly approved coverage loss. Compare
     matched focused timings, allocation/retention counts and preparation counts without treating
     class sums as wall savings. Verify current source, DLL and shader provenance and remove probes.
-  ☐ Qualify the finished result, reconcile both tasklists and obtain acceptance.
+  ☑ Qualify the finished result, reconcile both tasklists and obtain acceptance.
     Run full retained-cache Release AllTests with stress and explicit uncached mechanics,
     excluding builds. Preserve raw TRX and parse it through encoding-aware XML APIs. Compare
     runtime names and name/ID associations, not just distinct raw testId counts; reconcile skips

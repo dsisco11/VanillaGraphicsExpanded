@@ -52,7 +52,9 @@ public sealed class AmbientOcclusionLightingContributionTests(HeadlessGLFixture 
         if(sunlit)Assert.True(occludedPixel.Direct.X>1);else Assert.InRange(occludedPixel.Direct.X,0,.00001f);
 
         // Retain the same valid scalar signal while reducing only available indirect energy.
-        using var weakScene=new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework,Programs,width,height,4,roughness:roughness,availability:.005f);
+        // The weak scene owns fresh inputs and reuses the already prepared immutable AO programs.
+        using var weakScene=new AmbientOcclusionSceneFixture(ImageAssertions, TestFramework,Programs,width,height,4,
+            roughness:roughness,availability:.005f,sharedPrograms:scene.ScenePrograms);
         using var weakLighting=new AmbientOcclusionLightingFixture(ImageAssertions, TestFramework,Programs,weakScene,lumon,sunlit?8:0,.005f);
         using var weakNeutral=weakLighting.Capture(null);using var weakOccluded=weakLighting.Capture(owner.Texture);
         var weakNeutralPixel=(Combined:Receiver(weakNeutral.Combined),Diffuse:Receiver(weakNeutral.Diffuse));

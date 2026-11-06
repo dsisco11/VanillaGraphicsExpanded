@@ -16,34 +16,37 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 public abstract partial class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
 {
     #region Scenario programs
-    /// <summary>Identifies every variable shader selection authored by this harness; per-draw inputs remain uncached.</summary>
-    private readonly record struct TraceProgramKey(bool NearField, float EmissiveBoost, int TexelsPerFrame,
-        bool WorldProbes, int WorldResolution, float WorldSpacing, int WorldTileSize, float RayMaxDistance);
+    private readonly NearFieldNumericalProgramFixture? numericalPrograms;
 
     // Match the direct-visibility harness: reuse only within this test, with disposal owned by Programs.
-    private readonly Dictionary<TraceProgramKey, LumOnScreenProbeAtlasTraceShaderProgram> tracePrograms = new();
+    private readonly Dictionary<NearFieldTraceProgramKey, LumOnScreenProbeAtlasTraceShaderProgram> tracePrograms = new();
     #endregion
 
     /// <summary>Uses the shared headless GPU context.</summary>
     protected NearFieldShaderTestBase(HeadlessGLFixture fixture) : base(fixture) { }
+
+    /// <summary>Uses class-owned numerical executables while keeping every case's scene resources independent.</summary>
+    /// <param name="fixture">The collection-owned headless graphics context.</param>
+    /// <param name="numericalPrograms">The class fixture that leases compiled trace variants.</param>
+    protected NearFieldShaderTestBase(HeadlessGLFixture fixture, NearFieldNumericalProgramFixture numericalPrograms) : base(fixture)
+        => this.numericalPrograms = numericalPrograms ?? throw new ArgumentNullException(nameof(numericalPrograms));
 
     #region Shader Harness
     /// <summary>Runs the production shader with the production sixteen-unit texture layout.</summary>
     private protected TraceImages Trace(NearFieldVoxelFixture? fixture, int budget = 256, bool suppress = false, float cacheDistance = 100, float emissionBoost = 1, VanillaGraphicsExpanded.Numerics.VectorInt3 worldOffset = default, int cacheResolution = 1,
         bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool nearFieldTracing = true, float screenEmission = 0, bool worldCache = true, VanillaGraphicsExpanded.WorldPartition.PartitionBounds? supportedOrigins = null, float maximumTraceReach = 0, float cacheSpacing = 8, VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryGpuScene? shared = null, VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingSnapshot? surfaceLighting = null, Vector3? anchorPosition = null, VanillaGraphicsExpanded.Numerics.Vector3d matrixRemainder = default, Action<RHIRenderPassDescription>? consume = null, VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu.LumOnWorldProbeClipmapGpuResources? worldResources = null, GpuTexture? history = null, GpuTexture? historyMeta = null, int texelsPerFrame = 64, int frameIndex = 0, float rayMaxDistance = 4, ShaderLightingResources? resources = null)
     {
-        var key = new TraceProgramKey(nearFieldTracing, emissionBoost, texelsPerFrame, worldCache,
+        var key = new NearFieldTraceProgramKey(nearFieldTracing, emissionBoost, texelsPerFrame, worldCache,
             cacheResolution, cacheSpacing, worldResources?.WorldProbeTileSize ?? 16, rayMaxDistance);
-        if (!tracePrograms.TryGetValue(key, out var program))
+        using var lease = numericalPrograms?.Acquire(key);
+        LumOnScreenProbeAtlasTraceShaderProgram program;
+        if (lease is not null)
         {
-            program = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(shader =>
-            {
-                shader.NearField = key.NearField; shader.EmissiveBoost = key.EmissiveBoost;
-                shader.TexelsPerFrame = key.TexelsPerFrame; shader.WorldProbes = key.WorldProbes;
-                shader.WorldProbeLevels = 1; shader.WorldProbeResolution = key.WorldResolution;
-                shader.WorldProbeBaseSpacing = key.WorldSpacing; shader.WorldProbeOctahedralSize = key.WorldTileSize;
-                shader.HzbCoarseMip = 0; shader.RayMaxDistance = key.RayMaxDistance;
-            });
+            program = lease.Program;
+        }
+        else if (!tracePrograms.TryGetValue(key, out program!))
+        {
+            program = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(shader => key.Configure(shader));
             tracePrograms.Add(key, program);
         }
         program.SetSurfaceLighting(surfaceLighting);

@@ -29,6 +29,8 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     #region Public API
     internal int Width { get; }
     internal int Height { get; }
+    /// <summary>Provides the case-owned executable set to a later scene with independent inputs.</summary>
+    internal AmbientOcclusionScenePrograms ScenePrograms => scenePrograms;
     internal DynamicTexture2D Depth { get; }
     internal DynamicTexture2D Albedo { get; }
     internal DynamicTexture2D Position { get; }
