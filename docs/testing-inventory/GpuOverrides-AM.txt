@@ -1,0 +1,149 @@
+# Source filename|anchored method-name regex|profile|source-reviewed exception
+GBufferExternalFramebufferTests.cs|^ExternalFramebufferBindDoesNotAlterOitBlend$|E|Installed ClientPlatformWindows setter and Harmony boundary
+AtmosphereGpuComputationTests.cs|^UnsupportedCapabilitiesRejectGpuAdmission$|U|Capability rejection before GPU admission
+AtmosphereGpuComputationTests.cs|^CompletePublicationRestoresEnclosingComputeStorage$|N|Native storage restoration
+AtmosphereGpuScatteringTests.cs|^GroundHorizonVectorizedSourceMatchesScalarReference$|U|CPU scalar/vectorized table-build parity with no GPU action
+AtmosphereOwnedSkyTests.cs|^CaptureBuildsCameraRelativeInputs$|U|Mocked engine capture packs authored input bytes
+BindingPreparationPolicyTests.cs|^PreparedStructureKeepsItsOriginalContextAuthority$|U|Controlled authority guard; native setup incidental
+CameraExposureShaderTests.cs|^CapabilityAdmissionRequiresCompleteComputeAndConsumerContract$|U|Capability admission rule
+ArrayTextureViewTests.cs|^ViewRejectsOutOfRangeLayers$|U|Range validation rejects before native texture-view creation
+DepthHierarchyPassTests.cs|^ComputeRestoresImageAndStorageBindings$|N|Native binding restoration
+ExposureSnapshotTests.cs|^SnapshotFormattingIsInvariantAndIdentifiesMissingHistory$|U|Culture-restored formatter rule
+FinalDisplayShaderTests.cs|^FinalDisplayCachePathsNeverRequireEngineStagesOrRegistration$|N|Native cache/executable admission
+FrameLightingStorageTests.cs|^LightingCapabilityAdmissionRequiresCompleteConsumerContract$|U|Capability admission rule
+GpuOperationContextFoundationTests.cs|^GuardAdmissionAndDeletionAreContextScoped$|C|Fabricated IDs exercise guard/context registry without native resource
+GpuOperationContextFoundationTests.cs|^SemanticGuardCleanupKeepsUnrelatedOperationAndRejectsReentry$|C|Fabricated IDs exercise guard/context registry without native resource
+GpuResourceCollectionTests.cs|^InvalidRegistrationLeavesCallerOwnershipIntact$|U|Synthetic disposal observer rule
+GpuResourceCollectionTests.cs|^DisposalFailureStillRetiresRemainingResources$|U|Synthetic disposal observer rule
+GpuTextureReferenceTests.cs|^NullWrappersProduceEmptyReferences$|U|Null wrapper reference rule
+GpuProfilerConfigurationTests.cs|^ConditionalCallsOmitReleaseArguments$|U|Conditional-call argument evaluation without native action
+GpuProfilerConfigurationTests.cs|^CompletedTimestampIntervalsPreserveZeroAndRejectReversedTime$|X|Profiler component with native query lifecycle and controlled timestamps
+GpuProgramBindlessMetadataTests.cs|^OpaqueHandleDispatchWithdrawsOriginalProgram$|C|Controlled native setter stand-in exercises metadata dispatch
+GpuProgramBindlessMetadataTests.cs|^OpaqueHandleNonResourceDestinationsDoNotInvalidate$|C|Controlled native setter stand-in exercises metadata dispatch
+GpuRenderbufferMetadataInterceptionTests.cs|^AdvancedExtensionAdapterForwardsExactArguments$|C|Controlled optional extension adapter
+GpuInfrastructureTests.cs|^ShaderProcessedSourceDiagnostics_CanBeCreated$|U|Harness constructor and incidental asset check
+GpuEboIntegrationTests.cs|^.*NullArray.*$|U|Null array validation guard before native upload
+GpuEboIntegrationTests.cs|^ToString_.*$|U|Narrow debug formatter rule
+GpuEboIntegrationTests.cs|^SetDebugName_ValidEbo_UpdatesDebugName$|U|Managed debug-name property with native setup incidental
+GpuEboIntegrationTests.cs|^SetDebugName_NullName_AcceptsNull$|U|Managed debug-name property with native setup incidental
+GpuEboIntegrationTests.cs|^UploadIndices_DisposedEbo_ThrowsOrHandlesGracefully$|U|Disposed-state guard; broad exception assertion is a quality gap
+GpuControlledTexturePublicationTests.cs|^ExplicitRecoveryRejectsActiveOperation$|C|Metadata operation guard returns before native read
+GpuExternalAcquisitionReuseTests.cs|^NativeObserversBlockPartialAcquisitionAndReentry$|C|Direct observer calls with authored metadata and controlled failure
+GpuExternalAcquisitionReuseTests.cs|^LocalViewAndRenderbufferProjectionUsesOwnerFacts$|C|Owner/registry projection with native setup incidental
+GpuExternalAcquisitionReuseTests.cs|^CoveredRawAliasesReuseAvailableTexture$|C|Registry alias reuse with native setup incidental
+GpuExternalAcquisitionReuseTests.cs|^LocalOwnerProjectionRejectsWithdrawnFacts$|C|Owner withdrawal guard with native setup incidental
+GpuExternalAcquisitionReuseTests.cs|^AssociationWithUnavailableBackingRequiresExplicitRecovery$|X|Owner recovery with native metadata-reader interoperability
+GpuFenceCompletionTests.cs|^InvalidTimeoutPreservesFence$|U|Timeout guard rejects before native wait
+GpuFramebufferAttachmentTests.cs|^PackedDepthStencilReplacementPreservesStencilBinding$|C|Attachment graph/publication with native allocation support
+GpuFramebufferAttachmentTests.cs|^BorrowedAttachmentTracksBackingResourceRetirement$|C|Attachment graph/publication with native allocation support
+GpuFramebufferAttachmentTests.cs|^SharedAttachmentResizeNotifiesEveryFramebuffer$|C|Attachment graph/publication with native allocation support
+GpuFramebufferAttachmentTests.cs|^DistinctWrappersObserveSharedBackingResize$|C|Attachment graph/publication with native allocation support
+GpuFramebufferAttachmentTests.cs|^RenderbufferReallocationRefreshesAttachmentFormat$|C|Attachment graph/publication with native allocation support
+GpuFramebufferAttachmentTests.cs|^ThrowingObserverDoesNotSuppressOtherFramebufferInvalidation$|C|Attachment graph/publication with native allocation support
+GpuFramebufferAttachmentTests.cs|^ManagerReplacementRequiresExplicitContextShutdown$|C|Manager lifetime replacement under one GL context
+GpuFramebufferExecutableCreationTests.cs|^BackingAcquisitionRejectsUnfinishedOperation$|C|Acquisition guard before native creation
+GpuFramebufferMetadataInterceptionTests.cs|^ObservationInDifferentContextCannotNotifyHelpers$|C|Fabricated context generation rejects publication
+GpuFramebufferPublicationTests.cs|^RepeatedAttachmentsPreserveDependentRevision$|C|Framebuffer attachment graph publication and revision
+GpuFramebufferRoutingInterceptionTests.cs|^OwnedAttachmentUpdateNotifiesAliasWithoutReplacingOriginImage$|C|Owner and alias publication from attachment update
+GpuImageMetadataProjectionRegressionTests.cs|^ManagedViewAttachmentReusesCanonicalSnapshot$|C|Canonical owner projection with native setup support
+GpuImageMetadataProjectionRegressionTests.cs|^ExternalCubeFaceProjectsCanonicalImage$|C|Canonical owner projection with native setup support
+GpuInitialTextureDependencyTests.cs|^UnavailableBackingPreventsInitialPublication$|C|Existing reservation reuse guard; claimed unavailable backing is not supplied
+GpuMappedBufferScopeIntegrationTests.cs|^TryMapScope_DisposedBuffer_ReturnsFalse$|U|Disposed guard before native mapping
+GpuMetadataOperationFoundationTests.cs|^MissingAssociationCannotManufactureOperationIdentity$|C|Association guard without native resource action
+GpuMetadataOperationFoundationTests.cs|^ReplacementEntryCannotReceiveOldCandidate$|C|Synthetic registry ID reuse, not native allocator reuse
+GpuMetadataOperationFoundationTests.cs|^CaughtAttachmentValidationFailurePreventsCommit$|C|Validation rejects before native framebuffer dispatch
+GpuMetadataOperationFoundationTests.cs|^LocalInterruptedStorageRetiresTextureViewCertificate$|X|Manager withdrawal with native storage preservation check
+GpuImageAssertionTests.cs|^ProductionCheckerPreservesUniformSelectors$|X|Checker component and native selector/lifetime interoperability
+GpuImageAssertionTests.cs|^ProductionOwnerSurvivesConsumersAndPublishesFreshInputs$|X|Checker component and native selector/lifetime interoperability
+GpuImageAssertionTests.cs|^ContextValidationAndManagerRetirementDoNotReuseWithdrawnPreparations$|X|Checker component and native selector/lifetime interoperability
+GpuImageAssertionTests.cs|^MalformedKernelRetiresPartialConstruction$|X|Checker component and native selector/lifetime interoperability
+GpuImageAssertionTests.cs|^HostileSelectorsRemainUnchanged$|X|Checker component and native selector/lifetime interoperability
+GpuImageAssertionTests.cs|^ForeignContextCannotAccessOrRetireAnOwner$|X|Checker component and native selector/lifetime interoperability
+GpuImageAssertionTests.cs|^InterruptedConstructionRetiresOnReturnToOrigin$|X|Checker component and native selector/lifetime interoperability
+GpuImageAssertionTests.cs|^RetiredContextDropsNativeNamesWithoutForeignDeletion$|X|Checker component and native selector/lifetime interoperability
+GpuImageAssertionTests.Borrowing.cs|^ObservationPreparationFollowsExplicitFixtureRegistrationRestoration$|X|Checker borrowing and native registration/selector interoperability
+GpuImageAssertionTests.Borrowing.cs|^ImmediateObservationSharesStorageWithoutSourceSelectorMutation$|X|Checker borrowing and native registration/selector interoperability
+GpuImageAssertionTests.cs|^LocalFloatTuplePreservesLayerAndPayload$|N|Direct GpuLocalRead native tuple readback, not checker program
+GpuImageAssertionTests.cs|^LocalRgba8TuplePreservesOriginalBytes$|N|Direct GpuLocalRead native tuple readback, not checker program
+GpuImageAssertionTests.cs|^PackedStencilDomainDetectsFinalTexelAndPreservesDepthAspect$|X|Native stencil aspect and view interoperability
+GpuImageAssertionTests.Borrowing.cs|^ObservationInterpretationsRetainSelectedDomainsAndRejectInvalidRanges$|X|Native aspect/view/storage interoperability
+GpuImageAssertionTests.Compact.cs|^SparseInterpretationsCopyOnlyNominatedTexels$|X|Native view/storage interoperability
+GpuRemainingCreationTests.cs|^UnsupportedExtensionsRejectCreation$|U|Capability guard before allocation
+GpuSupportLimitsTests.cs|^DefaultDescriptorValidationUsesSharedSupport$|U|Descriptor admission against support snapshot
+LightShaftShaderTests.cs|^CompositeSamplerFootprintFitsDeviceCapacity$|N|Native linked sampler interface/device limit
+CelestialDrawTests.cs|^InstanceGeometryRetainsSelectedPrefixUntilDisposal$|N|Native geometry/draw lifetime
+CelestialDrawTests.cs|^AdmissionBoundsAllOverlapAndRejectsUnsupportedProjection$|U|CPU admission and flux-area rule
+CelestialDrawTests.cs|^InterpolatedTransmissionMatchesExistingTransport$|S|Direct star/galaxy numerical raster instead of renderer-publication action
+CelestialDrawTests.cs|^IntegratedStarFluxIsCameraIndependent$|S|Direct star/galaxy numerical raster instead of renderer-publication action
+CelestialDrawTests.cs|^OverlapAndTransmissionPreserveLinearEnergy$|S|Direct star/galaxy numerical raster instead of renderer-publication action
+CelestialDrawTests.cs|^ClippedAndBehindCameraFootprintsAreRejectedConservatively$|S|Direct star/galaxy numerical raster instead of renderer-publication action
+CelestialDrawTests.cs|^GalaxyRotationAndEncodingSelectTheCorrectFace$|S|Direct star/galaxy numerical raster instead of renderer-publication action
+CelestialShadowMapTests.cs|^PublishedMoonRoutesBothCameraBranchesAndExtentDirection$|U|Selection helper with mocked calendar and no installed camera/shadow invocation
+MoonDiskDrawTests.cs|^RasterizedMoonPreservesIncidentPower$|S|Direct moon raster with independent solid-angle integration
+MoonDiskDrawTests.cs|^NewAndHorizonHiddenMoonRemainDark$|S|Direct moon raster with independent solid-angle integration
+CloudNativeAdapterTests.cs|^DrawGateFollowsCurrentModeWithoutRegistrationChanges$|R|CPU lifecycle over mocked API/events with incidental GPU fixture
+CloudNativeAdapterTests.cs|^StoredRendererRetainsItsGateUntilCurrentModeRelease$|R|CPU lifecycle over mocked API/events with incidental GPU fixture
+CloudSimpleDrawTests.cs|^InvalidNativeRepresentationCannotBeAdmitted$|N|Native VAO attribute invalidation of geometry declaration
+LiquidBlendPolicyTests.cs|^SurfaceOutputMatchesEngineEquation$|N|Actual GL fixed-function blend against authored equation
+LiquidPreparationTests.cs|^EngineDisposalRetiresGeometryBeforeDeleteMesh$|E|Installed MeshDataPool disposal and Harmony retirement hook
+LiquidShaderProgramTests.cs|^FrameCaptureRetainsCommonInputsAcrossArrayLoads$|U|Managed frame-input snapshot without native submission
+LiquidShaderProgramTests.cs|^MeasureFrameCaptureAcrossArrayLoads$|U|Managed frame-input snapshot and diagnostic timing without native submission
+LocalExposureRuntimeTests.cs|^DisabledAndInvalidCandidatesCannotPublishStorage$|U|Pre-GPU disabled/argument guard and empty disposal
+LocalExposureRuntimeTests.cs|^FinalCompositionUsesAppliedExposureAndIgnoresMeterMetadata$|S|Direct final-display shader numerical output
+LocalExposureRuntimeTests.cs|^FinalBloomIgnoresReceiverGainWhileShaftsRetainIt$|S|Direct final-display shader numerical output
+LocalExposureRuntimeTests.cs|^CapturedInputReceivesDisplayRelativeShadowLift$|S|Direct final-display shader numerical output
+LocalExposureRuntimeTests.cs|^NeutralGuidancePreservesSceneAndGlare$|S|Direct final-display shader numerical output
+LiquidShaderProgramTests.cs|^InstalledEngineHooksCompose$|E|Installed engine hook composition
+LumOnDebugShaderDemandTests.cs|^UnusedDeclarationsRetainSettingsWithoutGpuWork$|R|Declaration/settings behavior without GPU program work
+LumOnNearFieldFunctionalTests.cs|^NearField_CompilesWithImportanceSelection$|N|Real variant preparation without numerical output
+LumOnNearFieldFunctionalTests.Ring.cs|^ReadinessUpload_UsesPackedBytesAndRestoresAlignment$|N|Native packed upload and unpack state
+MicrofacetEnergyShaderTests.cs|^LookupReusesAndReplacesOwnedStorage$|N|Native lookup storage ownership
+AtmosphereCelestialPublicationTests.cs|^PendingPairRetainsItsAdmittedDirectionsAndPhase$|R|CPU publication and admitted-input snapshot; GPU collection fixture incidental
+CelestialDrawTests.cs|^OwnedRendererRetainsLifetimeThroughFailureAndReset$|R|CPU renderer lifetime under controlled failure/reset; GPU fixture incidental
+ClientRenderingCompositionTests.cs|^ObsoleteConfigurationCallbackDoesNotBlockNextQueue$|R|CPU configuration callback and queue lifecycle; GPU fixture incidental
+EngineFramebufferRoutingTests.cs|^.*$|N|Local native routing calls with an empty Harmony owner, not installed engine rendering
+EngineGenericStateTests.cs|^GenericNativeUploadsPreserveValues$|N|Local native buffer upload rather than installed engine update
+EngineGraphicsGeometryTests.cs|^.*$|N|Native geometry/manager behavior with mocked engine upload and delete; installed RenderMesh not invoked
+EngineLiquidPoolGeometryTests.cs|^PoolGroupsDrawAndRejectInvalidRanges$|N|Native pool geometry path without installed allocation hook
+EngineLiquidPoolGeometryTests.cs|^NativeIntegerInterpretationDoesNotOverrideDeclaration$|N|Native pool geometry path without installed allocation hook
+EngineLiquidPoolGeometryTests.cs|^NativeIntegerStrideDoesNotOverrideDeclaration$|N|Native pool geometry path without installed allocation hook
+EngineResourceDebugLabelsTests.cs|^DefaultTablePreservesSharedDepthOwnershipAcrossRebuilds$|N|Direct native/resource label helper rather than installed allocation hook
+EngineResourceDebugLabelsTests.cs|^OitReplacementObjectsAreLabeledWithoutChangingBindings$|N|Direct native/resource label helper rather than installed allocation hook
+EngineResourceDebugLabelsTests.cs|^MeshObjectsReceiveRoleNamesWithoutChangingBindings$|N|Direct native/resource label helper rather than installed allocation hook
+EngineResourceDebugLabelsTests.cs|^PoolGrowthReceivesSemanticLabelsOnlyForNewAllocations$|N|Direct native/resource label helper rather than installed allocation hook
+EngineShaderDebugLabelsTests.cs|^.*$|N|Direct shader-label postfix and native program binary; no installed engine call
+EngineStateRecompilationGpuTests.cs|^.*$|N|Local native state calls and inline helpers with empty Harmony owner
+EngineStateSwitchingGpuTests.cs|^.*$|N|Local native state calls; Patch returns empty Harmony owner
+GpuProgramNarrowPublicationTests.cs|^InvalidControlledAssignmentsPreserveMetadata$|U|Invalid assignment rejected before native dispatch
+GpuProgramNarrowPublicationTests.cs|^RetiredContextRejectsDeferredCompletionBeforeQueries$|R|Logical context-registration retirement rejects completion before native query
+GpuProgramNarrowPublicationTests.cs|^LocalComputeRealizationReusesCanonicalInterface$|R|Canonical interface reuse after native executable preparation
+GpuQueueTests.cs|^InvalidSizesAreRejected$|U|Narrow queue size-validation guard with incidental GPU setup
+GpuResourceAliasMetadataTests.cs|^.*$|R|Canonical wrapper and registration reuse/withdrawal with native setup, no independent metadata oracle
+GpuResourceDeferredLifetimeTests.cs|^BorrowedFramebufferReplacementPreservesOriginalAssociation$|R|Canonical registration and notification behavior with native setup
+GpuResourceMetadataPublicationTests.cs|^RejectedBufferAllocationPreservesMeasuredCapacity$|U|Negative-size guard and managed capacity preservation; native capacity not measured
+GpuResourceMetadataPublicationTests.cs|^CubeAllocationPublishesCompleteMipChainOnce$|R|Canonical metadata and revision publication without native mip oracle
+GpuResourceMetadataPublicationTests.cs|^FailedAttachmentOperationLeavesCanonicalMetadataUnavailable$|R|Publication abandonment after native attachment mutation
+GpuResourceRetirementRegressionTests.cs|^NonOwningWrapRejectsExternalOwnerHandleTransfer$|U|Narrow non-owning transfer guard; native setup incidental
+GpuResourceRetirementRegressionTests.cs|^DeletedFramebufferWithdrawsImmutableConfigurationBeforeWrapperDisposal$|R|Registry/cache withdrawal following external native deletion
+GpuResourceWrapperLifecycleTests.cs|^RejectedFramebufferAttachmentDoesNotPublishInventedDescriptor$|R|Attachment admission and canonical publication; native setup incidental
+GpuResourceWrapperLifecycleTests.cs|^UnavailableSelectedFramebufferImageRejectsAttachmentValidation$|R|Unavailable selected-image admission; no native interoperability outcome
+GpuTextureFailureRecoveryTests.cs|^FailedReplacementWithdrawsOriginalImages$|R|Owner and attachment publication after controlled failed replacement
+GpuTextureFailureRecoveryTests.cs|^InPlaceResizeRejectsMutationFromItsCompletionCallback$|R|Owner reentry guard during controlled completion callback
+GpuTextureMetadataPublicationTests.cs|^MipRangePublicationBypassesFailedReader$|R|Canonical metadata publication with supplied failed reader
+GpuTextureParameterInterceptionTests.cs|^UnsupportedTargetReaderRejectsWithoutNativeErrors$|U|Undefined target rejected before native image-query construction
+GpuTextureReferenceTests.cs|^OwnerReplacementPreservesReferenceButRejectsOldDependencies$|R|Stable reference and dependency-identity publication
+GpuVaoIntegrationTests.cs|^Detach_DisposedVao_ReturnsZero$|U|Disposed VAO guard with incidental native setup
+GpuVaoIntegrationTests.cs|^SetDebugName_ValidVao_UpdatesDebugName$|U|Managed VAO debug-name property
+GpuVaoIntegrationTests.cs|^SetDebugName_NullName_AcceptsNull$|U|Managed VAO debug-name property
+GpuVboIntegrationTests.cs|^TryBind_DisposedVbo_ReturnsFalse$|U|Disposed VBO guard with incidental native setup
+GpuVboIntegrationTests.cs|^Detach_DisposedVbo_ReturnsZero$|U|Disposed VBO guard with incidental native setup
+GpuVboIntegrationTests.cs|^SetDebugName_ValidVbo_UpdatesDebugName$|U|Managed VBO debug-name property
+GpuVboIntegrationTests.cs|^SetDebugName_NullName_AcceptsNull$|U|Managed VBO debug-name property
+GraphicsPreparationTests.cs|^GeometryRefreshIsLocalAndFailedBoundsRemainWithdrawn$|R|Geometry preparation/cache validation with incidental native setup
+LumOnBufferOwnershipTests.cs|^TemporalSwapsPreserveOwnershipAcrossRecreationAndDisposal$|R|Renderer resource ownership and temporal swap lifecycle
+MicrofacetEnergyShaderTests.cs|^QualityTextureFiltersDeclaredGrid$|X|Numerical lookup plus native texture format, mip, filter and storage behavior
+LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests.SealedRoom.cs|^.*$|S|Manually driven trace and downstream transport passes, not registered renderer publication
+LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests.Visibility.cs|^.*$|S|Manually driven trace and downstream transport passes, not registered renderer publication
+GpuEboIntegrationTests.cs|^Create_.*DebugName.*$|U|Managed EBO debug-name acceptance after incidental native construction
+GpuVaoIntegrationTests.cs|^Create_.*DebugName.*$|U|Managed VAO debug-name acceptance after incidental native construction
+GpuVboIntegrationTests.cs|^Create_.*DebugName.*$|U|Managed VBO debug-name acceptance after incidental native construction

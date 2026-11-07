@@ -2,8 +2,9 @@ Test suite organization and reviewability
 ========================================
 
 Status
-  Planned. This document authorizes an inventory and proposes a migration sequence; it does
-  not classify every existing case or authorize test removal. The four test projects are
+  Phase 1 inventory complete. Detailed case and owner routing is recorded in
+  docs/testing-inventory/README.md and its linked artifacts. This document does not
+  authorize test removal. The four test projects are
   VanillaGraphicsExpanded.Tests, OpenGLInterceptionGenerator.Tests, ShaderBuildTool.Tests,
   and ShaderContractGenerator.Tests. A source-file count is not a runtime-case count.
 
@@ -54,17 +55,17 @@ Current inventory and confirmed examples
     keep them in their owning auxiliary projects.
 
 Phase 1: Inventory and agree on classification
-  ☐ Capture all discovered cases across the four projects, including theories, skips,
+  ☑ Capture all discovered cases across the four projects, including theories, skips,
     diagnostic cases, traits, runner selections, and stable test names/IDs. Inventory
     test code that does not end in Tests.cs as well.
-  ☐ For each coherent behavior group, record the contract, exercised subject, real and
+  ☑ For each coherent behavior group, record the contract, exercised subject, real and
     substituted collaborators, external effects, expected-result source, level, purpose,
     environment, fixture lifetime, current owner, proposed owner, and uncertainty.
-  ☐ Identify mixed-boundary files, misleading names, misplaced tests, duplicated setup,
+  ☑ Identify mixed-boundary files, misleading names, misplaced tests, duplicated setup,
     helper ownership, and tests whose action cannot reach the asserted outcome. Review
     behavioral value and failure-mode witnesses without treating this inventory as
     permission to delete cases.
-  ☐ Resolve ambiguous boundaries against implementation and reviewer guidance. Record
+  ☑ Resolve ambiguous boundaries against implementation and reviewer guidance. Record
     the resulting conventions and the exact migration inventory before moving files.
 
 Phase 2: Establish coherent ownership and layout
@@ -124,10 +125,27 @@ Phase 5: Reconcile selection and qualify the result
     inspect linked assets and CI/IDE entry points, and reconcile documentation. Record
     residual ambiguities, coverage decisions, and measured runtime separately.
 
+Phase 6: Remove migration-only inventory and tooling
+  ☐ After Phase 5 qualification, inventory every file created solely to carry out this
+    reorganization, including docs/testing-inventory/ and tools/TestSuiteInventory/.
+    Identify any later temporary scripts, exports, or reports before removing them.
+  ☐ Preserve the final classification conventions, accepted coverage decisions, case
+    and runner-selection reconciliation, renamed-case mapping, and unresolved findings
+    in this plan or appropriate permanent documentation. Keep the evidence needed to
+    explain the completed migration without retaining working inventories.
+  ☐ Remove all migration-only inventory and tooling files, then update or remove their
+    references in the plan, project documentation, and any commands. Retain actual test
+    sources, fixtures, assets, authoritative plans, and required verification evidence.
+  ☐ Review the remaining documentation and repository file list to confirm the temporary
+    files and stale links are gone, the retained decisions are findable, and no test or
+    runner behavior changed during cleanup.
+
 Completion criteria
   Every discovered test group has a documented actual boundary and one coherent owner;
   file names and locations no longer overclaim the exercised path. Reviewer quality
   findings are resolved or explicitly recorded. Discovery and intended runner membership
   reconcile across all four projects, with assertions, rows, skips, and required fixture
   lifetimes preserved except for separately accepted changes. Independent review and
-  final verification pass. No runtime improvement is inferred from relocation alone.
+  final verification pass. Migration-only inventory and tooling are removed after their
+  required decisions and evidence are preserved. No runtime improvement is inferred
+  from relocation alone.
