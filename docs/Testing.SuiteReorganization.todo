@@ -2,8 +2,10 @@ Test suite organization and reviewability
 ========================================
 
 Status
-  Phase 1 inventory complete. Detailed case and owner routing is recorded in
-  docs/testing-inventory/README.md and its linked artifacts. This document does not
+  Phase 1 inventory and Phase 2 layout decisions complete. Detailed case and
+  owner routing is recorded in testing-inventory/README.md and its linked
+  artifacts; proposed destinations are in testing-inventory/Phase2.LayoutDecisions.md
+  and its move maps. This document does not
   authorize test removal. The four test projects are
   VanillaGraphicsExpanded.Tests, OpenGLInterceptionGenerator.Tests, ShaderBuildTool.Tests,
   and ShaderContractGenerator.Tests. A source-file count is not a runtime-case count.
@@ -12,7 +14,7 @@ Objective and authority
   Make each test's actual boundary, behavior, and ownership clear enough to apply the
   configured test-reviewer rules consistently. Use the configured test-workflow skill
   and its reviewer guidance at execution time, plus the project instructions in
-  VanillaGraphicsExpanded.Tests/agents.md and any more specific instructions. The
+  ../VanillaGraphicsExpanded.Tests/agents.md and any more specific instructions. The
   primary agent delegates test edits and independent review through test-workflow.
   This plan summarizes the reviewer audit; the skill files remain the authority if
   their guidance changes.
@@ -69,18 +71,21 @@ Phase 1: Inventory and agree on classification
     the resulting conventions and the exact migration inventory before moving files.
 
 Phase 2: Establish coherent ownership and layout
-  ☐ Define a small directory and namespace convention for the main project by actual
+  See testing-inventory/Phase2.LayoutDecisions.md for the routing convention,
+  source-family map, and affected-file/runner dependency map. The Phase 1 routing
+  inventories remain the method-level authority until migration is reconciled.
+  ☑ Define a small directory and namespace convention for the main project by actual
     level and domain. Keep purpose and environment orthogonal through traits/selection;
     use GPU/native and diagnostic folders only when they aid discovery without implying
     an incorrect level. Place fixtures near their consuming boundary and keep shared
     helpers in a clearly scoped support area.
-  ☐ Apply the same boundary convention within the three auxiliary test projects. Keep
+  ☑ Apply the same boundary convention within the three auxiliary test projects. Keep
     their tests with their respective tool; do not combine projects solely to make
     directory names uniform.
-  ☐ Specify file naming by owned behavior. Split a file when it mixes contracts or
+  ☑ Specify file naming by owned behavior. Split a file when it mixes contracts or
     levels; consolidate only when the result has one clear responsibility. Avoid a
     mechanical rename or a new end-to-end category without a deployed-path witness.
-  ☐ Map source moves to namespace changes, linked files, fixture assets, runsettings,
+  ☑ Map source moves to namespace changes, linked files, fixture assets, runsettings,
     project references, CI/IDE commands, and documentation before editing them.
 
 Phase 3: Migrate the main test project in coherent batches
