@@ -28,6 +28,15 @@ Status
   build and restore. The user authorized the primary agent to provide final
   reviewer sign-off because the configured reviewer was unavailable. The 27
   explicitly deferred oracle methods remain a separate test-design batch.
+  Phase 4 is complete after the user-authorized primary-agent second review and
+  completion audit. All 207 auxiliary test methods and four support sources
+  resolve to their mapped owners; the three projects retain their 35, 256, and
+  157 discovered cases. Debug and Release each pass all 448 cases with no skips
+  or failures. The OpenGL generator fixture retains its required file-backed
+  reference and now cleans up its process-owned temporary PE directory. The
+  configured test reviewer was again rejected by automatic approval review;
+  the primary agent performed the final review under the existing user authorization.
+  Native case-ID and complete-suite reconciliation remain Phase 5 work.
 
 Objective and authority
   Make each test's actual boundary, behavior, and ownership clear enough to apply the
@@ -123,15 +132,15 @@ Phase 3: Migrate the main test project in coherent batches
     scheduling, and unnecessary real I/O while keeping I/O that proves the contract.
 
 Phase 4: Migrate auxiliary tool suites
-  ☐ Separate ShaderBuildTool key/encoding rules from disk-cache persistence and
+  ☑ Separate ShaderBuildTool key/encoding rules from disk-cache persistence and
     process behavior from build-receipt workflow. Review its remaining build, cache,
     publication, and compiler groups by their actual boundary.
-  ☐ Classify OpenGLInterceptionGenerator diagnostics, generated-source contracts, and
+  ☑ Classify OpenGLInterceptionGenerator diagnostics, generated-source contracts, and
     generated-runtime behavior. Keep fixtures and expected outputs with their owner.
-  ☐ Classify ShaderContractGenerator declaration/diagnostic contracts and generated
+  ☑ Classify ShaderContractGenerator declaration/diagnostic contracts and generated
     runtime submission behavior. Preserve compile-and-execute witnesses where they
     prove generated code works, even when all inputs are in memory.
-  ☐ Apply the same clarity, independence, cleanup, and meaningful-assertion checks as
+  ☑ Apply the same clarity, independence, cleanup, and meaningful-assertion checks as
     in the main project; keep edits scoped to coherent ownership batches.
 
 Phase 5: Reconcile selection and qualify the result

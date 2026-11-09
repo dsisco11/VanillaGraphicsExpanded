@@ -1,0 +1,156 @@
+using System.Reflection;
+using Microsoft.CodeAnalysis;
+using OpenGLInterceptionGenerator.Tests.Support.Generation;
+
+namespace OpenGLInterceptionGenerator.Tests.Component.Generation;
+
+/// <summary>Exercises generated original-pointer calls, including distinct native slots for managed overloads.</summary>
+public sealed class DriverForwardingTests
+{
+    #region Public API
+    /// <summary>Factory output pinning and GLboolean conversion preserve the selected managed contracts.</summary>
+    [Fact]
+    public void FactoryOutputsAndBooleanResultsReachSavedOriginals()
+    {
+        // Arrange: declare distinct native output and byte-returning function pointers.
+        var source = """
+            internal static partial class OpenGLBindingInterception
+            {
+                internal static nint Original(nint pointer) => pointer;
+            }
+            internal sealed class DriverTable
+            {
+                internal nint Read(string name) => name == "glCreateBuffers" ? DriverTest.Create : DriverTest.Unmap;
+            }
+            internal static unsafe partial class OpenGLDriverCalls
+            {
+                private static readonly DriverTable Core = new();
+                private static readonly DriverTable Legacy = Core;
+            }
+            public static unsafe class DriverTest
+            {
+                internal static nint Create => (nint)(delegate* unmanaged[Stdcall]<int,uint*,void>)&Make;
+                internal static nint Unmap => (nint)(delegate* unmanaged[Stdcall]<uint,byte>)&Finish;
+                [UnmanagedCallersOnly(CallConvs = new[] { typeof(System.Runtime.CompilerServices.CallConvStdcall) })]
+                private static void Make(int count, uint* output) { *output = count == 1 ? uint.MaxValue : 0; }
+                [UnmanagedCallersOnly(CallConvs = new[] { typeof(System.Runtime.CompilerServices.CallConvStdcall) })]
+                private static byte Finish(uint id) => id == uint.MaxValue ? (byte)1 : (byte)0;
+                public static bool Run()
+                {
+                    OpenGLDriverCalls.CreateBuffers(1, out int id);
+                    return id == -1 && OpenGLDriverCalls.UnmapNamedBuffer((uint)id) && !OpenGLDriverCalls.UnmapNamedBuffer(0u);
+                }
+            }
+            """;
+        const string declarations = "glCreateBuffers|void|int,uint*\nglUnmapNamedBuffer|byte|uint";
+        // Act: generate, compile, and execute wrappers that exercise the managed overloads.
+        var result = GeneratorCompilation.Run(source, declarations);
+        // Assert: compilation succeeds and both managed overloads return the native outputs.
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        using var stream = new MemoryStream();
+        var emitted = result.Compilation.Emit(stream);
+        Assert.True(emitted.Success, string.Join("\n", emitted.Diagnostics));
+        var assembly = Assembly.Load(stream.ToArray());
+        Assert.Equal(true, assembly.GetType("VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.DriverTest")!
+            .GetMethod("Run")!.Invoke(null, null));
+    }
+
+    /// <summary>Resolves overloaded methods independently and bypasses installed observation callbacks.</summary>
+    [Fact]
+    public void ExactOverloadsReachTheirOriginalDriver()
+    {
+        // Arrange: provide three native signatures that share a managed method name.
+        var source = """
+            internal static partial class OpenGLBindingInterception
+            {
+                internal static nint Original(nint pointer) => pointer == 1 ? DriverTest.First : pointer == 2 ? DriverTest.Second : DriverTest.Third;
+            }
+            internal sealed class DriverTable
+            {
+                internal nint Read(string name) => name == "glProbe" ? 1 : name == "glProbeIndexed" ? 2 : 3;
+            }
+            internal static unsafe partial class OpenGLDriverCalls
+            {
+                private static readonly DriverTable Core = new();
+                private static readonly DriverTable Legacy = Core;
+            }
+            public static unsafe class DriverTest
+            {
+                internal static nint First => (nint)(delegate* unmanaged[Stdcall]<int, void>)&One;
+                internal static nint Second => (nint)(delegate* unmanaged[Stdcall]<int, int, void>)&Two;
+                internal static nint Third => (nint)(delegate* unmanaged[Stdcall]<uint, void>)&Unsigned;
+                private static int value;
+                [UnmanagedCallersOnly(CallConvs = new[] { typeof(System.Runtime.CompilerServices.CallConvStdcall) })]
+                private static void One(int input) { value = input; }
+                [UnmanagedCallersOnly(CallConvs = new[] { typeof(System.Runtime.CompilerServices.CallConvStdcall) })]
+                private static void Two(int first, int second) { value += first * second; }
+                [UnmanagedCallersOnly(CallConvs = new[] { typeof(System.Runtime.CompilerServices.CallConvStdcall) })]
+                private static void Unsigned(uint input) { value += (int)input; }
+                public static int Run()
+                {
+                    OpenGLDriverCalls.Probe(3);
+                    OpenGLDriverCalls.Probe(4, 5);
+                    OpenGLDriverCalls.Probe(7u);
+                    return value;
+                }
+            }
+            """;
+        const string declarations = "glProbe|void|int|Probe\nglProbeIndexed|void|int,int|Probe\nglProbeUnsigned|void|uint|Probe";
+        // Act: generate, compile, and call each overload against its corresponding original.
+        var result = GeneratorCompilation.Run(source, declarations);
+        // Assert: generated overloads dispatch to the matching original function pointers.
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        using var stream = new MemoryStream();
+        var emitted = result.Compilation.Emit(stream);
+        Assert.True(emitted.Success, string.Join("\n", emitted.Diagnostics));
+        var assembly = Assembly.Load(stream.ToArray());
+        Assert.Equal(30, assembly.GetType("VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.DriverTest")!
+            .GetMethod("Run")!.Invoke(null, null));
+    }
+    /// <summary>A scalar deletion overload supplies one stable native element rather than a handle-shaped pointer.</summary>
+    [Fact]
+    public void ScalarConvenienceOverloadPreservesCountAndAddress()
+    {
+        // Arrange: expose a native count-and-pointer signature with a scalar managed wrapper.
+        var source = """
+            internal static partial class OpenGLBindingInterception
+            {
+                internal static nint Original(nint pointer) => pointer;
+            }
+            internal sealed class DriverTable
+            {
+                internal nint Read(string name) => DriverTest.Pointer;
+            }
+            internal static unsafe partial class OpenGLDriverCalls
+            {
+                private static readonly DriverTable Core = new();
+                private static readonly DriverTable Legacy = Core;
+            }
+            public static unsafe class DriverTest
+            {
+                internal static nint Pointer => (nint)(delegate* unmanaged[Stdcall]<int, uint*, void>)&Delete;
+                private static uint value;
+                private static int count;
+                [UnmanagedCallersOnly(CallConvs = new[] { typeof(System.Runtime.CompilerServices.CallConvStdcall) })]
+                private static void Delete(int n, uint* ids) { count = n; value = *ids; }
+                public static uint[] Run()
+                {
+                    OpenGLDriverCalls.DeleteOne(uint.MaxValue);
+                    return new[] { (uint)count, value };
+                }
+            }
+            """;
+        const string declarations = "glDeleteBuffers|void|int,uint*";
+        // Act: generate and execute the wrapper with the maximum uint value.
+        var result = GeneratorCompilation.Run(source, declarations);
+        // Assert: the native call receives one element at the authored scalar value.
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        using var stream = new MemoryStream();
+        var emitted = result.Compilation.Emit(stream);
+        Assert.True(emitted.Success, string.Join("\n", emitted.Diagnostics));
+        var assembly = Assembly.Load(stream.ToArray());
+        Assert.Equal(new[] { 1u, uint.MaxValue }, (uint[])assembly.GetType("VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.DriverTest")!
+            .GetMethod("Run")!.Invoke(null, null)!);
+    }
+    #endregion
+}
