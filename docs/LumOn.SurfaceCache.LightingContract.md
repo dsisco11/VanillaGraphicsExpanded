@@ -185,7 +185,7 @@ Executed receipts and final independent review remain recorded in the task list.
 
 ## Final-lighting verification traceability
 
-The table below records the original shader-chain verification; its test names and final-composition boundary are historical. Current runtime coverage is implemented in `SurfaceCacheRuntimeTests`, `SurfaceLightingConsumerRuntimeTests`, `SurfaceLightingRuntimeScenariosTests`, `SurfaceLightingNumericalRuntimeTests` and `SurfaceLightingPbrRuntimeTests` under `VanillaGraphicsExpanded.Tests/GPU`. These fixtures use mod-owned startup and registered callbacks with controlled engine inputs. Fixed-ray and temporal numerical assertions remain component tests. Current photometric qualification and its superseding receipts are recorded in `PBR.PhotometricLighting.todo`; historical receipts do not establish the newer integrated quantity contract.
+The table below records the original shader-chain verification; its test names and final-composition boundary are historical. Current runtime coverage is implemented in `SurfaceCacheRuntimeTests` under `VanillaGraphicsExpanded.Tests/Component/LumOn` and `SurfaceLightingConsumerRuntimeTests`, `SurfaceLightingRuntimeScenariosTests`, `SurfaceLightingNumericalRuntimeTests`, and `SurfaceLightingPbrRuntimeTests` under `VanillaGraphicsExpanded.Tests/Integration/LumOn`. These fixtures use mod-owned startup and registered callbacks with controlled engine inputs. Fixed-ray and temporal numerical assertions remain component tests. Current photometric qualification and its superseding receipts are recorded in `PBR.PhotometricLighting.todo`; historical receipts do not establish the newer integrated quantity contract.
 
 | Section 7 task | Controlling sections | Behavioral evidence |
 | --- | --- | --- |

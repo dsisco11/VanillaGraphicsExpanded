@@ -36,7 +36,12 @@ Status
   reference and now cleans up its process-owned temporary PE directory. The
   configured test reviewer was again rejected by automatic approval review;
   the primary agent performed the final review under the existing user authorization.
-  Native case-ID and complete-suite reconciliation remain Phase 5 work.
+  Phase 5 is complete after the user-authorized primary-agent second review and an
+  independent completion audit. Fresh Release discovery preserves all 6,566 cases
+  and their runner membership across the four projects. Six Release selections pass
+  with no failures; the six-result difference between main All discovery and
+  execution is the documented dynamic Poisson theory expansion. The existing
+  runner filters remain in place, and current-state test documentation is reconciled.
 
 Objective and authority
   Make each test's actual boundary, behavior, and ownership clear enough to apply the
@@ -144,19 +149,64 @@ Phase 4: Migrate auxiliary tool suites
     in the main project; keep edits scoped to coherent ownership batches.
 
 Phase 5: Reconcile selection and qualify the result
-  ☐ Compare pre/post discovery across all four projects. Reconcile every missing,
+  ☑ Compare pre/post discovery across all four projects. Reconcile every missing,
     added, skipped, or renamed case and its trait/runner membership. Preserve all
     existing behavior and selection unless a separately approved decision says otherwise.
-  ☐ Review runsettings names and filters against their actual meaning. If level traits
+  ☑ Review runsettings names and filters against their actual meaning. If level traits
     or selection changes are useful, specify them explicitly and prove both ordinary
     and complete selections still cover the intended cases before adopting them.
-  ☐ For each finished migration batch, use the configured test writer, focused
+  ☑ For each finished migration batch, use the configured test writer, focused
     verification, and independent test reviewer. Correct findings as one batch and
     recheck affected behavior. Run builds/tests through subagents as project instructions
     require.
-  ☐ Run the final applicable project selections and complete-suite qualification,
+  ☑ Run the final applicable project selections and complete-suite qualification,
     inspect linked assets and CI/IDE entry points, and reconcile documentation. Record
     residual ambiguities, coverage decisions, and measured runtime separately.
+
+  Qualification record (2026-11-08; independently audited)
+    Release discovery is 6,566/6,566 baseline cases across the four projects:
+    6,118 main, 35 OpenGL generator, 256 shader build, and 157 shader contract.
+    All 3,595 mapped methods and 58 recorded method renames resolve to current owners.
+    Per-method row counts, traits, static skips, and selected runners match for every
+    case. The 22 auxiliary rows with truncated duplicate display names retain their
+    ordered InlineData and distinct native IDs. Moved test and collection namespaces
+    explain native-ID changes; the only display-argument change is a moved nested
+    test type in three rows. Four Poisson MemberData discovery placeholders expand
+    to ten execution rows, accounting exactly for All's six extra runtime results.
+
+    The existing runner filters and traits remain unchanged. UnitTests is the legacy
+    name for non-diagnostic, non-GPU correctness, not a strict unit-level selection;
+    AllTests selects non-diagnostic correctness and DiagnosticTests selects diagnostics.
+    Category=GpuIntegration remains a runner-selection marker even on some Unit and
+    Component cases. README wording now states this explicitly. CI's CPU job is
+    required; its separate GPU job remains informational. The IDE correctness task,
+    project paths, linked sources, copied assets, and current-state documentation
+    references were checked. Historical performance-report source paths are labeled
+    as such.
+
+    All four Release builds succeeded. Separate test selections (build time excluded)
+    passed with zero failures: main Unit 2,155 pass/9 skip in 16.337s; main All
+    5,915 pass/11 skip in 141.811s; main Diagnostic 142 pass/56 skip in 26.540s;
+    OpenGL generator 35/35 in 7.744s; shader build 256/256 in 210.811s; shader
+    contract 157/157 in 13.186s. The 11 All skip identities and reasons match the
+    baseline; the diagnostic runtime skips require explicit opt-in or capture inputs.
+    These are separate Windows Release selections, not a single combined timing or
+    evidence of a relocation speedup. Raw discovery and TRX receipts are under
+    %TEMP%/vge-phase5-qualification-20261108/.
+
+    Residual test-design decisions remain separate from this organization work:
+    16 EBO and eight VBO oracle cases, one registry tie-break case, one shader-constant
+    parity case, and one fake-cache-counting case (27 total) were explicitly deferred.
+    The draw-time RHI reentry witness and independent V-cycle superiority oracle also
+    remain open. No case removal, parameter reduction, fixture lifetime change, or
+    execution-policy change was adopted here.
+
+    The second review of the mapped cases, runner selection, documentation edits, and
+    Release receipts found no additional mismatch. The configured test_reviewer was
+    attempted but automatic approval review rejected it before access as
+    "Potentially unintended activity". Under the user's existing authorization, the
+    primary agent supplied the final test review. The independent completion audit
+    found no unresolved issue.
 
 Phase 6: Remove migration-only inventory and tooling
   ☐ After Phase 5 qualification, inventory every file created solely to carry out this

@@ -6,7 +6,7 @@ Separate incorrect world-probe light generation from lighting introduced by spat
 
 ## Reusable fixtures
 
-The fixtures live in [Tests/Fixtures/WorldProbes](../VanillaGraphicsExpanded.Tests/Fixtures/WorldProbes).
+The controlled world fixtures live in [Tests/Support/LumOn/WorldProbes/Fixtures](../VanillaGraphicsExpanded.Tests/Support/LumOn/WorldProbes/Fixtures). `WorldProbeAtlasData` lives in [Tests/Support/Lighting](../VanillaGraphicsExpanded.Tests/Support/Lighting).
 
 | Fixture                 | Responsibility                                                                                                                                                                   |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

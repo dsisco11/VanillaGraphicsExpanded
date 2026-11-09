@@ -198,7 +198,7 @@ receipts. It does not claim that every repeated operation is expensive.
 | `DirectWorldProbeVisibilityTestBase` | Shader visibility decisions under camera/origin/clipmap/budget variation | Reuse immutable guide/atlas preparation and avoid uploads only when an explicit content/version contract permits it | Every draw, branch, normal offset, signed origin, changed atlas and immediate numerical observation |
 | SPIR-V inventory/lifecycle tests | Every selected binary loads; reload installs a new generation and failed replacement preserves the old one | Improve immutable asset access only if its cost warrants it | Deliberate create/link/reload/dispose operations remain; a live-program cache would invalidate their purpose |
 
-Source anchors:
+Source anchors at revision `d9e46b0a` (the test sources later moved during suite reorganization):
 
 - `VanillaGraphicsExpanded.Tests/GPU/LumOnUniformTests.cs`: `Shader_CriticalValueHasLinkedBinding`
   creates a program per row; `HasLinkedUniformOrBlockMember` obtains and parses vertex/fragment

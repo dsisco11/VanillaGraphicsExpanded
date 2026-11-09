@@ -152,11 +152,11 @@ launch the graphics debugger; they do not attach a managed C# debugger to the ga
 
 ## Testing
 
-This project includes CPU unit tests and GPU integration tests. The test suite uses **xUnit v3** with support for conditional test skipping when GPU resources are unavailable.
+This project includes CPU and GPU tests at unit, component, and integration levels. The test suite uses **xUnit v3** with support for conditional test skipping when GPU resources are unavailable.
 
 ### Running Tests
 
-By default the VGE project uses `UnitTests.runsettings`, which selects non-diagnostic CPU correctness tests and excludes GPU integration. CPU tests that touch engine globals use a serialized collection without creating a GL context. Headless renderer scenarios are integration tests; in-game visual/runtime acceptance remains separate.
+By default the VGE project uses `UnitTests.runsettings`, a legacy name for the non-diagnostic, non-GPU correctness selection. It is not restricted to unit-level tests. CPU tests that touch engine globals use a serialized collection without creating a GL context. Headless renderer scenarios are classified by the boundary they exercise; in-game visual/runtime acceptance remains separate.
 
 **Run all correctness tests locally (requires GPU):**
 
@@ -191,7 +191,7 @@ report a skip when it is missing; they never return a successful no-op. `Scenari
 production renderer/lifecycle execution, independently of the CPU/GPU and diagnostic classifications.
 
 On every pull request targeting `main` or `master`, push to `main` or `master`, and manual workflow run, CI runs non-GPU
-correctness in the required CPU job. The GPU job runs GPU correctness separately. For complete local
+correctness in the required CPU job. The separate GPU job is informational and does not block the build. For complete local
 qualification, use `AllTests.runsettings`; `.vscode` provides a `Test (All Correctness)` task.
 
 Mixed workloads retain their numerical, scheduling and lifecycle assertions in ordinary correctness
@@ -340,15 +340,15 @@ native errors; initialization, retirement and deliberate fault-injection boundar
 
 ### GPU Test Categories
 
-Tests are organized using the `[Trait("Category", "GpuIntegration")]` attribute:
+`[Trait("Category", "GpuIntegration")]` controls the GPU runner selection; it does not declare the test's level:
 
-- **GPU integration tests** - Require OpenGL 4.5+ and `GL_ARB_gl_spirv` (core in OpenGL 4.6)
+- **GPU selection** - Most cases require OpenGL 4.5+ and `GL_ARB_gl_spirv` (core in OpenGL 4.6); some retained Unit and Component cases carry this legacy trait for runner membership
   - Precompiled shader specialization and linking tests
   - Uniform validation tests
   - Render output tests
 - **Non-GPU tests** - Run anywhere without graphics hardware
   - GLSL parsing/AST tests
-  - Unit tests for CPU-side logic
+  - CPU-side unit, component, and integration tests
 
 ### CI/CD Configuration
 
