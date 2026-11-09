@@ -91,6 +91,8 @@ Fit directional
 caster depth to the represented domain, not just camera-visible receivers. Point faces use
 consistent fixed axes; changing light position invalidates their old depth. Page keys contain
 source/lifetime, projection generation, face/level, and virtual XY coordinates.
+Page identity alone does not establish usable receiving coverage; that is recorded separately
+under [page coverage and reuse](#page-coverage-and-reuse).
 
 Use conventional projected depth and explicit comparisons in the shared sampler. Point
 near-plane distance, bias, and depth range are explicit quality tunables. Near-source geometry
@@ -192,6 +194,8 @@ withdraw work if its captured range/transform generation changes. Retain frame s
 GPU users complete, polling without blocking. Barriers establish visibility, not permission
 for premature reuse. Separate source, projection, world, candidate, assignment, and readiness
 generations prevent stale work from becoming current.
+Cached depths also depend on the [non-terrain change publication](#non-terrain-change-publication)
+contract, including changes to casters absent from the page's previous drawing inputs.
 
 Use one shadow provider per participating light/consumer. Migrate sampling coherently so
 native shadow stages do not duplicate work or apply a second shadow approximation. Existing
@@ -246,6 +250,8 @@ flowchart TD
     Candidates -->|Reusable associations| Shared
     Shared -->|Required page rendering| Casters[Scene caster integration]
     Engine[Engine chunk geometry and pass-atlas table] --> Casters
+    Scene[Non-terrain scene adapters] -->|Current geometry| Casters
+    Scene -->|Shadow-relevant changes| Shared
     Casters -->|Depth results| Pages[Physical page pool and page tables]
     Shared -->|Allocation and residency| Pages
     Pages --> Sampling[Shadow sampling]
@@ -500,7 +506,12 @@ retain candidates or unresolved coverage; save the exact cursor when paused
 publish only after all required slabs and direction subsets are complete
 ```
 
-Empty cells can be skipped when emptiness is current, but do not terminate traversal.
+Empty cells do not terminate traversal. Under the
+[world publication and cache contract](#world-publication-and-cache-contract), bounds-only
+associations retain their coordinates and skip currently empty geometry during consumption.
+Omitting an empty coordinate from the stored list instead creates a pruned association:
+record the emptiness revision and invalidate or expand coverage when it changes or becomes
+unproven. Current emptiness alone does not justify omitting that dependency.
 Connectivity may prune farther search only under the conservative rules below; encountering
 a nonempty chunk alone does not prove that it blocks all relevant light paths. The blocking
 chunk itself remains an occluder candidate.
@@ -518,7 +529,9 @@ completed associations cannot remain valid solely because the light stayed in it
 Bounded GPU checks against active covered regions and recorded pruning dependencies handle
 these changes without a reverse mesh-pool registry. New page uses and filter-neighbor samples
 must have association coverage for their full receiving footprint before claiming the page
-is valid for them.
+is valid for them. They must also satisfy the separate
+[rendered receiving-coverage check](#page-coverage-and-reuse); new associations alone do not
+make old depths valid for additional receivers.
 
 ### Reuse across light movement
 
@@ -731,9 +744,11 @@ not an unrecorded exception to this one.
 
 ### Establish readiness before shading
 
-Page completeness and light readiness are separate. A page becomes valid only after its
-own complete update; a light becomes ready when all requests for its selected surface
-coverage resolve to valid data. Request-list overflow or unfinished demand generation
+Page completeness and light readiness are separate. A page becomes valid for its recorded
+receiving coverage only after its own complete update, as defined under
+[page coverage and reuse](#page-coverage-and-reuse). A light becomes ready when all requests
+for its selected surface coverage resolve to current data covering those requests.
+Request-list overflow or unfinished demand generation
 cannot be mistaken for an empty request list and therefore a ready light.
 
 The GPU can reduce request/page validity into a per-light readiness result before surface
@@ -792,6 +807,11 @@ their filter footprints. Reuse compatible surface pages and allocate additional 
 within the shared budget. Schedule surface coverage first; fog-only work cannot evict pages
 needed by an already-admitted surface result. Publish independent per-light fog readiness
 before volume lighting; missing fog coverage leaves that light's fog contribution unshadowed.
+Surface-page reuse must pass the same [receiving-coverage check](#page-coverage-and-reuse):
+a fog sample at a different depth is not covered merely because it addresses the same page.
+Wider fog coverage requires a complete, budgeted replacement that also preserves all currently
+required surface coverage. If that replacement cannot be supplied safely within the budget,
+defer the fog extension without invalidating the complete surface result.
 History must reject changed light/projection, page validity, and readiness generations rather
 than accumulate obsolete shadowing. Fog resolution, temporal stability, and separate readiness
 transitions require qualification after surface behavior is accepted.
@@ -854,6 +874,23 @@ existing geometry and material ownership, including cutouts, deformation, terrai
 displacement, animation, and moving-chunk transforms. Entities use their own scene adapter
 and current preparation, without forcing them into static terrain chunk membership.
 
+### Non-terrain change publication
+
+Scene adapters publish shadow-relevant changes before cached-page readiness is certified.
+Include creation, disappearance, movement, animation/deformation, and material or eligibility
+changes even when the mesh range and object transform are unchanged. Supply conservative
+previous and current caster bounds for the represented states, including deformation extents;
+creation has only current bounds and disappearance only previous bounds. The shared shadow
+system invalidates cached depths whose covered light-to-receiver regions may intersect either
+extent. Selection must consider newly entering casters, not just the previous draw list.
+
+Apply every relevant change since a cached result's publication before certifying its reuse.
+Retain unapplied changes within bounded storage, or invalidate the broader potentially affected
+page set before discarding them. Unknown change extents require conservative broader invalidation;
+unfinished change processing cannot certify affected pages. Redraw from current scene inputs
+before restoring validity. This publication belongs to the proposed scene adapters and existing
+scene owners; it does not introduce a mesh-pool registry or force entities into terrain associations.
+
 ## Proposed GPU candidate-to-draw handoff
 
 ### Existing rendering support
@@ -897,6 +934,8 @@ The receiving chunk's own eligible geometry must also participate for self-shado
 an association list described as other chunks must not accidentally exclude it. Several
 receiving chunks may request the same page. Their contributions need merging or equivalent
 duplicate suppression so that overlapping demand does not multiply identical draws.
+The resulting depths are valid for the recorded receiving coverage described below, not
+automatically for every future receiver that maps to the same page.
 
 GPU work must publish complete candidate collections before using them. Between compute
 passes, shader-storage barriers make generated associations and metadata visible; before
@@ -913,6 +952,28 @@ The response must connect to the agreed detail reduction and light-priority poli
 the proposed missing-page behavior. Previous associations are reusable only while their
 coverage and dependencies remain valid. Segmented association storage and bounded page
 tables use explicit allocation failure; incomplete output cannot become a published result.
+
+### Page coverage and reuse
+
+Record the receiving regions for which each completed depth page was rendered, alongside
+its projection, scene-dependency, and assignment generations. Coverage includes receiver
+depth as well as projected XY, and includes filter and receiver-bias footprints. It may be
+a union of conservative receiving regions; if an enclosing region replaces that union,
+caster selection must be complete for the entire enclosure before certifying it. All coverage
+metadata and containment checks count against the existing storage and work budgets.
+
+A cached page can satisfy a request only when the request lies within this recorded coverage
+and all depth dependencies are current. Candidate associations for a new receiving region
+establish possible occluders but do not extend the coverage of already-rendered depths.
+Demand outside the recorded coverage requires a complete replacement rendered for the union
+of currently required regions sharing that page. Publish the replacement depths and coverage
+together after drawing; changing metadata alone cannot extend validity. Until then, the old
+result covers only its previously certified regions, subject to the normal validity rules.
+
+Apply this contract equally to surface and fog requests. For example, two receivers along
+the same point-light direction can address the same page while the farther receiver needs
+an occluder beyond the nearer receiver's covered region. Reuse requires the containment check
+even when the light, scene, projection, and page assignment have otherwise stayed unchanged.
 
 ### Bounded expansion and submission
 
@@ -999,16 +1060,18 @@ also bounded; a counting pass is not permission for unlimited preprocessing.
 ```text
 select bounded input and submission groups
 expand page requests in stable priority order within the selection allowance
+establish the union of required receiving regions for each replacement page
 admit only pages with complete coverage and sufficient remaining resources
 build range commands and page-instance lists from admitted pages
-clear admitted replacement layers, draw all required geometry, then publish validity
+clear admitted replacement layers, draw all required geometry, then publish depths and coverage
 ```
 
 If expansion stops or any output overflows, that page has not demonstrated completeness.
 Exclude it from clear/draw/publication, or abandon its temporary result before rendering.
 Do not use a truncated candidate list or a partially filled draw list as a valid shadow.
 An older page may remain usable only if it independently still represents the current
-light and scene; retaining its allocation is not enough.
+light and scene and covers the requested receiving regions under
+[page coverage and reuse](#page-coverage-and-reuse); retaining its allocation is not enough.
 
 Under sustained pressure, reduce requested detail and then apply the established light
 priorities. Lower detail often reduces page count, but does not necessarily reduce the
@@ -1270,16 +1333,22 @@ qualification obligations are:
 - **Scene integration:** preserve native pass/atlas ownership and detail selection. Cover
   ordinary and shader-storage terrain, displacement, cutouts, offscreen entities, moving
   chunks, animation, and source identity. Verify lifetime boundaries before using borrowed ranges.
+  With a stationary light, verify cached-depth invalidation for caster entry, disappearance,
+  and deformation or material changes without a range or object-transform change.
 - **Publication and exhaustion:** exercise cache replacement, stale completion, edits that
   open passages, range retirement, lookup collisions, allocation overflow, and configuration
   shrink/disable. Incomplete work must never publish complete coverage. Validate empty and
   connectivity metadata against shadow opacity; retain bounds-only operation where unproven.
+  Exercise empty-to-nonempty changes for both retained coordinates and pruned lists, plus
+  delayed or exhausted non-terrain change publication.
 - **OpenGL 4.5:** run with optional draw-parameter, indirect-count, and vertex/TES layer-output
   paths disabled. Verify metadata transport, geometry routing, selective clear, barriers,
   static sampler dispatch, and capability-limited configurations on the baseline path.
 - **Demand and sampling:** validate pre-shading readiness for opaque, cutout, water, and all
   contributing transparent layers. Exercise virtual-page, clipmap, and cube-face seams,
   filter-neighbor demand, large coordinates, near-light geometry, and depth precision.
+  Verify new receivers at different depths within an existing page, including fog reuse:
+  association completion alone must not extend the depth page's recorded receiving coverage.
 - **Performance:** measure CPU and GPU p50/p95/p99 cost by demand, publication, association,
   command generation, clear, depth rendering, and sampling. Include continuously moving
   carried/local lights plus changing sun and moon, edits, streaming, and displaced terrain.
