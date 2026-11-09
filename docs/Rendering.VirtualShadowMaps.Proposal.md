@@ -2,8 +2,9 @@
 
 Status: design discussion in progress. This document records the established direction and
 remaining design questions. It describes proposed behavior, not an implemented system.
-Renderer integration has not yet been inspected for this proposal. No implementation
-checklist or detailed execution plan is established here.
+Targeted source and installed-engine inspection has established the integration findings
+below. Concrete APIs, algorithms, and performance targets remain under discussion. No
+implementation checklist or detailed execution plan is established here.
 
 ## Purpose and scope
 
@@ -25,6 +26,40 @@ The following requirements are established:
   reservations and borrowing of unused capacity.
 - Surface shadows are the first implementation priority. Shadowed volumetric fog is
   included in scope, with full fog integration at the end of the proposed work.
+- Terrain spatial selection uses the existing fixed chunk grid and integer XYZ chunk
+  identity, preserving the engine's dimension convention.
+- GPU compute shaders generate reusable **chunk occlusion candidates** from fixed
+  chunk-grid bounding boxes, without examining mesh geometry or calculating mesh AABBs.
+- Candidate associations can be reused across multiple shadow-map updates. Their
+  regeneration is amortized over a conservative range of light movement.
+- The engine's pass-and-atlas table remains the authority for mesh-pool categories.
+  Do not introduce a parallel pool registry, reverse classification map, or a collection
+  of hooks that reconstructs relationships the engine already maintains.
+- Custom shader clipping is unavailable by design in the pipeline-state system. Shadow
+  page routing must respect that constraint; adding or bypassing custom clipping support
+  is not part of this proposal.
+- OpenGL 4.5 is the required baseline. A complete rendering path must work without
+  optional extensions or OpenGL 4.6 features. Additional capabilities may optimize it,
+  but cannot be required for baseline correctness or hidden in performance assumptions.
+
+## Terminology
+
+| Term | Meaning |
+| --- | --- |
+| Shadow receiver | A surface or volume sample where lighting needs to determine whether light is blocked |
+| Shadow caster / occluder | Geometry that blocks light and can cast a shadow |
+| Chunk occlusion candidates | Other world chunks that could block a light reaching a particular receiving chunk |
+| Shadow page | A tile of the light's projected depth map; it is not a world chunk |
+| Geometry range | The portion of an existing uploaded mesh selected for drawing |
+| Traversability | The engine's information about connected openings between chunk boundary faces |
+| Indirect drawing | Drawing from commands stored in a GPU buffer, allowing compute shaders to choose geometry without the CPU reading the results |
+| Draw batch | Draws submitted together with compatible geometry bindings, shader, material state, and atlas |
+| Physical depth atlas | A depth texture whose rectangular tiles store separately assigned shadow pages |
+| Page routing | Selecting a draw's light projection and destination page storage, and keeping its output within that page |
+
+Chunk coordinates describe world-space regions. Shadow pages describe light projections.
+There is no assumed one-to-one mapping between them. A candidate association is a broad
+selection aid; it is not an exact shadow result.
 
 ## Shared system boundary
 
@@ -39,7 +74,9 @@ light-specific representations define how world-space locations map into shadow 
 | Budget arbitration across lights | Shared virtual shadow system, using configurable selection policy |
 | Light projection, resolution selection, and world-to-shadow mapping | Light-specific shadow representation |
 | Required sampling coverage and resolution | Shadow consumers, interpreted through the light representation |
-| Caster discovery and drawing | Scene rendering integration; exact boundary remains open |
+| Terrain chunk occlusion candidate generation | Shared shadow system, using GPU compute and existing chunk information |
+| Current terrain geometry and render categories | Existing engine chunk references and pass-and-atlas table |
+| Selected geometry drawing and entity integration | Scene rendering integration; exact boundary remains open |
 | Shadow lookup and filtering | Shared sampling infrastructure with projection-specific handling |
 
 ```mermaid
@@ -48,7 +85,11 @@ flowchart TD
     Fog[Volumetric fog consumer] -->|Volume sample demand| Shared
     Lights[Directional and point-light representations] -->|Projection and validity inputs| Shared
     Policy[Configurable budgets and stable priorities] --> Shared
+    Chunks[Chunk-grid bounds and available chunk information] --> Candidates[GPU chunk occlusion candidates]
+    Lights -->|Conservative movement coverage| Candidates
+    Candidates -->|Reusable associations| Shared
     Shared -->|Required page rendering| Casters[Scene caster integration]
+    Engine[Engine chunk geometry and pass-atlas table] --> Casters
     Casters -->|Depth results| Pages[Physical page pool and page tables]
     Shared -->|Allocation and residency| Pages
     Pages --> Sampling[Shadow sampling]
@@ -56,8 +97,9 @@ flowchart TD
     Sampling --> Fog
 ```
 
-The diagram expresses responsibilities, not a decided render-pass order, CPU/GPU split,
-or concrete API. Fog participates in the intended architecture even though its complete
+The diagram expresses responsibilities, not a decided render-pass order or concrete API.
+GPU candidate generation is established; the remaining execution and submission details
+are open. Fog participates in the intended architecture even though its complete
 integration follows surface shadows.
 
 ## Dynamic lighting and validity
@@ -81,6 +123,103 @@ consequences. The design must distinguish them. In particular:
 Sun and moon are independent directional-light clients sharing the directional
 allocation. Their simultaneous operation must not depend on an exclusive day/night
 shadow switch. Exact contribution-based priorities remain to be specified.
+
+## Chunk occlusion candidates
+
+### Spatial basis and computation
+
+Use the predetermined voxel-grid partition of each chunk as its bounding box. The agreed
+terrain model is that the chunk's geometry stays within those bounds. Candidate
+generation does not inspect triangles, derive a tighter mesh bounding box, or create
+another spatial subdivision for terrain.
+
+For each relevant light and receiving chunk, GPU compute determines which other chunks
+could contain occluding geometry. Bounding-box relationships deliberately admit false
+positives: a chunk may be selected even when its actual mesh blocks none of the relevant
+light. Required occluders must not be omitted.
+
+The regular grid should constrain the spatial search. GPU execution alone does not
+justify comparing every loaded chunk against every other loaded chunk. Search bounds,
+candidate storage, output capacity, and work scheduling remain design decisions within
+the bounded-resource objective.
+
+### Reuse across light movement
+
+Candidate associations and shadow depths have different lifetimes. A changed light
+projection can require new depth rendering while leaving the candidate associations
+usable. Do not rebuild associations merely because a shadow map needs updating.
+
+For the sun and moon, the proposed reuse mechanism covers an angular interval and
+refreshes candidates when the direction leaves that interval. The calculation must
+include potential occluders over the entire interval, rather than calculate only one
+exact direction and reuse it until a threshold. Sun and moon retain independent coverage.
+The interval widths and selection method remain open; no specific degree threshold has
+been selected.
+
+For moving point lights, the corresponding candidate is a bounded region of source
+positions with a defined influence range. The precise positional coverage and refresh
+policy remain open. This must support carried lights as a primary workload.
+
+| Change | Consequence |
+| --- | --- |
+| Light moves within the covered range | Candidate associations remain usable; depth validity is evaluated separately |
+| Light leaves the covered range | New associations or conservative additional coverage are needed before relying on the old selection |
+| Chunk geometry is rebuilt within unchanged bounds | Use the current uploaded geometry; bounds-only associations need not change solely because a mesh was replaced |
+| Connectivity changes when used to prune candidates | Associations relying on that connectivity require invalidation or conservative expansion |
+| Chunks load or unload | Reflect current availability and any resulting changes to pruning or coverage |
+| A new receiving chunk needs shadows | Establish candidate coverage for that receiver |
+
+Opening a passage is particularly important: it can expose previously excluded chunks
+without any light movement. Once connectivity is used for pruning, angular or positional
+thresholds are not the only association invalidation conditions.
+
+### Existing empty and traversability information
+
+Installed-engine inspection confirmed the following in Vintage Story 1.22.7:
+
+| Existing information | Meaning and limitation |
+| --- | --- |
+| `IWorldChunk.Empty` | Cached empty-data flag; `WorldChunk.UpdateEmptyFlag` derives it from block and fluid data. Currentness must be established before using it to skip terrain. |
+| `ClientChunk.traversability` | A 16-bit field containing connections for 15 distinct pairs of the six chunk faces, including opposite and adjacent pairs |
+| `ClientChunk.traversabilityFresh` | Indicates whether the engine considers the connectivity current |
+| `ClientChunk.IsTraversable(fromFace, toFace)` | Queries the face-pair connection; returns potentially open when connectivity is stale |
+
+`SystemChunkVisibilityCalc.RegenTraversabilityGraph` follows connected voxel paths using
+block `SideOpaque` flags, then connects the boundary faces reached by each region. The
+existing `ChunkCuller` uses this information during traversal. Relevant opacity changes
+queue recomputation and mark the information stale; calculation runs through the engine's
+separate-thread work queue. Its collection is gated by the engine's occlusion-culling
+setting, so this optimization cannot assume fresh data is always available.
+
+This is connectivity, not a precise ray test or a complete empty/solid classifier:
+
+- No connected face pairs does not prove every voxel is solid; a sealed internal cavity
+  can produce the same result.
+- Connections between every face pair do not prove emptiness; a chunk containing a pillar
+  can still have all those connections.
+- A connected passage can bend. An opposite-face connection does not prove a straight
+  ray along that axis can pass through.
+
+No independent, exact completely-solid flag was identified in the inspected chunk
+interfaces and implementation. Do not infer one by renaming a connectivity result.
+
+The proposed optimization is to supply existing connectivity and freshness information
+to GPU candidate generation, retaining the engine's voxel analysis rather than duplicating
+it. A blocked face connection may reject further traversal only where the complete
+conservative light coverage permits that conclusion. The blocking chunk remains a
+candidate itself. Fully connected chunks can still cast shadows, and stale or unavailable
+connectivity must remain potentially open. Sources or receivers inside the chunk also
+cannot be classified by an unrelated boundary-to-boundary connection.
+
+Using the engine's opacity rules for shadow rejection still requires validation against
+the shadow-casting material rules. The transfer/publication mechanism and dependency
+invalidation are unresolved; no new mesh-pool classification hooks are implied.
+
+Evidence: `ClientChunk`, `SystemChunkVisibilityCalc`, `ChunkCuller`, and
+`WorldChunk.UpdateEmptyFlag` in the installed `VintagestoryLib.dll`. The
+[inspection receipt](../artifacts/virtual-shadow-maps/chunk-traversability-inspection.txt)
+contains the relevant IL, assembly version, module identity, and SHA-256. This is static
+inspection evidence, not a measured performance or live visual result.
 
 ## Configurable budgets and allocation
 
@@ -168,16 +307,368 @@ unconditionally on every light.
 This establishes a broad dependency order only. It does not prescribe implementation
 tasks, milestones, or completion claims.
 
-## Open design decisions and next investigation
+## Engine geometry ownership and selected drawing
 
-The next agreed investigation is the existing terrain, entity, and shadow rendering
-paths, before specifying their integration boundary. That inspection has not yet been
-performed for this proposal.
+The existing `ChunkRenderer.poolsByRenderPass[renderPass][atlas]` categorizes pools by
+`EnumChunkRenderPass` and texture atlas. Preserve that authority. Chunk coordinates and
+their existing geometry references provide spatial identity; a second system that
+enumerates pools to rediscover or retain their categories is not part of this design.
 
-The current candidate is a shared caster interface through which renderers expose
-bounds, changes, and shadow drawing capabilities while retaining geometry and
-material-specific behavior such as cutouts and animation. This interface has been
-suggested but is not an established API or an approved integration design.
+Installed-engine inspection traced `ChunkRenderer.AddTesselatedChunk` through
+`TesselatedChunk.AddCenterToPools` / `AddEdgeToPools` and
+`TesselatedChunkPart.AddToPools`. Upload selects the existing pass-and-atlas entry.
+`ClientChunk.centerModelPoolLocations` and `edgeModelPoolLocations` retain the resulting
+geometry references. Each location includes the native pool ID, vertex/index ranges,
+bounds, detail level, and visibility state, but not the render pass or atlas. Uploaded
+chunk-part descriptions are subsequently released.
+
+A candidate drawing approach, not yet a committed submission algorithm, is:
+
+1. Supply current chunk geometry references as GPU-readable input, using the engine's
+   native pool IDs and ranges. Preparing this input does not depend on reading GPU
+   candidate results back to the CPU.
+2. Traverse the authoritative pass-and-atlas table once for the batch of work to establish
+   the compatible drawing groups and their existing resources.
+3. GPU compute combines candidate associations, requested pages, and current geometry
+   references to generate indirect commands within those groups.
+4. The CPU submits the established groups; the GPU consumes their generated commands.
+   Temporary commands expire independently of the reusable candidate associations.
+
+This does not require a persistent reverse classification map, copying terrain geometry,
+or scanning every pool's individual geometry entries for every page. It still visits
+pools in the relevant categories for each batch; the cost has not been measured. The
+GPU-readable input is a description of existing geometry for drawing, not another owner
+of pool membership or categories. Its publication and refresh cost also require evaluation.
+The existing indirect-draw support makes a handoff without candidate readback feasible;
+the remaining constraints are described below.
+
+The engine replaces chunk geometry-reference arrays as rebuilt meshes are uploaded.
+Draw selection must use the current publication and retain no stale range after its
+storage is retired or reused. The native culling path mutates pool draw arrays and
+statistics, so temporary shadow selections should preserve that state. Terrain geometry
+also contains different detail categories; drawing every retained range indiscriminately
+does not preserve the engine's selection rules. Geometry detail is separate from
+shadow-map resolution.
+
+Relevant existing source patterns are
+[terrain pass selection](../VanillaGraphicsExpanded/HarmonyPatches/TerrainPassDrawHook.cs),
+[liquid geometry borrowing](../VanillaGraphicsExpanded/Rendering/Pipeline/EngineLiquidPoolGeometry.cs),
+and [borrowed engine inputs](../VanillaGraphicsExpanded/Rendering/Integration/OpenGL/EngineGeometryInputs.cs).
+The liquid adapter is specific to its ordinary mesh layout; it is not an already-complete
+terrain or animated-entity adapter.
+
+No new generic "caster record" system has been selected. Any integration must preserve
+existing geometry and material ownership, including cutouts, deformation, terrain
+displacement, animation, and moving-chunk transforms. Entity integration remains a
+separate open boundary rather than being forced into static terrain chunk membership.
+
+## Proposed GPU candidate-to-draw handoff
+
+### Existing rendering support
+
+Source inspection establishes that the rendering hardware interface (RHI) already exposes
+compute dispatch, indirect graphics drawing, and explicit GPU memory barriers. The
+following capabilities are present; a complete terrain shadow path is not:
+
+| Existing capability | Consequence for this proposal | Source |
+| --- | --- | --- |
+| Indirect indexed and non-indexed drawing | Compute can write commands which graphics subsequently consumes | [OpenGL indirect graphics](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Geometry/OpenGLBackend.IndirectGraphics.cs) |
+| Optional GPU draw-count buffer | The GPU can supply the number of commands, bounded by a CPU-supplied maximum, when OpenGL 4.6 or `GL_ARB_indirect_parameters` is available | [Draw descriptor](../VanillaGraphicsExpanded/Rendering/RHI/Descriptions/RHIIndirectDraw.cs), [capabilities](../VanillaGraphicsExpanded/Rendering/RHI/RHICapabilities.cs) |
+| Argument-buffer bounds validation without reading generated commands | Integration need not synchronize with the CPU to inspect selections; the producer remains responsible for valid command contents | [Geometry validation](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Geometry/OpenGLBackend.GeometryValidation.cs) |
+| `ResourceAccess.Indirect` and `ResourceAccess.ShaderStorage` barriers | Express visibility of compute-written draw arguments and shader-readable data before their consumers run | [Synchronization](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Synchronization/OpenGLBackend.Synchronization.cs) |
+
+For the OpenGL 4.5 baseline, the proposed path submits a bounded command interval with
+unused commands initialized to draw zero geometry. GPU-supplied draw counts are an
+optional optimization through `GL_ARB_indirect_parameters` or suitable later core support.
+The baseline avoids count readback but still has
+command-processing cost; it is not free work. Every submitted slot must be initialized
+for that submission, so old commands cannot survive in unused slots.
+
+These mechanisms follow the OpenGL contracts for
+[multi-draw indirect](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_multi_draw_indirect.txt)
+and [indirect parameters](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_indirect_parameters.txt).
+The latter also specifies command-barrier visibility for GPU-written count buffers.
+Their presence in the RHI is source evidence, not a runtime performance measurement.
+
+### Separate spatial associations from drawing commands
+
+The recommended direction is to retain candidate results on the GPU throughout selection
+and command generation. It distinguishes three inputs with different lifetimes:
+
+| Data | Lifetime and meaning |
+| --- | --- |
+| Chunk occlusion candidates | Reusable spatial associations for a receiving chunk and light, valid within their conservative movement coverage and any pruning dependencies |
+| Current geometry descriptions | References to the engine's currently published mesh ranges, refreshed when those ranges change |
+| Page drawing commands | Temporary selections for the pages being updated, generated from the other inputs and current page demand |
+
+The receiving chunk's own eligible geometry must also participate for self-shadowing;
+an association list described as other chunks must not accidentally exclude it. Several
+receiving chunks may request the same page. Their contributions need merging or equivalent
+duplicate suppression so that overlapping demand does not multiply identical draws.
+
+GPU work must publish complete candidate collections before using them. Between compute
+passes, shader-storage barriers make generated associations and metadata visible; before
+indirect drawing, command barriers make draw arguments and optional counts visible.
+Shader-readable drawing metadata also requires the corresponding storage barrier. These
+are GPU ordering dependencies, not a requirement for a CPU completion wait. Buffer reuse
+and engine geometry retirement still need an explicit lifetime contract.
+
+Association storage, geometry descriptions, generated commands, and command-generation
+work all belong within bounded resource accounting. Capping a draw count alone is not a
+correct overflow policy: a silently truncated collection can omit required occluders.
+If complete selection or drawing cannot fit, affected pages cannot be published as valid.
+The response must connect to the agreed detail reduction and light-priority policy and
+the still-open missing-page behavior. Previous associations are reusable only while their
+coverage and dependencies remain valid. Exact storage layout, allocation, and overflow
+handling remain undecided.
+
+### Drawing groups remain explicit constraints
+
+An indirect command selects a geometry range and instances; it does not independently
+change the shader, atlas, geometry bindings, or framebuffer. The CPU therefore still
+submits compatible groups derived from the existing pass-and-atlas organization. This
+does not imply one submission for the entire scene or eliminate CPU submission cost.
+The engine's ordinary indexed and shader-storage terrain layouts require their own
+correct geometry binding and shadow shader support.
+
+The page-routing candidates below address the projection and destination for each selected
+draw. The preferred direction preserves compatible drawing groups without requiring a
+CPU submission for every page. No existing general shadow-page routing path was
+identified in the inspected shaders; indirect support is only part of the required work.
+
+## Page routing within existing pipeline constraints
+
+### Constraint and remaining candidates
+
+The pipeline-state system deliberately excludes custom shader clipping. The tiled-atlas
+route that remaps each draw into a tile and uses custom clip distances to contain it is
+therefore excluded. The existing
+[rasterizer description](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/RasterizerDesc.cs)
+and [pipeline application](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/FixedFunction/OpenGlStateCache.PipelineRasterizer.cs)
+are constraints to preserve, not gaps this proposal should extend or bypass.
+
+The recommended candidate is to render and retain each physical page in a separate
+depth-texture-array layer. Its projection uses the normal hardware clip volume and the
+full page-sized viewport; the layer isolates its depth writes from other pages. This
+does not require custom clip planes or moving projected geometry into an atlas tile.
+It can serve both directional and point-light pages. This is a source-supported design
+recommendation, not an approved storage format or runtime-qualified rendering path.
+
+| Approach | Tradeoff |
+| --- | --- |
+| One page per texture-array layer | Many pages can share a compatible draw batch and viewport without custom clipping; capacity per array is limited by available layers, and routing requires shader layer output |
+| Render a batch into array layers, then copy completed pages into an atlas | Separates rasterization from resident storage and permits layer reuse; adds depth-copy work, ordering, and a GPU-driven destination-selection question |
+| Viewport/scissor arrays | Hardware rectangles can delimit atlas pages without custom clip planes, but the viewport count bounds a batch and the current dynamic-state API exposes only one rectangle; support cannot be assumed |
+| Separate CPU submission per page | Straightforward page-specific state, but submission count grows with page demand; not the recommended baseline for moving lights |
+
+The existing RHI supports the necessary attachment representation and shader-stage types:
+
+| Inspected contract | Finding |
+| --- | --- |
+| [Attachment resolution](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Passes/OpenGLAttachmentIdentity.cs) and [framebuffer creation](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Passes/OpenGLBackend.FramebufferCreation.cs) | A whole array attachment reaches the native layered-texture attachment operation |
+| [Pass validation](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Passes/OpenGLBackend.PassTargetValidation.cs) | A depth-only pass can supply its depth attachment without color attachments |
+| [Shader creation](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Shaders/OpenGLBackend.ShaderCreation.cs) | Vertex, tessellation, geometry, and fragment stages are represented |
+| [Capabilities](../VanillaGraphicsExpanded/Rendering/RHI/RHICapabilities.cs) | Array-layer, texture-size, and framebuffer limits are available for allocation validation |
+
+No layer-selection shader path or dedicated layer-output capability was identified in
+the inspected VGE sources. OpenGL 4.5 provides layer output from a geometry shader;
+direct output from vertex or tessellation-evaluation shaders is not guaranteed by that
+baseline. The latter is an optional optimization through functionality such as
+[`GL_ARB_shader_viewport_layer_array`](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_shader_viewport_layer_array.txt).
+The extension explicitly adds those stage outputs to the OpenGL 4.5 contract.
+
+For the layered design, the proposed baseline therefore uses a geometry shader that
+passes each already-selected triangle through and assigns its layer. It follows vertex
+processing for ordinary geometry and tessellation evaluation for displaced terrain.
+It emits that triangle once, retaining its positions, winding, UVs, and required material
+outputs; it does not duplicate every triangle across all pages or point-light faces.
+GPU command selection determines the required page draws first. The same baseline
+layer-routing mechanism must support selective page-clear geometry.
+
+The optional direct-output path removes this routing stage where supported, preserving
+the same page selection and shadow behavior. Capability selection and shader-language
+declarations must be explicit for each shadow variant. The existing terrain tessellation
+source generator declares GLSL 4.00; current sources do not become layer-aware merely
+because a device supports the extension.
+
+Geometry-stage work is part of the baseline performance target, not a rarely used
+fallback that can be excluded from measurements. This is a functional design supported
+by the API, not evidence of acceptable moving-light performance. If its measured cost
+is unacceptable, page routing must be reconsidered within OpenGL 4.5 and the prohibition
+on custom clipping rather than silently requiring an extension.
+
+### OpenGL 4.5 execution contract
+
+| Responsibility | Proposed baseline | Optional optimization |
+| --- | --- | --- |
+| Candidate generation and command production | Compute shaders and shader-storage buffers | No additional extension required for these mechanisms |
+| Selecting the destination layer | Geometry-shader `gl_Layer` output | Vertex/tessellation-evaluation layer output when supported |
+| Identifying per-draw page metadata | Integer instance attribute selected using the indirect command's base-instance field | Shader-visible draw/base-instance parameters when supported |
+| Submitting generated geometry | Multi-draw indirect over bounded, initialized command intervals | GPU count buffers when supported |
+| Sampling multiple depth arrays | Bounded, statically addressed sampler accesses with valid filtering behavior | Bindless access only if separately supported and justified |
+
+Shader-visible draw parameters, indirect count buffers, and direct layer output are
+independent capabilities. None follows merely from the presence of another. The bounded
+interval sizes and number of array/material groups contribute work even when many entries
+draw nothing; scheduling must account for that cost on the baseline path.
+
+Direct resident arrays avoid a transfer after every page update. The intermediate-array
+alternative remains possible, but the existing
+[texture-copy path](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Textures/OpenGLBackend.TextureTransfers.cs)
+takes host-supplied source and destination regions. It is not an indirect copy-list
+consumer. A GPU-driven transfer into an atlas would need a separately designed path
+and measured cost; it is not automatically supplied by layered rendering.
+
+### Configurable capacity across depth arrays
+
+One layer stores one physical page, not one light, chunk, or entire point-light face.
+Pages from all lights continue to share the allocator and its directional/local
+reservations. An array's hardware layer limit is a per-resource limit, not a fixed
+shadow-light count or the user-facing memory setting.
+
+For square pages with one depth level and no multisampling, nominal depth storage is:
+
+```text
+bytesPerPage = storedPageWidth * storedPageWidth * depthBytesPerTexel
+pageCapacity = floor(depthStorageBudget / bytesPerPage)
+physicalPage = (array identifier, layer index)
+```
+
+The stored width includes any borders eventually selected. The depth-storage allowance
+must leave budget for page tables, associations, commands, and other shadow resources;
+driver allocation overhead also prevents this formula from being an exact VRAM receipt.
+Allocation must satisfy the applicable hardware limits as well as the budget.
+
+For illustration only, 128-by-128 pages at four bytes per texel use 64 KiB each. A
+64 MiB depth allowance holds 1,024 such pages; 256 MiB holds 4,096. If an array supports
+2,048 layers, the latter needs at least two arrays. These values are not selected defaults
+or measurements of the user's hardware. Uniform physical page dimensions do not require
+uniform world-space resolution; the light projection determines the area each page covers.
+
+Additional arrays add a bounded submission grouping alongside existing geometry/material
+groups. Compute routes commands into those known groups; the CPU need not read back
+which individual layers were selected. Multiple arrays also consume sampling resources.
+Receiver pixels can select different arrays, so ordinary sampler-array indexing cannot
+be assumed legal for an arbitrary per-pixel array identifier. A bounded set of statically
+addressed sampler accesses is a candidate, with explicit filtering/derivative handling;
+optional bindless access must not become an unstated requirement. See the
+[GLSL sampler indexing rules, section 4.1.7](https://registry.khronos.org/OpenGL/specs/gl/GLSLangSpec.4.60.pdf).
+
+The supported array count and configuration range must account for sampler availability
+in every participating receiver path and for submission cost. Larger configured budgets
+cannot bypass those limits. The multi-array sampling contract remains open under the
+established OpenGL 4.5 baseline before layered storage can be adopted as the complete design.
+
+### Per-draw page selection
+
+Each generated draw needs a metadata reference identifying its page, light projection,
+and physical destination. GPU-generated metadata and commands must remain paired through
+compaction and batching. The metadata describes this shadow work, not mesh-pool membership.
+
+As an optional optimization, shader draw parameters provide a draw index or base-instance value
+that can select metadata. A draw index is local to its multi-draw submission and needs
+the corresponding batch offset. Count-buffer support and shader draw-parameter support
+are separate capabilities; neither implies the other.
+
+The proposed OpenGL 4.5 route uses a small integer input with per-instance addressing.
+The indirect command's base-instance field selects the metadata index
+from that input stream. `gl_InstanceID` alone does not include this offset. The existing
+[vertex-attribute description](../VanillaGraphicsExpanded/Rendering/RHI/Descriptions/RHIVertexAttribute.cs)
+supports instance divisors. Integration would still need a shadow-specific vertex-input
+binding over borrowed engine buffers, preserving the engine's own vertex-array configuration
+and buffer lifetimes. It must not copy meshes or introduce another pool registry. If
+compute writes this input stream, a vertex-fetch barrier is required as well as the
+command and shader-storage barriers described above.
+
+These options follow [shader draw parameters](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_shader_draw_parameters.txt)
+and [base-instance attribute addressing](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_base_instance.txt).
+The baseline transport must fit the available vertex inputs and preserve existing
+instancing semantics for each caster path. Its concrete geometry integration remains
+open; optional shader draw parameters cannot substitute for that baseline contract.
+
+### Projection and material compatibility
+
+With layered rendering, each draw uses its page's projection directly and selects a
+destination layer. All vertices of a primitive must agree on that layer, and the last
+active geometry-processing stage must supply the required routing output. Layer routing
+must support both untessellated and tessellated terrain; attaching a layered texture alone
+does not establish this behavior.
+
+The final emitted position must preserve material deformation and the selected light's
+depth convention. The installed `chunkshadowmap.vsh` has ordinary and shader-storage
+terrain variants, applies vertex/global warping, and supplies UVs for the cutout fragment
+shader. VGE's [terrain evaluation stage](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/tessellation/terrain.tesh)
+also changes shadow positions for displacement. Tessellated shadows must project that
+displaced geometry correctly and carry the page identifier unchanged through the
+stages. Existing [stage-interface generation](../VanillaGraphicsExpanded/PBR/Tessellation/TerrainTessellationStages.cs)
+is not a complete page-routing adapter. The shadow variants must preserve geometry decoding,
+cutout behavior, deformation, and detail selection rather than substitute a position-only shader.
+
+### Selective clearing and sampling
+
+Only pages scheduled for replacement should be cleared. The existing
+[pass clear](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Passes/OpenGLRenderPassOperations.cs)
+uses `ClearBuffer`; for a layered attachment this clears all layers, including cached
+pages. That behavior is specified in
+[OpenGL section 9.8](https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf).
+
+The proposed selective mechanism preserves the attachment on pass entry and draws a
+full-page primitive into each layer scheduled for replacement. The clear pipeline enables
+depth writes with an always-passing depth test and writes the chosen empty-depth value.
+GPU-generated layer selections can feed this draw through the same routing mechanism;
+no custom clipping or per-layer CPU readback is needed. Existing
+[depth-state descriptions](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/DepthStencilDesc.cs)
+represent the required test and write controls. This remains unimplemented and its cost
+must be included in the update budget.
+
+All selected-layer clears must precede their caster draws, including any defined border
+storage. A page being replaced is not valid merely because its storage still exists.
+Publication for sampling follows all required drawing and any transfer into resident
+storage; normal render-pass and resource-lifetime boundaries must be preserved.
+
+Physical storage locations need not be neighboring virtual pages or even belong to
+the same light. Filtering must resolve samples through virtual addressing, or use a
+separately specified valid-border scheme. Ordinary filtering across unrelated atlas tiles
+is incorrect if atlas storage is selected; array layers also do not supply neighboring
+virtual-page samples automatically. The same requirement applies at point-light face boundaries; filter width,
+border policy, and missing-neighbor handling remain open.
+
+Intermediate layered rendering would additionally need bounded batches and transfer
+accounting. No page size, storage dimensions, or performance advantage is established
+by this source inspection.
+
+## Other integration findings
+
+Targeted inspection established these additional constraints; the resulting concrete
+changes remain to be designed:
+
+| Finding | Design consequence | Source |
+| --- | --- | --- |
+| Atmosphere data contains independent solar/lunar quantities, but direct-light properties select one emitter | Simultaneous sun/moon shadows require corresponding direct-light evaluation and publication changes, not just more shadow storage | [AtmosphereLighting](../VanillaGraphicsExpanded/PBR/Atmosphere/AtmosphereLighting.cs) |
+| The shared local-light publication contains positions and colors without persistent source identity | Preserve source identity for stable selection, hysteresis, and page ownership; frame-local list indices are insufficient | [VgeLightsUniformBuffer](../VanillaGraphicsExpanded/Rendering/VgeLightsUniformBuffer.cs), [HeldLightSources](../VanillaGraphicsExpanded/PBR/HeldLighting/HeldLightSources.cs) |
+| Existing local-light contributions are unshadowed in deferred, forward, and liquid shading | Shadow sampling must reach all participating surface paths | [Deferred shading](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/pbr_direct_lighting.fsh), [forward shading](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/pbr_forward_surface.glsl), [liquid shading](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/pbr_liquid.glsl) |
+| The engine's native shadow stages precede opaque rendering; VGE resolves receiver data at opaque order 8.5 and evaluates direct lighting at 9.0 | Generating opaque requests and rendering pages between those VGE operations is a candidate; transparent and late receivers need their own earlier demand | [Receiver publication](../VanillaGraphicsExpanded/PBR/SceneColor/SceneColorParticleCapture.cs), [direct lighting](../VanillaGraphicsExpanded/PBR/DirectLightingRenderer.cs); installed `ClientMain.MainRenderLoop` |
+| Entity `BeforeRender` is camera-visibility gated while animation advancement is separate | Offscreen shadow casters need an explicit preparation contract; do not repeat animation advancement per shadow page | Installed `SystemRenderEntities.OnBeforeRender` and `OnRenderFrameShadows` |
+
+The existing 100-entry local-light publication capacity is an engine lighting constraint,
+not the proposed configurable limit on shadow-casting lights. No runtime performance or
+visual acceptance claim follows from this source and assembly inspection.
+
+## Open design decisions and next discussion
+
+GPU-resident candidate selection, indirect commands, and resident depth-array pages are
+the recommended drawing direction under OpenGL 4.5 and the prohibition on custom shader
+clipping. The proposed baseline uses geometry-shader layer routing, instance-attribute
+metadata selection, and bounded indirect-command intervals. Optional extensions may
+reduce their costs; baseline performance still requires measurement.
+
+The next design topic is bounding command generation and submission work: how to keep
+candidate expansion, array/material groups, and unused command slots affordable for
+moving lights. Multi-array sampling and the supported configuration range remain open.
+
+Bounded spatial search and candidate storage also remain open: how far each light searches,
+how receiving chunks identify their collections, and what happens when a complete collection
+cannot fit. These choices must preserve conservative coverage while supporting infrequent refresh.
 
 Other unresolved details include:
 
@@ -186,8 +677,15 @@ Other unresolved details include:
   resolutions, page sizes, face-boundary handling, and filtering are undecided.
 - Receiver request generation, frame ordering, and coordination between surface and
   volumetric consumers.
-- Caster culling granularity, change notifications, and efficient geometry submission
-  for repeatedly updated pages.
+- Conservative angular and positional coverage, spatial search, candidate capacity and
+  overflow behavior, and targeted refresh when topology changes.
+- Freshness and shadow-opacity suitability of existing empty/connectivity information,
+  including operation when engine traversability data is unavailable.
+- Adoption and details of the proposed GPU candidate-to-draw handoff, page routing,
+  terrain detail selection, current geometry publication, and entity preparation for
+  repeatedly updated pages.
+- Stable light identity and migration of direct celestial consumers to simultaneous
+  solar and lunar lighting.
 - Budget units and defaults, work-cost estimation, admission priorities, hysteresis,
   and reservation reclamation.
 - Missing-page handling, overload transitions, and any permitted temporal approximation.
