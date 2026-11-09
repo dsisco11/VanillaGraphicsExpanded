@@ -277,15 +277,96 @@ the pages needed for detailed surface shadows. Such coverage could consume movin
 work on regions that do not contribute to the image. It must be justified by an actual
 consumer or an explicitly chosen fallback policy.
 
-Missing-page behavior remains an open design question. A permanently rendered coarse
-map is not assumed. The eventual policy must define what happens when current valid
-data cannot be supplied; invalid or outdated pages cannot silently be sampled as valid.
+The proposed missing-page policy below reduces requested detail and then withdraws
+shadowing for a light whose current surface coverage cannot be completed. A permanently
+rendered coarse map is not assumed. This remains a recommendation for discussion;
+invalid or outdated pages cannot silently be sampled as valid.
 
 For technical context, Epic's virtual shadow map implementation uses resolution levels
 and describes coarse pages for consumers such as volumetric fog and forward-rendered
 translucency. It also documents the rendering cost of broad coarse coverage. These are
 reference examples, not a requirement to reproduce Unreal's implementation:
 [Epic Games: Virtual Shadow Maps](https://dev.epicgames.com/documentation/en-us/unreal-engine/virtual-shadow-maps-in-unreal-engine).
+
+## Proposed missing-page and overload behavior
+
+### Prefer complete surface coverage for each shadowed light
+
+The recommended normal overload policy is to keep a light's surface shadows enabled only
+when its required current coverage is complete at the selected detail. A light whose
+coverage cannot be completed contributes illumination without shadow attenuation. This
+implements the agreed progression from reduced detail to prioritizing shadow-casting
+lights, while avoiding normal fallback boundaries that follow individual missing pages.
+It is a proposed quality policy, not an established implementation requirement.
+
+Required coverage means the bounded requests from participating surface receivers for
+that light, including the footprint of the chosen shadow filter. It does not mean the
+entire world, every virtual page, or all six complete faces of a point light. Opaque,
+cutout, water, and other participating transparent receivers must be accounted for.
+Sun and moon have independent readiness and selection; one unavailable light does not
+invalidate another light's complete shadows.
+
+| Available result | Proposed surface behavior |
+| --- | --- |
+| Complete current data at requested detail | Use its shadows |
+| Complete current coverage at reduced requested detail | Use the reduced-detail result |
+| Required coverage remains incomplete after bounded detail reduction | Disable surface shadow attenuation for that light; retain its illumination |
+| Previously rendered data is still valid for the current light and scene | Reuse it as part of the complete result |
+| Allocated data is stale, partially rendered, or belongs to a reused page assignment | Treat it as unavailable |
+
+Reduced detail is a change to the requested coverage/resolution, not permission to reuse
+arbitrary old depths or average depth values into a fallback map. A lower-resolution
+alternative is usable only if it is current, compatible with the light projection, and
+covers all required sample footprints. The policy does not mandate a second broad coarse
+map or render a coarse level before every fine update.
+
+The tradeoff is explicit: one unresolved required page can suppress that light's shadows
+throughout the participating surface receiver set. This can cause a noticeable brightness
+change, especially for the sun. The recommendation favors a coherent light-level change
+over page-shaped light leaks; its appearance still requires user-run visual evaluation.
+Regional degradation would be a different policy requiring defined regions and boundaries,
+not an unrecorded exception to this one.
+
+### Establish readiness before shading
+
+Page completeness and light readiness are separate. A page becomes valid only after its
+own complete update; a light becomes ready when all requests for its selected surface
+coverage resolve to valid data. Request-list overflow or unfinished demand generation
+cannot be mistaken for an empty request list and therefore a ready light.
+
+The GPU can reduce request/page validity into a per-light readiness result before surface
+shading, without CPU readback. All participating surface consumers must use the same
+result for that rendering interval. This requires demand, including transparent-surface
+and filter-neighbor coverage, to be available before the first affected consumer shades.
+The existing frame-order integration does not yet establish that contract. A late miss
+cannot retroactively withdraw shadows from pixels already shaded.
+
+The proposed scheduler should first seek complete demanded coverage for admitted lights
+at an affordable detail, then spend remaining work on refinement. Both choices are subject
+to the existing work budgets and stable priorities. Preparing many incomplete light sets
+does not establish a useful current result for continuously moving lights. Completed
+individual pages may still be retained for reuse only while they remain valid.
+
+As a defensive sampling rule, an unexpected invalid lookup returns unshadowed visibility
+and records a demand/validity failure, rather than reading stale or uninitialized storage.
+That guard does not replace the normal completeness gate or establish acceptable visual
+behavior. The exact diagnostic mechanism remains open. Fog will need its own readiness
+scope when integrated; incomplete fog-only coverage should not silently withdraw complete
+surface shadows.
+
+### Stable recovery without stale-depth fading
+
+Use hysteresis for selecting lights, changing requested detail, and restoring shadowing
+after overload. In particular, a light that has lost coverage should demonstrate sustained
+ability to complete its current requests before shadowing is restored. Exact margins,
+history length, and priority rules remain to be selected. Hysteresis may delay enabling
+shadows; it cannot keep invalid depths usable after light motion or geometry changes.
+
+A fade-in is possible while complete current shadow data is available. A planned fade-out
+is possible only while current data continues to be supplied, with that work still charged
+to the budget. If current coverage is unexpectedly lost, this policy switches immediately
+to unshadowed illumination. It does not promise a smooth fade using obsolete depths.
+Any temporal approximation would need separate approval of its quality and validity rules.
 
 ## Receivers, casters, and fog
 
@@ -418,9 +499,116 @@ work all belong within bounded resource accounting. Capping a draw count alone i
 correct overflow policy: a silently truncated collection can omit required occluders.
 If complete selection or drawing cannot fit, affected pages cannot be published as valid.
 The response must connect to the agreed detail reduction and light-priority policy and
-the still-open missing-page behavior. Previous associations are reusable only while their
+the proposed missing-page behavior. Previous associations are reusable only while their
 coverage and dependencies remain valid. Exact storage layout, allocation, and overflow
 handling remain undecided.
+
+### Bounded expansion and submission
+
+The proposed scheduler bounds selection work before it produces drawing commands, then
+admits complete page updates. This is a design recommendation; numerical limits, storage
+layout, and scheduling algorithms are not selected. All limits derive from validated
+configuration and hardware constraints. They need not each become a separate public setting.
+
+| Work or storage to bound | What the bound must include |
+| --- | --- |
+| Input preparation | Chunk visits, current geometry descriptions, and native pool groups examined for the work batch |
+| Candidate maintenance | Spatial-search steps and association output, separately from depth-update frequency |
+| Page expansion | Candidate entries visited, page/range intersection checks, duplicate suppression, and temporary output |
+| Indirect submission | Total submitted command slots, including inactive entries, and total compatible groups across destination arrays |
+| Drawing | Geometry/page repetitions, tessellation amplification, baseline geometry-shader work, and estimated raster/material cost |
+| Page replacement | Selected-layer clear work and all metadata needed to publish complete results |
+
+These limits bound identifiable work and storage, not exact GPU milliseconds. Timing
+feedback can adjust estimates without making this frame wait for GPU results. Historical
+estimates may guide scheduling, but cannot prove candidate completeness or page validity.
+
+#### Reuse one terrain command across selected pages
+
+For terrain ranges with compatible drawing state, the recommended command organization
+is one slot per current geometry range and destination array. The GPU supplies a list
+of admitted pages needing that range. The command's instance count is the list length;
+its base-instance field addresses the corresponding page-metadata inputs. Each instance
+uses its own page projection and layer. Zero selected pages produces a zero-instance command.
+
+For example, one range needed by eight pages in the same array can use one command with
+eight page instances. This reduces commands, not the eight repetitions of geometry work.
+Different arrays, incompatible shader/material state, or distinct geometry detail ranges
+still require separate slots. Existing entity/object instancing cannot be repurposed
+without a compatible instance-addressing contract; this recommendation initially concerns
+the terrain command organization.
+
+The existing [indirect command layout](../VanillaGraphicsExpanded/Rendering/GpuIndirectBuffer.cs)
+contains instance count and base instance, and the
+[vertex-input description](../VanillaGraphicsExpanded/Rendering/RHI/Descriptions/RHIVertexAttribute.cs)
+supports instance addressing. The mechanism follows
+[OpenGL base-instance addressing](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_base_instance.txt).
+This establishes API support, not a completed engine geometry adapter or measured speedup.
+
+The CPU can know the number and offsets of submitted command slots from the bounded
+geometry input and destination-array set, without reading GPU page selections. The GPU
+chooses each slot's instance count and metadata offset within supplied storage. Every
+submitted slot is initialized, including inactive ones. Command and instance-reference
+capacities are separate: fewer command slots do not make the page lists unbounded.
+
+#### Bound the whole batch rather than each group independently
+
+The sum of command slots across all groups must fit the submission budget. Giving every
+pool or array the full configured allowance would multiply that allowance by the group
+count. With range-based slots, the conservative command capacity follows the supplied
+range counts and eligible destination arrays; the batch must fit that aggregate before
+submission. This does not require slots for every loaded chunk or every resident page.
+
+Input preparation must itself stay bounded. Use existing chunk references for a bounded
+spatial work region and the authoritative pass-and-atlas table for compatible groups;
+do not scan individual pool allocations for every page or build a reverse pool registry.
+The practical publication strategy and its cost remain to be established. A page can
+be admitted only if its complete required geometry is available within the supplied
+inputs. Reaching an input, group, or command limit cannot silently remove its occluders.
+
+Candidate expansion visits established candidate collections and intersects their fixed
+chunk bounds with requested page coverage before resolving eligible current ranges. It
+does not construct an unconditional product of all pages and all loaded geometry.
+Overlapping receivers must produce at most one occurrence of the same eligible range
+for a page. Visits and duplicate-processing work count against the budget even when
+they produce no draw. Exact deduplication and compaction algorithms remain open.
+
+#### Admit complete pages before clearing or drawing
+
+Rank work using the agreed stable priorities and hysteresis. Expansion for a page must
+establish both complete candidate coverage and all required current geometry, including
+self-shadowing and participating non-terrain casters, before the page can be admitted.
+Count its range/page references and estimated drawing cost against the remaining limits.
+Temporary pair storage, counting, and any second traversal used to emit commands are
+also bounded; a counting pass is not permission for unlimited preprocessing.
+
+```text
+select bounded input and submission groups
+expand page requests in stable priority order within the selection allowance
+admit only pages with complete coverage and sufficient remaining resources
+build range commands and page-instance lists from admitted pages
+clear admitted replacement layers, draw all required geometry, then publish validity
+```
+
+If expansion stops or any output overflows, that page has not demonstrated completeness.
+Exclude it from clear/draw/publication, or abandon its temporary result before rendering.
+Do not use a truncated candidate list or a partially filled draw list as a valid shadow.
+An older page may remain usable only if it independently still represents the current
+light and scene; retaining its allocation is not enough.
+
+Under sustained pressure, reduce requested detail and then apply the established light
+priorities. Lower detail often reduces page count, but does not necessarily reduce the
+geometry intersecting each larger page. A page that still cannot fit requires the chosen
+missing-page/light fallback, not an endlessly retried same-frame expansion. Reconsidering
+requests must itself have bounded work. The proposed missing-page policy withdraws the
+affected light's surface shadows if complete current coverage remains unavailable;
+its adoption and visual acceptance remain open.
+
+Candidate maintenance can be resumed across bounded work slices while its covered light
+movement and dependencies remain valid. Reusing spatial progress does not authorize
+carrying partially rendered depth across changing light projections. Sun, moon, and moving
+point lights all use the same accounting; stationary cache hits are not assumed when
+assessing the baseline budget.
 
 ### Drawing groups remain explicit constraints
 
@@ -662,13 +850,20 @@ clipping. The proposed baseline uses geometry-shader layer routing, instance-att
 metadata selection, and bounded indirect-command intervals. Optional extensions may
 reduce their costs; baseline performance still requires measurement.
 
-The next design topic is bounding command generation and submission work: how to keep
-candidate expansion, array/material groups, and unused command slots affordable for
-moving lights. Multi-array sampling and the supported configuration range remain open.
+The proposed work policy bounds input preparation, candidate expansion, aggregate command
+slots, page instances, and drawing cost separately, admitting complete page updates.
+Terrain range instancing is recommended to reduce command overhead without disguising
+repeated geometry cost. Numerical limits and performance validation remain open.
 
-Bounded spatial search and candidate storage also remain open: how far each light searches,
-how receiving chunks identify their collections, and what happens when a complete collection
-cannot fit. These choices must preserve conservative coverage while supporting infrequent refresh.
+The recommended missing-page policy seeks complete current surface coverage at reduced
+detail before withdrawing a light's shadows, with stable recovery and no stale-depth
+fallback. Adoption, visual acceptance, and the pre-shading demand/readiness contract
+remain open. Multi-array sampling and the supported configuration range also remain open.
+
+The next design topic is bounded spatial search for chunk occlusion candidates, especially
+for directional lights: what defines the relevant world region and how the search remains
+conservative across light movement. Candidate storage and incomplete-search handling must
+preserve that coverage while supporting infrequent refresh.
 
 Other unresolved details include:
 
