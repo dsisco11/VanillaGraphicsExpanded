@@ -52,6 +52,7 @@ The following requirements are established:
 | Shadow page | A tile of the light's projected depth map; it is not a world chunk |
 | Geometry range | The portion of an existing uploaded mesh selected for drawing |
 | Traversability | The engine's information about connected openings between chunk boundary faces |
+| Chunk-grid DDA | Incremental grid traversal that treats each fixed-size world chunk as one cell and advances at cell boundaries |
 | Indirect drawing | Drawing from commands stored in a GPU buffer, allowing compute shaders to choose geometry without the CPU reading the results |
 | Draw batch | Draws submitted together with compatible geometry bindings, shader, material state, and atlas |
 | Physical depth atlas | A depth texture whose rectangular tiles store separately assigned shadow pages |
@@ -143,6 +144,226 @@ justify comparing every loaded chunk against every other loaded chunk. Search bo
 candidate storage, output capacity, and work scheduling remain design decisions within
 the bounded-resource objective.
 
+### Existing spatial ownership
+
+Installed-engine inspection confirmed that `ClientWorldMap.chunks` owns the loaded
+terrain chunks in a dictionary keyed by the engine's chunk index. Its coordinate lookup
+converts XYZ into that index and looks up the dictionary under `chunksLock`; a missing
+entry returns null. `ClientMain.LoadedChunkIndices` copies the dictionary keys into an
+array. That property is not a free, incrementally maintained GPU input and should not
+be called per receiver, light, or shadow page.
+
+Preserve native chunk identity, including dimension-aware Y encoding. GPU input describes
+the existing chunk partitions and their availability; it does not define another mesh-pool
+classification or subdivide terrain. Source-side publication must follow the engine's
+ownership and mutation rules. The exact refresh mechanism remains open; the inspected
+loaded-index getter itself contains no explicit lock. Coordinate-relative GPU arithmetic
+should preserve integer chunk identity, following the project's existing
+[world-origin split](../VanillaGraphicsExpanded/Rendering/FrameWorldSpaceBridge.cs).
+
+The [spatial inspection receipt](../artifacts/virtual-shadow-maps/chunk-spatial-inspection.txt)
+records the installed assembly identity, hash, fields, and relevant lookup IL. This
+establishes available engine relationships, not a completed GPU publication mechanism.
+
+### Search domain and completeness
+
+Receiver coverage and caster search distance are different. Choosing to shadow receivers
+near the camera does not justify excluding distant chunks that can shadow them. In
+particular, low sun angles can make distant terrain relevant to nearby receivers.
+
+The proposed finite terrain domain follows the engine's available chunk coverage in the
+relevant dimension, with a conservative bounding region enclosing it. The exact publication
+of that domain remains open. It must include available offscreen chunks and must not shrink
+to the subset visited by a work batch merely to make that batch appear complete. Within
+this domain, do not impose a second arbitrary caster-distance cutoff. The actual search
+visits only grid cells that may intersect the light/receiver relationship described below.
+
+Completeness is relative to this declared world-data domain. Terrain outside available
+world coverage cannot be reconstructed from chunk boxes; stopping at its boundary is a
+world-data limitation, not proof that farther terrain cannot cast a shadow. Adoption of
+this available-world boundary and its visible behavior remain quality decisions. A shorter
+caster horizon would be a separate approximation requiring explicit discussion.
+
+Within the declared domain, distinguish known empty chunks from unavailable information.
+A missing lookup, pending geometry, or stale classification is not proof of emptiness.
+Keep a potentially relevant unknown cell in the spatial result or record unresolved
+coverage. It cannot establish that a page has complete drawable occluders. Known world
+boundaries may terminate search only according to the engine's dimension/world contract.
+
+### Conservative regions for directional and point lights
+
+Let the receiving region be the chunk's fixed partition box, with any additional demand
+needed to cover actual shadow filtering handled explicitly. Let the light coverage be
+the full angular or positional interval for which the associations will be reused.
+Candidate chunk boxes are never replaced with mesh AABBs.
+
+| Light | Conservative region that can contain an occluder |
+| --- | --- |
+| Sun or moon | All rays starting in the receiving region and travelling toward the light over every direction in the covered angular interval, restricted to the declared world-data domain |
+| Moving point light | All segments between points in the receiving region and positions in the light's covered movement region, restricted to the declared world-data domain |
+
+For a directional light, this is a swept region extending toward the light, not a single
+ray from the receiving chunk's center. Bound the entire angular interval, including its
+interior; testing only the current direction or interval endpoints is insufficient unless
+their bounds are proven to enclose that whole interval. Near-horizontal directions must
+remain valid inputs: use the finite domain boundary rather than a division by sun elevation
+to impose a convenient distance cap. Sun and moon calculate their regions independently.
+
+For a point light, convex boxes for the receiver and source movement region give a useful
+conservative construction: the convex hull of those boxes contains every relevant segment.
+A grid-search bound can enclose that hull without examining mesh geometry. Geometry beyond
+the source along a receiver-to-light ray is not required merely because it is on the same
+infinite line. Include the receiver and source chunks when their boxes intersect the region.
+
+This point-light search is finite for bounded receiver and source regions even without
+assuming a finite illumination cutoff. The existing
+[light publication](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/vge_lights_ubo.glsl)
+contains positions and colors, not an explicit range. Any influence-radius rejection must
+be derived from an agreed lighting/shadow-coverage contract, not invented from that buffer.
+
+### GPU chunk-grid DDA and bounded continuation
+
+Treat each fixed-size chunk as one voxel of the traversal grid. Chunk XYZ coordinates
+are already its integer cell coordinates; traversal operates at chunk resolution and
+does not descend into the chunk's individual blocks or mesh triangles. DDA is the
+recommended starting traversal primitive: initialize distances to upcoming grid boundaries,
+then advance incrementally between cells instead of repeatedly testing every loaded chunk.
+The classic reference is
+[Amanatides and Woo, A Fast Voxel Traversal Algorithm for Ray Tracing](https://www.eecs.yorku.ca/~amana/research/grid.pdf).
+
+Ordinary ray DDA enumerates cells along one ray. Our association represents all potentially
+occluding paths for a receiving chunk over a light-movement interval. A center ray, or a
+few rays through box corners, does not by itself cover that volume. The proposed adaptation
+combines incremental grid-boundary stepping with conservative beam/slice coverage: enumerate
+every chunk cell touched by the bounded cross-section of the swept region at each step.
+The concrete candidate below uses a dominant-axis slab sweep. It is a proposed volume
+adaptation requiring correctness and performance validation; it is not the classic
+single-ray algorithm applied unchanged.
+
+For directional lights, that coverage includes the receiving box and the full angular
+interval. For point lights, it includes the receiver-to-source movement volume. Slice
+selection and rejection may admit extra cells, but must not leave gaps between sampled
+paths. Boundary ties at edges/corners, rays lying on grid planes, zero direction components,
+negative coordinates, and entry/exit rounding need explicit conservative treatment.
+Chunk-coordinate arithmetic and bounded relative positions preserve the existing world-origin
+convention; a camera-origin shift does not change the identity of a cached association.
+
+DDA remains in active use, including hierarchical variants in
+[OpenVDB's traversal implementation](https://www.openvdb.org/documentation/doxygen/DDA_8h_source.html).
+There is no established fastest variant for this workload. Start with the existing uniform
+chunk grid; a hierarchy for skipping larger empty regions would require evidence that its
+savings justify storage and update costs. No new hierarchy or mesh-pool registry is required
+by this recommendation. GPU memory access, duplicate candidate visits, workgroup divergence,
+and the width of conservative light coverage must be measured alongside stepping cost.
+
+#### Candidate algorithm: one-chunk-thick slab sweep
+
+Work in chunk-grid units, so each chunk occupies one unit cell. Select a sweep axis and
+advance one cell boundary at a time along it. Each slab is one chunk thick. For the
+entire slab, compute a conservative rectangle on the other two axes, then enumerate its
+integer chunk cells. Bounds evaluated only at a slab center are insufficient. A chunk
+belongs to one owning slab, so the sweep does not repeatedly output it just because a
+wide beam overlaps successive reference-ray steps.
+
+This preserves incremental DDA-style stepping while making volume coverage explicit.
+The rectangle may contain false positives. A subsequent box/volume test may remove them
+only if conservative; such a test is an optimization, not a prerequisite for correctness.
+
+#### Directional-light slab bounds
+
+Choose an axis whose direction component has a fixed sign and a positive lower bound
+in magnitude throughout the covered direction set. Prefer a dominant component so
+transverse slopes stay bounded. If no single axis satisfies that condition over the
+whole movement interval, partition the direction set into covering subsets and union
+their results. Do not drop directions to make axis selection easier. For example, the
+six signed dominant-axis regions cover all unit directions; each region has a nonzero
+component along its selected axis. Overlap between subsets requires deduplication.
+
+Measure the selected axis toward the light, calling that coordinate q. For receiver
+extent [r0, r1] along q and slab extent [q0, q1], relevant forward displacement h lies in:
+
+```text
+hMin = max(0, q0 - r1)
+hMax = q1 - r0
+skip the slab if hMax < hMin
+```
+
+For each transverse axis, bound its direction component divided by the positive
+lightward component over the entire direction subset. This gives a slope interval.
+The transverse rectangle is the receiver interval plus the interval product of
+[hMin, hMax] and that slope interval. Use the minimum and maximum of the four endpoint
+products; a slope may be negative or cross zero. Direction bounds must cover the full
+angular interval, not just sampled directions. Outward rounding protects the resulting
+cell ranges. No calculation divides by sun elevation specifically.
+
+This is conservative because every relevant point in the slab has a receiver origin,
+a forward displacement in the bounded interval, and transverse slopes in the covered
+direction set. Ignoring correlations between those quantities adds possible candidates
+without removing real ones. Slabs end at the declared domain boundary, not when a
+representative center ray leaves it.
+
+#### Point-light slab bounds
+
+For receiver box R and source-position box S, parameterize the segment volume by u
+between zero and one. At fixed u, its coordinate bounds are the componentwise linear
+interpolations of R and S. Choose a sweep axis with a useful hull extent, preferably
+the largest center separation; coincident centers do not require a direction division.
+
+For each slab, restrict u to the interval where the interpolated axial box overlaps
+that slab. This is the intersection of [0, 1] with two linear inequalities: the box's
+lower axial bound is at most the slab's upper boundary, and its upper axial bound is
+at least the slab's lower boundary. Handle zero coefficients as constant inequalities.
+If the interval is empty, skip the slab. Otherwise, bound each transverse coordinate
+using the endpoint values of its linear lower and upper bounds over that interval.
+
+The rectangle encloses all segment points in the slab because linear functions attain
+their extrema at the interval endpoints. This also handles overlapping source/receiver
+boxes and lights inside a receiving chunk. It does not extend the search beyond the
+segment volume by treating point-light paths as infinite rays.
+
+#### Boundary ownership and pausing
+
+Enumerate every cell whose fixed box touches a computed closed interval. In exact
+chunk-coordinate arithmetic, a transverse interval [lo, hi] admits cell indices from
+ceil(lo) - 1 through floor(hi), inclusive, before clipping to the domain. This includes
+both neighbors at an exact boundary. Floating-point implementations need outward error
+bounds as well; an arbitrary inward epsilon is not acceptable. Signed-axis reflection,
+negative coordinates, and the initial/final slab must follow the same coverage convention.
+
+A work slice limits both slab advances and enumerated cells. A broad slab must be
+resumable within its rectangle, not processed unconditionally as one unit of work.
+Retain the direction-subset identifier, slab index, transverse cell cursor, and input
+generation needed to resume. Revalidate light coverage, domain availability, and any
+pruning dependencies before publication. Intermediate counts and output capacity remain
+bounded; subset deduplication work also counts against the allowance.
+
+```text
+establish receiver coverage, covered light movement, and world-data domain
+choose covering sweep directions and compute conservative slope/segment bounds
+advance slabs and enumerate their rectangles within the work allowance
+retain candidates or unresolved coverage; save the exact cursor when paused
+publish only after all required slabs and direction subsets are complete
+```
+
+Empty cells can be skipped when emptiness is current, but do not terminate traversal.
+Connectivity may prune farther search only under the conservative rules below; encountering
+a nonempty chunk alone does not prove that it blocks all relevant light paths. The blocking
+chunk itself remains an occluder candidate.
+
+A search that exhausts its work or output allowance is unfinished, not complete with a
+shorter horizon. Continue it in bounded slices while its covered light movement and
+dependencies remain valid, or reject the affected update through the proposed overload
+policy. Broader angular/positional intervals trade less frequent regeneration for larger
+candidate sets; intervals and refresh scheduling must be evaluated together. No finite
+degree or movement threshold is selected here.
+
+Chunk availability changes require reconsideration of associations whose swept region
+intersects the changed partition, including newly loaded potential occluders. Previously
+completed associations cannot remain valid solely because the light stayed in its interval.
+The affected-collection lookup and publication strategy remain open; neither implies a
+reverse mesh-pool registry. New page uses and filter-neighbor samples must have association
+coverage for their full receiving footprint before claiming the page is valid for them.
+
 ### Reuse across light movement
 
 Candidate associations and shadow depths have different lifetimes. A changed light
@@ -157,8 +378,9 @@ The interval widths and selection method remain open; no specific degree thresho
 been selected.
 
 For moving point lights, the corresponding candidate is a bounded region of source
-positions with a defined influence range. The precise positional coverage and refresh
-policy remain open. This must support carried lights as a primary workload.
+positions, combined with bounded receiver demand. Any influence cutoff must agree with
+the lighting/coverage contract. The precise positional coverage and refresh policy remain
+open. This must support carried lights as a primary workload.
 
 | Change | Consequence |
 | --- | --- |
@@ -860,10 +1082,14 @@ detail before withdrawing a light's shadows, with stable recovery and no stale-d
 fallback. Adoption, visual acceptance, and the pre-shading demand/readiness contract
 remain open. Multi-array sampling and the supported configuration range also remain open.
 
-The next design topic is bounded spatial search for chunk occlusion candidates, especially
-for directional lights: what defines the relevant world region and how the search remains
-conservative across light movement. Candidate storage and incomplete-search handling must
-preserve that coverage while supporting infrequent refresh.
+The proposed spatial search uses swept directional rays or point-light segments over the
+covered movement interval. The concrete traversal candidate advances one-chunk-thick
+slabs, enclosing the complete swept cross-section at each step, with resumable cell
+enumeration. Its correctness and performance remain to be validated. It introduces no
+arbitrary caster-distance cap within the declared world-data domain. The
+next concrete decision is the available-world boundary: which engine-published coverage
+defines that domain, and what quality policy applies at streaming gaps and its outer edge.
+Candidate storage, publication, and interval sizing remain open.
 
 Other unresolved details include:
 
