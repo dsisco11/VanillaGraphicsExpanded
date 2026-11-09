@@ -12,12 +12,15 @@ public sealed class ShaderBindingMigrationTests
     [Fact]
     public void ProductionTextureBindingsDoNotCarryUniformLocations()
     {
+        // Arrange: Restrict the scan to the generated production scope.
+        // Act: Collect sampler/image names that also claim locations.
         var redundant = GeneratedShaderCatalog.Programs("production")
             .SelectMany(program => program.Stages).DistinctBy(stage => stage.Identity)
             .SelectMany(stage => stage.Bindings.Samplers.Keys.Concat(stage.Bindings.Images.Keys)
                 .Where(name => stage.Bindings.UniformLocations.ContainsKey(name))
                 .Select(name => $"{stage.Identity}: {name}"))
             .Order(StringComparer.Ordinal).ToArray();
+        // Assert: Opaque resource slots carry no legacy uniform-location metadata.
         Assert.Empty(redundant);
     }
 
@@ -25,12 +28,14 @@ public sealed class ShaderBindingMigrationTests
     [Fact]
     public void GeneratedBindingsMatchApprovedSubmissionLayouts()
     {
-
+        // Arrange: Load the checked-in contract fingerprint and enumerate every supported scope.
         string[] expected = TestAssetSnapshot.Built.Lines("test-inputs/baselines/ShaderBindingMigrationBaseline.txt");
+        // Act: Canonicalize each generated stage's resource and interface locations.
         string[] actual = new[] { "production", "build-validation", "generator-fixture" }.SelectMany(scope =>
             GeneratedShaderCatalog.Programs(scope).SelectMany(p => p.Stages).DistinctBy(s => s.Identity)
                 .Select(stage => scope + "|" + stage.Identity + "|" + Fingerprint(stage.Bindings)))
             .Order(StringComparer.Ordinal).ToArray();
+        // Assert: The generated bindings match the independently frozen layout rows.
         Assert.Equal(expected, actual);
     }
 
@@ -38,8 +43,10 @@ public sealed class ShaderBindingMigrationTests
     [Fact]
     public void BindingDeclarationsAndImportsHaveOnlyInterfaceOwners()
     {
+        // Arrange: Inspect only declarations owned by each type so inherited metadata cannot hide misplaced attributes.
         var types = typeof(GpuBindingContract).Assembly.GetTypes();
         int declarations = 0;
+        // Act: Walk declared properties and binding-set imports across the production assembly.
         foreach (var type in types)
         {
             // Inspect declared properties only, so inherited API does not obscure the actual
@@ -57,6 +64,7 @@ public sealed class ShaderBindingMigrationTests
                 Assert.True(owner.IsInterface, $"Binding import on {type.FullName} still references class {owner.FullName}.");
             }
         }
+        // Assert: Every declared binding and import belongs to an interface, and the scan covered real metadata.
         Assert.True(declarations > 0);
     }
     #endregion

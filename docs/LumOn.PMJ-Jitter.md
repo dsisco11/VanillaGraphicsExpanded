@@ -100,7 +100,7 @@ Practical checks if jitter “does nothing” or looks wrong:
 
 Automated regression coverage:
 
-- `VanillaGraphicsExpanded.Tests/GPU/PmjJitterTextureUploadTests.cs` validates:
+- `VanillaGraphicsExpanded.Tests/Integration/Rendering/PmjJitterTextureUploadTests.cs` validates:
   - the texture is created as `RG16` with expected dimensions
   - GPU readback matches CPU packing for a fixed seed
 

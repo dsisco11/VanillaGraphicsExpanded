@@ -6,36 +6,24 @@ using VanillaGraphicsExpanded.LumOn.WorldProbes;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 
+/// <summary>Checks origin snapping, ring-buffer shifts, and probe storage preservation in the scheduler.</summary>
 public sealed class WorldProbeSchedulerOriginShiftTests
 {
-    private static int Wrap(int i, int n) => ((i % n) + n) % n;
-
-    private static Vec3i Wrap(Vec3i v, int n) => new(
-        Wrap(v.X, n),
-        Wrap(v.Y, n),
-        Wrap(v.Z, n));
-
-    private static int EncodeLocal(Vec3i local, int resolution) =>
-        local.X + local.Y * resolution + local.Z * resolution * resolution;
-
-    private static int Linear(Vec3i v, int resolution) =>
-        v.X + v.Y * resolution + v.Z * resolution * resolution;
-
-    private static bool IsInBounds(Vec3i local, int resolution) =>
-        (uint)local.X < (uint)resolution &&
-        (uint)local.Y < (uint)resolution &&
-        (uint)local.Z < (uint)resolution;
-
+    #region Public API
+    #region Anchor movement and events
+    /// <summary>Verifies that moving within the same anchor cell preserves the origin and ring offset.</summary>
     [Fact]
     public void UpdateOrigins_DoesNotShiftWithinSameAnchorCell()
     {
+        // Arrange
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: 8);
         const double baseSpacing = 4.0;
-
         scheduler.UpdateOrigins(new Vec3d(1.0, 2.0, 3.0), baseSpacing);
+        // Assert
         Assert.True(scheduler.TryGetLevelParams(0, out var origin0, out var ring0));
 
         // Still within the same snapped cell for spacing=4.
+        // Act and Assert
         scheduler.UpdateOrigins(new Vec3d(3.99, 2.0, 3.0), baseSpacing);
         Assert.True(scheduler.TryGetLevelParams(0, out var origin1, out var ring1));
 
@@ -48,17 +36,20 @@ public sealed class WorldProbeSchedulerOriginShiftTests
         Assert.Equal(ring0.Z, ring1.Z);
     }
 
+    /// <summary>Verifies that crossing the shift threshold advances the origin and wraps the ring offset.</summary>
     [Fact]
     public void UpdateOrigins_ShiftsAfterTwoWorldVoxels_UpdatesRingOffsetAndOrigin()
     {
+        // Arrange
         const int resolution = 8;
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution);
         const double baseSpacing = 4.0;
-
         scheduler.UpdateOrigins(new Vec3d(0.0, 0.0, 0.0), baseSpacing);
         Assert.True(scheduler.TryGetLevelParams(0, out var origin0, out var ring0));
 
+        // Act
         scheduler.UpdateOrigins(new Vec3d(4.01, 0.0, 0.0), baseSpacing);
+        // Assert
         Assert.True(scheduler.TryGetLevelParams(0, out var origin1, out var ring1));
 
         // One-probe shift in +X means the ring offset shifts by +1 (wrapped).
@@ -70,9 +61,11 @@ public sealed class WorldProbeSchedulerOriginShiftTests
         Assert.Equal(origin0.X + baseSpacing, origin1.X, 10);
     }
 
+    /// <summary>Verifies that each anchor shift reports its level, delta, snapped anchor, origin, and ring offsets.</summary>
     [Fact]
     public void UpdateOrigins_ShiftEmitsAnchorShiftedEvent()
     {
+        // Arrange
         const int resolution = 8;
         const double baseSpacing = 4.0;
 
@@ -84,12 +77,13 @@ public sealed class WorldProbeSchedulerOriginShiftTests
         // First-time init should not fire.
         scheduler.UpdateOrigins(new Vec3d(0.0, 0.0, 0.0), baseSpacing);
         Assert.Empty(events);
-
         Assert.True(scheduler.TryGetLevelParams(0, out var origin0, out var ring0));
 
         // Shift by +1 probe cell in X after crossing the grid boundary.
+        // Act
         scheduler.UpdateOrigins(new Vec3d(4.01, 0.0, 0.0), baseSpacing);
 
+        // Assert
         Assert.Single(events);
         var ev = events[0];
 
@@ -115,56 +109,65 @@ public sealed class WorldProbeSchedulerOriginShiftTests
         Assert.Equal(ring1, ev.NewRingOffset);
     }
 
+    /// <summary>Verifies that movement near a block boundary triggers shifts only after crossing the deadband.</summary>
     [Fact]
     public void UpdateOrigins_DoesNotOscillateAcrossAdjacentBlockBoundary()
     {
+        // Arrange
         const double baseSpacing = 4.0;
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: 8);
         var events = new List<LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>();
         scheduler.AnchorShifted += e => events.Add(e);
-
         scheduler.UpdateOrigins(new Vec3d(0.0, 0.0, 0.0), baseSpacing);
 
         // Crossing the block boundary at X=4 repeatedly must not reanchor the clipmap.
+        // Act
         scheduler.UpdateOrigins(new Vec3d(3.99, 0.0, 0.0), baseSpacing);
         scheduler.UpdateOrigins(new Vec3d(4.01, 0.0, 0.0), baseSpacing);
         scheduler.UpdateOrigins(new Vec3d(3.99, 0.0, 0.0), baseSpacing);
         scheduler.UpdateOrigins(new Vec3d(4.01, 0.0, 0.0), baseSpacing);
-
+        // Assert
         Assert.Single(events);
         Assert.Equal(new Vec3i(1, 0, 0), events[0].DeltaProbes);
 
         // The fixed two-voxel deadband prevents any subsequent reanchor near the boundary.
+        // Act and Assert
         scheduler.UpdateOrigins(new Vec3d(2.01, 0.0, 0.0), baseSpacing);
         Assert.Single(events);
 
         // Moving more than two base-game voxels from the new anchor shifts back once.
+        // Act and Assert
         scheduler.UpdateOrigins(new Vec3d(1.99, 0.0, 0.0), baseSpacing);
         Assert.Equal(2, events.Count);
         Assert.Equal(new Vec3i(-1, 0, 0), events[1].DeltaProbes);
     }
 
+    /// <summary>Verifies that every clipmap level uses the two-base-voxel hysteresis threshold.</summary>
     [Fact]
     public void UpdateOrigins_UsesTwoBaseVoxelsForEveryClipmapLevel()
     {
+        // Arrange
         const double baseSpacing = 4.0;
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 2, resolution: 8);
         var events = new List<LumOnWorldProbeScheduler.WorldProbeAnchorShiftEvent>();
         scheduler.AnchorShifted += e => events.Add(e);
-
         scheduler.UpdateOrigins(new Vec3d(0.0, 0.0, 0.0), baseSpacing);
+        // Act
         scheduler.UpdateOrigins(new Vec3d(8.01, 0.0, 0.0), baseSpacing);
-
+        // Assert
         Assert.Contains(events, e => e.Level == 1 && e.DeltaProbes == new Vec3i(1, 0, 0));
 
         events.Clear();
 
         // L1 spacing is 8 voxels. Returning by 2.01 voxels must still reanchor.
+        // Act and Assert
         scheduler.UpdateOrigins(new Vec3d(5.99, 0.0, 0.0), baseSpacing);
-
         Assert.Contains(events, e => e.Level == 1 && e.DeltaProbes == new Vec3i(-1, 0, 0));
     }
+    #endregion
 
+    #region Ring storage and invalidation
+    /// <summary>Verifies that ring shifts preserve storage values for every probe in the overlapping volume.</summary>
     [Theory]
     [InlineData(+1, 0, 0)]
     [InlineData(-1, 0, 0)]
@@ -176,12 +179,14 @@ public sealed class WorldProbeSchedulerOriginShiftTests
     [InlineData(+1, +1, 0)]
     public void UpdateOrigins_ShiftPreservesOverlappingStorageMapping(int dx, int dy, int dz)
     {
+        // Arrange
         const int resolution = 8;
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution);
         const double baseSpacing = 4.0;
 
         // Initial state at ring=0.
         scheduler.UpdateOrigins(new Vec3d(0.0, 0.0, 0.0), baseSpacing);
+        // Assert
         Assert.True(scheduler.TryGetLevelParams(0, out _, out var ring0));
 
         // Simulate "probe data stored in ring buffer storage coords".
@@ -209,6 +214,7 @@ public sealed class WorldProbeSchedulerOriginShiftTests
             < 0 => (delta * spacing) + 0.01,
             _ => 0.0
         };
+        // Act and Assert
         scheduler.UpdateOrigins(
             new Vec3d(
                 HystereticCoordinate(dx, baseSpacing),
@@ -244,9 +250,11 @@ public sealed class WorldProbeSchedulerOriginShiftTests
         }
     }
 
+    /// <summary>Verifies that invalidating in-flight probes leaves them dirty after successful completion.</summary>
     [Fact]
     public void MarkDirtyWorldAabb_WhenProbeInFlight_MarksDirtyAfterComplete()
     {
+        // Arrange
         const int resolution = 4;
         const double baseSpacing = 2.0;
 
@@ -267,7 +275,6 @@ public sealed class WorldProbeSchedulerOriginShiftTests
             traceMaxProbesPerFrame: probesPerLevel,
             uploadBudgetBytesPerFrame: int.MaxValue,
             atlasTexelsPerUpdate: 32);
-
         Assert.Equal(probesPerLevel, requests.Count);
 
         for (int i = 0; i < requests.Count; i++)
@@ -278,25 +285,28 @@ public sealed class WorldProbeSchedulerOriginShiftTests
         // Invalidate the whole clip volume while probes are in-flight.
         Assert.True(scheduler.TryGetLevelParams(0, out var originMin, out _));
         double size = baseSpacing * resolution;
+        // Act
         scheduler.MarkDirtyWorldAabb(0, originMin, new Vec3d(originMin.X + size, originMin.Y + size, originMin.Z + size), baseSpacing);
 
         // Completing an in-flight probe should yield Dirty, not Valid.
         var req = requests[0];
         scheduler.Complete(req, frameIndex: 2, success: true);
 
+        // Assert
         var states = new LumOnWorldProbeLifecycleState[probesPerLevel];
         Assert.True(scheduler.TryCopyLifecycleStates(0, states));
         Assert.Equal(LumOnWorldProbeLifecycleState.Dirty, states[req.StorageLinearIndex]);
     }
 
+    /// <summary>Verifies that a shifted slab is re-enabled as dirty even when its storage cell was disabled.</summary>
     [Fact]
     public void UpdateOrigins_ShiftMarksIntroducedSlabsDirty_EvenIfPreviouslyDisabled()
     {
+        // Arrange
         const int resolution = 4;
         const double baseSpacing = 4.0;
 
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution);
-
         scheduler.UpdateOrigins(new Vec3d(0.0, 0.0, 0.0), baseSpacing);
 
         // Disable a storage cell that will be re-used by the introduced X slab after a +X shift.
@@ -315,8 +325,10 @@ public sealed class WorldProbeSchedulerOriginShiftTests
             StorageLinearIndex: disabledLinear));
 
         // Shift by +1 probe cell in X after crossing the grid boundary.
+        // Act
         scheduler.UpdateOrigins(new Vec3d(baseSpacing + 0.01, 0.0, 0.0), baseSpacing);
 
+        // Assert
         var states = new LumOnWorldProbeLifecycleState[scheduler.ProbesPerLevel];
         Assert.True(scheduler.TryCopyLifecycleStates(0, states));
 
@@ -324,4 +336,31 @@ public sealed class WorldProbeSchedulerOriginShiftTests
         Assert.True(scheduler.TryGetImportanceFlags(0, disabledLinear, out var flags));
         Assert.Equal(LumOnWorldProbeImportanceFlags.None, flags);
     }
+    #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Returns a nonnegative remainder for wrapping one index into ring storage.</summary>
+    private static int Wrap(int i, int n) => ((i % n) + n) % n;
+
+    /// <summary>Wraps each coordinate of a vector into the ring storage range.</summary>
+    private static Vec3i Wrap(Vec3i v, int n) => new(
+        Wrap(v.X, n),
+        Wrap(v.Y, n),
+        Wrap(v.Z, n));
+
+    /// <summary>Encodes a local clipmap coordinate as a linear probe index.</summary>
+    private static int EncodeLocal(Vec3i local, int resolution) =>
+        local.X + local.Y * resolution + local.Z * resolution * resolution;
+
+    /// <summary>Encodes a ring storage coordinate as a linear index.</summary>
+    private static int Linear(Vec3i v, int resolution) =>
+        v.X + v.Y * resolution + v.Z * resolution * resolution;
+
+    /// <summary>Reports whether all coordinates lie inside the clipmap extent.</summary>
+    private static bool IsInBounds(Vec3i local, int resolution) =>
+        (uint)local.X < (uint)resolution &&
+        (uint)local.Y < (uint)resolution &&
+        (uint)local.Z < (uint)resolution;
+    #endregion
 }

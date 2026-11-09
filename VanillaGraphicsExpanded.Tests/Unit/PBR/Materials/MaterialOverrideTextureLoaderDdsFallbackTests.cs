@@ -7,12 +7,16 @@ using VanillaGraphicsExpanded.PBR.Materials.Cache;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.PBR.Materials;
 
+/// <summary>Checks the loader's fallback to linear RGBA16 UNORM data when BC decoding is unavailable.</summary>
 [Trait("Category", "Unit")]
 public sealed class MaterialOverrideTextureLoaderDdsFallbackTests
 {
+    #region Public API
+    /// <summary>Decodes a DX10 RGBA16 DDS after the preferred BC path cannot supply the image.</summary>
     [Fact]
     public void DecodeDdsBytes_FallsBackToRgba16UnormDx10_WhenBcDecodeFails()
     {
+        // Arrange: encode a 16-bit DX10 payload with endpoint channel values.
         using var stream = new MemoryStream();
 
         const int width = 4;
@@ -32,7 +36,11 @@ public sealed class MaterialOverrideTextureLoaderDdsFallbackTests
 
         byte[] bytes = stream.ToArray();
 
-        Assert.True(MaterialOverrideTextureLoader.TryDecodeDdsBytes(bytes, out var img, out string? reason, width, height), reason);
+        // Act: decode through the loader's format-selection path.
+        bool decoded = MaterialOverrideTextureLoader.TryDecodeDdsBytes(bytes, out var img, out string? reason, width, height);
+
+        // Assert: the fallback selects the 16-bit format and keeps its endpoint values intact.
+        Assert.True(decoded, reason);
         Assert.False(img.IsEmpty);
         Assert.Equal(width, img.Width);
         Assert.Equal(height, img.Height);
@@ -43,4 +51,5 @@ public sealed class MaterialOverrideTextureLoaderDdsFallbackTests
         Assert.Equal((ushort)0, BinaryPrimitives.ReadUInt16LittleEndian(img.Bytes.AsSpan(0, 2)));
         Assert.Equal((ushort)65535, BinaryPrimitives.ReadUInt16LittleEndian(img.Bytes.AsSpan(2, 2)));
     }
+    #endregion
 }

@@ -5,17 +5,21 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 /// <summary>Checks that routing retirement revokes admissions without invalidating unrelated retained probes.</summary>
 public sealed class WorldProbeSchedulerRetirementTests
 {
+    #region Public API
     /// <summary>Queued and running tickets become dirty and reschedulable while idle valid history stays valid.</summary>
     [Fact]
     public void RetirementRevokesOutstandingTicketsAndPreservesIdleValidState()
     {
+        // Arrange
         var scheduler=new LumOnWorldProbeScheduler(1,2);
         scheduler.UpdateOrigins(new(0,0,0),1);
         var all=scheduler.BuildUpdateList(0,new(0,0,0),1,[8],8,int.MaxValue,1);
         Assert.Equal(8,all.Count);
         scheduler.Complete(all[0],0,true);
         Assert.True(scheduler.TryClaim(all[1],0));
+        // Act
         scheduler.RetireOutstanding(1);
+        // Assert
         var states=new LumOnWorldProbeLifecycleState[8];
         Assert.True(scheduler.TryCopyLifecycleStates(0,states));
         Assert.Equal(LumOnWorldProbeLifecycleState.Valid,states[all[0].StorageLinearIndex]);
@@ -34,4 +38,5 @@ public sealed class WorldProbeSchedulerRetirementTests
             Assert.True(scheduler.TryClaim(current,1));
         }
     }
+    #endregion
 }

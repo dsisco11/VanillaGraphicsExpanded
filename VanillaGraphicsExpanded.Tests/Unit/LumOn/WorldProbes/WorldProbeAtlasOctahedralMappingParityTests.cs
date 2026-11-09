@@ -7,11 +7,11 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 
+/// <summary>Checks that CPU atlas directions round-trip through the shader-compatible octahedral mapping.</summary>
 public sealed class WorldProbeAtlasOctahedralMappingParityTests
 {
-    // Matches the default in shaders (VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE).
-    private const int WorldProbeOctahedralSize = 16;
-
+    #region Public API
+    /// <summary>Verifies each texel-center direction maps back to its original atlas index.</summary>
     [Fact]
     public void TexelCenterDirections_RoundTrip_BackToSameTexelIndex()
     {
@@ -19,22 +19,29 @@ public sealed class WorldProbeAtlasOctahedralMappingParityTests
         // - lumonDirectionToOctahedralUV() in lumon_octahedral.glsl
         // - ivec2(uv * LUMON_WORLDPROBE_OCTAHEDRAL_SIZE_F) in lumon_worldprobe.glsl
         // when directions are taken from texel centers.
-
+        // Arrange
         int s = WorldProbeOctahedralSize;
 
         for (int y = 0; y < s; y++)
         {
             for (int x = 0; x < s; x++)
             {
+        // Act
                 Vector3 dir = LumOnWorldProbeAtlasDirections.GetDirectionForTexelCenter(s, x, y);
                 (int rx, int ry) = DirectionToOctahedralTexel_GlslParity(dir, s);
-
+        // Assert
                 Assert.Equal(x, rx);
                 Assert.Equal(y, ry);
             }
         }
     }
+    #endregion
 
+    #region Private
+    // Matches the default in shaders (VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE).
+    private const int WorldProbeOctahedralSize = 16;
+
+    /// <summary>Applies the shader-compatible UV mapping and clamps the resulting texel index.</summary>
     private static (int x, int y) DirectionToOctahedralTexel_GlslParity(Vector3 dir, int size)
     {
         Vector2 uv = DirectionToOctahedralUv_GlslParity(dir);
@@ -48,6 +55,7 @@ public sealed class WorldProbeAtlasOctahedralMappingParityTests
         return (x, y);
     }
 
+    /// <summary>Maps a direction to octahedral UV using the shader's sign and folding rules.</summary>
     private static Vector2 DirectionToOctahedralUv_GlslParity(Vector3 dir)
     {
         // Parity implementation of lumonDirectionToOctahedralUV() from lumon_octahedral.glsl.
@@ -82,4 +90,5 @@ public sealed class WorldProbeAtlasOctahedralMappingParityTests
         // Map from [-1,1] to [0,1]
         return new Vector2(u * 0.5f + 0.5f, v * 0.5f + 0.5f);
     }
+    #endregion
 }

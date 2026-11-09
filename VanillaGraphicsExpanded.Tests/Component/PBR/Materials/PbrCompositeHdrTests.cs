@@ -1,0 +1,289 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Collections.Immutable;
+using System.Numerics;
+using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.Liquids;
+using VanillaGraphicsExpanded.PBR.Materials;
+
+
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+namespace VanillaGraphicsExpanded.Tests.Component.PBR.Materials;
+/// <summary>Constrains lighting composition before the separate display resolve.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
+{
+    #region Public API
+    /// <summary>Uses the shared graphics context.</summary>
+    public PbrCompositeHdrTests(HeadlessGLFixture fixture) : base(fixture) { }
+
+    #region Scene-linear composition
+    /// <summary>Actual composite publication encodes only finite representable physical pairs, including restored overlay data.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReceiverPublicationEncodesColorValidityInDepth(bool restoredOverlay)
+    {
+        // Arrange: Select ordinary or restored overlay receiver data and include finite, invalid, and out-of-range pairs.
+        // Act and assert: Run production composite publication and verify depth carries color-validity state only for representable pairs.
+        EnsureShaderTestAvailable();
+        var program = Programs.Create<PBRCompositeShaderProgram>(p =>
+        {
+            p.LumOnEnabled = false; p.EnablePbrComposite = false; p.EnableShortRangeAo = false;
+        });
+        const int count = 10;
+        float[] red = [6, 65504, 65520, float.PositiveInfinity, 6, 6, 6, 6, 6, restoredOverlay ? float.NaN : 0];
+        float[] alpha = [1, 1, 1, 1, 0, float.NaN, float.PositiveInfinity, 1, 1, 1];
+        float[] receiverDepth = [.75f, .75f, .75f, .75f, .75f, .75f, .75f, 1, float.NaN, .75f];
+        float[] colorData = Enumerable.Range(0, count).SelectMany(i => new[] { red[i], 3f, 2f, alpha[i] }).ToArray();
+        using var color = TestFramework.CreateTexture(count, 1, TextureFormat.Rgba32f, colorData);
+        using var zero = TestFramework.CreateTexture(count, 1, TextureFormat.Rgba32f, new float[count * 4]);
+        using var depth = TestFramework.CreateTexture(count, 1, TextureFormat.R32f,
+            restoredOverlay ? Enumerable.Repeat(.01f, count).ToArray() : receiverDepth);
+        using var restoredDepth = TestFramework.CreateTexture(count, 1, TextureFormat.R32f, receiverDepth);
+        using var normal = TestFramework.CreateTexture(count, 1, TextureFormat.Rgba32f,
+            Enumerable.Range(0, count).SelectMany(i => new[] { .5f, .5f, 1f, restoredOverlay || i == 4 ? -1f : 1f }).ToArray());
+        using var position = TestFramework.CreateTexture(count, 1, TextureFormat.Rgba32f,
+            Enumerable.Range(0, count).SelectMany(_ => new[] { 0f, 0f, -2f, 1f }).ToArray());
+        using var output = CreateMRTRenderTarget(count, 1, TextureFormat.Rgba32f, TextureFormat.Rgba16f, TextureFormat.R32f);
+        using var receiverDirectLighting = LayeredTestTexture.Create(ImageAssertions.Programs, color, zero, zero);
+        program.DirectLighting = receiverDirectLighting;
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, zero, zero);
+        program.GBufferSurface = surface;
+        program.IndirectDiffuse = zero; program.GBufferAlbedo = zero;
+        program.GBufferPosition = position;
+        program.PrimaryDepth = depth;
+        using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+        program.FrameInputs = frameCamera;
+
+        program.SetAtmosphere(null); program.SetWaterVolume(null); program.SetUnderwater(false);
+        program.RefractionSourceEnabled = true;
+        program.PreOverlaySourceEnabled = restoredOverlay;
+        program.PreOverlayColor = color; program.PreOverlayDepth = restoredDepth;
+        TestFramework.RenderQuadTo(program, output);
+        var expectedDepth=new float[count];var expectedColor=new float[count*4];
+        for (int pixel = 0; pixel < count; pixel++)
+        {
+            // Ordinary publication generates alpha from physical coverage. The
+            // restored pair must additionally reject its authored alpha/RGB defects.
+            bool valid = pixel is 0 or 1 || (!restoredOverlay && pixel is 5 or 6 or 9);
+            expectedDepth[pixel]=valid?.75f:1f;
+            expectedColor[pixel*4+3]=valid?1f:0f;
+            expectedColor[pixel*4]=valid?red[pixel]:0;
+        }
+        ImageAssertions.Comparisons.Compare(output[2],expectedDepth).AssertEqual();
+        ImageAssertions.Comparisons.Compare(output[1],expectedColor,channelMask:9).AssertEqual();
+        ImageAssertions.Statistics.Inspect(output[1]).AssertFiniteRange();
+    }
+
+    /// <summary>Radiance remains linear through composition, physical aerial transport, enclosure gating and decoded engine fog.</summary>
+    [Theory]
+    [InlineData(0f, false, 1f, false)]
+    [InlineData(0f, false, 1f, true)]
+    [InlineData(0.5f, false, 1f, false)]
+    [InlineData(0.5f, false, 1f, true)]
+    [InlineData(0f, true, 1f, false)]
+    [InlineData(0f, true, 1f, true)]
+    [InlineData(0f, true, 0f, false)]
+    [InlineData(0f, true, 0f, true)]
+    public void CompositePreservesHdrAndMixesLinearFog(float fog, bool atmosphere, float skyVisibility, bool explicitPosition)
+    {
+        // Arrange: Select fog and atmosphere state plus explicit receiver position or depth reconstruction.
+        // Act and assert: Compose the receiver and verify HDR radiance and linear fog mixing against the authored inputs.
+        EnsureShaderTestAvailable();
+        var program = Programs.Create<PBRCompositeShaderProgram>(p =>
+        {
+            p.LumOnEnabled = false; p.EnablePbrComposite = false; p.EnableShortRangeAo = false;
+        });
+        using var direct = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 2f, 1f, .5f, 1f });
+        using var specular = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, .25f, .125f, 1f });
+        using var emission = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 4f, 2f, 1f, 1f });
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { explicitPosition ? .2f : .75f });
+        using var unused = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .1f, .2f, .3f, 1f });
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, 1f, .5f, explicitPosition ? -1f : 1f });
+        using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0f, 0f, 1000f, 1f });
+        using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] {0f,0f,0f,skyVisibility});
+        // Declare every output of the retained composite executable, even when only scene color is inspected.
+        using var output = TestFramework.CreateTestGBuffer(1, 1,
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.R32f);
+        using var atmosphereOwner = new AtmosphereModSystem();
+        float[] scatter = atmosphere ? [.2f,.3f,.4f,1f] : [0f,0f,0f,1f];
+        float[] loss = atmosphere ? [.5f,.6f,.7f,1f] : [0f,0f,0f,1f];
+        var snapshot = new AtmosphereLighting(Vector3.UnitY, Vector3.One, Vector3.Zero, Vector3.Zero, Vector3.Zero, ImmutableArray.Create(0f,0f,0f,1f))
+        { Width=1, Height=1, AerialRadiance=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>scatter)), AerialAttenuation=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>loss)) };
+        atmosphereOwner.Publish(snapshot);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, unused, environment);
+        using var fogDirectLighting = LayeredTestTexture.Create(ImageAssertions.Programs, direct, specular, emission);
+        FramebufferTestSetup.BindForEngineRendering(output);
+        {
+            program.DirectLighting = fogDirectLighting;
+            program.IndirectDiffuse = unused; program.GBufferAlbedo = unused;
+            program.GBufferSurface = surface;
+            program.GBufferPosition = position;
+            program.PrimaryDepth = depth;
+            using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,2000,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], fogColor: new(.5f, .25f, .125f), fogDensity: fog > 0 ? .0002f : 0, fogMinimum: fog);
+            program.FrameInputs = frameCamera;
+            program.SetAtmosphere(AtmosphereModSystem.Lighting);
+            // Publish the complete frame state, including the absence of a water-volume capture.
+            program.SetWaterVolume(null);
+            program.SetUnderwater(fog > 0);
+            TestFramework.RenderQuadTo(program, output);
+        }
+        var actual = output[0].ReadPixels();
+        float[] light = [6.5f, 3.25f, 1.625f];
+        float[] fogColor = [.5f, .25f, .125f];
+        float fogAmount = fog > 0 ? fog + 1f - MathF.Exp(-1000f * .0002f) : 0f;
+        for (int channel = 0; channel < 3; channel++)
+        {
+            float transmission = 1 - loss[channel] * skyVisibility;
+            float expected = (light[channel] * transmission + scatter[channel] * skyVisibility) * (1 - fogAmount) + 32 * Linear(fogColor[channel]) * fogAmount;
+            Assert.InRange(actual[channel], expected - .004f, expected + .004f);
+        }
+        Assert.True(actual[0] > 1);
+
+        // Receiver publication precedes camera transport. The specialized capture
+        // must retain that exact pair while leaving the ordinary color owner alone.
+        environment.UploadDataImmediate(new float[] { .25f, .5f, 1f, skyVisibility });
+        surface.UploadDataImmediate(new float[] { .25f, .5f, 1f, skyVisibility }, 0, 0, 2, 1, 1, 1);
+        program.RefractionSourceEnabled = true;
+        using var receiverOutputs = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f, TextureFormat.R32f);
+        TestFramework.RenderQuadTo(program, receiverOutputs);
+        float[] expectedReceiver = receiverOutputs[1].ReadPixels();
+        float[] expectedDepth = receiverOutputs[2].ReadPixels();
+        program.PreOverlayOnly = true;
+        using var capture = new WaterRefractionScene();
+        TestFramework.RenderQuadTo(program, capture.BeginCapture(1, 1)!);
+        capture.Publish();
+        Assert.True(capture.Published);
+        Assert.Equal(expectedReceiver, capture.Color!.ReadPixels());
+        Assert.Equal(expectedDepth, capture.Depth!.ReadPixels());
+        // Reusing the target for sky must overwrite both members of the old pair.
+        depth.UploadDataImmediate(new float[] { 1 });
+        TestFramework.RenderQuadTo(program, capture.BeginCapture(1, 1)!);
+        capture.Publish();
+        Assert.True(capture.Published);
+        Assert.Equal(new float[4], capture.Color.ReadPixels());
+        Assert.Equal(new float[] { 1 }, capture.Depth.ReadPixels());
+    }
+    #endregion
+
+    #region Water composition
+    /// <summary>Preserves channel-dependent water transmission before display, in both lighting modes, without legacy underwater fog.</summary>
+    [Theory]
+    [InlineData(false, false, 1f, true)]
+    [InlineData(true, false, 1f, true)]
+    [InlineData(false, true, 1f, true)]
+    [InlineData(true, true, 1f, true)]
+    [InlineData(false, true, 0f, true)]
+    [InlineData(true, true, 0f, true)]
+    [InlineData(false, true, 1f, false)]
+    [InlineData(true, true, 1f, false)]
+    [InlineData(false, false, 1f, true, true, true)]
+    [InlineData(true, false, 1f, true, true, true)]
+    [InlineData(false, true, 1f, true, true, true)]
+    [InlineData(true, true, 1f, true, true, true)]
+    [InlineData(false, true, 1f, true, true, false)]
+    [InlineData(true, true, 1f, true, true, false)]
+    [InlineData(false, false, 1f, true, false, true, true)]
+    [InlineData(true, false, 1f, true, false, true, true)]
+    public void WaterTransmissionStaysRgbAndSceneLinear(bool lumon, bool underwater, float density, bool mappedCamera, bool sky = false, bool knownExit = true, bool heldOverlay = false)
+    {
+        // Arrange: Select lighting, water, camera, sky, exit-knowledge, and held-overlay conditions from this row.
+        // Act and assert: Compose water transmission and verify RGB remains scene-linear without legacy underwater fog.
+        EnsureShaderTestAvailable();
+        var program = Programs.Create<PBRCompositeShaderProgram>(p => {
+            p.LumOnEnabled = lumon; p.EnablePbrComposite = false; p.EnableShortRangeAo = false;
+        });
+        using var direct = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [6f, 3f, 2f, 1f]);
+        using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [0f, 0f, 0f, 0f]);
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [sky ? 1f : .75f]);
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, 1f, .5f, 1f]);
+        // Sky reconstruction reaches 20 metres; an exit at three metres subtracts the remaining 17.
+        float signedLength = underwater ? (knownExit ? (sky ? -17 : -7) : 0) : 2;
+        var medium = new WaterMedium(new Vector3(.1f, .2f, .3f), Vector3.Zero, density, 0);
+        var extinction = medium.AbsorptionPerMetre;
+        using var optical = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f,
+            [extinction.X * signedLength, extinction.Y * signedLength, extinction.Z * signedLength, signedLength]);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [0f, 0f, 0f, underwater && knownExit ? -1f : 0f]);
+        using var output = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.R32f);
+        using var atmosphereOwner = new AtmosphereModSystem();
+        var snapshot = new AtmosphereLighting(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
+            ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1,
+            AerialRadiance = ImmutableArray.CreateRange(new float[96]),
+            AerialAttenuation = ImmutableArray.CreateRange(new float[96]) };
+        atmosphereOwner.Publish(snapshot);
+        FramebufferTestSetup.BindForEngineRendering(output);
+        using var waterDirectLighting = LayeredTestTexture.Create(ImageAssertions.Programs, direct, zero, zero);
+        program.DirectLighting = waterDirectLighting;
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, zero, zero);
+        program.GBufferSurface = surface;
+        program.IndirectDiffuse = zero; program.GBufferAlbedo = sky ? direct : zero;
+        program.GBufferPosition = zero; program.PrimaryDepth = depth;
+        using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], fogColor: Vector3.One, fogDensity: 10, fogMinimum: 1);
+        program.FrameInputs = frameCamera;
+
+        program.SetAtmosphere(AtmosphereModSystem.Lighting);
+        program.SetUnderwater(underwater);
+        program.RefractionSourceEnabled = true;
+        using var waterArray = LayeredTestTexture.Create(ImageAssertions.Programs, optical, source);
+        program.SetWaterVolume(new WaterVolumeFrame(waterArray, underwater && mappedCamera ? medium : null,
+            SourceUpper: Vector3.One));
+        var cpuParameters = ((IPBRCompositeShaderProgramBindings)program).Parameters.Bytes.ToArray();
+        // The std140 contract includes twelve vec4 values, including both scattering directions.
+        Assert.Equal(192, cpuParameters.Length);
+        Assert.Equal(1f, BitConverter.ToSingle(cpuParameters, 92));
+        Assert.Equal(underwater && mappedCamera ? 1f : 0f, BitConverter.ToSingle(cpuParameters, 108));
+        TestFramework.RenderQuadTo(program, output);
+        if (heldOverlay)
+        {
+            // The capture policy leaves the opaque world capture intact before first-person overlay writes.
+            Assert.True(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture.ShouldCapture(true,
+                Vintagestory.API.Client.EnumRenderStage.Opaque, false, true, Vintagestory.GameContent.RenderMode.FirstPerson));
+            depth.UploadDataImmediate([.01f]);
+            normal.UploadDataImmediate([.5f, 1f, .5f, -1f]);
+            direct.UploadDataImmediate([100f, 20f, 10f, 1f]);
+            Assert.Equal(.01f, depth.ReadTexel()[0]);
+        }
+        var actual = output[0].ReadPixels();
+        var rawSource = output[1].ReadPixels();
+        var sourceDepth = output[2].ReadPixels();
+        // The published source bypasses straight-path medium transport and retains its matching hardware depth.
+        Assert.Equal(sky ? 0f : 1f, rawSource[3]);
+        Assert.InRange(MathF.Abs(sourceDepth[0] - (sky ? 1f : .75f)), 0, .000001f);
+        if (!sky)
+            for (int channel = 0; channel < 3; channel++)
+                Assert.InRange(MathF.Abs(rawSource[channel] - new float[] { 6f, 3f, 2f }[channel]), 0, .0001f);
+        float distance = underwater ? 3 : 2;
+        float[] coefficients = [extinction.X, extinction.Y, extinction.Z];
+        float[] background = [6, 3, 2];
+        for (int channel = 0; channel < 3; channel++)
+        {
+            float expected = sky && !knownExit ? background[channel]
+                : underwater && !mappedCamera ? 32 : background[channel] * MathF.Exp(-coefficients[channel] * distance);
+            Assert.InRange(actual[channel], expected - .0001f, expected + .0001f);
+        }
+        if (!underwater || mappedCamera) Assert.True(actual[0] > 1); // No extra display boundary.
+    }
+    #endregion
+
+    #endregion
+
+    #region Private
+    /// <summary>Decodes the documented sRGB fog input independently.</summary>
+    private static float Linear(float value) => value <= .04045f ? value / 12.92f : MathF.Pow((value + .055f) / 1.055f, 2.4f);
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.Support.GPU.Observations.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("layer", 0, 0);
+    }
+    #endregion
+}

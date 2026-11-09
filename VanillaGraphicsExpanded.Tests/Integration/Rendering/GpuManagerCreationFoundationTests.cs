@@ -1,0 +1,574 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Collections.Immutable;
+using OpenTK.Graphics.OpenGL;
+using Native = OpenTK.Graphics.OpenGL4;
+using GLFW = OpenTK.Windowing.GraphicsLibraryFramework.GLFW;
+using HarmonyLib;
+using Graffs.Implementations;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Integration;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.Rendering;
+
+/// <summary>Verifies private creation handoff, candidate cleanup and original-context publication.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
+{
+    #region Public API
+    #region Creation contracts
+    /// <summary>Execution consumes normalized intent once while the caller's authored request stays unchanged.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PreparationHandsResolvedIntentToExecution(bool registered)
+    {
+        // Arrange
+        fixture.EnsureContextValid();
+        if (registered) fixture.InitializeResourceDisposal(); else fixture.RetireResourceServices();
+        try
+        {
+            using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
+            var request = MutableRequest();
+            var state = new CreationState { PreparedCapacity = 48 };
+            // Act
+            var result = RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+                request, recipient, out _, new(state));
+            // Assert
+            Assert.Equal(32, request.Capacity);
+            Assert.Equal(48, result!.Value.Capacity);
+            Assert.Equal(result.Value, recipient.Snapshot);
+            Assert.Equal(1, state.Preparations);
+            Assert.Equal(1, state.Initializations);
+            using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
+            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int capacity);
+            Assert.Equal(48, capacity);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Failed native cleanup cannot retain graph edges after the candidate registration is abandoned.</summary>
+    [Fact]
+    public void FailedCleanupReleasesCandidateDependencyEdges()
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = new Harmony("Tests.CandidateDependencyCleanup." + Guid.NewGuid());
+        int leakedFramebuffer = 0;
+        try
+        {
+            using var backing = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription
+                { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            var source = manager.FindResource(GpuResourceKind.Renderbuffer, backing.RenderbufferId)!;
+            var graph = (MutableDirectedGraph<GpuResourceRegistration>)AccessTools.Field(typeof(RHIResourceManager),
+                "resourceDependencies").GetValue(manager)!;
+            var original = new InvalidOperationException("identity handoff failed");
+            using var recipient = new Declaration<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
+            recipient.AfterIdentityInstall = () =>
+            {
+                leakedFramebuffer = checked((int)recipient.ResourceId);
+                Assert.Single(graph.GetDependents(source));
+                throw original;
+            };
+            harmony.Patch(AccessTools.Method(typeof(GpuResource), "RetireResource"),
+                prefix: new HarmonyMethod(typeof(GpuManagerCreationFoundationTests), nameof(FailFramebufferCleanup)));
+            // Act
+            Assert.Same(original, Assert.Throws<InvalidOperationException>(() =>
+                RHIResourceManager.CreateResource<EmptyRequest, GpuFramebufferMetadata, FramebufferCreation>(
+                    default, recipient, out _, new(backing.RenderbufferId))));
+            // Assert
+            Assert.NotEqual(0, leakedFramebuffer);
+            Assert.Null(manager.FindResource(GpuResourceKind.Framebuffer, leakedFramebuffer));
+            Assert.Empty(graph.GetDependents(source));
+            Assert.True(backing.IsValid);
+        }
+        finally
+        {
+            harmony.UnpatchAll(harmony.Id);
+            // The injected failure prevented actual deletion; the fixture owns that deliberately leaked name.
+            if (leakedFramebuffer != 0) GL.DeleteFramebuffer(leakedFramebuffer);
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
+        }
+    }
+
+    /// <summary>Successful handoff exposes the committed identity and the same canonical snapshot to registry and recipient.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CreationCommitsIdentityAndSnapshot(bool registered)
+    {
+        // Arrange
+        fixture.EnsureContextValid();
+        if (registered) fixture.InitializeResourceDisposal(); else fixture.RetireResourceServices();
+        try
+        {
+            using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
+            var request = MutableRequest();
+            var state = new CreationState();
+            // Act
+            var result = RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+                request, recipient, out var handle, new(state));
+            // Assert
+            Assert.True(result.HasValue);
+            Assert.Equal((nint)state.Id, handle.Id);
+            Assert.Equal(handle.Id, recipient.ResourceId);
+            Assert.Equal(result.Value, recipient.Snapshot);
+            Assert.True(recipient.IsValid);
+            Assert.Equal(1, state.Initializations);
+            Assert.Equal(1, state.Preparations);
+            Assert.Equal(registered, RHIResourceManagerSystem.CurrentManager is not null);
+            if (registered)
+            {
+                var manager = RHIResourceManagerSystem.CurrentManager!;
+                var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(recipient));
+                Assert.Equal(result.Value, entry.Metadata);
+                Assert.True(manager.IsResourceMetadataAvailable(recipient));
+                Assert.Equal((ulong)1, entry.MetadataRevision);
+                Assert.Equal(1, entry.AssociationCount);
+            }
+            using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
+            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int actual);
+            Assert.Equal(32, actual);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Nullable failure, initialization exceptions and handoff exceptions retire only the new allocation and clear output.</summary>
+    [Theory]
+    [InlineData(false, 0)]
+    [InlineData(true, 0)]
+    [InlineData(false, 1)]
+    [InlineData(true, 1)]
+    [InlineData(false, 2)]
+    [InlineData(true, 2)]
+    public void FailedCreationClearsIdentityAndCleansNewObject(bool registered, int failure)
+    {
+        // Arrange
+        fixture.EnsureContextValid();
+        if (registered) fixture.InitializeResourceDisposal(); else fixture.RetireResourceServices();
+        try
+        {
+            // Use the same private handoff so the local case does not install a manager
+            // through a public factory before the candidate under test is declared.
+            using var dependency = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
+            var dependencyState = new CreationState();
+            Assert.NotNull(RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+                new() { Mode = GpuBufferStorageMode.Mutable, Capacity = 16, Usage = BufferUsage.StaticDraw },
+                dependency, out _, new(dependencyState)));
+            using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
+            var state = new CreationState { Failure = failure };
+            if (failure == 2) recipient.InstallationFailure = state.Exception;
+            var request = MutableRequest();
+            GpuResourceHandle handle = new(GpuResourceKind.Buffer, -1);
+            // Act
+            if (failure == 0)
+                Assert.Null(RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+                    request, recipient, out handle, new(state)));
+            else
+                Assert.Same(state.Exception, Assert.Throws<InvalidOperationException>(() =>
+                    RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+                        request, recipient, out handle, new(state))));
+            // Assert
+            Assert.Equal(default, handle);
+            Assert.Equal((nint)0, recipient.ResourceId);
+            Assert.False(recipient.IsValid);
+            Assert.Equal(registered, RHIResourceManagerSystem.CurrentManager is not null);
+            if (registered)
+            {
+                var manager = RHIResourceManagerSystem.CurrentManager!;
+                manager.OnRenderFrame(0, RHIResourceManager.Stage);
+                Assert.Null(manager.FindResource(GpuResourceKind.Buffer, state.Id));
+                Assert.Null(manager.GetResourceRegistration(recipient));
+            }
+            Assert.False(GL.IsBuffer(state.Id));
+            Assert.True(dependency.IsValid);
+            Assert.True(GL.IsBuffer(checked((int)dependency.ResourceId)));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Invalid requests and already published recipients fail before another native allocation.</summary>
+    [Fact]
+    public void InvalidRequestOrRecipientCannotStartCreation()
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
+            var state = new CreationState { Failure = -1 };
+            var omitted = new GpuBufferInitialization();
+            // Act
+            Assert.Throws<ArgumentException>(() =>
+                RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(omitted, recipient, out _, new(state)));
+            // Assert
+            Assert.Equal(0, state.Initializations);
+            var request = MutableRequest();
+            // Act
+            Assert.NotNull(RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out _, new(state)));
+            Assert.Throws<InvalidOperationException>(() =>
+                RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out _, new(state)));
+            // Assert
+            Assert.Equal(1, state.Initializations);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>An empty initialization record can successfully publish an empty executable without being mistaken for failure.</summary>
+    [Fact]
+    public void EmptyProgramCreationReturnsNonNullEmptyFacts()
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var recipient = new Declaration<GpuProgramMetadata>(GpuResourceKind.Program);
+            // Act
+            var result = RHIResourceManager.CreateResource<GpuProgramInitialization, GpuProgramMetadata, ProgramCreation>(
+                default, recipient, out var handle);
+            // Assert
+            Assert.True(result.HasValue);
+            Assert.NotEqual((nint)0, handle.Id);
+            Assert.False(result.Value.ExecutableAvailable);
+            Assert.Empty(result.Value.Resources);
+            Assert.Empty(result.Value.TextureUnits);
+            Assert.Equal(result.Value, recipient.Snapshot);
+            Assert.True(GL.IsProgram(checked((int)handle.Id)));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>A metadata schema with no fields still produces a non-null successful creation result.</summary>
+    [Fact]
+    public void EmptySchemaIsSuccessfulMetadataRatherThanNullableFailure()
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var recipient = new Declaration<GpuSamplerMetadata>(GpuResourceKind.Sampler);
+            // Act
+            var result = RHIResourceManager.CreateResource<EmptyRequest, GpuSamplerMetadata, SamplerCreation>(default, recipient, out var handle);
+            // Assert
+            Assert.True(result.HasValue);
+            Assert.Equal(default(GpuSamplerMetadata), result.Value);
+            Assert.Equal(handle.Id, recipient.ResourceId);
+            Assert.True(GL.IsSampler(checked((int)handle.Id)));
+            Assert.True(RHIResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(recipient));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+    #endregion
+
+    #region Ownership and lifetime transitions
+    /// <summary>Retirement during initialization cannot expose a handle or retire its native name in a replacement context.</summary>
+    [Fact]
+    public void CreationRejectsContextRetirementBeforeHandoff()
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var state = new CreationState { AfterInitialize = () => RenderContextRegistry.Retire(fixture) };
+        try
+        {
+            using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
+            GpuResourceHandle handle = new(GpuResourceKind.Buffer, -1);
+            var request = MutableRequest();
+            // Act
+            Assert.Throws<InvalidOperationException>(() =>
+                RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out handle, new(state)));
+            // Assert
+            Assert.Equal(default, handle);
+            Assert.Equal((nint)0, recipient.ResourceId);
+            Assert.False(recipient.IsValid);
+            // The fixture retains its actual native context; registry retirement must not dispatch cleanup there.
+            Assert.True(GL.IsBuffer(state.Id));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            fixture.RestoreContextRegistration();
+            if (GL.IsBuffer(state.Id)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, state.Id));
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
+        }
+    }
+
+    /// <summary>Validation cannot replace the caller's already captured request before native initialization consumes it.</summary>
+    [Fact]
+    public void CreationConsumesOneStableRequestCopy()
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
+            var request = MutableRequest();
+            var state = new CreationState { DuringValidation = () => request.Capacity = 64 };
+            // Act
+            var result = RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+                in request, recipient, out _, new(state));
+            // Assert
+            Assert.Equal((nint)64, request.Capacity);
+            Assert.Equal((nint)32, result!.Value.Capacity);
+            Assert.Equal((nint)32, recipient.Snapshot.Capacity);
+            using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
+            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int capacity);
+            Assert.Equal(32, capacity);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>The returned result is the reconciled canonical snapshot delivered to the wrapper, including established attachment modes.</summary>
+    [Fact]
+    public void CreationReturnsCanonicalReconciliationRatherThanBackendCandidate()
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var backing = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
+            using var recipient = new Declaration<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
+            // Act
+            var result = RHIResourceManager.CreateResource<EmptyRequest, GpuFramebufferMetadata, FramebufferCreation>(
+                default, recipient, out _, new(backing.RenderbufferId));
+            // Assert
+            Assert.True(result.HasValue);
+            Assert.Equal(GpuFramebufferAttachmentMode.Ordinary, result.Value.Attachments[FramebufferSlot.Color0].Mode);
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(manager.GetResourceRegistration(recipient));
+            Assert.Equal(entry.Metadata, result.Value);
+            Assert.Equal(entry.Metadata, recipient.Snapshot);
+            recipient.Dispose();
+            Assert.True(GL.IsRenderbuffer(backing.RenderbufferId));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>A backend collision cannot transfer or delete an existing owner's registered native object.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BackendCollisionPreservesExistingOwnerAndEntry(bool nullableFailure)
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
+            using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            var original = manager.GetResourceRegistration(owner)!;
+            var state = new CreationState { CollisionId = owner.BufferId, Failure = nullableFailure ? 0 : -1 };
+            var request = MutableRequest();
+            GpuResourceHandle handle = new(GpuResourceKind.Buffer, -1);
+            // Act
+            if (nullableFailure)
+                Assert.Null(RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out handle, new(state)));
+            else
+                Assert.Throws<InvalidOperationException>(() =>
+                    RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out handle, new(state)));
+            // Assert
+            Assert.Equal(default, handle);
+            Assert.Equal((nint)0, recipient.ResourceId);
+            Assert.Same(original, manager.GetResourceRegistration(owner));
+            Assert.Same(original, manager.FindResource(GpuResourceKind.Buffer, owner.BufferId));
+            Assert.True(original.MetadataAvailable);
+            Assert.True(owner.IsValid);
+            Assert.True(GL.IsBuffer(owner.BufferId));
+            Assert.Equal(16, owner.SizeBytes);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Handoff losing the current context retains queued cleanup identity until the live originating context drains it.</summary>
+    [Fact]
+    public unsafe void InterruptedHandoffDefersCleanupUntilOriginReturns()
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var state = new CreationState();
+        try
+        {
+            using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer)
+                { AfterIdentityInstall = () => GLFW.MakeContextCurrent(null) };
+            var request = MutableRequest();
+            GpuResourceHandle handle = new(GpuResourceKind.Buffer, -1);
+            // Act
+            Assert.Throws<InvalidOperationException>(() =>
+                RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out handle, new(state)));
+            // Assert
+            Assert.Equal(default, handle);
+            Assert.Equal((nint)0, recipient.ResourceId);
+            fixture.MakeCurrent();
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            var pending = manager.FindResource(GpuResourceKind.Buffer, state.Id)!;
+            Assert.NotNull(pending);
+            Assert.Equal(GpuResourceRegistrationState.Retiring, pending.State);
+            Assert.False(pending.MetadataAvailable);
+            Assert.True(GL.IsBuffer(state.Id));
+            manager.OnRenderFrame(0, RHIResourceManager.Stage);
+            Assert.False(GL.IsBuffer(state.Id));
+            Assert.Equal(GpuResourceRegistrationState.Deleted, pending.State);
+            Assert.Null(manager.FindResource(GpuResourceKind.Buffer, state.Id));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            fixture.MakeCurrent();
+            if (state.Id != 0 && GL.IsBuffer(state.Id)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, state.Id));
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
+        }
+    }
+    #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Fails only the candidate framebuffer cleanup before manager deletion observation.</summary>
+    private static void FailFramebufferCleanup(GpuResourceKind kind)
+    {
+        if (kind == GpuResourceKind.Framebuffer) throw new InvalidOperationException("injected cleanup failure");
+    }
+
+    /// <summary>Provides one small mutable allocation with all required intent assigned.</summary>
+    private static GpuBufferInitialization MutableRequest() => new()
+        { Mode = GpuBufferStorageMode.Mutable, Capacity = 32, Usage = BufferUsage.StaticDraw };
+
+    /// <summary>Observes fixture backend calls and carries an exact failure instance across orchestration.</summary>
+    private sealed class CreationState
+    {
+        internal int Id, Initializations, Preparations, CollisionId, Failure = -1;
+        internal nint? PreparedCapacity;
+        internal Action? AfterInitialize;
+        internal Action? DuringValidation;
+        internal readonly InvalidOperationException Exception = new("Injected creation failure.");
+    }
+
+    /// <summary>Provides an actual native allocation through a value backend without changing existing owning factories.</summary>
+    private readonly struct BufferCreation(CreationState state) : IGpuResourceCreation<GpuBufferInitialization, GpuBufferMetadata>
+    {
+        /// <inheritdoc />
+        public GpuResourceKind Kind => GpuResourceKind.Buffer;
+        /// <inheritdoc />
+        public GpuBufferInitialization Prepare(in GpuBufferInitialization initialization)
+        {
+            state.Preparations++;
+            state.DuringValidation?.Invoke();
+            initialization.Validate();
+            var resolved = initialization;
+            if (state.PreparedCapacity is { } capacity) resolved.Capacity = capacity;
+            return resolved;
+        }
+        /// <inheritdoc />
+        public GpuBufferMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in GpuBufferInitialization initialization, out nint id)
+        {
+            if (state.CollisionId != 0) state.Id = state.CollisionId;
+            else OpenGLDriverCalls.CreateBuffers(1, out state.Id);
+            id = state.Id;
+            state.Initializations++;
+            if (state.CollisionId != 0)
+                return state.Failure == 0 ? null : new(initialization.Capacity, initialization.Usage);
+            OpenGLDriverCalls.NamedBufferData(state.Id, initialization.Capacity, IntPtr.Zero,
+                OpenGLBufferValues.Usage(initialization.Usage));
+            state.AfterInitialize?.Invoke();
+            if (state.Failure == 1) throw state.Exception;
+            return state.Failure == 0 ? null : new(initialization.Capacity, initialization.Usage);
+        }
+    }
+
+    /// <summary>Publishes the established empty interface of a newly created program without reflection.</summary>
+    private readonly struct ProgramCreation : IGpuResourceCreation<GpuProgramInitialization, GpuProgramMetadata>
+    {
+        /// <inheritdoc />
+        public GpuResourceKind Kind => GpuResourceKind.Program;
+        /// <inheritdoc />
+        public GpuProgramInitialization Prepare(in GpuProgramInitialization initialization) => initialization;
+        /// <inheritdoc />
+        public GpuProgramMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in GpuProgramInitialization initialization, out nint id)
+        {
+            id = OpenGLDriverCalls.CreateProgram();
+            return new(false, ImmutableArray<GpuProgramResourceMetadata>.Empty, ImmutableArray<GpuProgramTextureUnitMetadata>.Empty);
+        }
+    }
+
+    /// <summary>Supplies an empty fixture request without inventing optional sampler descriptor fields.</summary>
+    private readonly record struct EmptyRequest;
+
+    /// <summary>Creates a native object whose canonical schema intentionally contains no facts.</summary>
+    private readonly struct SamplerCreation : IGpuResourceCreation<EmptyRequest, GpuSamplerMetadata>
+    {
+        /// <inheritdoc />
+        public GpuResourceKind Kind => GpuResourceKind.Sampler;
+        /// <inheritdoc />
+        public EmptyRequest Prepare(in EmptyRequest initialization) => initialization;
+        /// <inheritdoc />
+        public GpuSamplerMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in EmptyRequest initialization, out nint id)
+        {
+            OpenGLDriverCalls.CreateSamplers(1, out int sampler);
+            id = sampler;
+            return default(GpuSamplerMetadata);
+        }
+    }
+
+    /// <summary>Provides attachment facts whose ordinary renderbuffer mode is reconciled centrally before handoff.</summary>
+    private readonly struct FramebufferCreation(int renderbuffer) : IGpuResourceCreation<EmptyRequest, GpuFramebufferMetadata>
+    {
+        /// <inheritdoc />
+        public GpuResourceKind Kind => GpuResourceKind.Framebuffer;
+        /// <inheritdoc />
+        public EmptyRequest Prepare(in EmptyRequest initialization) => initialization;
+        /// <inheritdoc />
+        public GpuFramebufferMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in EmptyRequest initialization, out nint id)
+        {
+            OpenGLDriverCalls.CreateFramebuffers(1, out int framebuffer);
+            id = framebuffer;
+            OpenGLDriverCalls.NamedFramebufferRenderbuffer(framebuffer, Native.FramebufferAttachment.ColorAttachment0,
+                Native.RenderbufferTarget.Renderbuffer, renderbuffer);
+            var images = ImmutableDictionary<FramebufferSlot, GpuFramebufferImageMetadata>.Empty.Add(
+                FramebufferSlot.Color0, new(GpuResourceKind.Renderbuffer, renderbuffer, 0, 0, 0, false));
+            return new(images, 0, 0, 0, 0, true);
+        }
+    }
+
+    /// <summary>Models a fully initialized wrapper declaration, including a one-shot identity-install failure.</summary>
+    private sealed class Declaration<T>(GpuResourceKind kind) : GpuResource<T> where T : struct
+    {
+        private nint id;
+        internal InvalidOperationException? InstallationFailure;
+        internal Action? AfterIdentityInstall;
+        internal T Snapshot => metadata;
+        /// <inheritdoc />
+        public override nint ResourceId
+        {
+            get => id;
+            protected set
+            {
+                id = value;
+                if (value != 0 && InstallationFailure is { } failure)
+                {
+                    InstallationFailure = null;
+                    throw failure;
+                }
+                if (value != 0 && AfterIdentityInstall is { } callback)
+                {
+                    AfterIdentityInstall = null;
+                    callback();
+                }
+            }
+        }
+        /// <inheritdoc />
+        protected override GpuResourceKind ResourceKind => kind;
+        /// <inheritdoc />
+        public override void SetDebugName(string? debugName) { }
+    }
+    #endregion
+}

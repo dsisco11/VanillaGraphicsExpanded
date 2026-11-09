@@ -1,0 +1,139 @@
+using VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
+using VanillaGraphicsExpanded.LumOn.Shaders;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.Support.Lighting;
+
+namespace VanillaGraphicsExpanded.Tests.Component.LumOn;
+
+/// <summary>Exercises shared diagnostic classification, logical domains and precise surface reconstruction.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
+{
+    #region Public API
+    /// <summary>Uses the mandatory graphics context.</summary>
+    public SharedGeometryDebugTests(HeadlessGLFixture fixture) : base(fixture) { }
+
+    #region Diagnostic regressions
+    /// <summary>Unknown and unsupported geometry remain distinct from known air, regardless of material readiness.</summary>
+    [Theory]
+    [InlineData("solid", 1f, 1f, 1f)]
+    [InlineData("air", 0f, 0f, 0f)]
+    [InlineData("unsupported", 1f, 0f, 0f)]
+    [InlineData("unpublished", .5f, 0f, 1f)]
+    [InlineData("outside", 0f, .2f, .8f)]
+    public void OccupancyClassifiesSharedData(string scenario, float r, float g, float b)
+    {
+        // Arrange: Select one geometry publication state while keeping the shared diagnostic shader fixed.
+        EnsureShaderTestAvailable();
+        var plan = TraceGeometryCoverage.Plan(new(0, 32, 0), true, 32, 256);
+        using var scene = new SharedTraceGeometryFixture(plan, new(), (_, _, _) =>
+            new(scenario == "air" ? 1u : scenario == "unsupported" ? 3u : 2u, 0, 0));
+        // Act: Publish only the scenarios that should be visible, then render the occupancy diagnostic.
+        if (scenario != "unpublished") scene.Publish();
+        // Assert: The rendered classification matches the authored solid, air, unsupported, missing, or outside case.
+        AssertColor(Render(scene.Scene, 56, 0, scenario == "outside" ? 20.5f : .5f), r, g, b);
+    }
+
+    /// <summary>Bounds are logical surface bounds and packed lighting is read from the shared companion word.</summary>
+    [Theory]
+    [InlineData(55, .5f, .15f, .85f, .15f)]
+    [InlineData(55, 20.5f, .85f, .15f, .15f)]
+    [InlineData(57, .5f, 1f, .5f, 1f)]
+    public void BoundsAndPayloadUseSharedResources(int mode, float x, float r, float g, float b)
+    {
+        // Arrange: Author logical bounds and a packed-light payload with an independent legacy word.
+        EnsureShaderTestAvailable();
+        var plan = TraceGeometryCoverage.Plan(new(0, 32, 0), true, 32, 256);
+        using var scene = new SharedTraceGeometryFixture(plan, new(), (_, _, _) => new(2, 32u | (16u << 6) | (63u << 12), 0));
+        // Act: Publish the shared companion resources and render the selected bounds or payload mode.
+        scene.Publish();
+        // Assert: The shader output reflects the requested logical domain and packed companion data.
+        AssertColor(Render(scene.Scene, mode, 0, x), r, g, b);
+    }
+    /// <summary>Compensated camera motion reconstructs the same one-block wall at signed large world origins.</summary>
+    [Theory]
+    [InlineData(0)] [InlineData(16777216)] [InlineData(-16777216)]
+    public void SurfaceClassificationStaysWorldAligned(int anchor)
+    {
+        // Arrange: Put the same wall at each signed world origin and prepare compensated frame transforms.
+        EnsureShaderTestAvailable();
+        var plan = TraceGeometryCoverage.Plan(new(anchor, 32, 0), true, 32, 256);
+        using var scene = new SharedTraceGeometryFixture(plan, new(), (_, y, _) => new(y == 32 ? 2u : 1u, 0, 0));
+        // Act: Render the same world-space wall while the camera translation moves around it.
+        scene.Publish();
+        // Assert: Camera motion and large coordinates do not change the wall classification.
+        foreach (float cameraY in new[] { -.75f, 0f, .75f })
+            AssertColor(Render(scene.Scene, 56, anchor, .5f, cameraY), 1, 1, 1);
+    }
+
+    /// <summary>The near-field viewer cannot trace the larger physical surface-cache volume.</summary>
+    [Fact]
+    public void NearViewerClipsToLogicalWindow()
+    {
+        // Arrange: Place a wall inside the larger physical domain but outside the near-field window.
+        EnsureShaderTestAvailable();
+        var plan = TraceGeometryCoverage.Plan(new(0, 32, 0), true, 64, 256);
+        using var scene = new SharedTraceGeometryFixture(plan, new(), (_, _, z) => new(z == -25 ? 6u : 1u, 0, 0));
+        // Act: Render the same ray once through each debug view of the shared scene.
+        scene.Publish();
+        // Assert: Near-field clipping stays dark while the larger surface view reaches the wall.
+        AssertColor(Render(scene.Scene, 70, 0, .5f), 0, 0, 0);
+        // The same ray must hit that wall when using the larger surface domain.
+        var surface = Render(scene.Scene, 67, 0, .5f);
+        ImageAssertions.Predicates.Predicate(surface, LightingPredicates.SharedGeometryDebugTests_NearViewerClipsToLogicalWindow).AssertEqual();
+    }
+    #endregion
+    #endregion
+
+    #region Protected
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.Support.GPU.Observations.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-lighting", 0, 0);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Binds real shared textures and a deterministic reconstructed surface; camera translation cancels view displacement.</summary>
+    private GpuTexture Render(TraceGeometryGpuScene scene, int mode, int anchor, float x, float cameraY = 0)
+    {
+        var program = Programs.Create<LumOnDebugShaderProgram>(shader =>
+        {
+            shader.DirectVisibility = true;
+        }, identity: LumOnDebugShaderProgramFamily.GetProgramName((LumOnDebugMode)mode));
+        {
+            // Surface queries land at y=32.5 after the frame bridge; rays face -Z from that same camera.
+            float[] projection = [0,0,0,0, 0,0,0,0, 0,0,0,0, x,.5f-cameraY,-5,1];
+            float[] view = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,cameraY,0,1];
+            var bridge = FrameWorldSpaceBridge.Compute(anchor, 32, 0);
+            UpdateAndBindLumOnFrameUbo(program, invProjectionMatrix: projection, invViewMatrix: view,
+                matrixSpaceWorldChunkCoordOffset: bridge.ChunkOffset, matrixSpaceWorldBlockOffsetRem: bridge.BlockOffsetRemainder);
+            program.DebugMode = mode;
+            program.NearFieldVisibility.Stage(program, scene);
+            SceneInputs.EnsureSize(ScreenWidth,ScreenHeight);
+            SceneInputs.Engine.Depth.UploadDataImmediate(CreateUniformDepthData(ScreenWidth,ScreenHeight,.5f));
+            SceneInputs.Terrain.Surface.UploadDataImmediate(CreateUniformNormalData(ScreenWidth,ScreenHeight,0,0,1), 0, 0, 0, ScreenWidth, ScreenHeight, 1);
+            SceneInputs.Terrain.PatchId.UploadDataImmediate(new uint[ScreenWidth * ScreenHeight * 4]);
+            program.PrimaryDepth = SceneInputs.Engine.Depth;
+            program.GBufferSurface = SceneInputs.Terrain.Surface;
+            program.GBufferPatchId = SceneInputs.Terrain.PatchId;
+            program.TraceSceneLegacy = scene.Legacy;
+            var output = SceneInputs.Engine.Output;
+            TestFramework.RenderQuadTo(program, output);
+            return output[0];
+        }
+    }
+
+    /// <summary>Checks every rendered pixel, including opaque alpha, against the diagnostic legend.</summary>
+    private void AssertColor(GpuTexture image,float r,float g,float b)
+    {
+        ImageAssertions.Predicates.Predicate(image, LightingPredicates.SharedGeometryDebugTests_AssertColor,
+            parameters:new(r,g,b,1)).AssertEqual();
+    }
+    #endregion
+}

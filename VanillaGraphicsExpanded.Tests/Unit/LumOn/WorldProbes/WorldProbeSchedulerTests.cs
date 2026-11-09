@@ -9,16 +9,20 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 
+/// <summary>Checks world probe scheduler behavior and contract rules.</summary>
 public sealed class WorldProbeSchedulerTests
 {
+    #region Public API
+    /// <summary>Verifies the build update list respects global cpu budget behavior.</summary>
     [Fact]
     public void BuildUpdateList_RespectsGlobalCpuBudget()
     {
+        // Arrange
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: 8);
 
         Vec3d cam = new(0, 0, 0);
+        // Act
         scheduler.UpdateOrigins(cam, baseSpacing: 1.0);
-
         var list = scheduler.BuildUpdateList(
             frameIndex: 0,
             cameraPos: cam,
@@ -27,16 +31,18 @@ public sealed class WorldProbeSchedulerTests
             traceMaxProbesPerFrame: 10,
             uploadBudgetBytesPerFrame: int.MaxValue,
             atlasTexelsPerUpdate: 32);
-
+        // Assert
         Assert.True(list.Count <= 10);
     }
-
+    /// <summary>Verifies the build update list respects upload budget behavior.</summary>
     [Fact]
     public void BuildUpdateList_RespectsUploadBudget()
     {
+        // Arrange
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: 8);
 
         Vec3d cam = new(0, 0, 0);
+        // Act
         scheduler.UpdateOrigins(cam, baseSpacing: 1.0);
 
         const int atlasTexelsPerUpdate = 32;
@@ -49,14 +55,14 @@ public sealed class WorldProbeSchedulerTests
             traceMaxProbesPerFrame: 1000,
             uploadBudgetBytesPerFrame: estimatedBytesPerProbe * 7,
             atlasTexelsPerUpdate: atlasTexelsPerUpdate);
-
+        // Assert
         Assert.True(list.Count <= 7);
     }
-
     /// <summary>Crosses the anchor deadband and verifies that a single entering slab receives priority.</summary>
     [Fact]
     public void OriginShift_MarksIntroducedSlabDirty_AndSelectsItFirst()
     {
+        // Arrange
         const int res = 8;
         const double spacing = 4.0;
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: res);
@@ -84,7 +90,9 @@ public sealed class WorldProbeSchedulerTests
 
         // Cross the two-world-block deadband while moving exactly one probe cell.
         Vec3d cam1 = new(spacing + 0.1, 0, 0);
+        // Act
         scheduler.UpdateOrigins(cam1, baseSpacing: spacing);
+        // Assert
         Assert.True(scheduler.TryGetLevelParams(0, out var origin1, out var ring1));
         Assert.Equal(origin0.X + spacing, origin1.X);
         Assert.Equal((ring0.X + 1) % res, ring1.X);
@@ -103,9 +111,11 @@ public sealed class WorldProbeSchedulerTests
         Assert.All(slab, r => Assert.Equal(res - 1, r.LocalIndex.X));
     }
 
+    /// <summary>Verifies the staleness promotes valid to stale and schedules refresh behavior.</summary>
     [Fact]
     public void Staleness_PromotesValidToStale_AndSchedulesRefresh()
     {
+        // Arrange
         const int res = 8;
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution: res);
 
@@ -127,6 +137,7 @@ public sealed class WorldProbeSchedulerTests
         }
 
         // Advance beyond the default stale threshold (~600 frames for spacing 1.0).
+        // Act
         var refresh = scheduler.BuildUpdateList(
             frameIndex: 1000,
             cameraPos: cam,
@@ -135,13 +146,14 @@ public sealed class WorldProbeSchedulerTests
             traceMaxProbesPerFrame: 16,
                 uploadBudgetBytesPerFrame: int.MaxValue,
                 atlasTexelsPerUpdate: 32);
-
+        // Assert
         Assert.Equal(16, refresh.Count);
     }
-
+    /// <summary>Verifies the determinism same inputs produce same local order after reset behavior.</summary>
     [Fact]
     public void Determinism_SameInputsProduceSameLocalOrder_AfterReset()
     {
+        // Arrange
         const int res = 8;
 
         var schedulerA = new LumOnWorldProbeScheduler(levelCount: 1, resolution: res);
@@ -160,7 +172,7 @@ public sealed class WorldProbeSchedulerTests
             traceMaxProbesPerFrame: 64,
                 uploadBudgetBytesPerFrame: int.MaxValue,
                 atlasTexelsPerUpdate: 32);
-
+        // Act
         var listB = schedulerB.BuildUpdateList(
             frameIndex: 0,
             cameraPos: cam,
@@ -169,9 +181,10 @@ public sealed class WorldProbeSchedulerTests
             traceMaxProbesPerFrame: 64,
                 uploadBudgetBytesPerFrame: int.MaxValue,
                 atlasTexelsPerUpdate: 32);
-
+        // Assert
         Assert.Equal(
             listA.Select(r => r.LocalIndex.X + "," + r.LocalIndex.Y + "," + r.LocalIndex.Z),
             listB.Select(r => r.LocalIndex.X + "," + r.LocalIndex.Y + "," + r.LocalIndex.Z));
     }
+    #endregion
 }

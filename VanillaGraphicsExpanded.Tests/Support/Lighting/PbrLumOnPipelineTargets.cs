@@ -1,0 +1,180 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System;
+
+using OpenTK.Graphics.OpenGL;
+
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.Support.Numerics;
+
+namespace VanillaGraphicsExpanded.Tests.Support.Lighting;
+
+/// <summary>Owns pipeline attachment instances and the framebuffers that borrow their images.</summary>
+internal sealed class PbrLumOnPipelineTargets : IDisposable
+{
+    private bool _isDisposed;
+    private readonly GpuResourceCollection _resources = new();
+
+    #region Public API
+    #region Construction
+    /// <summary>Allocates owning attachments and framebuffer bindings for the complete lighting pipeline.</summary>
+    public PbrLumOnPipelineTargets()
+    {
+        int screenW = LumOnTestInputFactory.ScreenWidth;
+        int screenH = LumOnTestInputFactory.ScreenHeight;
+
+        int halfW = LumOnTestInputFactory.HalfResWidth;
+        int halfH = LumOnTestInputFactory.HalfResHeight;
+
+        int probeW = LumOnTestInputFactory.ProbeGridWidth;
+        int probeH = LumOnTestInputFactory.ProbeGridHeight;
+
+        int atlasW = LumOnTestInputFactory.OctahedralAtlasWidth;
+        int atlasH = LumOnTestInputFactory.OctahedralAtlasHeight;
+
+        // Reclaim every completed allocation if later target creation fails.
+        try
+        {
+            // PBR Direct MRT outputs
+            DirectLightingMrt = _resources.Own(DynamicGpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.DirectDiffuse")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.DirectSpecular")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.Emissive")),
+                },
+                depth: null,
+                debugName: "Test.PbrDirectMrt"));
+
+            // Velocity (RGBA32F)
+            Velocity = _resources.Own(DynamicGpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba32f, debugName: "Test.Velocity")),
+                },
+                depth: null,
+                debugName: "Test.VelocityPass"));
+
+            // HZB depth pyramid: 4x4 -> 2x2 -> 1x1
+            Hzb = new DepthHierarchyPass();
+
+            // Probe anchors (2x2)
+            ProbeAnchor = _resources.Own(DynamicGpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(probeW, probeH, TextureFormat.Rgba16f, debugName: "Test.ProbeAnchorPosition")),
+                    _resources.Own(new GpuFramebufferAttachment(probeW, probeH, TextureFormat.Rgba16f, debugName: "Test.ProbeAnchorNormal")),
+                },
+                depth: null,
+                debugName: "Test.ProbeAnchorMrt"));
+
+            // Atlas MRTs (16x16): radiance RGBA16F + meta RG32F
+            AtlasTrace = _resources.Own(DynamicGpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, TextureFormat.Rgba16f, debugName: "Test.AtlasTraceRadiance")),
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, TextureFormat.Rg32f, debugName: "Test.AtlasTraceMeta")),
+                },
+                depth: null,
+                debugName: "Test.AtlasTraceMrt"));
+
+            AtlasTemporal = _resources.Own(DynamicGpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, TextureFormat.Rgba16f, debugName: "Test.AtlasTemporalRadiance")),
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, TextureFormat.Rg32f, debugName: "Test.AtlasTemporalMeta")),
+                },
+                depth: null,
+                debugName: "Test.AtlasTemporalMrt"));
+
+            AtlasFiltered = _resources.Own(DynamicGpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, TextureFormat.Rgba16f, debugName: "Test.AtlasFilteredRadiance")),
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, TextureFormat.Rg32f, debugName: "Test.AtlasFilteredMeta")),
+                },
+                depth: null,
+                debugName: "Test.AtlasFilteredMrt"));
+
+            // Gather output (half-res)
+            IndirectHalf = _resources.Own(DynamicGpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(halfW, halfH, TextureFormat.Rgba16f, debugName: "Test.IndirectHalf")),
+                },
+                depth: null,
+                debugName: "Test.IndirectHalfPass"));
+
+            // Upsample output (full-res)
+            IndirectFull = _resources.Own(DynamicGpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.IndirectFull")),
+                },
+                depth: null,
+                debugName: "Test.IndirectFullPass"));
+
+            // Full-precision color isolates arithmetic from destination quantization in the
+            // independent direct-sum oracle; refraction storage retains its declared formats.
+            Composite = _resources.Own(DynamicGpuFramebuffer.Create(
+                new[]
+                {
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba32f, debugName: "Test.Composite")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.CompositeRefraction")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.R32f, debugName: "Test.CompositeRefractionDepth")),
+                },
+                depth: null,
+                debugName: "Test.CompositeFbo"));
+        }
+        catch
+        {
+            try { Hzb?.Dispose(); }
+            finally { _resources.Dispose(); }
+            throw;
+        }
+    }
+
+    #endregion
+
+    #region Targets
+    public GpuFramebuffer DirectLightingMrt { get; }
+
+    public GpuFramebuffer Velocity { get; }
+
+    internal DepthHierarchyPass Hzb { get; }
+
+    public GpuFramebuffer ProbeAnchor { get; }
+
+    public GpuFramebuffer AtlasTrace { get; }
+
+    public GpuFramebuffer AtlasTemporal { get; }
+
+    public GpuFramebuffer AtlasFiltered { get; }
+
+    public GpuFramebuffer IndirectHalf { get; }
+
+    public GpuFramebuffer IndirectFull { get; }
+
+    public GpuFramebuffer Composite { get; }
+
+    #endregion
+
+    #region Cleanup
+    /// <summary>Retires framebuffers and queues owned attachment storage for fixture cleanup.</summary>
+    public void Dispose()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _isDisposed = true;
+
+        // The collection retires FBOs first, then queues their owned attachment storage.
+        try { Hzb.Dispose(); }
+        finally { _resources.Dispose(); }
+    }
+
+    #endregion
+    #endregion
+}

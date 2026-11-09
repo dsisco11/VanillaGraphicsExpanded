@@ -2,24 +2,31 @@ using System.Numerics;
 using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
+using VanillaGraphicsExpanded.Numerics;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 
 /// <summary>Checks compact per-probe input layout and bounded direction admission before GPU dispatch.</summary>
 public sealed class WorldProbeGpuAdmissionTests
 {
+    #region Public API
     /// <summary>Integer anchors retain fractional precision and GPU traversal cannot exceed its fixed cell limit.</summary>
     [Fact]
     public void ProbeLayoutPreservesSignedFractionsAndClampsSteps()
     {
-        var probe=new WorldProbeTraceProbeGpu(new(-16777216.25,35.5,16777216.75),64,256,8,0,64,maxSteps:int.MaxValue);
+        // Arrange
+        var origin = new Vector3d(-16777216.25, 35.5, 16777216.75);
+        // Act
+        var probe=new WorldProbeTraceProbeGpu(origin,64,256,8,0,64,maxSteps:int.MaxValue);
+        var negativeSteps = new WorldProbeTraceProbeGpu(new(0,1,0),1,256,8,0,1,maxSteps:-1);
+        // Assert
         Assert.Equal(64,Marshal.SizeOf<WorldProbeTraceProbeGpu>());
         Assert.Equal(80,Marshal.SizeOf<WorldProbeTraceAnswerGpu>());
         Assert.Equal(16,Marshal.OffsetOf<WorldProbeTraceAnswerGpu>(nameof(WorldProbeTraceAnswerGpu.Hit)).ToInt32());
         Assert.Equal(-16777217,probe.OriginX); Assert.Equal(16777216,probe.OriginZ);
         Assert.Equal(new Vector4(.75f,.5f,.75f,64),probe.FractionDistance);
         Assert.Equal(512u,probe.MaxSteps);
-        Assert.Equal(0u,new WorldProbeTraceProbeGpu(new(0,1,0),1,256,8,0,1,maxSteps:-1).MaxSteps);
+        Assert.Equal(0u,negativeSteps.MaxSteps);
         Assert.Equal(320,Marshal.SizeOf<WorldProbeTraceProbeGpu>()+(64<<2));
     }
 
@@ -27,8 +34,11 @@ public sealed class WorldProbeGpuAdmissionTests
     [Fact]
     public void MaximumAtlasSelectionFitsOneBoundedBatch()
     {
+        // Arrange
         var item=new LumOnWorldProbeTraceWorkItem(0,new(0,new(),new(),0),new(1,2,3),64,64,4096,false,.25f,-1,1e-6f,2,true);
+        // Act
         var directions=WorldProbeGpuIntegration.CreateDirections(item);
+        // Assert
         Assert.Equal(4097,directions.Length);
         Assert.Equal(0x80000000u,directions[0]);
         Assert.Equal(4096,directions.Skip(1).Distinct().Count());
@@ -39,9 +49,14 @@ public sealed class WorldProbeGpuAdmissionTests
     [Fact]
     public void InvalidRaysAreRejectedBeforeSubmission()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(()=>new WorldProbeTraceProbeGpu(new(double.NaN,0,0),1,256,8,0,1));
-        Assert.Throws<ArgumentOutOfRangeException>(()=>new WorldProbeTraceProbeGpu(new(0,1,0),1,256,65,0,1));
-        Assert.Throws<ArgumentOutOfRangeException>(()=>new WorldProbeTraceProbeGpu(new(0,1,0),double.PositiveInfinity,256,8,0,1));
-        Assert.Throws<ArgumentOutOfRangeException>(()=>new WorldProbeTraceProbeGpu(new(0,1,0),1,256,8,0,0));
+        // Arrange
+        var nonfiniteOrigin = new Vector3d(double.NaN, 0, 0);
+        // Act
+        // Assert
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(()=>new WorldProbeTraceProbeGpu(nonfiniteOrigin,1,256,8,0,1)));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(()=>new WorldProbeTraceProbeGpu(new(0,1,0),1,256,65,0,1)));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(()=>new WorldProbeTraceProbeGpu(new(0,1,0),double.PositiveInfinity,256,8,0,1)));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(()=>new WorldProbeTraceProbeGpu(new(0,1,0),1,256,8,0,0)));
     }
+    #endregion
 }

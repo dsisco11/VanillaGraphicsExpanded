@@ -1,0 +1,31 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System;
+
+using VanillaGraphicsExpanded.Rendering;
+
+namespace VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
+
+/// <summary>
+/// Minimal RAII wrapper for uploading and binding the shared "object" params UBO
+/// (VGE_UBO_OBJECT_BINDING / <see cref="GpuBindingRegistry.Ubo.Object"/>).
+/// </summary>
+internal sealed class ObjectParamsUbo : IDisposable
+{
+    private readonly GpuUniformBuffer ubo;
+
+    public ObjectParamsUbo(string debugName)
+    {
+        ubo = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = debugName }).RequireResource();
+    }
+
+    public void UploadAndBind(ReadOnlySpan<byte> bytes)
+    {
+        ubo.UploadOrResize(bytes, growExponentially: false);
+        ubo.BindBase(GpuBindingRegistry.Ubo.Object);
+    }
+
+    public void Dispose()
+    {
+        ubo.Dispose();
+    }
+}

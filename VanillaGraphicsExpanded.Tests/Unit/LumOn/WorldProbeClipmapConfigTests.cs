@@ -3,11 +3,15 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn;
 
+/// <summary>Checks world probe clipmap config behavior and contract rules.</summary>
 public sealed class WorldProbeClipmapConfigTests
 {
+    #region Public API
+    /// <summary>Verifies the sanitize clamps world probe clipmap config and resizes budgets behavior.</summary>
     [Fact]
     public void Sanitize_ClampsWorldProbeClipmapConfig_AndResizesBudgets()
     {
+        // Arrange
         var cfg = new VgeConfig
         {
             WorldProbeClipmap = new VgeConfig.WorldProbeClipmapConfig
@@ -22,9 +26,9 @@ public sealed class WorldProbeClipmapConfigTests
                 UploadBudgetBytesPerFrame = -1
             }
         };
-
+        // Act
         cfg.Sanitize();
-
+        // Assert
         Assert.InRange(cfg.WorldProbeClipmap.ClipmapBaseSpacing, 0.25f, 64f);
         Assert.InRange(cfg.WorldProbeClipmap.ClipmapResolution, 8, 128);
         Assert.InRange(cfg.WorldProbeClipmap.ClipmapLevels, 1, 8);
@@ -34,4 +38,5 @@ public sealed class WorldProbeClipmapConfigTests
         Assert.Equal(0, cfg.WorldProbeClipmap.TraceMaxProbesPerFrame);
         Assert.Equal(0, cfg.WorldProbeClipmap.UploadBudgetBytesPerFrame);
     }
+    #endregion
 }

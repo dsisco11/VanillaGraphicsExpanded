@@ -1,0 +1,77 @@
+using VanillaGraphicsExpanded.Tests.Component.AmbientOcclusion.Fixtures;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using OpenTK.Graphics.OpenGL;
+
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+namespace VanillaGraphicsExpanded.Tests.Component.AmbientOcclusion;
+
+/// <summary>Compares the production analytic visibility integral with independent cosine-weighted numerical quadrature.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class AmbientOcclusionIntegralTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
+{
+    #region Public API
+    /// <summary>Normal tilt, asymmetric horizons and neutral/full occlusion preserve normalized cosine-weighted visibility.</summary>
+    [Theory]
+    [InlineData(-1.2f)]
+    [InlineData(-.6f)]
+    [InlineData(0f)]
+    [InlineData(.6f)]
+    [InlineData(1.2f)]
+    public void AnalyticIntegralMatchesQuadrature(float angle) {
+        // Arrange: compare asymmetric and neutral horizons against a CPU quadrature that does not use the shader formula.
+        EnsureShaderTestAvailable();var program=Programs.Create<AoIntegralProgram>();
+        using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
+        float low=Math.Max(-MathF.PI/2,angle-MathF.PI/2),high=Math.Min(MathF.PI/2,angle+MathF.PI/2);
+        foreach(var fraction in new[]{(1f,1f),(.2f,.8f),(.8f,.2f),(0f,0f)}) {
+            float a=low*fraction.Item1,b=high*fraction.Item2;
+            // Act: capture each horizon pair and draw it once.
+            program.Capture(angle,a,b);TestFramework.RenderQuadTo(program,target);
+            float[] result=target[0].ReadPixels();
+            double expected=Integrate(a,b,angle),baseline=Integrate(low,high,angle);
+            // Assert: encoded integral, full-hemisphere baseline and normalized visibility match independent quadrature.
+            Assert.InRange(result[0],expected-.00002,expected+.00002);
+            Assert.InRange(result[1],baseline-.00002,baseline+.00002);
+            Assert.InRange(result[2],expected/baseline-.00003,expected/baseline+.00003);
+        }
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    /// <summary>Stronger evidence raises immediately; weaker evidence releases a bounded fraction, including repeated wall and thin-object sequences.</summary>
+    [Theory]
+    [InlineData(-1f)]
+    [InlineData(0f)]
+    [InlineData(.25f)]
+    [InlineData(1f)]
+    [InlineData(2f)]
+    public void RunningHorizonUsesBoundedOrderedEvidence(float relaxation) {
+        // Arrange: run constant, descending, mixed and empty evidence through one shader target.
+        EnsureShaderTestAvailable();var program=Programs.Create<AoIntegralProgram>();
+        using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
+        foreach(float[] evidence in new float[][] { [.8f,.8f,.8f,.8f], [.8f,0f,0f,0f], [.2f,.6f,.4f,.9f], [0f,0f,0f,0f] }) {
+            float actual=0,expected=0;
+            foreach(float candidate in evidence) {
+                // Act: feed candidates in sequence so recurrence ordering is observable.
+                program.CaptureRelaxation(actual,candidate,relaxation);TestFramework.RenderQuadTo(program,target);
+                actual=target[0].ReadTexel()[0];
+                expected=candidate>=expected?candidate:expected+(candidate-expected)*Math.Clamp(relaxation,0,1);
+                // Assert: the shader follows the independent bounded recurrence after each candidate.
+                Assert.InRange(actual,expected-.00001f,expected+.00001f);
+                Assert.InRange(actual,0,1);
+            }
+            if(evidence.All(value=>value==.8f)) Assert.InRange(actual,.79999f,.80001f);
+            if(evidence[0]==.8f && evidence[1]==0 && relaxation>0) Assert.True(actual<.8f);
+        }
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    #endregion
+    #region Private
+    /// <summary>Numerically integrates the projected cosine measure without using the shader's closed form.</summary>
+    private static double Integrate(double low,double high,double normal) {
+        const int steps=16384;double interval=(high-low)/steps,sum=0;
+        for(int i=0;i<steps;i++) {double angle=low+(i+.5)*interval;sum+=Math.Cos(angle-normal)*Math.Abs(Math.Sin(angle));}
+        return sum*interval;
+    }
+    #endregion
+}

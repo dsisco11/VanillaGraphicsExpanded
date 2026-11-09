@@ -1,0 +1,85 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.PBR.CameraExposure;
+using VanillaGraphicsExpanded.Rendering;
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+namespace VanillaGraphicsExpanded.Tests.Component.Postprocessing;
+/// <summary>Qualifies instantaneous histogram metadata independently of the applied camera gain.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class CameraVisualAdaptationGpuTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
+{
+    private CameraHistogramShaderProgram? histogramProgram;
+    private CameraAdaptShaderProgram? adaptationProgram;
+    #region Public API
+    /// <summary>The meter publishes current luminance while only the global camera gain adapts or hits its cap.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void InstantMeterMetadataDoesNotCarryIndependentAdaptation(bool automatic)
+    {
+        // Arrange: Measure a bright scene with either automatic gain capped at two stops or fixed manual gain.
+        EnsureShaderTestAvailable();
+        var policy=new CameraExposureSettings().Snapshot() with {Enabled=automatic,ManualLogGain=.5f,MinLogGain=-20,MaxLogGain=2,CenterWeighted=false,LowPercentile=0,HighPercentile=1};
+        // Act: Run the actual meter and adaptation binaries with an empty prior history.
+        float[] state=Measure(-23.5f,policy,new float[8],true,0);
+        // Assert: Current meter statistics remain instantaneous while only the global gain follows camera policy.
+        Close(automatic?2:.5f,state[0]);Close(-23.5f-(float)Math.Log2(.18),state[1]);Close(-23.5f,state[2]);Assert.Equal(1,state[3]);
+        Close(MathF.Log2(.18f)+23.5f,state[4]);Assert.Equal(1,state[5]);
+    }
+    /// <summary>Current metering replaces stale physical metadata immediately without a second temporal history.</summary>
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(-100f)]
+    public void PreviousMetadataCannotInfluenceCurrentMeter(float stale)
+    {
+        // Arrange: Put a nonfinite or out-of-domain stale value in prior metadata slots.
+        EnsureShaderTestAvailable();
+        // Act: Meter a fresh valid scene against that history.
+        float[] state=Measure(-12,new CameraExposureSettings().Snapshot(),[2,stale,stale,1,20,1,0,0],false,0);
+        // Assert: Published physical statistics come from the current scene, independent of stale metadata.
+        Close(2,state[0]);Close(-12-(float)Math.Log2(.18),state[1]);Close(-12,state[2]);Assert.Equal(1,state[3]);
+    }
+    /// <summary>Out-of-domain input withdraws instantaneous statistics and leaves all reserved history slots neutral.</summary>
+    [Theory]
+    [InlineData(-24f)]
+    [InlineData(-30f)]
+    public void MissingMeterInputHasNeutralMetadata(float logarithm)
+    {
+        // Arrange: Select a scene luminance outside the meter's supported domain.
+        EnsureShaderTestAvailable();
+        // Act: Run the real meter/adaptation path with empty prior state.
+        float[] state=Measure(logarithm,new CameraExposureSettings().Snapshot(),new float[8],true,0);
+        // Assert: Missing statistics and reserved history remain finite and neutral.
+        Assert.Equal(0,state[1]);Assert.Equal(0,state[2]);Assert.Equal(0,state[3]);
+        Assert.All(state,value=>Assert.True(float.IsFinite(value)));
+    }
+    #endregion
+    #region Private
+    /// <summary>Submits actual packaged histogram/adaptation compute with 32-byte history and explicitly enabled statistics.</summary>
+    private float[] Measure(float logarithm, CameraExposureParameters policy, float[] previous, bool reset, float dt)
+    {
+        var histogram = histogramProgram ??= Programs.CreateCompute(CameraHistogramShaderProgram.Create);
+        var adaptation = adaptationProgram ??= Programs.CreateCompute(CameraAdaptShaderProgram.Create);
+        using var targets = new CameraExposureTargets();
+        float level = MathF.Pow(2, logarithm);
+        using var scene = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [level, level, level, 1]);
+        using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.InstantMeter" }).RequireResource();
+        history.UploadData(previous);
+        using var camera = TestFrameCamera.CreateIdentity(1, 1, dt);
+        histogram.SceneRadiance = scene; histogram.Histogram = targets.Histogram; histogram.Capture(policy, reset, true);
+        adaptation.Histogram = targets.Histogram; adaptation.PreviousExposure = history;
+        adaptation.OutputExposure = targets.WriteTarget; adaptation.FrameInputs = camera; adaptation.Capture(policy, reset, true);
+        Assert.True(CameraExposureDispatch.TryRun(histogram, adaptation));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+        float[] state = ExposureTestStorage.Read<float>(targets.WriteTarget);
+        output.WriteLine($"Instant meter diagnostic log={logarithm:R} reset={reset} dt={dt:R} state={string.Join(',', state.Select(v => v.ToString("R")))}.");
+        return state;
+    }
+    /// <summary>Checks meter publication within normalized encoding precision.</summary>
+    private static void Close(float expected,float actual)=>Assert.InRange(actual,expected-.0003f,expected+.0003f);
+    #endregion
+}

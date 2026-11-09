@@ -1,10 +1,6 @@
-using VanillaGraphicsExpanded.Tests.TestSupport;
 using System;
 using System.Globalization;
-using System.IO;
 
-using VanillaGraphicsExpanded.Cache;
-using VanillaGraphicsExpanded.Cache.Disk;
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
 
@@ -12,31 +8,31 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.PBR.Materials;
 
+/// <summary>Checks base-color cache key identity and culture-independent serialization inputs.</summary>
 [Trait("Category", "Unit")]
 public sealed class BaseColorCacheKeyAndCodecTests
 {
-    private readonly CountingDiskCacheFileSystem storage = new();
-
+    #region Public API
+    /// <summary>Base-color keys are stable across calls and independent of the current culture.</summary>
     [Fact]
     public void BaseColorKeys_AreStable_AcrossCalls_AndCultureIndependent()
     {
+        // Arrange: build a key from fixed texture identity and cache inputs.
         CultureInfo original = CultureInfo.CurrentCulture;
-
         try
         {
             var inputs = BaseColorCacheKeyInputs.CreateDefaults();
             var builder = new BaseColorCacheKeyBuilder();
-
             var texture = new AssetLocation("game", "textures/block/test.png");
-            string origin = "assets/game/textures/block/test.png";
-            long bytes = 12345;
 
-            AtlasCacheKey k1 = builder.BuildKey(inputs, texture, originPath: origin, assetBytes: bytes);
+            AtlasCacheKey first = builder.BuildKey(inputs, texture, originPath: "assets/game/textures/block/test.png", assetBytes: 12345);
 
+            // Act: rebuild the same identity under a culture with different number formatting conventions.
             CultureInfo.CurrentCulture = new CultureInfo("fr-FR");
-            AtlasCacheKey k2 = builder.BuildKey(inputs, texture, originPath: origin, assetBytes: bytes);
+            AtlasCacheKey second = builder.BuildKey(inputs, texture, originPath: "assets/game/textures/block/test.png", assetBytes: 12345);
 
-            Assert.Equal(k1, k2);
+            // Assert: formatting culture does not alter cache identity.
+            Assert.Equal(first, second);
         }
         finally
         {
@@ -44,81 +40,28 @@ public sealed class BaseColorCacheKeyAndCodecTests
         }
     }
 
+    /// <summary>Origin path, asset bytes, and averaging algorithm version each contribute to key identity.</summary>
     [Fact]
     public void BaseColorKeys_Change_WhenOriginBytesOrAvgAlgoChanges()
     {
+        // Arrange: hold texture and other inputs fixed while varying one identity component at a time.
         var inputs = BaseColorCacheKeyInputs.CreateDefaults();
         var builder = new BaseColorCacheKeyBuilder();
-
         var texture = new AssetLocation("game", "textures/block/test.png");
+        AtlasCacheKey baseline = builder.BuildKey(inputs, texture, originPath: "a", assetBytes: 10);
 
-        AtlasCacheKey kA = builder.BuildKey(inputs, texture, originPath: "a", assetBytes: 10);
-        AtlasCacheKey kB = builder.BuildKey(inputs, texture, originPath: "b", assetBytes: 10);
-        AtlasCacheKey kC = builder.BuildKey(inputs, texture, originPath: "a", assetBytes: 11);
-
-        Assert.NotEqual(kA, kB);
-        Assert.NotEqual(kA, kC);
-
-        // AvgAlgo is part of StablePrefix, so changing it must change the key.
-        var inputs2 = new BaseColorCacheKeyInputs(
+        // Act: change source identity and algorithm version independently.
+        AtlasCacheKey changedPath = builder.BuildKey(inputs, texture, originPath: "b", assetBytes: 10);
+        AtlasCacheKey changedBytes = builder.BuildKey(inputs, texture, originPath: "a", assetBytes: 11);
+        var olderAlgorithm = new BaseColorCacheKeyInputs(
             SchemaVersion: inputs.SchemaVersion,
             StablePrefix: inputs.StablePrefix.Replace("avgAlgo=2", "avgAlgo=1", StringComparison.Ordinal));
+        AtlasCacheKey changedAlgorithm = builder.BuildKey(olderAlgorithm, texture, originPath: "a", assetBytes: 10);
 
-        AtlasCacheKey kD = builder.BuildKey(inputs2, texture, originPath: "a", assetBytes: 10);
-        Assert.NotEqual(kA, kD);
+        // Assert: changing any cache-key input changes identity.
+        Assert.NotEqual(baseline, changedPath);
+        Assert.NotEqual(baseline, changedBytes);
+        Assert.NotEqual(baseline, changedAlgorithm);
     }
-
-    [Fact]
-    public void JsonStore_RoundTrips_Rgb16fPayload_WithoutLoss()
-    {
-        string root = CreateTempDir();
-        try
-        {
-            var store = new DiskJsonDictionaryCacheStore(root, "meta.json", storage);
-            var codec = new BaseColorRgb16fJsonCodec();
-
-            var cache = new DataCacheSystem<AtlasCacheKey, BaseColorRgb16f>(
-                store,
-                codec,
-                keyToEntryId: BaseColorCacheKeyBuilder.ToEntryId,
-                tryParseKey: BaseColorCacheKeyBuilder.TryParseEntryId);
-
-            var inputs = BaseColorCacheKeyInputs.CreateDefaults();
-            var builder = new BaseColorCacheKeyBuilder();
-            AtlasCacheKey key = builder.BuildKey(inputs, new AssetLocation("game", "textures/block/test.png"), originPath: "a", assetBytes: 1);
-
-            var payload = new BaseColorRgb16f(R: 0x3C00, G: 0x0000, B: 0x7BFF);
-
-            cache.Store(key, payload);
-
-            Assert.True(cache.TryGet(key, out BaseColorRgb16f loaded));
-            Assert.Equal(payload, loaded);
-        }
-        finally
-        {
-            TryDeleteDir(root);
-        }
-    }
-
-    private string CreateTempDir()
-    {
-        string path = Path.Combine(Path.GetTempPath(), "vge-cachetests", Guid.NewGuid().ToString("N"));
-        storage.CreateDirectory(path);
-        return path;
-    }
-
-    private void TryDeleteDir(string path)
-    {
-        try
-        {
-            if (storage.DirectoryExists(path))
-            {
-                storage.DeleteDirectory(path, recursive: true);
-            }
-        }
-        catch
-        {
-            // Best-effort.
-        }
-    }
+    #endregion
 }

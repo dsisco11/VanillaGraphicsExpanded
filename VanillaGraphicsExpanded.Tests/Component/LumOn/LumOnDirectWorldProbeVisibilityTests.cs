@@ -1,0 +1,137 @@
+using VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
+using VanillaGraphicsExpanded.Tests.Support.Lighting;
+using System.Numerics;
+using VanillaGraphicsExpanded.Numerics;
+using VanillaGraphicsExpanded.Tests.Support.LumOn.WorldProbes.Fixtures;
+using VanillaGraphicsExpanded.Tests.Component.LumOn.Fixtures;
+using Xunit;
+
+namespace VanillaGraphicsExpanded.Tests.Component.LumOn;
+
+/// <summary>Checks exact local occlusion in direct irradiance debug and both gather fallback consumers.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldProbeVisibilityTestBase
+{
+
+
+    #region Public API
+    /// <summary>Shares the mandatory GPU context.</summary>
+    public LumOnDirectWorldProbeVisibilityTests(HeadlessGLFixture fixture) : base(fixture) { }
+
+    #region Local Occlusion
+    /// <summary>Exterior cached light enters only through a real doorway in the near-field geometry.</summary>
+    [Theory]
+    [InlineData(31, false)]
+    [InlineData(32, false)]
+    [InlineData(33, false)]
+    [InlineData(-1, false)]
+    [InlineData(-2, false)]
+    [InlineData(31, true)]
+    [InlineData(32, true)]
+    [InlineData(33, true)]
+    [InlineData(-1, true)]
+    [InlineData(-2, true)]
+    public void SealedRoom_RejectsExteriorLight_AndDoorwayRestoresIt(int consumer, bool doorway)
+    {
+        // Arrange
+        EnsureShaderTestAvailable();
+        var world = new ControlledVoxelWorld();
+        world.AddRoom((-3, -3, -8), (3, 3, -2));
+        if (doorway) world.SetBlock(0, 0, -2, null);
+        using var local = new NearFieldVoxelFixture();
+        local.Publish(world);
+        // Act
+        using var result = RenderDirectVisibility(CreateUniformCache(), local.Scene,
+            new Vector3(0.5f, 0.5f, -5), new Vector3(-7.5f), 16, consumer);
+        // Assert
+        AssertLighting(result, consumer, doorway);
+        if (doorway && consumer < 0)
+        {
+            // Act
+            using var suppressed = RenderDirectVisibility(CreateUniformCache(), local.Scene,
+                new Vector3(0.5f, 0.5f, -5), new Vector3(-7.5f), 16, consumer, suppress: true);
+            // Assert
+            ImageAssertions.Comparisons.CompareHistory(suppressed.Texture, result, channelMask: 8).AssertEqual();
+            ImageAssertions.Comparisons.CompareConstant(suppressed.Texture, 0, channelMask: 7).AssertEqual();
+        }
+    }
+
+    /// <summary>Unknown geometry, exhausted traversal and missing near-field resources cannot establish visibility.</summary>
+    [Theory]
+    [InlineData(31, 0)]
+    [InlineData(-1, 0)]
+    [InlineData(-2, 0)]
+    [InlineData(31, 1)]
+    [InlineData(31, 2)]
+    public void UnresolvedVisibility_RemainsDark(int consumer, int scenario)
+    {
+        // Arrange
+        EnsureShaderTestAvailable();
+        using var local = new NearFieldVoxelFixture();
+        if (scenario != 0) local.Publish(new ControlledVoxelWorld());
+        // Act
+        using var result = RenderDirectVisibility(CreateUniformCache(), scenario == 2 ? null : local.Scene,
+            new Vector3(0.5f, 0.5f, -5), new Vector3(-7.5f), 16, consumer, budget: scenario == 1 ? 1 : 256);
+        // Assert
+        AssertLighting(result, consumer, false);
+    }
+
+    /// <summary>Near-field geometry establishes visibility even when nearest angular depth incorrectly lies in front of the receiver.</summary>
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(-2)]
+    [InlineData(31)]
+    public void ClearGeometry_IgnoresQuantizedVisibilityDepth(int consumer)
+    {
+        // Arrange
+        EnsureShaderTestAvailable();
+        using var local = new NearFieldVoxelFixture();
+        local.Publish(new ControlledVoxelWorld());
+        // Act
+        using var result = RenderDirectVisibility(CreateUniformCache(distance: 0.1f), local.Scene,
+            new Vector3(0.5f, 0.5f, -5), new Vector3(-7.5f), 16, consumer);
+        // Assert
+        AssertLighting(result, consumer, true);
+    }
+    #endregion
+    #endregion
+
+    #region Private
+    #region Cache and Assertions
+    /// <summary>Creates a fully published constant radiance tile with independently controllable recorded distance.</summary>
+    private static WorldProbeAtlasData CreateUniformCache(float distance = 64)
+    {
+        var atlas = new WorldProbeAtlasData(1, 16);
+        for (int i = 0; i < atlas.Radiance.Length; i += 4)
+        {
+            atlas.Radiance[i] = atlas.Radiance[i + 1] = atlas.Radiance[i + 2] = 1;
+            atlas.Radiance[i + 3] = MathF.Log(1 + distance);
+        }
+        atlas.Metadata[0] = 1;
+        atlas.Visibility[0] = atlas.Visibility[1] = 0.5f;
+        return atlas;
+    }
+
+    /// <summary>Checks irradiance debug views, Lambertian gather E/pi and selected confidence.</summary>
+    private void AssertLighting(GpuImageSnapshot result, int consumer, bool lit)
+    {
+        // Unit incident radiance integrates to E=pi. Debug views display E; gather
+        // publishes E/pi for the receiver's diffuse response, independently of storage scale.
+        float expected = !lit ? 0 : consumer == 33 ? 1 : consumer >= 0 ? MathF.PI / (1 + MathF.PI) : 1f;
+        ImageAssertions.Statistics.Inspect(result.Texture, expected - 0.004f, expected + 0.004f, channelMask: 7).AssertFiniteRange();
+        if (consumer < 0) ImageAssertions.Statistics.Inspect(result.Texture, lit ? 0.999f : 0, lit ? 1.001f : 0, channelMask: 8).AssertFiniteRange();
+    }
+    #endregion
+    #endregion
+
+    #region Protected API
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.Support.GPU.Observations.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+    }
+    #endregion
+}

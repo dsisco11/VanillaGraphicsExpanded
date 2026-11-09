@@ -3,37 +3,24 @@ using static VanillaGraphicsExpanded.Rendering.Contracts.LumOnShaderOptions;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering.Contracts;
 
-/// <summary>Checks the owned registry against source coverage and unique compiled output paths.</summary>
+/// <summary>Checks production registry declarations, settings projection, and selection rules.</summary>
 public sealed class ShaderRegistryTests
 {
-    private static ShaderVariantResolver Registry => GpuShaderContracts.Registry;
-
+    #region Public API
     #region Coverage
-    /// <summary>Every packaged entry point is explicitly registered and every declaration has source.</summary>
-    [Fact]
-    public void SourcesAndRegistryCoverEachOther()
-    {
-        string[] extensions = [".vsh", ".fsh", ".csh", ".gsh", ".tcsh", ".tesh", ".glsl"];
-        var sources = TestAssetSnapshot.Built.Paths.Where(path => path.StartsWith("shaders/", StringComparison.Ordinal))
-            .Where(path => extensions.Contains(Path.GetExtension(path))).Select(path => path["shaders/".Length..])
-            // Fixture overlays replace a production source at the same asset path.
-            .Where(path => !path.StartsWith("includes/", StringComparison.Ordinal) && Path.GetExtension(path)!=".glsl")
-            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
-        var fixtures = ShaderBuildTool.Spirv.TestShaderPrograms.Create();
-        Assert.Equal(sources, fixtures.Stages.Values.Select(stage => stage.Source).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
-        Assert.Equal(fixtures.Binaries.Count, fixtures.Binaries.Select(binary => binary.BinaryPath).Distinct(StringComparer.OrdinalIgnoreCase).Count());
-    }
-
     /// <summary>Explicit empty contracts remain distinct from unknown identities and validator-only assets.</summary>
     [Fact]
     public void EmptyAndIsolatedProgramsAreExplicit()
     {
+        // Arrange: Select the production registry and an isolated build-validation scope.
+        var isolated = BuildValidationShaderPrograms.Create();
+        // Act: Query empty/unknown production declarations and resolve isolated identities.
         Assert.Empty(Registry.FindProgram("lumon_velocity").Options);
         Assert.Empty(Registry.FindProgram("lumonscene_capture_voxel").Options);
         Assert.Throws<ArgumentException>(() => Registry.FindProgram("not_registered"));
         Assert.Throws<ArgumentException>(() => Registry.FindStage("not_registered.fsh"));
         Assert.Throws<ArgumentException>(() => Registry.FindStage("fixture.fsh"));
-        var isolated = BuildValidationShaderPrograms.Create();
+        // Assert: Empty, isolated, and unknown identities retain their distinct outcomes.
         Assert.Equal(2, isolated.Programs.Count);
         Assert.Equal(3, isolated.Stages.Count);
         Assert.Equal(3, isolated.Binaries.Count);
@@ -55,7 +42,10 @@ public sealed class ShaderRegistryTests
     [InlineData("cloud_volume/temporal", "cloud_volume/view.vsh", "cloud_volume/temporal.fsh", 2)]
     public void PairingsAreDeclared(string program, string vertex, string fragment, int budget)
     {
+        // Arrange: xUnit supplies one declared program/stage pairing and its variant budget.
+        // Act: Resolve the program and each shared stage from the production registry.
         var contract = Registry.FindProgram(program);
+        // Assert: Pairings share registry-owned instances and keep the declared budgets.
         Assert.Same(Registry.FindStage(vertex), contract.Stages[0]);
         Assert.Same(Registry.FindStage(fragment), contract.Stages[1]);
         Assert.Equal(budget, contract.VariantBudget);
@@ -66,8 +56,11 @@ public sealed class ShaderRegistryTests
     [Fact]
     public void AllSelectionsRemainDeclaredAndDeterministic()
     {
+        // Arrange: Enumerate each registered program and all declared assignments.
+        // Act: Resolve stage paths, fixed defines, and compiled binary selections.
         foreach (var program in Registry.Programs.Values)
         {
+            // Assert: Every selected result remains declared and deterministic.
             Assert.InRange(program.Assignments.Count, 1, program.VariantBudget);
             Assert.All(Registry.Resolve(new(program)), s => Assert.Equal(s.Stage.Identity + ".spv", s.BinaryPath));
             foreach (var stage in program.Stages)
@@ -96,12 +89,15 @@ public sealed class ShaderRegistryTests
     [Fact]
     public void GlobalProjectionUsesDeclaredGroups()
     {
+        // Arrange: Supply known global settings shared by programs with different option groups.
         var values = new Dictionary<string, string?>
         {
             [AmbientOcclusion.Name] = "0", [PbrComposite.Name] = "0",
             ["VGE_LUMON_ENABLE_BENT_NORMAL"] = "0", [WorldProbeResolution.Name] = "4"
         };
+        // Act: Project the globals into two program-specific immutable settings snapshots.
         var composite = ShaderGlobalSettings.Project(Registry, "pbr_composite", values);
+        // Assert: Irrelevant globals are filtered, aliases normalize, and direct input stays strict.
         Assert.False(composite.Values.ContainsKey(AmbientOcclusion.Name));
         Assert.Equal(ShaderScalar.From(false), composite.Values[ShortRangeAo.Name]);
         var world = ShaderGlobalSettings.Project(Registry, "lumon_debug_view_world_probe_irradiance_combined", values);
@@ -121,7 +117,10 @@ public sealed class ShaderRegistryTests
     [Fact]
     public void ConditionsMatchTheLightingBranches()
     {
+        // Arrange: Select the trace and PIS mask contracts and their complete assignment sets.
         var trace = Registry.FindProgram("lumon_probe_atlas_trace");
+        // Act: Resolve each trace branch against the condition declarations.
+        // Assert: Specialization IDs match the declared conditional availability.
         foreach (var assignment in trace.Assignments)
         {
             var settings = new ShaderSettings(trace, assignment.ToDictionary(p => p.Key, p => (string?)p.Value.Canonical));
@@ -130,6 +129,8 @@ public sealed class ShaderRegistryTests
             Assert.Equal(settings.Values[WorldProbes.Name].Bits == 1, ids.Contains(11u));
             Assert.DoesNotContain(15u, ids);
         }
+        // Act: Resolve PIS specialization availability for each assignment.
+        // Assert: Only the fully enabled exploration branch exposes all five specializations.
         var mask = Registry.FindProgram("lumon_probe_atlas_pis_mask");
         foreach (var assignment in mask.Assignments)
         {
@@ -138,6 +139,7 @@ public sealed class ShaderRegistryTests
                 settings.Values[BatchSlicing.Name].Bits == 0 && settings.Values[UniformMask.Name].Bits == 0;
             Assert.Equal(exploration ? 5 : 2, Registry.Resolve(settings)[1].Specializations.Count);
         }
+        // Assert: Fixed IDs and defaults remain stable on the separate points shader.
         Assert.Equal(new uint[] { 13, 14 }, Registry.Resolve(new(Registry.FindProgram("vge_worldprobe_orbs_points")))[1].Specializations.Select(s => s.Id));
         Assert.Equal(-1, unchecked((int)ExploreCount.Default.Bits));
         Assert.Equal(ShaderScalar.From(0), WorldProbeResolution.Default);
@@ -155,7 +157,18 @@ public sealed class ShaderRegistryTests
     [InlineData("vge_worldprobe_orbs_points", "VGE_LUMON_WORLDPROBE_ENABLED")]
     [InlineData("lumon_probe_atlas_gather", "VGE_LUMON_WORLDPROBE_ATLAS_TEXELS_PER_UPDATE")]
     [InlineData("lumon_debug_view_world_probe_irradiance_combined", "VGE_LUMON_BIND_WORLDPROBE_RADIANCE_ATLAS")]
-    public void IneffectiveOptionsAreNotRegistered(string program, string option) =>
+    public void IneffectiveOptionsAreNotRegistered(string program, string option)
+    {
+        // Arrange: xUnit supplies a program/option pair that cannot affect a compiled shader.
+        // Act: Ask the program contract to resolve the ineffective option.
+        // Assert: Unregistered options fail instead of becoming nominal settings.
         Assert.Throws<ArgumentException>(() => Registry.FindProgram(program).FindOption(option));
+    }
+    #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Uses the generated production registry for the owned shader declaration checks.</summary>
+    private static ShaderVariantResolver Registry => GpuShaderContracts.Registry;
     #endregion
 }

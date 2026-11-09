@@ -1,0 +1,283 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using HarmonyLib;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.HarmonyPatches;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.Rendering;
+
+/// <summary>Exercises exact native buffer texture association dispatch and canonical range certification.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed unsafe class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
+{
+    #region Public API
+    /// <summary>Supported addressing forms update aliases and preserve explicit whole-versus-range policy.</summary>
+    #region Association and range publication
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
+    [InlineData(4)] [InlineData(5)] [InlineData(6)] [InlineData(7)]
+    [InlineData(8)] [InlineData(9)] [InlineData(10)] [InlineData(11)]
+    public void AssociationVariantsPublishActualDescriptors(int variant)
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = Patch();
+        // Act
+        try
+        {
+            using var first = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); first.Allocate(128);
+            using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); second.Allocate(128);
+            using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = first, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
+            using var sentinel = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = first, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            var entry = (GpuResourceMetadataEntry<GpuTextureMetadata>)manager.GetResourceRegistration(view)!;
+            using var alias = new TextureAlias(view.TextureId); manager.AssociateResource(entry, alias);
+            // Invalidate cached selection while retaining actual native binding to exercise resolution.
+            OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.TextureBuffer, 0, sentinel.TextureId);
+            OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.TextureBuffer, 3, view.TextureId);
+            OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, variant == 6 ? 5 : 3);
+            OpenGlStateCache.Current.InvalidateAll();
+
+            Associate(variant, view.TextureId, second.BufferId, SizedInternalFormat.R32ui, 0, 128);
+            bool ranged = variant is 7 or 8 or 9 or 10;
+            // Assert
+            Assert.Equal(second.BufferId, view.BufferId);
+            Assert.Equal(TextureFormat.R32ui, view.Format);
+            Assert.Equal(ranged ? 128 : 0, view.SizeBytes);
+            Assert.Equal(!ranged, alias.Snapshot.Buffer!.Value.WholeBuffer);
+            Assert.Equal(view.BufferId, alias.Snapshot.Buffer.Value.BufferId);
+            Assert.True(view.IsValid);
+            Assert.Equal((int)(variant == 6 ? TextureUnit.Texture5 : TextureUnit.Texture3), GL.GetInteger(GetPName.ActiveTexture));
+            OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, 0);
+            Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBindingBuffer));
+            second.Allocate(256);
+            Assert.Equal(ranged ? 128 : 0, view.SizeBytes);
+            Assert.True(view.IsValid);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Rejected commands preserve certified descriptors and native errors; a valid detach removes the backing.</summary>
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)]
+    public void RejectedRequestsRetainDescriptorAndDetachIsObserved(int rejection)
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = Patch();
+        // Act
+        try
+        {
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
+            using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = false, Offset = 0, Length = 64, Label = null }).RequireResource();
+            var entry = (GpuResourceMetadataEntry<GpuTextureMetadata>)RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(view)!;
+            if (rejection == 4) Associate(8, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 0, 128);
+            var original = entry.Metadata.Buffer;
+            if (rejection == 0) Associate(8, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 0, 256);
+            else if (rejection == 1) Associate(8, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 1, 16);
+            else if (rejection == 2) InvalidTarget(view.TextureId, buffer.BufferId, TextureTarget.Texture2D);
+            else if (rejection == 4) InvalidTarget(view.TextureId, buffer.BufferId, 0);
+            else Associate(1, view.TextureId, buffer.BufferId, (SizedInternalFormat)0, 0, 0);
+            // Assert
+            Assert.NotEqual(ErrorCode.NoError, GL.GetError());
+            Assert.Equal(original, entry.Metadata.Buffer);
+            Assert.True(view.IsValid);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+            Associate(1, view.TextureId, 0, SizedInternalFormat.R32f, 0, 0);
+            Assert.Equal(0, view.BufferId);
+            Assert.True(RHIResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(view));
+            Assert.False(view.IsValid);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Whole and explicit equal-capacity association modes remain distinct through resizing and reassociation.</summary>
+    [Fact]
+    public void WholeAndExplicitFullRangeDoNotCollapse()
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = Patch();
+        // Act
+        try
+        {
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
+            using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
+            Associate(8, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 0, 128);
+            // Assert
+            Assert.Equal(128, view.SizeBytes);
+            buffer.Allocate(256);
+            Assert.Equal(128, view.SizeBytes);
+            Associate(1, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 0, 0);
+            Assert.Equal(0, view.SizeBytes);
+            buffer.Allocate(64);
+            Assert.Equal(0, view.SizeBytes);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Established reassociation uses supplied ranges and canonical backing capacity without descriptor verification.</summary>
+    [Fact]
+    public void EstablishedAssociationPublishesWithoutDescriptorQueries()
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = Patch();
+        // Act
+        try
+        {
+            using var first = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription
+            { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 128, Usage = BufferUsage.DynamicDraw }).RequireResource();
+            using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription
+            { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 128, Usage = BufferUsage.DynamicDraw }).RequireResource();
+            using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription
+            { Buffer = first, Format = TextureFormat.R32f, WholeBuffer = true }).RequireResource();
+            using var descriptors = new ImageDescriptorCapture();
+            Associate(8, view.TextureId, second.BufferId, SizedInternalFormat.R32ui, 0, 64);
+            // Assert
+            Assert.Equal(second.BufferId, view.BufferId);
+            Assert.Equal(TextureFormat.R32ui, view.Format);
+            Assert.Equal(64, view.SizeBytes);
+            Assert.Equal(0, descriptors.Reads);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+    #endregion
+
+    /// <summary>Wide native arguments forward unchanged and rejected associations preserve tracked metadata.</summary>
+    #region Rejected and failed dispatch
+    [Fact]
+    public void RejectedWideForwardingDoesNotQueryOrNarrow()
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = Patch();
+        GL.CreateTextures(TextureTarget.TextureBuffer, 1, out int texture);
+        // Act
+        try
+        {
+            using var backing = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
+            backing.Allocate(64);
+            using var descriptors = new ImageDescriptorCapture(native =>
+            {
+                var originalRange = (delegate* unmanaged[Stdcall]<uint, int, uint, nint, nint, void>)native.Original("glTextureBufferRange");
+                native.Add("glTextureBufferRange", new TextureRangeCall((name, format, buffer, offset, size) =>
+                {
+                    capturedOffset = offset;
+                    capturedSize = size;
+                    originalRange(name, format, buffer, offset, size);
+                }));
+            });
+            Associate(1, texture, backing.BufferId, SizedInternalFormat.R32f, 0, 0);
+            // Assert
+            Assert.Equal(0, descriptors.Reads);
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
+                RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+            var original = entry.Metadata;
+            ulong revision = entry.MetadataRevision;
+            nint offset = (nint)int.MaxValue + 4097, size = (nint)int.MaxValue + 8193;
+            Associate(8, texture, backing.BufferId, SizedInternalFormat.R32f, offset, size);
+            Assert.Equal(offset, capturedOffset); Assert.Equal(size, capturedSize);
+            Assert.Equal(0, descriptors.Reads);
+            Assert.Same(entry, RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+            Assert.Equal(original, entry.Metadata);
+            Assert.Equal(revision, entry.MetadataRevision);
+            Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
+        }
+        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+    /// <summary>A managed failure before native dispatch leaves the unchanged association snapshot valid.</summary>
+    [Fact]
+    public void FailureBeforeNativeDispatchPreservesPreviousRange()
+    {
+        // Arrange
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = Patch();
+        // Act
+        try
+        {
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
+            using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = false, Offset = 0, Length = 64, Label = null }).RequireResource();
+            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.TextureBufferRange), [typeof(int), typeof(SizedInternalFormat), typeof(int), typeof(IntPtr), typeof(IntPtr)]),
+                prefix: new HarmonyMethod(typeof(GpuBufferTextureInterceptionTests), nameof(ThrowBeforeDispatch)));
+            // Assert
+            var failure = Assert.Throws<ApplicationException>(() => Associate(8, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 0, 64));
+            Assert.Equal("native boundary failure", failure.Message);
+            Assert.True(RHIResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(view));
+            Assert.True(view.IsValid);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+    #endregion
+    #endregion
+    #region Private
+
+    private static nint capturedOffset, capturedSize;
+
+    /// <summary>Matches the native-width named texture-buffer range ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void TextureRangeCall(uint texture, int format, uint buffer, nint offset, nint size);
+
+    /// <summary>Creates the Harmony owner used for production redirection on native fixture call sites.</summary>
+    private static Harmony Patch()
+    {
+        var harmony = new Harmony("VGE.Tests.BufferTextureInterception");
+
+        return harmony;
+    }
+    /// <summary>Dispatches actual core and extension overloads without modifying their native signatures.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void Associate(int variant, int texture, int buffer, SizedInternalFormat format, nint offset, nint size)
+    {
+        switch (variant)
+        {
+            case 0: GL.TexBuffer(TextureBufferTarget.TextureBuffer, format, buffer); break;
+            case 1: GL.TextureBuffer(texture, format, buffer); break;
+            case 2: GL.TextureBuffer((uint)texture, format, (uint)buffer); break;
+            case 3: GL.Arb.TexBuffer(TextureTarget.TextureBuffer, format, buffer); break;
+            case 4: GL.Ext.TexBuffer(TextureTarget.TextureBuffer, format, buffer); break;
+            case 5: GL.Ext.TextureBuffer(texture, TextureTarget.TextureBuffer, format, buffer); break;
+            case 6: GL.Ext.MultiTexBuffer(TextureUnit.Texture3, TextureTarget.TextureBuffer, (InternalFormat)format, buffer); break;
+            case 7: GL.TexBufferRange(TextureBufferTarget.TextureBuffer, format, buffer, offset, size); break;
+            case 8: GL.TextureBufferRange(texture, format, buffer, offset, size); break;
+            case 9: GL.TextureBufferRange((uint)texture, format, (uint)buffer, offset, size); break;
+            case 10: GL.Ext.TextureBufferRange(texture, TextureTarget.TextureBuffer, (InternalFormat)format, buffer, offset, size); break;
+            case 11: GL.TexBuffer(TextureBufferTarget.TextureBuffer, format, buffer); break;
+        }
+    }
+    /// <summary>Retains an invalid target as a native error without resolving another binding.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void InvalidTarget(int texture, int buffer, TextureTarget target) => GL.Ext.TextureBuffer(texture, target, SizedInternalFormat.R32f, buffer);
+    /// <summary>Injects a dispatch failure before any native association command executes.</summary>
+    private static void ThrowBeforeDispatch() => throw new ApplicationException("native boundary failure");
+    /// <summary>Receives canonical association metadata without taking ownership.</summary>
+    private sealed class TextureAlias(int id) : GpuResource<GpuTextureMetadata>
+    {
+        #region Public API
+        internal GpuTextureMetadata Snapshot => metadata;
+        /// <inheritdoc />
+        public override nint ResourceId { get; protected set; } = id;
+        /// <inheritdoc />
+        protected override GpuResourceKind ResourceKind => GpuResourceKind.Texture;
+        /// <inheritdoc />
+        protected override bool OwnsResource => false;
+        /// <inheritdoc />
+        public override void SetDebugName(string? name) { }
+        #endregion
+    }
+    #endregion
+}
+
+
+
+

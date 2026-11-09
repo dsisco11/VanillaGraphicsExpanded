@@ -22,7 +22,11 @@ public sealed class LinkedTextureTypeTests
     [InlineData(ShaderValueType.Sampler1DArray, 0)]
     public void LinkedDimensionsRequireCompatibleStorage(ShaderValueType type, int expected)
     {
-        Assert.Equal(expected, GpuPreparedBindings.CompatibleTextureTarget(type));
+        // Arrange: xUnit supplies one shader sampler/image type and its declared storage target.
+        // Act: Resolve the semantic target accepted by prepared resource binding.
+        int actual = GpuPreparedBindings.CompatibleTextureTarget(type);
+        // Assert: Unsupported specialized storage remains distinguishable from ordinary 2D storage.
+        Assert.Equal(expected, actual);
     }
     #endregion
 }

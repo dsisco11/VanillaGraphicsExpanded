@@ -1,0 +1,66 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.LumOn;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn.Shaders;
+using VanillaGraphicsExpanded.Rendering;
+
+namespace VanillaGraphicsExpanded.Tests.Support.Lighting;
+
+/// <summary>Isolates temporal shader retention with fixed anchors; full runtime coverage uses mod-owned callbacks.</summary>
+public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBase
+{
+    // Programs owns disposal; histories retain separate textures and all bindings are refreshed per draw.
+    private LumOnScreenProbeAtlasTemporalShaderProgram? temporalProgram;
+
+    /// <summary>Uses the shared material-isolated graphics context.</summary>
+    protected SurfaceLightingTemporalTestBase(HeadlessGLFixture fixture) : base(fixture) { }
+
+    /// <summary>Exposes raw traces and temporal output for independent component assertions.</summary>
+    private protected sealed record HistoryFrame(GpuTexture Raw, GpuTexture RawMeta, TraceImages Pixels, bool Reset);
+
+    #region Frame execution
+    /// <summary>Traces eight directions per probe and retains the other fifty-six through the real temporal shader.</summary>
+    private protected HistoryFrame RenderHistory(SurfaceLightingEnclosureFixture room, SurfaceLightingHistoryFixture history, bool available = true)
+    {
+        var lighting = available ? room.Snapshot : (VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingSnapshot?)null;
+        history.BeginFrame(room, lighting);
+
+        var raw=Trace(null, resources: history.Resources, worldCache: false, shared: room.Geometry.Scene, surfaceLighting: lighting,
+            anchorPosition: new(0,0,-3), worldOffset: new(0,32,0), matrixRemainder: new(4,4,7),
+            history: history.Buffers.ScreenProbeAtlasHistoryTex, historyMeta: history.Buffers.ScreenProbeAtlasMetaHistoryTex,
+            texelsPerFrame: SurfaceLightingHistoryFixture.DirectionsPerFrame, frameIndex: history.FrameIndex, rayMaxDistance: 16,
+            consume: traced => Accumulate(traced, history));
+        var pixels=CaptureTrace(history.Buffers.ScreenProbeAtlasCurrentTex!,
+            history.Buffers.ScreenProbeAtlasMetaCurrentTex!,rgbDecode:1);
+        var result=new HistoryFrame(raw.Radiance,raw.Meta,pixels,history.ResetThisFrame);
+        history.EndFrame();
+        return result;
+    }
+
+    /// <summary>Runs production temporal blending against the previous ping-pong generation without CPU radiance injection.</summary>
+    private void Accumulate(RHIRenderPassDescription traced, SurfaceLightingHistoryFixture history)
+    {
+        var program = temporalProgram ??= Programs.Create<LumOnScreenProbeAtlasTemporalShaderProgram>(shader => shader.TexelsPerFrame = SurfaceLightingHistoryFixture.DirectionsPerFrame);
+        var anchor = history.Buffers.ProbeAnchors!;
+        var mask = history.Buffers.ProbeTraceMaskTex!;
+        var velocity = history.Buffers.VelocityTex!;
+        anchor.UploadDataImmediate(CreateUniformColorData(anchor.Width,anchor.Height,0,0,-3,1), 0, 0, 0, anchor.Width, anchor.Height, 1);
+        mask.UploadDataImmediate(new float[mask.Width*mask.Height*2]);
+        velocity.UploadDataImmediate(new float[velocity.Width*velocity.Height*4]);
+        var jitter = GetOrCreatePmjJitterTexture(1, 0);
+        program.ScreenProbeAtlasCurrent = traced.Colors[0].Image!.Value.Texture;
+        program.ScreenProbeAtlasHistory = history.Buffers.ScreenProbeAtlasHistoryTex;
+        program.ProbeAnchors = anchor;
+        program.ScreenProbeAtlasMetaCurrent = traced.Colors[1].Image!.Value.Texture;
+        program.ScreenProbeAtlasMetaHistory = history.Buffers.ScreenProbeAtlasMetaHistoryTex;
+        program.VelocityTex = velocity;
+        program.PmjJitter = jitter;
+        program.ProbeTraceMask = mask;
+        UpdateAndBindLumOnFrameUbo(program, frameIndex: history.FrameIndex, anchorJitterEnabled: 0, enableVelocityReprojection: 0);
+        program.TemporalAlpha = .9f;
+        program.HitDistanceRejectThreshold = .3f;
+        TestFramework.RenderQuadTo(program, history.Buffers.ScreenProbeAtlasCurrentPass!);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+}

@@ -7,15 +7,17 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.Scene;
 /// <summary>Checks the expanded near-field tracing shader contract without a graphics context.</summary>
 public sealed class NearFieldUboTests
 {
-    #region Packed coordinates
+    #region Public API
     /// <summary>Large absolute coordinates become precise small relative origin bounds in the shader block.</summary>
     [Theory]
     [InlineData(16777216)]
     [InlineData(-16777216)]
     public void OriginDomainUsesRelativeCoordinates(int origin)
     {
+        // Arrange
         using var ubo=new LumOnNearFieldParamsUbo();
         var bounds=new PartitionBounds(new(origin+.25,origin+1.5,origin-2.25),new(origin+16.25,origin+17.5,origin+13.75));
+        // Act and Assert
         ubo.Set(new VectorInt3(origin,origin,origin),160,128,16,bounds,24);
         Assert.Equal(128,ubo.Bytes.Length);
         Assert.Equal(origin,BitConverter.ToInt32(ubo.Bytes[..4]));

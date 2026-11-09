@@ -1,0 +1,363 @@
+using HarmonyLib;
+using System.Runtime.InteropServices;
+using OpenTK.Graphics.OpenGL;
+using OpenTK.Windowing.GraphicsLibraryFramework;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using CoreGL = OpenTK.Graphics.OpenGL4.GL;
+using ErrorCode = OpenTK.Graphics.OpenGL.ErrorCode;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.Rendering;
+
+/// <summary>Exercises semantic creation, content operations and original-context rejection.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class RHIBufferTests(HeadlessGLFixture fixture)
+{
+    [ThreadStatic] private static Action? beforeAllocation;
+    [ThreadStatic] private static Action? afterAllocation;
+
+    #region Public API
+    #region Creation and content
+    /// <summary>Partial initial content works with immutable storage that rejects later client updates.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void InitialContentAndGpuOperationsPreserveSelectorsAndStorageRevision(bool immutable)
+    {
+        // Arrange: create the selected allocation mode and a sentinel binding before initial content is published.
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            var context = RHICommandContext.Current;
+            var description = Description(16);
+            if (immutable) description = new() { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Immutable, Capacity = 16, Access = StorageAccess.None };
+            using var sentinel = context.CreateBuffer(Description(16)).RequireResource();
+            context.BindBuffer(BufferRole.Vertex, sentinel);
+            byte[] initial = [1, 2, 3, 4];
+            // Act: create from partial data, copy and clear storage, then inspect readback and later-upload behavior.
+            var result = context.CreateBuffer(description, new(initial, 4));
+            // Assert: copied bytes and cleared bytes are distinct, while storage identity and selector are retained.
+            Assert.True(result.IsSuccess); Assert.Null(result.Diagnostics);
+            using var source = result.RequireResource();
+            using var destination = context.CreateBuffer(Description(16)).RequireResource();
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(source)!;
+            ulong revision = entry.MetadataRevision;
+            context.CopyBuffer(source, 4, destination, 2, 4);
+            context.ClearBuffer(source, 4, 4, 9);
+            byte[] bytes = new byte[4];
+            using (var readback = context.EnqueueReadback(new(new RHIBufferRange(destination, 2, bytes.Length))))
+            { Assert.Equal(CompletionStatus.Ready, readback.Wait()); using var mapped = readback.MapReadyReadback(); mapped.Bytes.CopyTo(bytes); }
+            Assert.Equal(initial, bytes);
+            using (var readback = context.EnqueueReadback(new(new RHIBufferRange(source, 4, bytes.Length))))
+            { Assert.Equal(CompletionStatus.Ready, readback.Wait()); using var mapped = readback.MapReadyReadback(); mapped.Bytes.CopyTo(bytes); }
+            Assert.Equal(new byte[] { 9, 9, 9, 9 }, bytes);
+            if (immutable) Assert.Throws<InvalidOperationException>(() => context.UploadBuffer(source, 0, initial));
+            else context.UploadBuffer(source, 0, initial);
+            Assert.Equal(revision, entry.MetadataRevision);
+            Assert.Equal(16, source.SizeBytes);
+            Assert.Equal(sentinel.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Omission is rejected, explicit zero is accepted, and references grant no ownership.</summary>
+    [Fact]
+    public void CreationRequiresAssignedInputsAndReturnsOnlyCompletedOwners()
+    {
+        // Arrange: leave required buffer fields unset, then prepare an explicit zero-capacity request.
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            var context = RHICommandContext.Current;
+            var incomplete = new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Usage = BufferUsage.StaticDraw };
+            // Act: reject the incomplete request and create a valid owner with explicit zero capacity.
+            Assert.Throws<ArgumentException>(() => context.CreateBuffer(incomplete));
+            // Assert: the returned reference is valid only while its owning wrapper remains live.
+            Assert.False(default(RHICreationResult<GpuBufferObject>).IsSuccess);
+            using var owner = context.CreateBuffer(Description(0)).RequireResource();
+            GpuBufferRef reference = owner;
+            Assert.True(reference.IsValid);
+            Assert.True(reference.TryGetMetadata(out var data));
+            Assert.Equal((nint)0, data.Capacity);
+            owner.Dispose();
+            Assert.False(reference.IsValid);
+            Assert.ThrowsAny<InvalidOperationException>(() => context.ClearBuffer(reference, 0, 0));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>A failed native allocation returns diagnostics without exposing an owning declaration.</summary>
+    [Fact]
+    public unsafe void FailedCreationReturnsNoOwner()
+    {
+        // Arrange: substitute zero names at the native creation ABI boundary.
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            var context = RHICommandContext.Current;
+            int calls = 0;
+            using var native = new NativeDriverCapture();
+            // Inject the unsuccessful driver output at the ABI boundary, independent of
+            // whether the managed convenience overload has already been JIT-inlined.
+            native.Add("glCreateBuffers", new CreateBuffersCall((count, buffers) =>
+            {
+                calls++;
+                for (int i = 0; i < count; i++) buffers[i] = 0;
+            }));
+            native.Install();
+            // Act: request a buffer after the driver callback reports no allocation.
+            var result = context.CreateBuffer(Description(16));
+            // Assert: failure diagnostics are returned without creating an owner.
+            Assert.Equal(1, calls);
+            Assert.False(result.IsSuccess);
+            Assert.False(result.TryGetResource(out var owner));
+            Assert.Null(owner);
+            Assert.False(string.IsNullOrWhiteSpace(result.Diagnostics));
+            Assert.Throws<InvalidOperationException>(() => result.RequireResource());
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    #endregion
+    #region Mapping
+    /// <summary>Named mapping flush offsets are relative to the mapped range, rather than allocation offsets.</summary>
+    [Fact]
+    public void ExplicitFlushUsesMappingRelativeOffset()
+    {
+        // Arrange: allocate storage and map a range starting at a nonzero allocation offset.
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var buffer = RHICommandContext.Current.CreateBuffer(Description(32)).RequireResource();
+            using (var mapping = buffer.MapRange<int>(16, 4, BufferMapAccess.Write | BufferMapAccess.ExplicitFlush))
+            {
+                // Act: modify one mapped element and flush its mapping-relative byte range.
+                mapping.Span[3] = 1234;
+                mapping.Flush(12, 4);
+            }
+            using var read = buffer.MapRange<int>(28, 1, BufferMapAccess.Read);
+            // Assert: the flushed element is visible at its absolute allocation location.
+            Assert.Equal(1234, read.Span[0]);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Rejected native mapping dispatch propagates once and cannot select another execution path.</summary>
+    [Fact]
+    public void MappingFailureNeverRetriesBoundMapping()
+    {
+        // Arrange: reject the named mapping call and count any forbidden bound fallback.
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var buffer = RHICommandContext.Current.CreateBuffer(Description(16)).RequireResource();
+            using var native = new NativeDriverCapture();
+            int namedCalls = 0, boundCalls = 0;
+            native.Add("glMapNamedBufferRange", new MapNamedCall((id, offset, length, access) => { namedCalls++; return 0; }));
+            native.Add("glMapBufferRange", new MapBoundCall((target, offset, length, access) => { boundCalls++; return 0; }));
+            native.Install();
+            // Act: request a mapping while both native entry points are observed.
+            Assert.Throws<InvalidOperationException>(() => buffer.MapRange<int>(0, 4, BufferMapAccess.Read));
+            // Assert: only the named entry point was attempted.
+            Assert.Equal(1, namedCalls); Assert.Equal(0, boundCalls);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    #endregion
+    #region Context identity
+    /// <summary>An admitted context rejects execution while no native context is current, then remains usable on return.</summary>
+    [Fact]
+    public unsafe void OriginalContextIsRequiredBeforeNativeExecution()
+    {
+        // Arrange: retain the admitted context and its owning native buffer.
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            var context = RHICommandContext.Current;
+            using var buffer = context.CreateBuffer(Description(16)).RequireResource();
+            var original = GLFW.GetCurrentContext();
+            try
+            {
+                // Act: attempt a native buffer operation after clearing the current context.
+                GLFW.MakeContextCurrent(null);
+                Assert.Throws<InvalidOperationException>(() => context.ClearBuffer(buffer, 0, 16));
+            }
+            finally { GLFW.MakeContextCurrent(original); }
+            // Assert: restore the origin and confirm the same owner remains usable.
+            context.ClearBuffer(buffer, 0, 16);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Local tools retain physical identity without borrowing another context's selector knowledge or disposal authority.</summary>
+    [Fact]
+    public unsafe void UnregisteredContextCannotDonateResourceOrCacheIdentity()
+    {
+        // Arrange: keep one registered context and create a separate unregistered native context.
+        fixture.EnsureContextValid();
+        var original = GLFW.GetCurrentContext();
+        var originalContext = RHICommandContext.Current;
+        using var image = originalContext.CreateTexture(new RHITextureDescription
+        { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = 1, Height = 1,
+            MipLevels = 1, Storage = ResourceStorageMode.Immutable }).RequireResource();
+        GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4);
+        GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5);
+        GLFW.WindowHint(WindowHintBool.Visible, false);
+        var local = GLFW.CreateWindow(16, 16, "Local RHI context", null, null);
+        Assert.True(local != null);
+        GpuBufferObject? owner = null;
+        try
+        {
+            // Act: create and bind a local buffer, then return to the registered origin.
+            GLFW.MakeContextCurrent(local);
+            var localContext = RHICommandContext.Current;
+            owner = localContext.CreateBuffer(Description(16)).RequireResource();
+            localContext.BindBuffer(BufferRole.Vertex, owner);
+            Assert.True(OpenGlStateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ArrayBuffer, out _));
+            GLFW.MakeContextCurrent(original);
+            originalContext.RequireContext();
+            // Assert: the origin cannot use the other context's cache, resource, or disposal authority.
+            Assert.False(OpenGlStateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ArrayBuffer, out _));
+            Assert.Throws<InvalidOperationException>(() => originalContext.ClearBuffer(owner, 0, 16));
+            var transfer = new RHITextureTransfer(owner, 0, new(new(), 0, 0, 0, 1, 1, 1),
+                new(PixelChannelLayout.Rgba, PixelComponentType.UnsignedByte));
+            Assert.Throws<InvalidOperationException>(() => originalContext.TransferBufferToTexture(image, transfer));
+            Assert.Throws<InvalidOperationException>(() => originalContext.TransferTextureToBuffer(image, transfer));
+            Assert.Throws<InvalidOperationException>(() => owner.Dispose());
+            Assert.False(owner.IsDisposed);
+            GLFW.MakeContextCurrent(local);
+            owner.Dispose();
+            owner = null;
+            Assert.Equal(OpenTK.Graphics.OpenGL4.ErrorCode.NoError, CoreGL.GetError());
+        }
+        finally
+        {
+            GLFW.MakeContextCurrent(local);
+            owner?.Dispose();
+            GLFW.DestroyWindow(local);
+            GLFW.MakeContextCurrent(original);
+            GpuSupport.Initialize();
+            OpenGlStateCache.Current.InvalidateAll();
+        }
+    }
+
+    #endregion
+    #region Publication and suppression
+    /// <summary>Controlled binds suppress only complete known-equal keys; exact external calls always execute.</summary>
+    [Fact]
+    public void IndexedSuppressionIncludesGenericSelectionAndPreservesExternalCalls()
+    {
+        // Arrange: create competing buffer owners and observe only the native indexed bind calls.
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            var context = RHICommandContext.Current;
+            using var first = context.CreateBuffer(Description(32)).RequireResource();
+            using var second = context.CreateBuffer(Description(32)).RequireResource();
+            using var capture = new BindingCallCapture();
+            // Act: repeat equal semantic keys, change generic selection, then call GL directly.
+            context.BindBufferBase(BufferRole.Uniform, 0, first);
+            context.BindBufferBase(BufferRole.Uniform, 0, first);
+            Assert.Equal(1, capture.Calls(nameof(GL.BindBufferBase)));
+            context.BindBuffer(BufferRole.Uniform, second);
+            context.BindBufferBase(BufferRole.Uniform, 0, first);
+            Assert.Equal(2, capture.Calls(nameof(GL.BindBufferBase)));
+            context.BindBufferRange(BufferRole.Uniform, 0, first, 0, 16);
+            context.BindBufferRange(BufferRole.Uniform, 0, first, 0, 16);
+            Assert.Equal(1, capture.Calls(nameof(GL.BindBufferRange)));
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, first.BufferId);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, first.BufferId);
+            // Assert: managed equal-key binds were suppressed but direct calls still reached GL.
+            Assert.Equal(4, capture.Calls(nameof(GL.BindBufferBase)));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Native callbacks cannot change already frozen initialization intent or provoke another dispatch.</summary>
+    [Fact]
+    public void AllocationPublishesCapturedRequestAfterCallerMutation()
+    {
+        // Arrange: mutate the caller's request from inside the native allocation callback.
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = new Harmony("Tests.RHIBuffer.FrozenRequest");
+        try
+        {
+            var context = RHICommandContext.Current;
+            using var buffer = context.CreateBuffer(Description(16)).RequireResource();
+            var request = Description(64);
+            int calls = 0;
+            beforeAllocation = () => { calls++; request.Capacity = 128; };
+            using var allocation = new NativeBufferAllocationCapture(before: ObserveAllocation);
+            // Act: allocate storage using the request snapshot captured before the callback.
+            context.AllocateBufferStorage(buffer, request);
+            // Assert: mutation affects only the caller's object, not native or published capacity.
+            Assert.Equal(1, calls);
+            Assert.Equal((nint)128, request.Capacity);
+            Assert.Equal(64, buffer.SizeBytes);
+            GL.GetNamedBufferParameter(buffer.BufferId, BufferParameterName.BufferSize, out int capacity);
+            Assert.Equal(64, capacity);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { beforeAllocation = null; harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Retirement during allocation stops partial initial-content dispatch and never targets zero or a replacement name.</summary>
+    [Fact]
+    public void RetiredAllocationStopsBeforePartialUpload()
+    {
+        // Arrange: retire the target in the callback immediately after storage allocation.
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = new Harmony("Tests.RHIBuffer.InterruptedInitialization");
+        try
+        {
+            var context = RHICommandContext.Current;
+            using var buffer = context.CreateBuffer(Description(16)).RequireResource();
+            afterAllocation = buffer.Dispose;
+            using var allocation = new NativeBufferAllocationCapture(after: ObserveCompletedAllocation);
+            // Act: allocate while the native callback retires the owner before initial bytes are uploaded.
+            Assert.Throws<InvalidOperationException>(() => context.AllocateBufferStorage(buffer, Description(64), new byte[] { 1, 2, 3, 4 }));
+            // Assert: the interrupted owner remains retired and no GL error was introduced.
+            Assert.True(buffer.IsDisposed);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { afterAllocation = null; harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+    #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Builds an explicit mutable allocation request for content tests.</summary>
+    private static RHIBufferDescription Description(nint capacity) => new()
+    { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = capacity, Usage = BufferUsage.DynamicDraw };
+
+    /// <summary>Matches the named mapping result ABI for native failure qualification.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate nint MapNamedCall(uint id, nint offset, nint length, int access);
+
+    /// <summary>Matches the bound mapping ABI to detect forbidden fallback dispatch.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate nint MapBoundCall(int target, nint offset, nint length, int access);
+
+    /// <summary>Matches native creation output without relying on managed wrapper detours.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private unsafe delegate void CreateBuffersCall(int count, uint* buffers);
+
+    /// <summary>Runs a test callback at the exact native allocation boundary.</summary>
+    private static void ObserveAllocation() => beforeAllocation?.Invoke();
+
+    /// <summary>Retires the target only after its native allocation has completed.</summary>
+    private static void ObserveCompletedAllocation() => afterAllocation?.Invoke();
+    #endregion
+}
+

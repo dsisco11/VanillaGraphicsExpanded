@@ -9,6 +9,25 @@ Status
   authorize test removal. The four test projects are
   VanillaGraphicsExpanded.Tests, OpenGLInterceptionGenerator.Tests, ShaderBuildTool.Tests,
   and ShaderContractGenerator.Tests. A source-file count is not a runtime-case count.
+  Phase 3 is complete after the user-authorized primary-agent final review and
+  completion audit. The main-project method and support move maps resolve to
+  current targets; Release discovery matches the recorded Unit (2,164), All
+  (5,920), and Diagnostic (198) selections. The six-case difference between
+  All discovery and execution is reserved for Phase 5 reconciliation.
+  A source-level comment pass now covers all 3,089 moved main-project methods;
+  six report-only diagnostics have no pass/fail assertion oracle. The follow-up
+  review's cached-shader pixel equality, wrapped-blit routing, blitter-disposal
+  name, native-unbind, empty-memory-snapshot name, and three LumOn numerical-oracle
+  gaps have been corrected. Four discovery-name changes are recorded in
+  testing-inventory/Phase2.MethodMoves.csv. Debug and Release builds pass, and the
+  corrected focused selection passes 9/9 in each configuration. The three changed
+  LumOn numerical cases also pass 3/3 in three fresh Release processes. The final
+  review found and corrected a memory-object failure-path cleanup gap. A full
+  Release AllTests run passes 5,915 tests with 11 skips and no failures (5,926
+  total); the test selection took 2m21s, and the command took 166.0s including
+  build and restore. The user authorized the primary agent to provide final
+  reviewer sign-off because the configured reviewer was unavailable. The 27
+  explicitly deferred oracle methods remain a separate test-design batch.
 
 Objective and authority
   Make each test's actual boundary, behavior, and ownership clear enough to apply the
@@ -89,16 +108,16 @@ Phase 2: Establish coherent ownership and layout
     project references, CI/IDE commands, and documentation before editing them.
 
 Phase 3: Migrate the main test project in coherent batches
-  ☐ Migrate confirmed mixed root suites by domain and actual level, beginning with
+  ☑ Migrate confirmed mixed root suites by domain and actual level, beginning with
     atmosphere lookup/publication versus diagnostic workload. Preserve assertions,
     data rows, skips, traits, and fixture behavior.
-  ☐ Audit and move misclassified Unit groups, beginning with LumOn scheduler and
+  ☑ Audit and move misclassified Unit groups, beginning with LumOn scheduler and
     world-probe voxel-arrangement examples. Rename overclaimed tests to state the
     behavior they prove; record discovery-name changes.
-  ☐ Audit GPU, Profiling, fixtures, and support code for actual test boundary and
+  ☑ Audit GPU, Profiling, fixtures, and support code for actual test boundary and
     ownership. Retain serialized execution where shared context/state requires it;
     change lifetime or parallelism only with isolation evidence.
-  ☐ Within each migrated group, make Arrange/Act/Assert boundaries and scenario intent
+  ☑ Within each migrated group, make Arrange/Act/Assert boundaries and scenario intent
     legible. Explain non-obvious order and expected results. Avoid comments that merely
     repeat the next call. Check independence, cleanup, pending work, randomness, time,
     scheduling, and unnecessary real I/O while keeping I/O that proves the contract.

@@ -1,4 +1,4 @@
-using VanillaGraphicsExpanded.Tests.GPU.Assertions;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 

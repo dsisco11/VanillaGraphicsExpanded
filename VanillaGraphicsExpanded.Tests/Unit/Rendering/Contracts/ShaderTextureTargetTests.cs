@@ -12,6 +12,7 @@ public sealed class ShaderTextureTargetTests
     [Fact]
     public void AllContractTargetsMatchReflectedDimensions()
     {
+        // Arrange: Pair every semantic target with the shader type whose storage dimension it represents.
         var reflected = new Dictionary<ShaderTextureTarget, ShaderValueType>
         {
             [ShaderTextureTarget.Texture1D] = ShaderValueType.Sampler1D,
@@ -23,8 +24,14 @@ public sealed class ShaderTextureTargetTests
         };
         foreach (ShaderTextureTarget target in Enum.GetValues<ShaderTextureTarget>())
         {
-            Assert.True(reflected.TryGetValue(target, out var type));
-            Assert.Equal((int)target, GpuPreparedBindings.CompatibleTextureTarget(type));
+            // Act: Resolve the expected reflected type and prepared-binding target for this enum member.
+            bool found = reflected.TryGetValue(target, out var type);
+            // Assert: Every target has an authored reflection mapping.
+            Assert.True(found);
+            // Act: Query the semantic target selected by prepared binding.
+            int actual = GpuPreparedBindings.CompatibleTextureTarget(type);
+            // Assert: The production enum value and semantic mapping agree.
+            Assert.Equal((int)target, actual);
         }
     }
     #endregion

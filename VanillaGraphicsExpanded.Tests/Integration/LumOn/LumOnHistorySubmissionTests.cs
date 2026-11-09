@@ -1,0 +1,123 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.LumOn;
+
+/// <summary>Checks production history clears and shader-free pass submission against hostile engine state.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+{
+    #region Public API
+    /// <summary>The actual buffer owner clears all temporal roles and restores the caller without issuing draws.</summary>
+    [Fact]
+    public void ClearHistoryClearsPublishedImagesAcrossResize()
+    {
+        // Arrange populated history resources at each size so clearing is tested after real publication state exists.
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        var config = new VgeConfig(); config.LumOn.ProbeSpacingPx = 8;
+        using var buffers = new LumOnBufferManager(assets.Api, config);
+        foreach (int size in new[] { 16, 24 })
+        {
+            buffers.EnsureBuffers(size, size);
+            Assert.True(buffers.EnsureBuffers(size, size));
+            DynamicTexture2D[] images = [buffers.ScreenProbeAtlasTraceTex!, buffers.ScreenProbeAtlasMetaTraceTex!,
+                buffers.ScreenProbeAtlasCurrentTex!, buffers.ScreenProbeAtlasMetaCurrentTex!,
+                buffers.ScreenProbeAtlasHistoryTex!, buffers.ScreenProbeAtlasMetaHistoryTex!,
+                buffers.ScreenProbeAtlasFilteredTex!, buffers.ScreenProbeAtlasMetaFilteredTex!,
+                buffers.IndirectHalfTex!, buffers.IndirectFullTex!, buffers.ProbeTraceMaskTex!, buffers.ProbePisEnergyTex!, buffers.VelocityTex!];
+            foreach (var image in images)
+            {
+                int channels=RHICommandContext.Current.GetTextureEncoding(image,PixelComponentType.Float).Channels switch
+                {
+                    PixelChannelLayout.Red or PixelChannelLayout.RedInteger=>1,
+                    PixelChannelLayout.Rg or PixelChannelLayout.RgInteger=>2,
+                    PixelChannelLayout.Rgb or PixelChannelLayout.RgbInteger=>3,
+                    PixelChannelLayout.Rgba or PixelChannelLayout.RgbaInteger=>4,
+                    _=>throw new InvalidOperationException("Expected a color history image.")
+                };
+                image.UploadDataImmediate(Enumerable.Repeat(.75f,image.Width*image.Height*channels).ToArray());
+            }
+            var coefficients = buffers.ProbeSh9!;
+            coefficients.UploadDataImmediate(Enumerable.Repeat(.75f, coefficients.Width * coefficients.Height * 28).ToArray(), 0, 0, 0, coefficients.Width, coefficients.Height, 7);
+            buffers.HasPublishedIndirect = true;
+            var revision = buffers.HistoryRevision;
+#if DEBUG
+            long draws = OpenGlStateCache.Current.DrawSubmissions;
+#endif
+            // Act by clearing under hostile caller state, then verify restoration and every cleared role.
+            using (var hostile = new HostileFullscreenState())
+            {
+                buffers.ClearHistory();
+                hostile.AssertRestored();
+                Assert.All(images, image => ImageAssertions.Comparisons.CompareConstant(image, 0).AssertEqual());
+                ImageAssertions.Comparisons.CompareConstant(coefficients,0).AssertEqual();
+            }
+            // Assert the publication flag and revision also reflect the clear transition.
+            Assert.False(buffers.HasPublishedIndirect);
+            Assert.True(buffers.HistoryRevision > revision);
+#if DEBUG
+            Assert.Equal(draws, OpenGlStateCache.Current.DrawSubmissions);
+#endif
+        }
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
+    /// <summary>An empty pipeline declaration permits clear-only passes and retains exception-safe restoration.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ClearOnlyBoundaryRestoresOnSuccessAndException(bool fail)
+    {
+        // Arrange a clear-only render pass under a deliberately hostile GL state.
+        EnsureContextValid();
+        using var target = CreateRenderTarget(4, 4, TextureFormat.Rgba32f);
+#if DEBUG
+        long draws = OpenGlStateCache.Current.DrawSubmissions;
+#endif
+        using var hostile = new HostileFullscreenState();
+        var expected = new ArithmeticException("after clear");
+        bool Run()
+        {
+            var commands=RHICommandContext.Current;
+            using var boundary=commands.EnterBoundary(new("ClearOnlyFixture",true,operations:BoundaryOperations.RenderPasses));
+            boundary.Run(()=>
+            {
+            commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1))]));
+            if (fail) throw expected;
+            commands.EndRenderPass();
+            });
+            return true;
+        }
+        // Act through the boundary, optionally throwing after the clear operation.
+        if (fail) Assert.Same(expected, Assert.Throws<ArithmeticException>(() => Run())); else Assert.True(Run());
+        // Assert restoration, clear output, draw count, and GL error state after either path.
+        hostile.AssertRestored();
+        ImageAssertions.Comparisons.CompareVector(target[0],new(.25f,.5f,.75f,1f)).AssertEqual();
+#if DEBUG
+        Assert.Equal(draws, OpenGlStateCache.Current.DrawSubmissions);
+#endif
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
+    #endregion
+
+    #region Protected
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.Support.GPU.Observations.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("compare", 0, 0);
+    }
+
+    #endregion
+
+}

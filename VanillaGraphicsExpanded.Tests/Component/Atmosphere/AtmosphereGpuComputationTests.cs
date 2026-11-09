@@ -1,0 +1,296 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Diagnostics;
+using System.Numerics;
+using System.Collections.Immutable;
+using System.Reflection;
+using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+
+namespace VanillaGraphicsExpanded.Tests.Component.Atmosphere;
+
+/// <summary>Checks real atmospheric compute transport against the retained CPU numerical model.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
+{
+    #region Public API
+    #region Numerical publication
+    /// <summary>Every published sky sample and shared integral uses the same admitted physical inputs.</summary>
+    [Theory]
+    [InlineData(1f, 0f, 0f)]
+    [InlineData(.3f, 1f, 2f)]
+    [InlineData(-.05f, .2f, 0f)]
+    [InlineData(.05f, 0f, 99f)]
+    [InlineData(-.002f, 0f, .001f)]
+    [InlineData(.002f, 0f, .001f)]
+    public void CompletePublicationMatchesCpu(float sunY, float clouds, float altitude)
+    {
+        // Arrange
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var gpu = AtmosphereGpuComputation.Create(assets.Api);
+        var sun = Vector3.Normalize(new Vector3(MathF.Sqrt(1 - sunY * sunY), sunY, 0));
+        var clock = Stopwatch.StartNew();
+        // Act
+        var actual = Complete(gpu, sun, altitude, clouds);
+        double gpuMilliseconds = clock.Elapsed.TotalMilliseconds;
+        var cpu = new AtmosphereLookup();
+        clock.Restart();
+        cpu.Update(sun, altitude, clouds);
+        output.WriteLine($"Complete default lookup including source table: GPU {gpuMilliseconds:F2} ms, CPU {clock.Elapsed.TotalMilliseconds:F2} ms (single diagnostic sample, not a benchmark).");
+        // Assert
+        var expected = cpu.Current!;
+        Compare(expected.Solar, actual.Solar); Compare(expected.Environment, actual.Environment);
+        Compare(expected.Horizon, actual.Horizon); Compare(expected.Extinction, actual.Extinction);
+        Assert.Equal(expected.Sky.Length, actual.Sky.Length);
+        for (int i = 0; i < expected.Sky.Length; i++) Close(expected.Sky[i], actual.Sky[i], $"sky[{i}]");
+        Assert.Equal(expected.SkyMie.Length, actual.SkyMie.Length);
+        for (int i = 0; i < expected.SkyMie.Length; i++) Close(expected.SkyMie[i], actual.SkyMie[i], $"sky Mie[{i}]");
+        Assert.Equal(expected.AerialMie.Length, actual.AerialMie.Length);
+        for (int i = 0; i < expected.AerialMie.Length; i++) Close(expected.AerialMie[i], actual.AerialMie[i], $"aerial Mie[{i}]");
+        Assert.Equal(expected.Altitude, actual.Altitude);
+        Assert.Equal(512 * 4, actual.ExternalTransmission.Length);
+        for (int i = 0; i < actual.ExternalTransmission.Length; i++)
+            Close(expected.ExternalTransmission[i], actual.ExternalTransmission[i], $"external transmission[{i}]");
+        Assert.Equal(expected.AerialRadiance.Length, actual.AerialRadiance.Length);
+        Assert.Equal(expected.AerialAttenuation.Length, actual.AerialAttenuation.Length);
+        Assert.Equal(expected.Width * expected.Height * AtmosphereAerialPerspective.Depth * 4, actual.AerialRadiance.Length);
+        for (int i = 0; i < expected.AerialRadiance.Length; i++)
+        {
+            Close(expected.AerialRadiance[i], actual.AerialRadiance[i], $"aerial radiance[{i}]");
+            Close(expected.AerialAttenuation[i], actual.AerialAttenuation[i], $"aerial attenuation[{i}]");
+        }
+        Assert.Null(gpu.Update(sun, altitude, clouds, 32, 24));
+    }
+    /// <summary>Seasonal ground reflectance changes finish the admitted generation and match CPU sky and shared lighting.</summary>
+    [Fact]
+    public void SeasonalReflectancePreservesGenerationAndMatchesCpu()
+    {
+        // Arrange
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var gpu = AtmosphereGpuComputation.Create(assets.Api);
+        Assert.Null(gpu.Update(Vector3.UnitY, 0, 0, 32, 24, groundAlbedo: .1f));
+        // Act
+        var bare = Complete(gpu, Vector3.UnitY, 0, 0, groundAlbedo: .8f);
+        var snowy = Complete(gpu, Vector3.UnitY, 0, 0, groundAlbedo: .8f);
+        var cpu = new AtmosphereLookup();
+        cpu.Update(Vector3.UnitY, 0, 0, groundAlbedo: .1f);
+        // Assert
+        Compare(cpu.Current!.Environment, bare.Environment);
+        cpu.Update(Vector3.UnitY, 0, 0, groundAlbedo: .8f);
+        Compare(cpu.Current!.Environment, snowy.Environment);
+        Compare(cpu.Current.Horizon, snowy.Horizon);
+        Compare(cpu.Current.Solar, snowy.Solar);
+        Compare(cpu.Current.Extinction, snowy.Extinction);
+        for (int i = 0; i < snowy.Sky.Length; i++) Close(cpu.Current.Sky[i], snowy.Sky[i], $"snow sky[{i}]");
+        Assert.True(snowy.Environment.Length() > bare.Environment.Length());
+        Assert.Null(gpu.Update(Vector3.UnitY, 0, 0, 32, 24, groundAlbedo: .801f));
+    }
+    #endregion
+
+    #region Ownership and fallback lifecycle
+    /// <summary>Changed sun and weather publish their complete generation after an admitted generation finishes.</summary>
+    [Fact]
+    public void ChangedInputsAndDisposalKeepGenerationOwnership()
+    {
+        // Arrange
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        var gpu = AtmosphereGpuComputation.Create(assets.Api);
+        bool explicitlyDisposed = false;
+        try
+        {
+            Assert.Null(gpu.Update(Vector3.UnitY, 0, 0, 32, 24));
+            // Act
+            var first = Complete(gpu, Vector3.UnitX, 2, 1);
+            // Assert
+            Assert.Equal(Vector3.UnitY, first.Sun);
+            // Act
+            var second = Complete(gpu, Vector3.UnitX, 2, 1);
+            // Assert
+            Assert.Equal(Vector3.UnitX, second.Sun);
+            // Act
+            gpu.Update(Vector3.UnitY, 1, .5f, 32, 24);
+            gpu.Dispose();
+            explicitlyDisposed = true;
+            Assert.Throws<ObjectDisposedException>(() => gpu.Update(Vector3.UnitY, 0, 0, 32, 24));
+            using var replacement = AtmosphereGpuComputation.Create(assets.Api);
+            Assert.Equal(Vector3.UnitY, Complete(replacement, Vector3.UnitY, 0, 0).Sun);
+        }
+        finally
+        {
+            // Explicitly dispose on assertion failure as well as on the verified path above.
+            if (!explicitlyDisposed) gpu.Dispose();
+        }
+    }
+    /// <summary>Missing compute assets select and complete the retained asynchronous CPU implementation once.</summary>
+    [Fact]
+    public void MissingComputeAssetsFallBackToCpu()
+    {
+        // Arrange
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        assets.BeforeRead = path => { if (path.EndsWith(".spv", StringComparison.Ordinal)) throw new IOException("Intentional missing compute asset"); };
+        using var backend = new AtmosphereBackend(assets.Api);
+        // Act
+        Assert.Null(backend.Update(Vector3.UnitY, 0, 0, 32, 24, 0));
+        // Assert
+        var pending = Assert.IsAssignableFrom<Task<AtmosphereLighting>>(backend.PendingCpu);
+        // This task contains CPU work only: blocking here preserves the owning GL context thread.
+        var expected = pending.WaitAsync(TimeSpan.FromSeconds(30)).GetAwaiter().GetResult();
+        Assert.Same(expected, backend.Update(Vector3.UnitY, 0, 0, 32, 24, 0));
+        Assert.Null(backend.PendingCpu);
+        Assert.Single(assets.Logs.Where(log => log.Contains("using CPU transport")));
+    }
+    /// <summary>Actual reload preserves the published texture and world reset retires it alongside pending transport.</summary>
+    [Fact]
+    public void ModSystemReloadAndWorldResetRespectPublishedOwnership()
+    {
+        // Arrange
+        EnsureContextValid();
+        output.WriteLine($"Renderer: {fixture.GLRenderer}; OpenGL: {fixture.GLVersion}; runtime: {System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}");
+        using var assets = new BinaryShaderApiFixture();
+        var system = new AtmosphereModSystem();
+        const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        var apiField = typeof(AtmosphereModSystem).GetField("api", flags)!;
+        var backendField = typeof(AtmosphereModSystem).GetField("computation", flags)!;
+        var backend = new AtmosphereBackend(assets.Api);
+        apiField.SetValue(system, assets.Api); backendField.SetValue(system, backend);
+        try
+        {
+            var display = new AtmosphereLighting(Vector3.UnitY, Vector3.One, Vector3.One, Vector3.One, Vector3.Zero,
+                ImmutableArray.Create(.1f, .2f, .3f, 1f)) { Width = 1, Height = 1 };
+            system.Publish(display);
+            display = AtmosphereModSystem.Lighting;
+            int texture = AtmosphereModSystem.SkyTextureId;
+            var radiance = AtmosphereModSystem.AerialRadianceTexture;
+            var attenuation = AtmosphereModSystem.AerialAttenuationTexture;
+            var external = AtmosphereModSystem.ExternalTransmissionTexture;
+            int radianceId = AtmosphereModSystem.AerialRadianceTextureId;
+            int attenuationId = AtmosphereModSystem.AerialAttenuationTextureId;
+            // Act
+            Assert.NotEqual(0, texture);
+            backend.Update(Vector3.UnitY, 0, 0, 32, 24, 0);
+            Assert.Equal(true, typeof(AtmosphereModSystem).GetMethod("Reload", flags)!.Invoke(system, null));
+            Assert.Same(display, AtmosphereModSystem.Lighting); Assert.Equal(texture, AtmosphereModSystem.SkyTextureId);
+            Assert.Same(radiance, AtmosphereModSystem.AerialRadianceTexture);
+            Assert.Same(attenuation, AtmosphereModSystem.AerialAttenuationTexture);
+            Assert.Same(external, AtmosphereModSystem.ExternalTransmissionTexture);
+            Assert.Equal(new[] { 0f, 0f, 0f, 1f }, external!.ReadPixels());
+            Assert.Equal(radianceId, AtmosphereModSystem.AerialRadianceTextureId);
+            Assert.Equal(attenuationId, AtmosphereModSystem.AerialAttenuationTextureId);
+            Assert.True(GL.IsTexture(texture) && GL.IsTexture(radianceId) && GL.IsTexture(attenuationId));
+            // Reload withdraws pending transport while retaining the backend and its input owners.
+            Assert.Null(backend.Update(Vector3.UnitY, 0, 0, 32, 24, 0));
+            var seasonField = typeof(AtmosphereModSystem).GetField("seasonInputs", flags)!;
+            var previousSeasonOwner = seasonField.GetValue(system);
+            typeof(AtmosphereModSystem).GetMethod("Reset", flags)!.Invoke(system, null);
+            // Assert
+            Assert.NotSame(previousSeasonOwner, seasonField.GetValue(system));
+            Assert.Null(AtmosphereModSystem.Lighting); Assert.Equal(0, AtmosphereModSystem.SkyTextureId);
+            Assert.Null(AtmosphereModSystem.ExternalTransmissionTexture);
+            Assert.False(external.IsValid);
+        }
+        finally
+        {
+            // No event subscriptions were installed; avoid asking the fixture to unregister them.
+            apiField.SetValue(system, null); system.Dispose();
+        }
+    }
+    #endregion
+
+    #region Cache and extent transitions
+    /// <summary>Solar motion reuses the medium table, while a changed weather bucket rebuilds it.</summary>
+    [Fact]
+    public void SunReusesSourceAndWeatherInvalidatesIt()
+    {
+        // Arrange
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var gpu = AtmosphereGpuComputation.Create(assets.Api);
+        // Act
+        Complete(gpu, Vector3.UnitY, 0, 0);
+        Assert.Null(gpu.Update(Vector3.UnitX, 0, .01f, 32, 24));
+        using (var fence = RHICommandContext.Current.InsertFence()) RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5));
+        Assert.NotNull(gpu.Update(Vector3.UnitX, 0, .01f, 32, 24));
+        Assert.Null(gpu.Update(Vector3.UnitX, 0, .1f, 32, 24));
+        Assert.Null(gpu.Update(Vector3.UnitX, 0, .1f, 32, 24));
+        // Assert
+        Assert.Equal(Vector3.UnitX, Complete(gpu, Vector3.UnitX, 0, .1f).Sun);
+    }
+    /// <summary>A pending generation finishes coherently before a new quality and odd output extent are admitted.</summary>
+    [Fact]
+    public void PendingQualityChangePublishesWholeOddSizedLookup()
+    {
+        // Arrange
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var gpu = AtmosphereGpuComputation.Create(assets.Api);
+        Assert.Null(gpu.Update(Vector3.UnitY, 0, 0, 32, 24));
+        // Act
+        var old = Complete(gpu, Vector3.UnitX, 1, .2f, 17, 9, 1);
+        // Assert
+        Assert.Equal(32, old.Width); Assert.Equal(Vector3.UnitY, old.Sun);
+        // Act
+        var current = Complete(gpu, Vector3.UnitX, 1, .2f, 17, 9, 1);
+        // Assert
+        Assert.Equal(17, current.Width); Assert.Equal(9, current.Height);
+        Assert.Equal(17 * 9 * 4, current.Sky.Length); Assert.Equal(Vector3.UnitX, current.Sun);
+        for (int i = 0; i < current.Sky.Length; i++) Assert.True(float.IsFinite(current.Sky[i]));
+        for (int i = 3; i < current.Sky.Length; i += 4) Assert.Equal(1f, current.Sky[i]);
+    }
+    /// <summary>Even the smallest sky dispatch writes all transmission rows, including its final overhead direction.</summary>
+    [Fact]
+    public void MinimumSkyExtentCompletesAllExternalTransmissionRows()
+    {
+        // Arrange
+        EnsureContextValid();
+        // Act
+        using var assets = new BinaryShaderApiFixture();
+        using var gpu = AtmosphereGpuComputation.Create(assets.Api);
+        var actual = Complete(gpu, Vector3.UnitX, 1, .5f, 16, 8);
+        // Assert
+        Assert.Equal(512 * 4, actual.ExternalTransmission.Length);
+        foreach (int row in new[] { 0, 64, 255, 511 })
+        {
+            float elevation = AtmosphereSkyMapping.Elevation(row / 511f, actual.HorizonElevation);
+            Vector3 expected = AtmosphereModel.ExternalTransmittance(new(MathF.Cos(elevation), MathF.Sin(elevation), 0),
+                actual.Altitude, 1 + 7 * actual.CloudCoverage);
+            for (int channel = 0; channel < 3; channel++)
+                Close(expected[channel], actual.ExternalTransmission[4 * row + channel], $"row {row}, channel {channel}");
+            Assert.Equal(1, actual.ExternalTransmission[4 * row + 3]);
+        }
+        Assert.True(actual.ExternalTransmission[^4] > 0);
+    }
+    #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Waits on submitted GPU dependencies rather than adding unconditional timing delays.</summary>
+    private static AtmosphereLighting Complete(AtmosphereGpuComputation gpu, Vector3 sun, float altitude, float clouds, int width = 32, int height = 24, int quality = 0, float groundAlbedo = .1f)
+    {
+        var clock = Stopwatch.StartNew();
+        while (clock.Elapsed < TimeSpan.FromSeconds(30))
+        {
+            var result = gpu.Update(sun, altitude, clouds, width, height, quality, groundAlbedo);
+            if (result is not null) return result;
+            using var fence = RHICommandContext.Current.InsertFence();
+            Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)), new[] { CompletionStatus.Ready, CompletionStatus.Ready });
+        }
+        throw new TimeoutException("Atmosphere GPU publication did not complete.");
+    }
+    /// <summary>Compares the complete shared RGB lighting domain.</summary>
+    private static void Compare(Vector3 expected, Vector3 actual)
+    {
+        Close(expected.X, actual.X, "R"); Close(expected.Y, actual.Y, "G"); Close(expected.Z, actual.Z, "B");
+    }
+    /// <summary>Allows floating-point transcendental and parallel reduction differences near thin atmospheric paths.</summary>
+    private static void Close(float expected, float actual, string name) => Assert.True(float.IsFinite(actual)
+        && MathF.Abs(expected - actual) <= 1e-4f + .01f * MathF.Abs(expected), $"{name}: expected {expected:G9}, actual {actual:G9}");
+    #endregion
+}

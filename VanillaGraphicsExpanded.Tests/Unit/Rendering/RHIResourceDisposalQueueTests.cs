@@ -2,14 +2,15 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 
-/// <summary>Verifies deferred cleanup is thread-safe and isolated to the originating context lifetime.</summary>
+/// <summary>Checks GPU resource identifier and disposal contracts without queue or graphics-context behavior.</summary>
 public sealed class RHIResourceDisposalQueueTests
 {
     #region Public API
-    /// <summary>Owner diagnostics detect foreign-thread use only in DEBUG and never change resource state.</summary>
+    /// <summary>Foreign-thread diagnostics report owner misuse in DEBUG without changing resource lifetime.</summary>
     [Fact]
     public void OwnerThreadDiagnosticDoesNotSupplyLifetime()
     {
+        // Arrange: Keep one synthetic resource alive and capture any worker-thread diagnostic.
         using var resource = new ObservedResource();
         Exception? failure = null;
         var worker = new Thread(() =>
@@ -17,7 +18,12 @@ public sealed class RHIResourceDisposalQueueTests
             try { resource.ValidateOwnerThread(); }
             catch (Exception error) { failure = error; }
         });
-        worker.Start(); worker.Join();
+
+        // Act: Validate ownership from a worker and wait for that call to finish.
+        worker.Start();
+        worker.Join();
+
+        // Assert: Diagnostics vary by build mode but never dispose or invalidate the resource.
 #if DEBUG
         Assert.IsType<InvalidOperationException>(failure);
 #else
@@ -26,106 +32,52 @@ public sealed class RHIResourceDisposalQueueTests
         Assert.False(resource.IsDisposed);
         Assert.Equal((nint)1, resource.ResourceId);
     }
-    /// <summary>A borrowed resource retains its identifier after rejected transfer and clears it on local disposal.</summary>
+
+    /// <summary>Rejected detachment preserves a borrowed identifier until disposal clears it.</summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void ResourceIdTracksDisposalAndDetachment(bool detach)
     {
+        // Arrange: Use a borrowed resource whose native handle cannot be transferred.
         using GpuResource resource = new ObservedResource();
+
+        // Assert: The borrowed resource starts valid with its original identifier.
         Assert.Equal((nint)1, resource.ResourceId);
         Assert.True(resource.IsValid);
 
+        // Act / Assert: A rejected transfer leaves the borrowed resource unchanged.
         if (detach)
         {
             Assert.Throws<NotSupportedException>(() => resource.Detach());
             Assert.Equal((nint)1, resource.ResourceId);
             Assert.True(resource.IsValid);
         }
+
+        // Act: Dispose the borrowed resource.
         resource.Dispose();
 
+        // Assert: Disposal clears the identifier and later transfer remains rejected.
         Assert.Equal((nint)0, resource.ResourceId);
         Assert.False(resource.IsValid);
         Assert.True(resource.IsDisposed);
         Assert.Throws<NotSupportedException>(() => resource.Detach());
     }
 
-    /// <summary>An owning CPU declaration without a native allocation can complete either transfer API with an empty handle.</summary>
+    /// <summary>An unallocated owner completes either transfer API with an empty handle and becomes disposed.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void EmptyOwningDeclarationTransfersEmptyHandle(bool releaseHandle)
     {
+        // Arrange: Create an owning resource declaration that has never received a native name.
         using var resource = new EmptyOwningDeclaration();
+
+        // Act / Assert: Release or detach the unallocated resource and verify the empty transfer.
         Assert.Equal((nint)0, releaseHandle ? resource.ReleaseHandle() : resource.Detach());
         Assert.True(resource.IsDisposed);
         Assert.False(resource.IsValid);
         Assert.Equal((nint)0, resource.Detach());
-    }
-
-    /// <summary>Concurrent admissions retain resources until drain and duplicate admissions dispose once.</summary>
-    [Fact]
-    public void ConcurrentEnqueueDefersExactlyOnceDisposalUntilDrain()
-    {
-        var queue = new RHIResourceDisposalQueue();
-        var resource = new ObservedResource();
-        Parallel.For(0, 32, _ => queue.Enqueue(resource));
-        Assert.False(resource.IsDisposed);
-        queue.DrainPending();
-        Assert.Equal(1, resource.Disposals);
-        Assert.Equal(Environment.CurrentManagedThreadId, resource.DisposalThread);
-    }
-
-    /// <summary>A failed release cannot strand later resources during drain or context shutdown.</summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void CleanupFailureDoesNotStrandFollowingResource(bool close)
-    {
-        var queue = new RHIResourceDisposalQueue();
-        var later = new ObservedResource();
-        queue.Enqueue(new ThrowingResource());
-        queue.Enqueue(later);
-        if (close) queue.Close(true);
-        else queue.DrainPending();
-        Assert.Equal(1, later.Disposals);
-    }
-    /// <summary>Closing a context rejects late cleanup and cannot transfer old names into a new context.</summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void ClosedQueueRejectsLateFinalizerAdmissions(bool canDispose)
-    {
-        var queue = new RHIResourceDisposalQueue();
-        var pending = new ObservedResource();
-        var late = new ObservedResource();
-        queue.Enqueue(pending);
-        queue.Close(canDispose);
-        queue.Enqueue(late);
-        queue.DrainPending();
-        Assert.True(queue.IsClosed);
-        Assert.Equal(canDispose ? 1 : 0, pending.Disposals);
-        Assert.Equal(0, late.Disposals);
-    }
-    /// <summary>A scheduled cleanup batch retires each owner once and never carries names into a later queue.</summary>
-    [Fact]
-    public void OwnerScheduledCleanupIsIdempotentAndContextLocal()
-    {
-        var queue = new RHIResourceDisposalQueue();
-        using var first = new ObservedResource();
-        using var second = new ObservedResource();
-        queue.Enqueue(first); queue.Enqueue(first); queue.Enqueue(second);
-        queue.DrainPending();
-        Assert.Equal(1, first.Disposals);
-        Assert.Equal(1, second.Disposals);
-        queue.DrainPending();
-        Assert.Equal(1, first.Disposals);
-        queue.Close(true);
-        var replacement = new RHIResourceDisposalQueue();
-        using var late = new ObservedResource();
-        queue.Enqueue(late);
-        replacement.DrainPending();
-        Assert.False(late.IsDisposed);
     }
     #endregion
 
@@ -133,43 +85,47 @@ public sealed class RHIResourceDisposalQueueTests
     /// <summary>Represents an owning declaration that has not realized a native allocation.</summary>
     private sealed class EmptyOwningDeclaration : GpuResource
     {
+        #region Public API
         /// <inheritdoc />
         public override nint ResourceId { get; protected set; }
+
+        /// <inheritdoc />
+        public override void SetDebugName(string? debugName) { }
+        #endregion
+
+        #region Protected/Internal
         /// <inheritdoc />
         protected override GpuResourceKind ResourceKind => GpuResourceKind.Buffer;
-        /// <inheritdoc />
-        public override void SetDebugName(string? debugName) { }
+        #endregion
     }
-    /// <summary>Models a resource whose managed cleanup reports failure before normal release.</summary>
-    private sealed class ThrowingResource : GpuResource
-    {
-        /// <summary>Gets the current synthetic resource identifier.</summary>
-        public override nint ResourceId { get; protected set; }
-        protected override GpuResourceKind ResourceKind => GpuResourceKind.Texture;
-        /// <summary>Accepts labels without driver interaction.</summary>
-        public override void SetDebugName(string? debugName) { }
-        /// <summary>Injects a cleanup failure for queue isolation coverage.</summary>
-        protected override void OnBeforeDelete(nint id) => throw new InvalidOperationException("Injected cleanup failure");
-    }
+
     /// <summary>Records disposal without creating a GL object or invoking graphics APIs.</summary>
     private sealed class ObservedResource : GpuResource
     {
+        #region Public API
+        /// <summary>Gets the number of completed cleanup callbacks.</summary>
         public int Disposals { get; private set; }
+        /// <summary>Gets the managed thread that completed cleanup.</summary>
         public int DisposalThread { get; private set; }
         /// <summary>Gets the current synthetic resource identifier.</summary>
         public override nint ResourceId { get; protected set; } = 1;
-        protected override GpuResourceKind ResourceKind => GpuResourceKind.Texture;
-        protected override bool OwnsResource => false;
 
         /// <summary>Accepts unused labels because this probe has no driver object.</summary>
         public override void SetDebugName(string? debugName) { }
+        #endregion
 
+        #region Protected/Internal
+        /// <inheritdoc />
+        protected override GpuResourceKind ResourceKind => GpuResourceKind.Texture;
+        /// <inheritdoc />
+        protected override bool OwnsResource => false;
         /// <summary>Records the thread and number of completed lifecycle releases.</summary>
         protected override void OnAfterDelete()
         {
             Disposals++;
             DisposalThread = Environment.CurrentManagedThreadId;
         }
+        #endregion
     }
     #endregion
 }

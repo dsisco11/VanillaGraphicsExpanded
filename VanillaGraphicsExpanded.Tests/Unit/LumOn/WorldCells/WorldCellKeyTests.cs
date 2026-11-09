@@ -8,14 +8,15 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldCells;
 /// <summary>Verifies consumer-local surface queue identities after geometry residency moved to partition keys.</summary>
 public sealed class WorldCellKeyTests
 {
+    #region Public API
     /// <summary>Preserves the source packed coordinate in a near-surface work token.</summary>
     [Fact]
     public void FromLumonSceneNear_UsesChunkKeyPacked()
     {
+        // Act
         ChunkKey chunkKey = ChunkKey.FromChunkCoords(1, 2, 3);
-
         WorldCellKey key = WorldCellKey.FromLumonSceneNear(chunkKey.Packed);
-
+        // Assert
         Assert.Equal(WorldCellKind.LumonSceneNear, key.Kind);
         Assert.Equal(chunkKey.Packed, key.Packed);
     }
@@ -24,8 +25,9 @@ public sealed class WorldCellKeyTests
     [Fact]
     public void Equality_IncludesKind()
     {
+        // Arrange
         const ulong packed = 123ul;
-
+        // Act and Assert
         Assert.Equal(
             new WorldCellKey(WorldCellKind.LumonSceneNear, packed),
             new WorldCellKey(WorldCellKind.LumonSceneNear, packed));
@@ -34,4 +36,5 @@ public sealed class WorldCellKeyTests
             new WorldCellKey(WorldCellKind.LumonSceneNear, packed),
             new WorldCellKey(WorldCellKind.LumonSceneFar, packed));
     }
+    #endregion
 }

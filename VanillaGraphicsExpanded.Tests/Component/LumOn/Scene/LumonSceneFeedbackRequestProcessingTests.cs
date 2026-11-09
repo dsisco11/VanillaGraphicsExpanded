@@ -1,0 +1,638 @@
+using System;
+using System.Collections.Generic;
+
+using VanillaGraphicsExpanded.LumOn.Scene;
+
+using Xunit;
+
+namespace VanillaGraphicsExpanded.Tests.Component.LumOn.Scene;
+
+/// <summary>Checks LumOn scene feedback request processing behavior and contract rules.</summary>
+public sealed class LumonSceneFeedbackRequestProcessingTests
+{
+    #region Public API
+    /// <summary>Deferred retries preserve displayed state and do not consume the eight eligible-page credits behind them.</summary>
+    [Fact]
+    public void DeferredRetryPrefixPreservesFlagsAndDoesNotConsumeEligibleBudget()
+    {
+        // Arrange a four-page near pool, six unique requests, and empty page tables/work queues.
+        using var pool=CreateNearPool(capacityNotClamped:true);
+        var table=new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+        var virtualToPhysical=new Dictionary<ulong,uint>();var physicalToVirtual=new Dictionary<uint,ulong>();
+        var writes=new RecordingPageTableWriter();bool deny=false;
+        var processor=CreateProcessor(pool,table,virtualToPhysical,physicalToVirtual,writes,
+            (item,retry)=>!deny||!retry||item.VirtualPageIndex>=5);
+        var requests=Enumerable.Range(1,12).Select(i=>new LumonScenePageRequestGpu(0,(uint)i,0,(uint)i)).ToArray();
+        var capture=new LumonSceneCaptureWorkGpu[16];var relight=new LumonSceneRelightWorkGpu[16];int cursor=0;
+        processor.Process(requests,16,16,0,ReadOnlySpan<ulong>.Empty,ref cursor,0,capture,relight,out _,out _,out _);
+        for(int i=1;i<=12;i++)table[i]=LumonScenePageTableEntryPacking.Pack(virtualToPhysical[LumonSceneVirtualPageKeyUtil.Pack(0,(uint)i)],LumonScenePageTableEntryPacking.Flags.Resident);
+        uint[] before=table.Take(5).Select(entry=>entry.Packed).ToArray();deny=true;writes.Writes.Clear();
+        var keys=Enumerable.Range(1,12).Select(i=>LumonSceneVirtualPageKeyUtil.Pack(0,(uint)i)).ToArray();
+        // Act and Assert
+        processor.Process(ReadOnlySpan<LumonScenePageRequestGpu>.Empty,0,0,0,keys,ref cursor,8,capture,relight,out int count,out _,out _);
+        Assert.Equal(12,cursor);Assert.Equal(8,count);
+        Assert.Equal(Enumerable.Range(5,8).Select(i=>(uint)i),capture.Take(count).Select(item=>item.VirtualPageIndex));
+        Assert.Equal(before,table.Take(5).Select(entry=>entry.Packed));
+        Assert.DoesNotContain(writes.Writes,write=>write.VirtualPageIndex<5);
+    }
+
+    /// <summary>Verifies the new allocation updates mappings page table and emits capture and relight work behavior.</summary>
+    [Fact]
+    public void NewAllocation_UpdatesMappingsPageTable_AndEmitsCaptureAndRelightWork()
+    {
+        // Arrange
+        using var pool = CreateNearPool(capacityNotClamped: true);
+
+        var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
+        var writes = new RecordingPageTableWriter();
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+        var requests = new[]
+        {
+            new LumonScenePageRequestGpu(chunkSlot: 0u, virtualPageIndex: 5u, mip: 0u, flags: 123u),
+        };
+
+        var capture = new LumonSceneCaptureWorkGpu[8];
+        var relight = new LumonSceneRelightWorkGpu[8];
+
+        int recaptureCursor = 0;
+        // Act and Assert
+        proc.Process(
+            requests: requests,
+            maxRequestsToProcess: 1024,
+            maxNewAllocations: 16,
+            maxResidentPagesPerChunkSlot: 0,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out int captureCount,
+            relightCount: out int relightCount,
+            stats: out _);
+        Assert.Equal(1, captureCount);
+        Assert.Equal(1, relightCount);
+
+        ulong key = LumonSceneVirtualPageKeyUtil.Pack(chunkSlot: 0u, virtualPageIndex: 5u);
+        Assert.True(virtualToPhysical.TryGetValue(key, out uint pid));
+        Assert.NotEqual(0u, pid);
+        Assert.True(physicalToVirtual.TryGetValue(pid, out ulong outKey));
+        Assert.Equal(key, outKey);
+
+        uint packed = pageTable[5].Packed;
+        Assert.Equal(pid, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[5]));
+        var flags = LumonScenePageTableEntryPacking.UnpackFlags(pageTable[5]);
+        Assert.True(flags.HasFlag(LumonScenePageTableEntryPacking.Flags.Resident));
+        Assert.True(flags.HasFlag(LumonScenePageTableEntryPacking.Flags.NeedsCapture));
+        Assert.True(flags.HasFlag(LumonScenePageTableEntryPacking.Flags.NeedsRelight));
+
+        Assert.Contains(writes.Writes, w => w.VirtualPageIndex == 5 && w.PackedEntry == packed);
+
+        Assert.Equal(pid, capture[0].PhysicalPageId);
+        Assert.Equal(0u, capture[0].ChunkSlot);
+        Assert.Equal(123u, capture[0].PatchId);
+        Assert.Equal(5u, capture[0].VirtualPageIndex);
+
+        Assert.Equal(pid, relight[0].PhysicalPageId);
+        Assert.Equal(0u, relight[0].ChunkSlot);
+        Assert.Equal(123u, relight[0].PatchId);
+        Assert.Equal(5u, relight[0].VirtualPageIndex);
+    }
+
+    /// <summary>Verifies the duplicate request does not allocate new page and touches mru behavior.</summary>
+    [Fact]
+    public void DuplicateRequest_DoesNotAllocateNewPage_AndTouchesMRU()
+    {
+        // Arrange
+
+        using var pool = CreateNearPool(capacityNotClamped: true);
+        var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
+        var writes = new RecordingPageTableWriter();
+
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+        var capture = new LumonSceneCaptureWorkGpu[16];
+        var relight = new LumonSceneRelightWorkGpu[16];
+        int recaptureCursor = 0;
+
+        // Allocate two pages: vpage 1 then vpage 2 (vpage 2 is MRU).
+        // Act and Assert
+        proc.Process(
+            requests: new[]
+            {
+                new LumonScenePageRequestGpu(0u, 1u, 0u, 100u),
+                new LumonScenePageRequestGpu(0u, 2u, 0u, 200u),
+            },
+            maxRequestsToProcess: 1024,
+            maxNewAllocations: 16,
+            maxResidentPagesPerChunkSlot: 0,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out _,
+            relightCount: out _,
+            stats: out _);
+
+        ulong key1 = LumonSceneVirtualPageKeyUtil.Pack(chunkSlot: 0u, virtualPageIndex: 1u);
+        ulong key2 = LumonSceneVirtualPageKeyUtil.Pack(chunkSlot: 0u, virtualPageIndex: 2u);
+        uint pid1 = virtualToPhysical[key1];
+        uint pid2 = virtualToPhysical[key2];
+
+        // Touch vpage 1 again; should become MRU.
+        // Act by processing all six with generous request/allocation limits so pool capacity is the constraint.
+        proc.Process(
+            requests: new[] { new LumonScenePageRequestGpu(0u, 1u, 0u, 999u) },
+            maxRequestsToProcess: 1024,
+            maxNewAllocations: 0,
+            maxResidentPagesPerChunkSlot: 0,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out int captureCount,
+            relightCount: out int relightCount,
+            stats: out _);
+        // Assert
+        Assert.Equal(0, captureCount);
+        Assert.Equal(0, relightCount);
+        Assert.Equal(pid1, virtualToPhysical[key1]);
+        Assert.Equal(pid2, virtualToPhysical[key2]);
+
+        Span<uint> mru = stackalloc uint[2];
+        int written = pool.PagePool.CopyMostRecentlyUsed(mru);
+        Assert.Equal(2, written);
+        Assert.Equal(pid1, mru[0]);
+        Assert.Equal(pid2, mru[1]);
+    }
+
+    /// <summary>Verifies the budgets clamp new allocations and requests processed behavior.</summary>
+    [Fact]
+    public void Budgets_ClampNewAllocations_AndRequestsProcessed()
+    {
+        // Arrange
+
+        using var pool = CreateNearPool(capacityNotClamped: true);
+        var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
+        var writes = new RecordingPageTableWriter();
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+        var req = new LumonScenePageRequestGpu[10];
+        for (int i = 0; i < req.Length; i++)
+        {
+            req[i] = new LumonScenePageRequestGpu(0u, (uint)i, 0u, (uint)(1000 + i));
+        }
+
+        var capture = new LumonSceneCaptureWorkGpu[16];
+        var relight = new LumonSceneRelightWorkGpu[16];
+        int recaptureCursor = 0;
+
+        // Act
+        proc.Process(
+            requests: req,
+            maxRequestsToProcess: 5,
+            maxNewAllocations: 2,
+            maxResidentPagesPerChunkSlot: 0,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out int captureCount,
+            relightCount: out int relightCount,
+            stats: out _);
+        // Assert
+        Assert.Equal(2, captureCount);
+        Assert.Equal(2, relightCount);
+        Assert.Equal(2, virtualToPhysical.Count);
+
+        // Only the first 5 requests were eligible; with maxNewAllocations=2, we should have allocated among vpages [0..4].
+        foreach (ulong key in virtualToPhysical.Keys)
+        {
+            int vpage = (int)LumonSceneVirtualPageKeyUtil.UnpackVirtualPageIndex(key);
+            Assert.InRange(vpage, 0, 4);
+        }
+    }
+
+    /// <summary>Verifies the when pool saturated does not evict existing pages and skips new allocations behavior.</summary>
+    [Fact]
+    public void WhenPoolSaturated_DoesNotEvictExistingPages_AndSkipsNewAllocations()
+    {
+        // Arrange
+        using var pool = CreateNearPool(capacityNotClamped: false); // very small capacity to force saturation
+
+        var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
+        var writes = new RecordingPageTableWriter();
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+        var req = new LumonScenePageRequestGpu[6];
+        for (int i = 0; i < req.Length; i++)
+        {
+            req[i] = new LumonScenePageRequestGpu(0u, (uint)i, 0u, (uint)(10 + i));
+        }
+
+        var capture = new LumonSceneCaptureWorkGpu[32];
+        var relight = new LumonSceneRelightWorkGpu[32];
+        int recaptureCursor = 0;
+
+        // Act
+        proc.Process(
+            requests: req,
+            maxRequestsToProcess: 1024,
+            maxNewAllocations: 1024,
+            maxResidentPagesPerChunkSlot: 0,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out _,
+            relightCount: out _,
+            stats: out _);
+
+        // Assert the four allocated pages remain mapped; the final two requests were skipped without eviction.
+        Assert.Equal(4, virtualToPhysical.Count);
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 0u)));
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 1u)));
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 2u)));
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 3u)));
+        Assert.False(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 4u)));
+        Assert.False(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(0u, 5u)));
+
+        Assert.NotEqual(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[0]));
+        Assert.NotEqual(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[1]));
+        Assert.NotEqual(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[2]));
+        Assert.NotEqual(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[3]));
+        Assert.Equal(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[4]));
+        Assert.Equal(0u, LumonScenePageTableEntryPacking.UnpackPhysicalPageId(pageTable[5]));
+
+        Assert.DoesNotContain(writes.Writes, w => w.VirtualPageIndex == 0 && w.PackedEntry == 0u);
+        Assert.DoesNotContain(writes.Writes, w => w.VirtualPageIndex == 1 && w.PackedEntry == 0u);
+    }
+
+    /// <summary>Verifies the per chunk slot cap skips allocations beyond cap behavior.</summary>
+    [Fact]
+    public void PerChunkSlotCap_SkipsAllocationsBeyondCap()
+    {
+        // Arrange
+
+        using var pool = CreateNearPool(capacityNotClamped: true);
+        var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
+        var writes = new RecordingPageTableWriter();
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+        var capture = new LumonSceneCaptureWorkGpu[16];
+        var relight = new LumonSceneRelightWorkGpu[16];
+        int recaptureCursor = 0;
+
+        // Act and Assert
+        proc.Process(
+            requests: new[]
+            {
+                new LumonScenePageRequestGpu(0u, 0u, 0u, 1u),
+                new LumonScenePageRequestGpu(0u, 1u, 0u, 1u),
+            },
+            maxRequestsToProcess: 1024,
+            maxNewAllocations: 1024,
+            maxResidentPagesPerChunkSlot: 1,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out _,
+            relightCount: out _,
+            stats: out var stats);
+        // Assert
+        Assert.Equal(1, virtualToPhysical.Count);
+        Assert.Equal(1, stats.RequestsAllocatedNew);
+        Assert.Equal(1, stats.RequestsSkippedChunkBudget);
+    }
+
+    /// <summary>Verifies the when pool full evicts from over cap slot to allocate for other slot behavior.</summary>
+    [Fact]
+    public void WhenPoolFull_EvictsFromOverCapSlot_ToAllocateForOtherSlot()
+    {
+        // Arrange
+        using var pool = CreateNearPool(capacityNotClamped: false); // capacity=4 pages
+
+        int vpc = LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk;
+        var pageTable = new LumonScenePageTableEntry[checked(vpc * 2)];
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
+        var writes = new RecordingPageTableWriter();
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+        var capture = new LumonSceneCaptureWorkGpu[64];
+        var relight = new LumonSceneRelightWorkGpu[64];
+        int recaptureCursor = 0;
+
+        // Fill the pool with pages in slot 0 to establish the eviction scenario.
+        // Act and Assert
+        proc.Process(
+            requests: new[]
+            {
+                new LumonScenePageRequestGpu(0u, 0u, 0u, 1u),
+                new LumonScenePageRequestGpu(0u, 1u, 0u, 1u),
+                new LumonScenePageRequestGpu(0u, 2u, 0u, 1u),
+                new LumonScenePageRequestGpu(0u, 3u, 0u, 1u),
+            },
+            maxRequestsToProcess: 1024,
+            maxNewAllocations: 1024,
+            maxResidentPagesPerChunkSlot: 0,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out _,
+            relightCount: out _,
+            stats: out _);
+        Assert.Equal(4, virtualToPhysical.Count);
+
+        // Now allocate for slot 1 under cap=3; should evict one page from slot 0 (over cap) and then allocate for slot 1.
+        // Act and Assert
+        proc.Process(
+            requests: new[] { new LumonScenePageRequestGpu(1u, 0u, 0u, 1u) },
+            maxRequestsToProcess: 1024,
+            maxNewAllocations: 1024,
+            maxResidentPagesPerChunkSlot: 3,
+            recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+            recaptureCursor: ref recaptureCursor,
+            maxRecapture: 0,
+            captureWorkOut: capture,
+            relightWorkOut: relight,
+            captureCount: out _,
+            relightCount: out _,
+            stats: out var stats);
+
+        Assert.Equal(1, stats.RequestsAllocatedNew);
+        Assert.Equal(1, stats.AllocationEvictions);
+        Assert.Equal(4, virtualToPhysical.Count);
+        Assert.True(virtualToPhysical.ContainsKey(LumonSceneVirtualPageKeyUtil.Pack(1u, 0u)));
+    }
+
+    /// <summary>Verifies the converges allocating k new pages per frame until satisfied or capacity behavior.</summary>
+    [Fact]
+    public void Converges_AllocatingKNewPagesPerFrame_UntilSatisfiedOrCapacity()
+    {
+        // Arrange
+
+        using var pool = CreateNearPool(capacityNotClamped: true);
+        var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+        var virtualToPhysical = new Dictionary<ulong, uint>();
+        var physicalToVirtual = new Dictionary<uint, ulong>();
+        var writes = new RecordingPageTableWriter();
+        var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+        const int totalDistinct = 10;
+        var req = new LumonScenePageRequestGpu[totalDistinct];
+        for (int i = 0; i < totalDistinct; i++)
+        {
+            req[i] = new LumonScenePageRequestGpu(0u, (uint)(100 + i), 0u, (uint)(2000 + i));
+        }
+
+        var capture = new LumonSceneCaptureWorkGpu[64];
+        var relight = new LumonSceneRelightWorkGpu[64];
+        int recaptureCursor = 0;
+
+        const int k = 2;
+        // Act and Assert
+        for (int frame = 0; frame < 8; frame++)
+        {
+            proc.Process(
+                requests: req,
+                maxRequestsToProcess: 1024,
+                maxNewAllocations: k,
+                maxResidentPagesPerChunkSlot: 0,
+                recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+                recaptureCursor: ref recaptureCursor,
+                maxRecapture: 0,
+                captureWorkOut: capture,
+                relightWorkOut: relight,
+                captureCount: out _,
+                relightCount: out _,
+                stats: out _);
+
+            if (virtualToPhysical.Count >= totalDistinct)
+            {
+                break;
+            }
+        }
+        // Assert
+        Assert.Equal(totalDistinct, virtualToPhysical.Count);
+    }
+    /// <summary>Verifies the slot stats report budget starvation and allocation failures behavior.</summary>
+    [Fact]
+    public void SlotStats_ReportBudgetStarvationAndAllocationFailures()
+    {
+        // Global allocation budget starvation.
+        // Arrange
+        {
+
+            using var pool = CreateNearPool(capacityNotClamped: true);
+            var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+            var virtualToPhysical = new Dictionary<ulong, uint>();
+            var physicalToVirtual = new Dictionary<uint, ulong>();
+            var writes = new RecordingPageTableWriter();
+            var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+            var req = new LumonScenePageRequestGpu[10];
+            for (int i = 0; i < req.Length; i++)
+            {
+                req[i] = new LumonScenePageRequestGpu(0u, (uint)i, 0u, 1u);
+            }
+
+            var capture = new LumonSceneCaptureWorkGpu[16];
+            var relight = new LumonSceneRelightWorkGpu[16];
+            int recaptureCursor = 0;
+
+            Span<ushort> newAllocs = stackalloc ushort[1];
+            Span<ushort> skippedBudget = stackalloc ushort[1];
+            Span<ushort> skippedChunkBudget = stackalloc ushort[1];
+            Span<ushort> allocFailures = stackalloc ushort[1];
+
+            // Act and Assert
+            proc.Process(
+                requests: req,
+                maxRequestsToProcess: 1024,
+                maxNewAllocations: 2,
+                maxResidentPagesPerChunkSlot: 0,
+                recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+                recaptureCursor: ref recaptureCursor,
+                maxRecapture: 0,
+                captureWorkOut: capture,
+                relightWorkOut: relight,
+                captureCount: out _,
+                relightCount: out _,
+                stats: out _,
+                newAllocationsByChunkSlot: newAllocs,
+                skippedGlobalBudgetByChunkSlot: skippedBudget,
+                skippedChunkBudgetByChunkSlot: skippedChunkBudget,
+                allocationFailuresByChunkSlot: allocFailures);
+            Assert.Equal((ushort)2, newAllocs[0]);
+            Assert.Equal((ushort)8, skippedBudget[0]);
+            Assert.Equal((ushort)0, skippedChunkBudget[0]);
+            Assert.Equal((ushort)0, allocFailures[0]);
+        }
+        // Allocation failures (pool saturated).
+        {
+            using var pool = CreateNearPool(capacityNotClamped: false);
+
+            var pageTable = new LumonScenePageTableEntry[LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk];
+            var virtualToPhysical = new Dictionary<ulong, uint>();
+            var physicalToVirtual = new Dictionary<uint, ulong>();
+            var writes = new RecordingPageTableWriter();
+            var proc = CreateProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writes);
+
+            // Fill capacity with owned pages.
+            var fill = new LumonScenePageRequestGpu[4];
+            for (int i = 0; i < fill.Length; i++)
+            {
+                fill[i] = new LumonScenePageRequestGpu(0u, (uint)i, 0u, 1u);
+            }
+
+            var capture = new LumonSceneCaptureWorkGpu[32];
+            var relight = new LumonSceneRelightWorkGpu[32];
+            int recaptureCursor = 0;
+
+            Span<ushort> newAllocs = stackalloc ushort[1];
+            Span<ushort> skippedBudget = stackalloc ushort[1];
+            Span<ushort> skippedChunkBudget = stackalloc ushort[1];
+            Span<ushort> allocFailures = stackalloc ushort[1];
+
+            // Act and Assert
+            proc.Process(
+                requests: fill,
+                maxRequestsToProcess: 1024,
+                maxNewAllocations: 1024,
+                maxResidentPagesPerChunkSlot: 0,
+                recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+                recaptureCursor: ref recaptureCursor,
+                maxRecapture: 0,
+                captureWorkOut: capture,
+                relightWorkOut: relight,
+                captureCount: out _,
+                relightCount: out _,
+                stats: out _,
+                newAllocationsByChunkSlot: newAllocs,
+                skippedGlobalBudgetByChunkSlot: skippedBudget,
+                skippedChunkBudgetByChunkSlot: skippedChunkBudget,
+                allocationFailuresByChunkSlot: allocFailures);
+            Assert.Equal((ushort)4, newAllocs[0]);
+            Assert.Equal((ushort)0, skippedBudget[0]);
+            Assert.Equal((ushort)0, skippedChunkBudget[0]);
+            Assert.Equal((ushort)0, allocFailures[0]);
+
+            newAllocs.Clear();
+            skippedBudget.Clear();
+            skippedChunkBudget.Clear();
+            allocFailures.Clear();
+
+            // Now request additional unique pages; allocations should fail.
+            // Act and Assert
+            proc.Process(
+                requests: new[]
+                {
+                    new LumonScenePageRequestGpu(0u, 4u, 0u, 1u),
+                    new LumonScenePageRequestGpu(0u, 5u, 0u, 1u),
+                },
+                maxRequestsToProcess: 1024,
+                maxNewAllocations: 1024,
+                maxResidentPagesPerChunkSlot: 0,
+                recaptureVirtualPageKeys: ReadOnlySpan<ulong>.Empty,
+                recaptureCursor: ref recaptureCursor,
+                maxRecapture: 0,
+                captureWorkOut: capture,
+                relightWorkOut: relight,
+                captureCount: out _,
+                relightCount: out _,
+                stats: out _,
+                newAllocationsByChunkSlot: newAllocs,
+                skippedGlobalBudgetByChunkSlot: skippedBudget,
+                skippedChunkBudgetByChunkSlot: skippedChunkBudget,
+                allocationFailuresByChunkSlot: allocFailures);
+
+            Assert.Equal((ushort)0, newAllocs[0]);
+            Assert.Equal((ushort)0, skippedBudget[0]);
+            Assert.Equal((ushort)0, skippedChunkBudget[0]);
+            Assert.Equal((ushort)2, allocFailures[0]);
+        }
+    }
+
+    #endregion
+    #region Private
+    /// <summary>Creates a feedback processor with a stats tracker sized for the supplied page table.</summary>
+    private static LumonSceneFeedbackRequestProcessor CreateProcessor(
+        LumonScenePhysicalFieldPool pool,
+        LumonScenePageTableEntry[] pageTable,
+        Dictionary<ulong, uint> virtualToPhysical,
+        Dictionary<uint, ulong> physicalToVirtual,
+        ILumonScenePageTableWriter writer,
+        Func<LumonSceneCaptureWorkGpu,bool,bool>? admission = null)
+    {
+        var stats = new LumonScenePageTableStatsTracker();
+        int slots = Math.Max(1, pageTable.Length / LumonSceneVirtualAtlasConstants.VirtualPagesPerChunk);
+        stats.Reset(slots);
+        return new LumonSceneFeedbackRequestProcessor(pool, pageTable, virtualToPhysical, physicalToVirtual, writer, stats, admission);
+    }
+
+    /// <summary>Provides the create near pool behavior used by this test helper.</summary>
+    private static LumonScenePhysicalFieldPool CreateNearPool(bool capacityNotClamped)
+    {
+        // Use deterministic CPU-only pools; no GPU resources created.
+        var pool = new LumonScenePhysicalFieldPool(LumonSceneField.Near);
+
+        // capacityNotClamped=true yields a capacity >= 15 pages (nearRadiusChunks=1, tileSize=16 => huge tilesPerAtlas).
+        // capacityNotClamped=false yields a tiny capacity (tileSize=512 => 2x2 tiles => 4 pages) forcing saturation.
+        int texelsPerVoxelFaceEdge = capacityNotClamped ? 4 : 128;
+        LumonScenePhysicalPoolPlan plan = LumonScenePhysicalPoolPlanner.CreateNearPlan(
+            nearTexelsPerVoxelFaceEdge: texelsPerVoxelFaceEdge,
+            nearRadiusXZChunks: 1,
+            nearRadiusYChunks: 0,
+            nearPagesPerChunkBudget: 1,
+            maxAtlasCount: 1);
+
+        pool.Configure(plan);
+        return pool;
+    }
+
+    /// <summary>Provides the recording page table writer test helper.</summary>
+    private sealed class RecordingPageTableWriter : ILumonScenePageTableWriter
+    {
+        public readonly List<Write> Writes = new();
+
+        /// <summary>Provides the write mip0 behavior used by this test helper.</summary>
+        public void WriteMip0(int chunkSlot, int virtualPageIndex, uint packedEntry)
+        {
+            Writes.Add(new Write(chunkSlot, virtualPageIndex, packedEntry));
+        }
+
+        /// <summary>Provides the write test helper.</summary>
+        public readonly record struct Write(int ChunkSlot, int VirtualPageIndex, uint PackedEntry);
+    }
+    #endregion
+}
+
+
+
+
+
+
+
+
+
+
+

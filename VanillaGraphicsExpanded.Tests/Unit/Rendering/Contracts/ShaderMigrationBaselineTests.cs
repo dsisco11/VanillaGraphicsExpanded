@@ -5,15 +5,23 @@ namespace VanillaGraphicsExpanded.Tests.Unit.Rendering.Contracts;
 /// <summary>Compares generated declarations against the checked-in canonical shader catalog snapshot.</summary>
 public sealed class ShaderMigrationBaselineTests
 {
+    #region Public API
     #region Migration evidence
     /// <summary>Program settings, finite availability branches and binary paths match the current catalog contract.</summary>
     [Fact]
     public void GeneratedDeclarationsMatchCatalogSnapshot()
     {
-
-        Assert.Equal(TestAssetSnapshot.Built.Lines("test-inputs/baselines/ShaderMigrationBaseline.txt").Order(StringComparer.Ordinal), Snapshot(GpuShaderContracts.Registry).Order(StringComparer.Ordinal));
+        // Arrange: Load the frozen semantic rows from the build inputs.
+        string[] expected = TestAssetSnapshot.Built.Lines("test-inputs/baselines/ShaderMigrationBaseline.txt");
+        // Act: Project the generated registry into stable program, stage, assignment, and binary rows.
+        string[] actual = Snapshot(GpuShaderContracts.Registry).Order(StringComparer.Ordinal).ToArray();
+        // Assert: Generated declarations still match the checked-in catalog baseline.
+        Assert.Equal(expected.Order(StringComparer.Ordinal), actual);
     }
+    #endregion
+    #endregion
 
+    #region Private
     /// <summary>Produces stable semantic rows rather than depending on declaration order or generated C# formatting.</summary>
     private static IEnumerable<string> Snapshot(ShaderVariantResolver registry)
     {

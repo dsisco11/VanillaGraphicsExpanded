@@ -1,0 +1,267 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
+using VanillaGraphicsExpanded.LumOn.Shaders;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+using VanillaGraphicsExpanded.WorldPartition;
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+namespace VanillaGraphicsExpanded.Tests.Integration.LumOn;
+
+/// <summary>Observes production buffer interfaces and traversal policies at the actual driver binding boundary.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
+{
+    #region Public API
+    /// <summary>Uses the mandatory graphics context and production uniform-ring lifecycle.</summary>
+    public LumOnShaderBufferInterfaceTests(HeadlessGLFixture fixture) : base(fixture) { }
+
+    /// <summary>Interface setters retain independent slots until use and never take ownership of caller buffers.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void ExternalBuffersBindIndependentlyAndRemainCallerOwned(int consumer)
+    {
+        // Arrange one production consumer with independent frame/world buffers and valid required samplers.
+        EnsureContextValid();
+        using var programs = new ComponentShaderPrograms();
+        var program = CreateConsumer(programs, consumer);
+        using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
+        ((ILumOnFrameShader)program).FrameInputs = frameCamera;
+        using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var world = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var replacement = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var inputs = AssignRequiredTextures(program, texture);
+        // Contents are irrelevant, but retained ranges must satisfy the actual compiled block extents.
+        var entries = program.ProgramLayout.BinaryInterface!.PreparedBindings.Entries;
+        int frameBytes = Math.Max(16, entries.Where(entry => entry.Contract.Name == LumOnUniformBuffers.FrameBlockName)
+            .Select(entry => entry.MinimumSize).DefaultIfEmpty(0).Max());
+        int worldBytes = Math.Max(16, entries.Where(entry => entry.Contract.Name == LumOnUniformBuffers.WorldProbeBlockName)
+            .Select(entry => entry.MinimumSize).DefaultIfEmpty(0).Max());
+        frame.UploadOrResize(new byte[frameBytes]);
+        world.UploadOrResize(new byte[worldBytes]);
+        replacement.UploadOrResize(new byte[frameBytes]);
+        ((ILumOnFrameShader)program).FrameUniformBuffer = frame;
+        ((ILumOnWorldProbeShader)program).WorldProbeUniformBuffer = world;
+        bool consumesEffectFrame = program.ProgramLayout.BinaryInterface!.GetUniformBlockIndex(LumOnUniformBuffers.FrameBlockName) >= 0;
+        int previousFrameBinding = BoundBuffer(LumOnUniformBuffers.FrameBinding);
+        // Act by binding the initial resources, replacing the frame slot, and binding the replacement.
+        using var pipeline = ShaderBindingTestPipeline.Create(program);
+        RHICommandContext.Current.SetPipeline(pipeline);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
+        {
+            // Assert both slots, including that a setter alone does not mutate the active driver binding.
+            Assert.Equal(consumesEffectFrame ? frame.BufferId : previousFrameBinding, BoundBuffer(LumOnUniformBuffers.FrameBinding));
+            Assert.Equal(world.BufferId, BoundBuffer(LumOnUniformBuffers.WorldProbeBinding));
+            ((ILumOnFrameShader)program).FrameUniformBuffer = replacement;
+            Assert.Equal(consumesEffectFrame ? frame.BufferId : previousFrameBinding, BoundBuffer(LumOnUniformBuffers.FrameBinding));
+            RHICommandContext.Current.BindResources(program.CaptureBindings());
+            Assert.Equal(consumesEffectFrame ? replacement.BufferId : previousFrameBinding, BoundBuffer(LumOnUniformBuffers.FrameBinding));
+            Assert.Equal(world.BufferId, BoundBuffer(LumOnUniformBuffers.WorldProbeBinding));
+        }
+        // Act by disposing the consumer; caller-owned buffers must survive that lifetime transition.
+        program.Dispose();
+        // Assert every caller-owned buffer remains a live GL object.
+        Assert.True(GL.IsBuffer(frame.BufferId));
+        Assert.True(GL.IsBuffer(world.BufferId));
+        Assert.True(GL.IsBuffer(replacement.BufferId));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
+    /// <summary>An absent world-probe block must not disturb an independently bound buffer.</summary>
+    [Fact]
+    public void AbsentWorldBlockPreservesExistingBinding()
+    {
+        // Arrange a production velocity shader with no world-probe block and a sentinel binding.
+        EnsureContextValid();
+        using var programs = new ComponentShaderPrograms();
+        var program = programs.Create<LumOnVelocityShaderProgram>();
+        Assert.Equal(-1, program.ProgramLayout.BinaryInterface!.GetUniformBlockIndex(LumOnUniformBuffers.WorldProbeBlockName));
+        using var sentinel = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var ignored = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
+        sentinel.UploadOrResize(new byte[16]);
+        ignored.UploadOrResize(new byte[16]);
+        // Deliberate low-level precondition: the absent block's setter must preserve this slot.
+        // Act by setting an ignored world buffer while the sentinel owns the otherwise unused slot.
+        sentinel.BindBase(LumOnUniformBuffers.WorldProbeBinding);
+        ((ILumOnWorldProbeShader)program).WorldProbeUniformBuffer = ignored;
+        // Assert the absent block leaves the existing binding untouched.
+        Assert.Equal(sentinel.BufferId, BoundBuffer(LumOnUniformBuffers.WorldProbeBinding));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
+    /// <summary>Overrides traversal policy without changing ring/domain data, then restores defaults and unavailable state.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void TraversalPolicyPreservesSceneMappingAndDefaultRestoration(int consumer)
+    {
+        // Arrange a real shader consumer and scene mapping with deterministic buffer inputs.
+        EnsureContextValid();
+        using var programs = new ComponentShaderPrograms();
+        var program = CreateConsumer(programs, consumer);
+        using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
+        ((ILumOnFrameShader)program).FrameInputs = frameCamera;
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
+        frame.Allocate(112);
+        program.FrameUniformBuffer = frame;
+        AssignRequiredTextures(program, texture);
+        using var scene = new TraceGeometryGpuScene(32);
+        var window = new PartitionBounds(new(0, 0, 0), new(32, 32, 32));
+        var near = new PartitionBounds(new(0, 0, 0), new(16, 16, 16));
+        var surface = new PartitionBounds(new(16, 0, 0), new(32, 32, 32));
+        scene.SetWindow(new(near, surface, window, 32, 32));
+        BindScene(program, scene);
+        using var pipeline = ShaderBindingTestPipeline.Create(program);
+        RHICommandContext.Current.SetPipeline(pipeline);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
+        // Act by binding the default policy, then capture its serialized parameters as the baseline.
+        byte[] defaults = ReadNearFieldParameters();
+        // Assert defaults retain the expected mapping values and unrestricted distance.
+        Assert.Equal(32, BitConverter.ToInt32(defaults, 12));
+        Assert.Equal(256, BitConverter.ToInt32(defaults, 16));
+        Assert.Equal(1, BitConverter.ToInt32(defaults, 24));
+        Assert.Equal(float.MaxValue, BitConverter.ToSingle(defaults, 44));
+
+        // Act by overriding the trace policy while keeping the scene mapping fixed.
+        var origins = new PartitionBounds(new(2, 3, 4), new(8, 9, 10));
+        var policy = new LumOnNearFieldTraceSettings(7, origins, 12);
+        BindScene(program, scene, policy);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
+        byte[] configured = ReadNearFieldParameters();
+        // Assert the override changes only policy-owned fields, preserving independent mapping bytes.
+        Assert.Equal(defaults[..16], configured[..16]);
+        Assert.Equal(defaults[64..], configured[64..]);
+        Assert.Equal(7, BitConverter.ToInt32(configured, 16));
+        Assert.Equal(2f, BitConverter.ToSingle(configured, 32));
+        Assert.Equal(10f, BitConverter.ToSingle(configured, 56));
+        Assert.Equal(12f, BitConverter.ToSingle(configured, 44));
+
+        // Act through the unrestricted policy and then restore defaults and unavailable-scene state.
+        BindScene(program, scene, new LumOnNearFieldTraceSettings(9));
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
+        byte[] unrestricted = ReadNearFieldParameters();
+        // Assert the unrestricted state, exact default restoration, and zeroed unavailable mapping.
+        Assert.Equal(0, BitConverter.ToInt32(unrestricted, 24));
+        Assert.Equal(defaults[64..], unrestricted[64..]);
+
+        BindScene(program, scene);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
+        Assert.Equal(defaults, ReadNearFieldParameters());
+        BindScene(program, null, policy);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
+        byte[] unavailable = ReadNearFieldParameters();
+        Assert.Equal(0, BitConverter.ToInt32(unavailable, 12));
+        Assert.Equal(0, BitConverter.ToInt32(unavailable, 76));
+        Assert.Equal(0, BitConverter.ToInt32(unavailable, 108));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
+    #endregion
+
+    #region Protected
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.Support.GPU.Observations.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+    }
+
+    #endregion
+
+    #region Private
+    /// <summary>Supplies valid required samplers for binding-only tests that issue no draw.</summary>
+    private GpuResourceCollection AssignRequiredTextures(LumOnShaderProgram program, GpuTexture texture)
+    {
+        var inputs = new GpuResourceCollection();
+        // These cases exercise the actual production declaration while buffer contents stay irrelevant.
+        switch (program)
+        {
+            case LumOnScreenProbeAtlasTraceShaderProgram trace:
+                trace.PrimaryDepth = texture; var surfaceInput1 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, null, texture, null));
+        trace.GBufferSurface = surfaceInput1;
+                var anchorInputs1 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, texture));
+        trace.ProbeAnchors = anchorInputs1;
+                trace.SurfaceAlbedo = texture; trace.ScreenProbeAtlasHistory = texture;
+                trace.HzbDepth = texture; trace.ScreenProbeAtlasMetaHistory = texture;
+                trace.ProbeTraceMask = texture;
+                break;
+            case LumOnScreenProbeAtlasGatherShaderProgram gather:
+                gather.PrimaryDepth = texture; var surfaceInput2 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, null, null));
+        gather.GBufferSurface = surfaceInput2;
+                var anchorInputs2 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, texture));
+        gather.ProbeAnchors = anchorInputs2;
+                gather.ScreenProbeAtlas = texture;
+                break;
+            case LumOnProbeSh9GatherShaderProgram sh9:
+                sh9.PrimaryDepth = texture; var surfaceInput3 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, null, null));
+        sh9.GBufferSurface = surfaceInput3;
+                var anchorInputs3 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, texture));
+        sh9.ProbeAnchors = anchorInputs3;
+                var shInputs4 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, texture, texture, texture, texture, texture, texture));
+        sh9.ProbeSh9 = shInputs4;
+                break;
+            case LumOnDebugShaderProgram debug:
+                debug.PrimaryDepth = texture; var surfaceInput4 = inputs.Own(LayeredTestTexture.Create(ImageAssertions.Programs, texture, null, null));
+        debug.GBufferSurface = surfaceInput4;
+                break;
+        }
+        return inputs;
+    }
+
+    /// <summary>Loads the actual trace, atlas gather, SH9 gather or world-probe debug consumer.</summary>
+    private static LumOnShaderProgram CreateConsumer(ComponentShaderPrograms programs, int consumer) => consumer switch
+    {
+        0 => programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(shader => { shader.WorldProbes = true; shader.NearField = true; }),
+        1 => programs.Create<LumOnScreenProbeAtlasGatherShaderProgram>(shader => { shader.WorldProbeEnabled = true; shader.DirectVisibility = true; }),
+        2 => programs.Create<LumOnProbeSh9GatherShaderProgram>(shader => { shader.WorldProbeEnabled = true; shader.DirectVisibility = true; }),
+        3 => programs.Create<LumOnDebugShaderProgram>(shader => { shader.WorldProbeEnabled = true; shader.DirectVisibility = true; },
+            identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.WorldProbeIrradianceCombined)),
+        _ => throw new ArgumentOutOfRangeException(nameof(consumer))
+    };
+
+    /// <summary>Invokes each consumer's production scene-binding operation without accessing its private parameter buffer.</summary>
+    private static void BindScene(LumOnShaderProgram program, TraceGeometryGpuScene? scene, LumOnNearFieldTraceSettings? settings = null)
+    {
+        switch (program)
+        {
+            case LumOnScreenProbeAtlasTraceShaderProgram trace: trace.BindNearFieldScene(scene, settings); break;
+            case LumOnScreenProbeAtlasGatherShaderProgram gather: gather.NearFieldVisibility.Stage(gather, scene, settings); break;
+            case LumOnProbeSh9GatherShaderProgram sh9: sh9.NearFieldVisibility.Stage(sh9, scene, settings); break;
+            case LumOnDebugShaderProgram debug: debug.NearFieldVisibility.Stage(debug, scene, settings); break;
+            default: throw new ArgumentException("Consumer has no near-field scene binding.", nameof(program));
+        }
+    }
+
+    /// <summary>Queries actual indexed state rather than assuming that the interface setter bound the requested buffer.</summary>
+    private static int BoundBuffer(int binding)
+    {
+        GL.GetInteger(GetIndexedPName.UniformBufferBinding, binding, out int buffer);
+        return buffer;
+    }
+
+    /// <summary>Reads the installed std140 contract, respecting the production allocator's subrange offset.</summary>
+    private static byte[] ReadNearFieldParameters()
+    {
+        int buffer = BoundBuffer(LumOnNearFieldParamsUbo.Binding);
+        Assert.NotEqual(0, buffer);
+        GL.GetInteger(GetIndexedPName.UniformBufferStart, LumOnNearFieldParamsUbo.Binding, out int offset);
+        var bytes = new byte[128];
+        using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
+        GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)offset, bytes.Length, bytes);
+        return bytes;
+    }
+
+    #endregion
+
+}

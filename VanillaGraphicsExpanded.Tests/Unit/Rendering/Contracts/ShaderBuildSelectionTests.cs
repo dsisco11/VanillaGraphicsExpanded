@@ -5,11 +5,13 @@ namespace VanillaGraphicsExpanded.Tests.Unit.Rendering.Contracts;
 /// <summary>Checks the typed stage selections consumed by the builder, including finite program subsets and shared sources.</summary>
 public sealed class ShaderBuildSelectionTests
 {
+    #region Public API
     #region Build projections
     /// <summary>Restricted program rows project onto stages without multiplying shared vertex binaries.</summary>
     [Fact]
     public void SupportedProgramRowsDeduplicateProjectedStageConfigurations()
     {
+        // Arrange: Two programs share stages and support the same restricted assignment rows.
         var vertexOption = new ShaderOption<bool>("VERTEX_FEATURE", false);
         var fragmentOption = new ShaderOption<bool>("FRAGMENT_FEATURE", false);
         var vertex = new ShaderStageContract("shared.vsh", "shared.vsh", ShaderStageKind.Vertex, new(), [vertexOption]);
@@ -21,7 +23,9 @@ public sealed class ShaderBuildSelectionTests
         ];
         var first = new GpuShaderContract("first", [vertex, fragment], 3, [vertexOption, fragmentOption], supportedAssignments: supported);
         var alternate = new GpuShaderContract("alternate", [vertex, fragment], 3, [vertexOption, fragmentOption], supportedAssignments: supported);
+        // Act: Build the plan and resolve an assignment that is deliberately unsupported.
         var plan = new ShaderVariantResolver([first, alternate]);
+        // Assert: Shared vertex inputs deduplicate, while the unsupported row is rejected.
         Assert.Equal(6, plan.Programs.Values.Sum(p => p.Assignments.Count));
         Assert.Equal(4, plan.Binaries.Count);
         Assert.Equal(2, plan.Binaries.Count(b => b.Stage.Kind == ShaderStageKind.Vertex));
@@ -33,11 +37,14 @@ public sealed class ShaderBuildSelectionTests
     [Fact]
     public void SharedSourceCanHaveDistinctFixedConfigurationsAndBinaryIdentities()
     {
+        // Arrange: Give two compute stages one source path but different fixed defines and identities.
         var first = new ShaderStageContract("one.csh", "common.source", ShaderStageKind.Compute, new(),
             fixedDefines: new Dictionary<string, ShaderScalar> { ["FIXED_MODE"] = ShaderScalar.From(1) }, entryPoint: "computeEntry");
         var second = new ShaderStageContract("two.csh", "common.source", ShaderStageKind.Compute, new(),
             fixedDefines: new Dictionary<string, ShaderScalar> { ["FIXED_MODE"] = ShaderScalar.From(2) }, entryPoint: "computeEntry");
+        // Act: Resolve both contracts into compile selections.
         var plan = new ShaderVariantResolver([new GpuShaderContract("one", [first], 1), new GpuShaderContract("two", [second], 1)]);
+        // Assert: Source reuse does not collapse their binary output identities.
         Assert.Equal(2, plan.Binaries.Count);
         Assert.Equal(new[] { "one.csh.spv", "two.csh.spv" }, plan.Binaries.Select(b => b.BinaryPath));
         Assert.All(plan.Binaries, b => { Assert.Equal("common.source", b.Stage.Source); Assert.Equal("computeEntry", b.Stage.EntryPoint); });
@@ -46,6 +53,7 @@ public sealed class ShaderBuildSelectionTests
     [Fact]
     public void SameStageSubsetExcludesUnsupportedBinary()
     {
+        // Arrange: The fragment accepts three of four Boolean combinations while the vertex is shared.
         var first = new ShaderOption<bool>("FIRST", false);
         var second = new ShaderOption<bool>("SECOND", false);
         var vertex = new ShaderStageContract("shared.vsh", "shared.vsh", ShaderStageKind.Vertex, new());
@@ -56,11 +64,14 @@ public sealed class ShaderBuildSelectionTests
             new Dictionary<string, string> { [first.Name] = "1", [second.Name] = "1" }
         ];
         var program = new GpuShaderContract("subset", [vertex, fragment], 3, [first, second], supportedAssignments: supported);
+        // Act: Expand only the program's declared supported rows.
         var plan = new ShaderVariantResolver([program]);
+        // Assert: The unsupported fourth combination is absent from the stage binaries.
         Assert.Equal(4, plan.Binaries.Count);
         Assert.Single(plan.Binaries, b => b.Stage.Kind == ShaderStageKind.Vertex);
         Assert.Equal(3, plan.Binaries.Count(b => b.Stage.Kind == ShaderStageKind.Fragment));
         Assert.DoesNotContain(plan.Binaries, b => b.Key == "FIRST=0;SECOND=1");
     }
+    #endregion
     #endregion
 }

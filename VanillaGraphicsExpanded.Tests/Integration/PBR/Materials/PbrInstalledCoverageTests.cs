@@ -1,0 +1,82 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
+using VanillaGraphicsExpanded.Tests.Integration.Support.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
+
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.PBR.Materials;
+/// <summary>Executes installed engine fragment shaders to protect opaque and OIT coverage.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+{
+    #region Public API
+    #region Coverage preservation
+    /// <summary>Deferred capture resolves opaque coverage while forward and OIT retain authored alpha.</summary>
+    [Theory]
+    [InlineData("standard", 0, 1, 1f)]
+    [InlineData("standard", 0, 1, .25f)]
+    [InlineData("standard", 0, 2, 1f)]
+    [InlineData("standard", 0, 2, .25f)]
+    [InlineData("entityanimated", 0, 1, 1f)]
+    [InlineData("entityanimated", 0, 1, .25f)]
+    [InlineData("entityanimated", 0, 2, 1f)]
+    [InlineData("entityanimated", 0, 2, .25f)]
+    [InlineData("entityanimated", 1, 1, 1f)]
+    [InlineData("entityanimated", 1, 1, .25f)]
+    [InlineData("entityanimated", 1, 2, 1f)]
+    [InlineData("entityanimated", 1, 2, .25f)]
+    public void InstalledFragmentPreservesCoverage(string family, int oit, int route, float alpha)
+    {
+        // Arrange: Compile the installed fragment variant and bind a one-pixel source with the selected authored alpha.
+        EnsureContextValid();
+        string vertex = """
+            #version 430 core
+            out vec2 uv; out vec4 color; out vec4 rgbaFog; out float fogAmount; out float glowLevel;
+            out vec3 vertexPosition; flat out int renderFlags; out vec3 normal; out vec4 worldPos;
+            out vec3 blockLight; out vec4 camPos; out float damageEffect; out float fragFrostAlpha;
+            out vec4 rgbaGlow; out vec3 vge_viewPosition; out vec3 vge_blockField;
+            out vec3 vge_sunIrradiance; out float vge_skyVisibility;
+            void main() {
+                vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3)); gl_Position=vec4(p[gl_VertexID],0,1);
+                uv=vec2(.5); color=vec4(1); rgbaFog=vec4(0); fogAmount=0; glowLevel=0;
+                vertexPosition=vec3(0); renderFlags=0; normal=vec3(0,0,1); worldPos=vec4(0,0,-2,1);
+                blockLight=vec3(1); camPos=worldPos; damageEffect=0; fragFrostAlpha=0; rgbaGlow=vec4(0);
+                vge_viewPosition=vec3(0,0,-2); vge_blockField=vec3(1); vge_sunIrradiance=vec3(0); vge_skyVisibility=0;
+            }
+            """;
+        string fragment = InstalledEngineShaderSources.Build(family + ".fsh", 0, oit, 0, 0, 0);
+        using var program = GpuProgramObject.Adopt(TestShaderCache.CreateGraphics(vertex, fragment));
+        using var vao = NativeResourceSetup.CreateVertexArray();
+        using var framework = new ShaderTestFramework();
+        using var target = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f, oit > 0 ? 6 : 2);
+        using var texture = framework.CreateTexture(1, 1, TextureFormat.Rgba32f, new[] { .2f, .4f, .6f, alpha });
+        var layout = GpuProgramLayout.TryBuild(program.ProgramId);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texture).Target)))]);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, family == "standard" ? "tex" : "entityTex"), 0);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "vge_pbrRoute"), route);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialRadiance"), 11);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialAttenuation"), 12);
+        GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
+        // Act: Render the installed shader into the route-appropriate MRT attachments.
+        FramebufferTestSetup.BindForEngineRendering(target); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+        float[] actual = target[oit > 0 ? 1 : 0].ReadPixels();
+        float expected = oit > 0 ? 1 - alpha : route == 1 ? 1 : alpha;
+        // Assert: The routed output keeps its coverage contract and OIT accumulation retains authored alpha.
+        Assert.InRange(actual[3], expected - 1e-6f, expected + 1e-6f);
+        if (oit > 0)
+        {
+            float[] accumulation = target[3].ReadPixels();
+            Assert.InRange(accumulation[3], alpha - 1e-6f, alpha + 1e-6f);
+        }
+    }
+    #endregion
+    #endregion
+}
+

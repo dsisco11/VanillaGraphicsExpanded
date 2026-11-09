@@ -1,0 +1,48 @@
+using System;
+using System.Buffers.Binary;
+using System.IO;
+using VanillaGraphicsExpanded.Rendering.RHI;
+
+namespace VanillaGraphicsExpanded.Tests.Unit.Rendering.Shaders;
+
+/// <summary>Checks entry-point admission using packaged shader bytes without requiring a graphics context.</summary>
+public sealed class RHIShaderStageDescriptionTests
+{
+    #region Public API
+    /// <summary>Accepts the declared vertex entry point but rejects a different stage or missing name before native ingestion.</summary>
+    [Fact]
+    public void SelectedEntryPointMustMatchNameAndStage()
+    {
+        // Arrange
+        byte[] bytes = VertexBinary();
+        // Act
+        var stage = new RHIShaderStageDescription(ShaderStage.Vertex, bytes);
+        // Assert
+        Assert.Equal("main", stage.EntryPoint);
+        // Act and Assert: A fragment-stage request cannot reuse vertex-stage bytes.
+        var mismatch = Assert.Throws<ArgumentException>(() => new RHIShaderStageDescription(ShaderStage.Fragment, bytes));
+        Assert.Contains("specialization entry point", mismatch.Message);
+        // Act and Assert: An undeclared entry-point name is rejected.
+        Assert.Throws<ArgumentException>(() => new RHIShaderStageDescription(ShaderStage.Vertex, bytes, "missing"));
+    }
+    /// <summary>Invalid instruction lengths cannot loop indefinitely or traverse beyond the supplied binary.</summary>
+    [Theory]
+    [InlineData(0u)]
+    [InlineData(uint.MaxValue)]
+    public void MalformedInstructionExtentRejectsBeforeNativeIngestion(uint instruction)
+    {
+        // Arrange
+        byte[] bytes = VertexBinary();
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(5 * sizeof(uint)), instruction);
+        // Act and Assert
+        var error = Assert.Throws<ArgumentException>(() => new RHIShaderStageDescription(ShaderStage.Vertex, bytes));
+        Assert.Contains("instruction extent", error.Message);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Reads the canonical precompiled vertex fixture used by executable lifecycle tests.</summary>
+    private static byte[] VertexBinary() => TestAssetSnapshot.ReadBuiltBytes(Path.Combine(AppContext.BaseDirectory,
+        "assets", "shaders", "tests", "render_infrastructure.vsh.spv"));
+    #endregion
+}

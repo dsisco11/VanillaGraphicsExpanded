@@ -1,16 +1,20 @@
 using VanillaGraphicsExpanded.Rendering.Contracts;
-using static VanillaGraphicsExpanded.Tests.Unit.Rendering.Contracts.ShaderContractFixture;
+using static VanillaGraphicsExpanded.Tests.Unit.Rendering.Contracts.Fixtures.ShaderContractFixture;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering.Contracts;
 
 /// <summary>Fail-fast validation of immutable program and stage declarations.</summary>
 public sealed class ShaderDeclarationTests
 {
+    #region Public API
     #region Domains and declaration validation
     /// <summary>Defaults, finite domains and ranges are checked at option construction.</summary>
     [Fact]
     public void InvalidDomainsDefaultsAndTypesFail()
     {
+        // Arrange: Each constructor receives one invalid domain, default, range, or alias definition.
+        // Act: Attempt to construct each invalid option and stage.
+        // Assert: Declaration validation rejects every malformed input at construction.
         Assert.Throws<ArgumentException>(() => new ShaderOption<int>("MODE", 1, [0, 2]));
         Assert.Throws<ArgumentException>(() => new ShaderOption<int>("MODE", 0, []));
         Assert.Throws<ArgumentException>(() => new ShaderOption<int>("MODE", 0, [0, 0]));
@@ -26,6 +30,9 @@ public sealed class ShaderDeclarationTests
     [Fact]
     public void FixedNamesIdsAndAliasesAreValidated()
     {
+        // Arrange: Create declarations whose fixed names, IDs, or aliases conflict.
+        // Act: Construct stages and programs with those conflicting declarations.
+        // Assert: Conflicts are rejected before a usable contract can be published.
         Assert.Throws<ArgumentException>(() => Stage(structural: [Enabled], fixedDefines: new Dictionary<string, ShaderScalar> { ["LEGACY_ENABLED"] = ShaderScalar.From(1) }));
         Assert.Throws<ArgumentException>(() => Stage(constants: [new(2, Steps), new(2, new ShaderOption<float>("OTHER", 1))]));
         Assert.Throws<ArgumentException>(() => new ShaderSpecialization(-1, Steps));
@@ -40,6 +47,9 @@ public sealed class ShaderDeclarationTests
     [Fact]
     public void InvalidStageCombinationsAndUndeclaredUsesFail()
     {
+        // Arrange: Exercise unsupported stage sets, invalid input use, and path/entry-point values.
+        // Act: Construct declarations with each invalid combination.
+        // Assert: Invalid declarations fail while supported tessellation layouts remain constructible.
         Assert.Throws<ArgumentException>(() => new GpuShaderContract("bad", [], 1));
         Assert.Throws<ArgumentException>(() => new GpuShaderContract("bad", [Stage()], 1));
         Assert.Throws<ArgumentException>(() => new GpuShaderContract("bad", [Stage("compute", ShaderStageKind.Compute), Stage()], 1));
@@ -61,12 +71,15 @@ public sealed class ShaderDeclarationTests
     [Fact]
     public void ContractsFreezeAllDeclarationInputs()
     {
+        // Arrange: Retain caller-owned mutable collections and a mutable binding builder.
         var bindings = new GpuBindingContract(); bindings.RegisterSamplerUnit("source", 3);
         var structure = new List<ShaderOption> { Enabled };
         var constants = new List<ShaderSpecialization> { new(0, Steps) };
         var fixedValues = new Dictionary<string, ShaderScalar> { ["FIXED"] = ShaderScalar.From(1) };
+        // Act: Construct the stage, then mutate every input collection and builder.
         var stage = Stage(structural: structure, constants: constants, bindings: bindings, fixedDefines: fixedValues);
         structure.Clear(); constants.Clear(); fixedValues.Clear(); bindings.Samplers.Clear();
+        // Assert: Published declarations retain captured values and expose read-only views.
         Assert.Single(stage.Structural); Assert.Single(stage.Specializations); Assert.Single(stage.FixedDefines);
         Assert.Equal(3, stage.Bindings.Samplers["source"].Slot);
         Assert.Throws<NotSupportedException>(() => stage.Bindings.Samplers.Clear());
@@ -80,10 +93,13 @@ public sealed class ShaderDeclarationTests
     [Fact]
     public void ExplicitSubsetRequiresDefaultAndCompleteUniqueRows()
     {
+        // Arrange: Define one structural mode with an explicit subset containing its default row.
         var mode = new ShaderOption<int>("MODE", 0, [0, 1, 2]);
         var stage = Stage(structural: [Enabled, mode]);
         var valid = Program(fragment: stage, options: [Enabled, mode], assignments:
             [Row(("ENABLED", "0"), ("MODE", "0")), Row(("ENABLED", "1"), ("MODE", "2"))]);
+        // Act: Query the valid subset, then attempt incomplete, duplicate, and unknown rows.
+        // Assert: Only declared rows are accepted; unsupported combinations fail.
         Assert.Equal(2, valid.Assignments.Count);
         Assert.Throws<ArgumentException>(() => new ShaderSettings(valid).With(Enabled, true));
         Assert.Equal(ShaderScalar.From(2), new ShaderSettings(valid, new Dictionary<string, string?> { ["ENABLED"] = "1", ["MODE"] = "2" }).Values["MODE"]);
@@ -100,12 +116,16 @@ public sealed class ShaderDeclarationTests
     [Fact]
     public void BudgetsBoundCartesianAndExplicitConfigurations()
     {
+        // Arrange: Start with a valid small Cartesian assignment set.
         Assert.Equal(2, Program().Assignments.Count);
+        // Act: Request budgets/products that exceed the declared supported combinations.
+        // Assert: Expansion is rejected before an oversized assignment set is created.
         Assert.Throws<ArgumentException>(() => Program(budget: 1));
         Assert.Throws<ArgumentException>(() => Program(budget: 0));
         Assert.Throws<ArgumentException>(() => Program(budget: 1, assignments: [Row(("ENABLED", "0")), Row(("ENABLED", "1"))]));
         var options = Enumerable.Range(0, 40).Select(i => new ShaderOption<bool>("FLAG" + i, false)).ToArray();
         Assert.Throws<ArgumentException>(() => Program(fragment: Stage(structural: options), options: options, budget: int.MaxValue));
     }
+    #endregion
     #endregion
 }

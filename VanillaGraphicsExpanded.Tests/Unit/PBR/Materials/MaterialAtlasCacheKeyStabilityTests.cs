@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Tests.Support.Cache;
 using System.Globalization;
 
 using Newtonsoft.Json;
@@ -6,31 +7,23 @@ using Newtonsoft.Json;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.PBR.Materials.Cache;
-using VanillaGraphicsExpanded.Tests.Fixtures;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.PBR.Materials;
 
+/// <summary>Checks that material-atlas cache identities include authored outputs and exclude runtime-only inputs.</summary>
 [Collection("PbrMaterialRegistry")]
 [Trait("Category", "Unit")]
 public sealed class MaterialAtlasCacheKeyStabilityTests
 {
-    private static PbrMaterialDefinitionsSource Source(string domain, string path, string json)
-    {
-        var file = JsonConvert.DeserializeObject<PbrMaterialDefinitionsJsonFile>(json)
-            ?? throw new InvalidOperationException("Failed to deserialize json");
-
-        return new PbrMaterialDefinitionsSource(
-            Domain: domain,
-            Location: new AssetLocation(domain, path),
-            File: file);
-    }
-
+    #region Public API
+    /// <summary>Stable inputs produce identical keys across calls and formatting cultures.</summary>
     [Fact]
     public void CacheKeys_AreStable_AcrossCalls_AndCultureIndependent()
     {
+        // Arrange: initialize one material and capture the corresponding cache inputs.
         var logger = new TestLogger();
 
         var src = Source(
@@ -84,9 +77,11 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
 
             AtlasCacheKey k1 = builder.BuildMaterialParamsTileKey(inputs, 101, rect, texture, def, scale);
 
+            // Act: rebuild under a culture with different decimal formatting.
             CultureInfo.CurrentCulture = new CultureInfo("fr-FR");
             AtlasCacheKey k2 = builder.BuildMaterialParamsTileKey(inputs, 101, rect, texture, def, scale);
 
+            // Assert: culture, scheduling choices, and normal-map enablement do not alter the key.
             Assert.Equal(k1, k2);
 
             // Async scheduling is a performance concern and must not affect cache keys.
@@ -118,9 +113,11 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
         }
     }
 
+    /// <summary>Changing only the atlas reload iteration leaves the material tile key stable.</summary>
     [Fact]
     public void CacheKeys_DoNotChange_WhenOnlyReloadIterationChanges()
     {
+        // Arrange: keep atlas page, material, and texture fixed across two reload generations.
         var logger = new TestLogger();
 
         var src = Source(
@@ -177,9 +174,11 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             Assert.True(PbrMaterialRegistry.Instance.TryGetMaterial(texture, out PbrMaterialDefinition def));
             Assert.True(PbrMaterialRegistry.Instance.TryGetScale(texture, out PbrOverrideScale scale));
 
+            // Act: build the same tile key from snapshots with different reload iteration values.
             AtlasCacheKey kA = builder.BuildMaterialParamsTileKey(inputsA, 101, rect, texture, def, scale);
             AtlasCacheKey kB = builder.BuildMaterialParamsTileKey(inputsB, 101, rect, texture, def, scale);
 
+            // Assert: reload bookkeeping alone is excluded from tile identity.
             Assert.Equal(kA, kB);
         }
         finally
@@ -188,9 +187,11 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
         }
     }
 
+    /// <summary>Override asset and channel-scale changes produce distinct material and normal-depth keys.</summary>
     [Fact]
     public void OverrideKeys_Change_WhenOverrideAssetOrScaleChanges()
     {
+        // Arrange: use one target texture and rule while varying the override path or one scale input.
         var logger = new TestLogger();
 
         var src = Source(
@@ -230,7 +231,7 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             var rect = new AtlasRect(0, 0, 16, 16);
             var targetTexture = new AssetLocation("game", "textures/block/test.png");
 
-            // Material params override key
+            // Act and assert: material-parameter override identity includes its source and scale.
             var ov1 = new AssetLocation("game", "textures/block/test_override1.png");
             var ov2 = new AssetLocation("game", "textures/block/test_override2.png");
             var scale1 = new PbrOverrideScale(Roughness: 1f, Metallic: 1f, Emissive: 1f, Normal: 1f, Depth: 1f);
@@ -243,7 +244,7 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             Assert.NotEqual(mpA, mpB);
             Assert.NotEqual(mpA, mpC);
 
-            // Normal+depth override key
+            // Assert the normal-depth key includes its source and channel scale as well.
             AtlasCacheKey ndA = builder.BuildNormalDepthOverrideTileKey(inputs, 101, rect, targetTexture, ov1, normalScale: 1f, depthScale: 1f, ruleId: "r", ruleSource: null);
             AtlasCacheKey ndB = builder.BuildNormalDepthOverrideTileKey(inputs, 101, rect, targetTexture, ov2, normalScale: 1f, depthScale: 1f, ruleId: "r", ruleSource: null);
             AtlasCacheKey ndC = builder.BuildNormalDepthOverrideTileKey(inputs, 101, rect, targetTexture, ov1, normalScale: 0.8f, depthScale: 1f, ruleId: "r", ruleSource: null);
@@ -257,9 +258,11 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
         }
     }
 
+    /// <summary>Different asynchronous scheduling budgets produce the same material tile key.</summary>
     [Fact]
     public void CacheKeys_DoNotChange_WhenAsyncBudgetsChange()
     {
+        // Arrange: keep material, texture, and atlas fixed while varying asynchronous scheduling budgets.
         var logger = new TestLogger();
 
         var src = Source(
@@ -325,9 +328,11 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             var inputsA = MaterialAtlasCacheKeyInputs.Create(cfgA, snapshot, PbrMaterialRegistry.Instance);
             var inputsB = MaterialAtlasCacheKeyInputs.Create(cfgB, snapshot, PbrMaterialRegistry.Instance);
 
+            // Act: build keys from the two scheduling configurations.
             AtlasCacheKey kA = builder.BuildMaterialParamsTileKey(inputsA, 101, rect, texture, def, scale);
             AtlasCacheKey kB = builder.BuildMaterialParamsTileKey(inputsB, 101, rect, texture, def, scale);
 
+            // Assert: per-frame scheduling budgets are not material output identity.
             Assert.Equal(kA, kB);
         }
         finally
@@ -335,4 +340,19 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
             PbrMaterialRegistry.Instance.Clear();
         }
     }
+    #endregion
+
+    #region Private
+    /// <summary>Parses a material source with its declared domain and location.</summary>
+    private static PbrMaterialDefinitionsSource Source(string domain, string path, string json)
+    {
+        var file = JsonConvert.DeserializeObject<PbrMaterialDefinitionsJsonFile>(json)
+            ?? throw new InvalidOperationException("Failed to deserialize json");
+
+        return new PbrMaterialDefinitionsSource(
+            Domain: domain,
+            Location: new AssetLocation(domain, path),
+            File: file);
+    }
+    #endregion
 }

@@ -2,12 +2,16 @@ using VanillaGraphicsExpanded.PBR.Materials;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.PBR.Materials;
 
+/// <summary>Checks that normalized texture override channels are copied into the requested atlas rectangle.</summary>
 [Trait("Category", "Unit")]
 public sealed class MaterialAtlasParamsOverrideApplierTests
 {
+    #region Public API
+    /// <summary>Copies normalized RGB channels into the rectangle and leaves pixels outside it untouched.</summary>
     [Fact]
     public void ApplyRgbOverride_WritesNormalizedRgbIntoRect()
     {
+        // Arrange: prepare a zeroed atlas and a 2x2 RGBA source whose alpha must not be copied.
         const int atlasW = 4;
         const int atlasH = 4;
 
@@ -29,6 +33,7 @@ public sealed class MaterialAtlasParamsOverrideApplierTests
             100, 110, 120, 255
         ];
 
+        // Act: write the source channels into the selected atlas rectangle.
         MaterialAtlasParamsOverrideApplier.ApplyRgbOverride(
             atlasRgbTriplets: atlas,
             atlasWidth: atlasW,
@@ -39,6 +44,7 @@ public sealed class MaterialAtlasParamsOverrideApplierTests
             rectHeight: h,
             overrideRgba: rgba);
 
+        // Assert: source RGB values are normalized in row-major order and neighboring pixels stay zero.
         AssertPixelRgb(atlas, atlasW, x: 1, y: 1, r: 10f / 255f, g: 20f / 255f, b: 30f / 255f);
         AssertPixelRgb(atlas, atlasW, x: 2, y: 1, r: 40f / 255f, g: 50f / 255f, b: 60f / 255f);
         AssertPixelRgb(atlas, atlasW, x: 1, y: 2, r: 70f / 255f, g: 80f / 255f, b: 90f / 255f);
@@ -49,9 +55,11 @@ public sealed class MaterialAtlasParamsOverrideApplierTests
         AssertPixelRgb(atlas, atlasW, x: 3, y: 3, r: 0f, g: 0f, b: 0f);
     }
 
+    /// <summary>Applies channel scaling and clamping while preserving NaN input behavior.</summary>
     [Fact]
     public void ApplyRgbOverride_WithScale_MultipliesClampsAndPreservesNaN()
     {
+        // Arrange: the four source pixels cover NaN preservation, ordinary scaling, and upper clamping.
         const int atlasW = 4;
         const int atlasH = 4;
 
@@ -79,6 +87,7 @@ public sealed class MaterialAtlasParamsOverrideApplierTests
             Normal: 1f,
             Depth: 1f);
 
+        // Act: apply the authored per-channel scales to the selected atlas rectangle.
         MaterialAtlasParamsOverrideApplier.ApplyRgbOverride(
             atlasRgbTriplets: atlas,
             atlasWidth: atlasW,
@@ -90,6 +99,7 @@ public sealed class MaterialAtlasParamsOverrideApplierTests
             overrideRgba01: rgba01,
             scale: scale);
 
+        // Assert: NaN survives for the first channel while scaled finite values clamp to [0,1].
         // Pixel (1,1): roughness is NaN -> stays NaN; metallic 0.25*0.5=0.125; emissive 0.10*10=1 (clamp)
         int idx = ((1 * atlasW) + 1) * 3;
         Assert.True(float.IsNaN(atlas[idx + 0]));
@@ -105,7 +115,10 @@ public sealed class MaterialAtlasParamsOverrideApplierTests
         // Pixel (2,2): 0.40*2=0.8; 0.50*0.5=0.25; 0.99*10=9.9 -> 1
         AssertPixelRgb(atlas, atlasW, x: 2, y: 2, r: 0.8f, g: 0.25f, b: 1f);
     }
+    #endregion
 
+    #region Private
+    /// <summary>Checks the three normalized channels at one atlas pixel.</summary>
     private static void AssertPixelRgb(float[] pixels, int width, int x, int y, float r, float g, float b)
     {
         int idx = (y * width + x) * 3;
@@ -113,4 +126,5 @@ public sealed class MaterialAtlasParamsOverrideApplierTests
         Assert.Equal(g, pixels[idx + 1], 6);
         Assert.Equal(b, pixels[idx + 2], 6);
     }
+    #endregion
 }

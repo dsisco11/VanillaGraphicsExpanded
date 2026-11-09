@@ -1,0 +1,87 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.PBR;
+
+
+using VanillaGraphicsExpanded.Tests.Support.Lighting;
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+namespace VanillaGraphicsExpanded.Tests.Component.PBR.Materials;
+/// <summary>Checks standalone environment response independently from LumOn indirect lighting.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBase
+{
+    #region Public API
+    /// <summary>Uses the shared shader and render-target test owners.</summary>
+    public PbrStandaloneCompositionTests(HeadlessGLFixture fixture) : base(fixture) { }
+
+    #region Lighting modes
+    /// <summary>Zero availability stays dark; rough metals and dielectrics differ without double-adding GI.</summary>
+    [Theory]
+    [InlineData(false, 0f, 0f, .5f)]
+    [InlineData(false, .5f, 0f, .5f)]
+    [InlineData(false, .5f, 1f, 0f)]
+    [InlineData(false, .5f, 1f, 1f)]
+    [InlineData(true, .5f, 0f, .5f)]
+    public void ModesUseOnlyTheirOwnedEnvironment(bool lumon, float availability, float metallic, float roughness)
+    {
+        // Arrange: Select standalone or LumOn mode with authored environment availability and material response.
+        // Act and assert: Render composition and verify each mode consumes only its own environment contribution.
+        EnsureShaderTestAvailable();
+        var program = Programs.Create<PBRCompositeShaderProgram>(p =>
+        {
+            p.LumOnEnabled = lumon; p.EnablePbrComposite = false; p.EnableShortRangeAo = false;
+        });
+        using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new float[4]);
+        using var emission = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .25f, .25f, .25f, 1f });
+        using var indirect = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .75f, .75f, .75f, 1f });
+        using var albedo = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, .5f, .5f, 1f });
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
+        using var material = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { roughness, metallic, 0f, 0f });
+        using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { availability, availability, availability, 1f });
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { .25f });
+        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.R32f);
+        using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
+        program.GBufferPosition = position;
+        FramebufferTestSetup.BindForEngineRendering(output);
+        {
+            using var directLighting = LayeredTestTexture.Create(ImageAssertions.Programs, zero, zero, emission);
+            program.DirectLighting = directLighting;
+            program.IndirectDiffuse = indirect; program.GBufferAlbedo = albedo;
+            using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, material, environment);
+            program.GBufferSurface = surface; program.PrimaryDepth = depth;
+
+            using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+            program.FrameInputs = frameCamera;
+
+            program.IndirectIntensity = 1; program.IndirectTint = new(1,1,1);
+            TestFramework.RenderQuadTo(program, output, afterDraw: () =>
+            {
+                if (!lumon)
+                {
+                    int active = GL.GetInteger(GetPName.ActiveTexture);
+                    GL.ActiveTexture(TextureUnit.Texture6);
+                    int bound = GL.GetInteger(GetPName.TextureBinding2DArray);
+                    GL.ActiveTexture((TextureUnit)active);
+                    Assert.Equal(surface.TextureId, bound);
+                }
+            });
+        }
+        float f0 = metallic == 1 ? .5f : .04f;
+        float reflected=(float)MicrofacetEnergyReference.NormalResponse(roughness,f0).Reflection;
+        float response = lumon ? .75f * .5f : availability * ((1 - reflected) * (1 - metallic) * .5f + reflected);
+        foreach (float actual in output[0].ReadTexel().Take(3)) Assert.InRange(actual, .25f + response - .001f, .25f + response + .001f);
+    }
+    #endregion
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.Support.GPU.Observations.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+    }
+    #endregion
+}

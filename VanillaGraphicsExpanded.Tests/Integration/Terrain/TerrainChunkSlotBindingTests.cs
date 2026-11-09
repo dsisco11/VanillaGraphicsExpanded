@@ -1,0 +1,208 @@
+using VanillaGraphicsExpanded.Tests.Integration.Terrain.Fixtures;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using HarmonyLib;
+using Moq;
+using System.Text.RegularExpressions;
+using System.Reflection;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.HarmonyPatches;
+using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.LumOn.Scene;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.PBR;
+using Vintagestory.Client.NoObf;
+using Vintagestory.API.Client;
+
+
+
+using VanillaGraphicsExpanded.Tests.Support.Lighting;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+using VanillaGraphicsExpanded.Tests.Support.Numerics;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.Terrain;
+
+/// <summary>Exercises the vanilla terrain binding hook with the actual imported chunk and patch mapping functions.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class TerrainChunkSlotBindingTests : RenderTestBase
+{
+    #region Public API
+    #region Construction
+    /// <summary>Uses the shared graphics context for engine-style GLSL and uniform binding.</summary>
+    public TerrainChunkSlotBindingTests(HeadlessGLFixture fixture) : base(fixture) { }
+    #endregion
+
+    #region Terrain mapping
+    /// <summary>Large-world terrain maps to a nonzero toroidal slot after unrelated passes overwrite the object binding.</summary>
+    [Theory]
+    [InlineData(false, -1, 0)]
+    [InlineData(true, -1, 0)]
+    [InlineData(true, 0, 32)]
+    [InlineData(true, 1, 32)]
+    [InlineData(true, 2, 32)]
+    [InlineData(true, 3, 32)]
+    [InlineData(true, 4, 32)]
+    [InlineData(true, 5, 32)]
+    [InlineData(true, 0, -32)]
+    [InlineData(true, 1, -32)]
+    [InlineData(true, 2, -32)]
+    [InlineData(true, 3, -32)]
+    [InlineData(true, 4, -32)]
+    [InlineData(true, 5, -32)]
+    public void TerrainHook_PublishesChunkWindowAndRebindsAfterAnotherPass(bool movingPlayer, int face, int boundary)
+    {
+        // Arrange: establish this scenario's controlled inputs and starting state.
+
+        EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
+        TerrainLumonSceneChunkSlotUniformBindingHook.ClearUniformCache();
+        string includes = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
+        // Execute the same output snippet injected into terrain rather than a parallel test implementation.
+        string writes = (string)typeof(VanillaShaderPatches).GetField("GBufferOutputWrites_Chunk",
+            BindingFlags.NonPublic | BindingFlags.Static)!.GetRawConstantValue()!;
+        string patchWrites = writes[writes.IndexOf("uint patchId =", StringComparison.Ordinal)..];
+        string source = "#version 430\n" + Expand(Path.Combine(includes, "lumonscene_chunkslot.glsl")) +
+            Expand(Path.Combine(includes, "lumonscene_patchid.glsl")) + """
+
+            layout(local_size_x=1) in;
+            layout(std430,binding=0) buffer Result { uvec4 value; vec4 patchUv; };
+            layout(std140, binding=28) uniform TestInputs { vec3 position; vec3 normal; };
+            void main() {
+                vec4 worldPos=vec4(position,1); uvec4 vge_outPatchId;
+                vec3 vge_surfaceBasePosition=position;
+                vec3 vge_surfaceBaseNormal=normal;
+                float vge_surfaceDisplaced=0.0;
+            """ + patchWrites + """
+                value=uvec4(vge_outPatchId.xy,vge_outPatchId.w,vge_outPatchId.y>0u?1u:0u);
+                patchUv=vec4(vge_patchUv,0,0);
+            }
+            """;
+        int shader = GL.CreateShader(ShaderType.ComputeShader), program = GL.CreateProgram();
+        int output = GL.GenBuffer(), unrelated = GL.GenBuffer();
+        using var generations = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 289), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var assets = new BinaryShaderApiFixture();
+        var events = new RuntimeRenderEvents();
+        var config = new VgeConfig();
+        config.LumOn.Enabled = config.LumOn.LumonScene.Enabled = true;
+        double[] surface = face < 0 ? [512030.11, 3, 511990.5] : [2.25, 6.5, 10.75];
+        float[] normal = [0, 1, 0];
+        uint expectedSlot = 232, expectedPatch = 1053;
+        float expectedU = .5275f, expectedV = .625f;
+        if (face >= 0)
+        {
+            int axis = face / 2;
+            surface[axis] = boundary;
+            normal = new float[3]; normal[axis] = face % 2 == 0 ? 1 : -1;
+            // The face's solid owner is immediately below a positive-facing boundary.
+            int[] owner = surface.Select(value => (int)Math.Floor(value)).ToArray();
+            if (face % 2 == 0) owner[axis]--;
+            int sx = ((owner[0] >> 5) + 3) % 5;
+            int sy = ((owner[1] >> 5) + 4) % 5;
+            int sz = ((owner[2] >> 5) + 5) % 5;
+            expectedSlot = (uint)((sy * 5 + sz) * 5 + sx);
+            int uAxis = axis == 0 ? 2 : 0, vAxis = axis == 1 ? 2 : 1;
+            int u = owner[uAxis] & 31, v = owner[vAxis] & 31;
+            expectedPatch = (uint)(1 + face + (((owner[axis] & 31) << 6) + ((v >> 2) << 3) + (u >> 2)) * 6);
+            expectedU = (float)((u % 4 + surface[uAxis] - Math.Floor(surface[uAxis])) / 4);
+            expectedV = (float)((v % 4 + surface[vAxis] - Math.Floor(surface[vAxis])) / 4);
+        }
+        double surfaceX = surface[0], surfaceY = surface[1], surfaceZ = surface[2];
+        LumOnCameraState camera = new(surfaceX, surfaceY, surfaceZ, surfaceX, surfaceY, surfaceZ, 0);
+        var world = new Mock<IClientWorldAccessor>();
+        // Arrange the mocked camera/world values before installing and invoking the engine binding hook.
+        world.SetupGet(value => value.Player).Returns(RuntimeEngineServices.CameraPlayer(() => camera));
+        world.SetupGet(value => value.ElapsedMilliseconds).Returns(0L);
+        float[] identity = LumOnTestInputFactory.CreateIdentityMatrix();
+        var render = RuntimeEngineServices.Render(1, [], () => identity, () => identity, () => { });
+        var cameraWorld = new RuntimeCameraWorld(RuntimeEngineServices.CameraPlayer(() => camera));
+        var api = RuntimeEngineServices.Client(assets.Api, events.Api, cameraWorld.World, render, assets.Api.Shader);
+        using var publisher = new VgeFrameRenderer(api);
+        var hook = new Harmony("tests.terrain-frame." + Guid.NewGuid());
+        FrameShaderBindingHook.ApplyPatches(hook, _ => { });
+        FrameShaderBindingHook.ClearUniformCache();
+        try
+        {
+            GL.ShaderSource(shader, source); GL.CompileShader(shader);
+            GL.GetShader(shader, ShaderParameter.CompileStatus, out int compiled);
+        // Act: install the mapped hook and publish the chunk window after another pass overwrites the binding.
+            Assert.True(compiled != 0, GL.GetShaderInfoLog(shader));
+            GL.AttachShader(program, shader); GL.LinkProgram(program);
+            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
+            using var inputs = new FixtureUniformInputs(program, 32);
+            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+            generations.UploadDataImmediate(Enumerable.Range(0, 289).Select(i => (uint)(1000 + i)).ToArray());
+            LumonSceneChunkSlotUniformState.Update(new(15992, 0, 15991), new(17, 1, 17), new(3, 0, 5), generations);
+            if (face >= 0) LumonSceneChunkSlotUniformState.Update(new(-2, -2, -2), new(5, 5, 5), new(1, 2, 3), generations);
+            GL.BindBuffer(BufferTarget.ShaderStorageBuffer, output);
+            GL.BufferData(BufferTarget.ShaderStorageBuffer, 32, IntPtr.Zero, BufferUsageHint.DynamicRead);
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, output);
+            GL.BindBuffer(BufferTarget.UniformBuffer, unrelated);
+            GL.BufferData(BufferTarget.UniformBuffer, 48, new int[12], BufferUsageHint.DynamicDraw);
+            var engineProgram = new ShaderProgramChunkopaque { ProgramId = program };
+            uint[] finalMapping = [];
+            // Act: execute the patched before/opaque callbacks as the camera moves across slot boundaries.
+            foreach (double displacement in movingPlayer ? new[] { 0, .25, -.4, 2.25, 31.99, 32.25 } : new[] { 0.0, 0.0 })
+            {
+                if (movingPlayer) camera = camera with { PositionX = surfaceX + displacement, PositionZ = surfaceZ - displacement,
+                    CameraX = surfaceX + displacement + .1, CameraY = surfaceY + 1.6 + displacement * .01, CameraZ = surfaceZ - displacement - .2 };
+                cameraWorld.RefreshCamera();
+                events.Render(EnumRenderStage.Before);
+                events.Render(EnumRenderStage.Opaque);
+                // A zeroed foreign object block reproduces the missing window binding deterministically.
+                GL.BindBufferBase(BufferRangeTarget.UniformBuffer, GpuBindingRegistry.Ubo.Object, unrelated);
+                // Reproduce a foreign pass overwriting both object and camera slots before engine shader reuse.
+                GL.BindBufferBase(BufferRangeTarget.UniformBuffer, GpuBindingRegistry.Ubo.Frame, unrelated);
+                engineProgram.Use();
+                TerrainLumonSceneChunkSlotUniformBindingHook.Use_Postfix(engineProgram);
+                inputs.Vector(16, normal[0], normal[1], normal[2]);
+                // The engine subtracts CameraPos from poolOrigin before adding terrain vertices.
+                inputs.Vector(0,
+                    movingPlayer ? (float)(surfaceX - camera.CameraX) : 0f,
+                    movingPlayer ? (float)(surfaceY - camera.CameraY) : 0f,
+                    movingPlayer ? (float)(surfaceZ - camera.CameraZ) : 0f);
+                inputs.Publish();
+                GL.DispatchCompute(1, 1, 1);
+                GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
+                uint[] actual = new uint[8];
+                GL.BindBuffer(BufferTarget.ShaderStorageBuffer, output);
+                GL.GetBufferSubData(BufferTarget.ShaderStorageBuffer, IntPtr.Zero, 32, actual);
+                finalMapping = actual;
+                // Assert hook output matches the expected toroidal slot, patch and local coordinates.
+                Assert.Equal(new uint[] { expectedSlot, expectedPatch, 1000 + expectedSlot, 1 }, actual.Take(4));
+                Assert.InRange(BitConverter.UInt32BitsToSingle(actual[4]), expectedU - .00001f, expectedU + .00001f);
+                Assert.InRange(BitConverter.UInt32BitsToSingle(actual[5]), expectedV - .00001f, expectedV + .00001f);
+            }
+            // Release the native owner before entering the VGE compute validation scope.
+            engineProgram.Stop();
+            // Assert the final published mapping against the independent terrain-boundary oracle.
+            if (face >= 0) TerrainBoundaryCaptureFixture.AssertSelectedSurface(assets.Api, finalMapping, face, boundary);
+        }
+        finally
+        {
+            TerrainLumonSceneChunkSlotUniformBindingHook.ClearUniformCache();
+            LumonSceneChunkSlotUniformState.Disable();
+            hook.UnpatchAll(hook.Id);
+            FrameShaderBindingHook.ClearUniformCache();
+            ShaderProgramBase.CurrentShaderProgram = null;
+            GL.UseProgram(0); GL.DeleteProgram(program); GL.DeleteShader(shader);
+            GL.DeleteBuffer(output); GL.DeleteBuffer(unrelated);
+            OpenGlStateCache.Current.InvalidateAll();
+        }
+    }
+    #endregion
+    #endregion
+
+    #region Private
+    #region Source fixture
+    /// <summary>Expands only relative production imports, retaining their include guards and mapping implementation unchanged.</summary>
+    private static string Expand(string path)
+    {
+        string source = TestAssetSnapshot.ReadSourceText(path);
+        return Regex.Replace(source, "@import\\s+\"([^\"]+)\"", match =>
+            Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
+    }
+    #endregion
+    #endregion
+}

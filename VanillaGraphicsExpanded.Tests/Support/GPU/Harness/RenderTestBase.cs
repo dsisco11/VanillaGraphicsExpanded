@@ -1,0 +1,319 @@
+using TestUniformRing = VanillaGraphicsExpanded.Tests.Support.GPU.Native.TestUniformRing;
+using Assertions = VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System;
+using System.Collections.Generic;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+
+namespace VanillaGraphicsExpanded.Tests.Support.GPU.Harness;
+
+/// <summary>
+/// Abstract base class for render tests that need to create render targets,
+/// render fullscreen quads, and read back pixel data for verification.
+/// Uses the production GBuffer and DynamicTexture classes.
+/// </summary>
+/// <remarks>
+/// Usage:
+/// <code>
+/// [Collection("GPU")]
+/// [Trait("Category", "GpuIntegration")]
+/// public class MyRenderTests : RenderTestBase
+/// {
+///     public MyRenderTests(HeadlessGLFixture fixture) : base(fixture) { }
+///     
+///     [Fact]
+///     public void MyTest()
+///     {
+///         EnsureContextValid();
+///         using var rt = CreateRenderTarget(64, 64, TextureFormat.Rgba16f);
+///         // ... render and verify ...
+///     }
+/// }
+/// </code>
+/// </remarks>
+public abstract class RenderTestBase : IDisposable
+{
+    private readonly HeadlessGLFixture _fixture;
+    
+    // Fullscreen quad VAO/VBO resources - lazy initialized
+    private int _quadVao;
+    private int _quadVbo;
+    private bool _quadInitialized;
+    private bool _disposed;
+    private readonly GpuResourceCollection _targetResources = new();
+    private readonly TestFrameLightingPublication frameLighting = new();
+
+    /// <summary>Retains per-test assertion resources while borrowing the fixture's production checker owners.</summary>
+    private protected Assertions.GpuObservations ImageAssertions => _fixture.Observations;
+
+    #region Public API
+
+    /// <summary>
+    /// Creates a new RenderTestBase instance.
+    /// </summary>
+    /// <param name="fixture">The HeadlessGLFixture providing the GL context.</param>
+    protected RenderTestBase(HeadlessGLFixture fixture)
+    {
+        _fixture = fixture ?? throw new ArgumentNullException(nameof(fixture));
+    }
+
+    /// <summary>
+    /// Ensures the GL context is valid; throws skip exception if not.
+    /// Nested helpers retain intercepted state and pending uniform allocations.
+    /// </summary>
+    /// <param name="beginUniformFrame">False for nested helpers that must preserve pending draw allocations.</param>
+    protected void EnsureContextValid(bool beginUniformFrame = true)
+    {
+        _fixture.EnsureContextValid();
+        PrepareObservations(ImageAssertions.Programs);
+
+        // Option B: UBO binding uses the per-thread ring allocator.
+        // In production this is installed by a renderer; in tests we activate it manually.
+        if (beginUniformFrame) { TestUniformRing.BeginFrame(); frameLighting.Bind(); }
+        else TestUniformRing.EnsureFrame();
+        
+    }
+
+    /// <summary>Prepares only suite-declared observation assets before subject execution and hostile selectors.</summary>
+    private protected virtual void PrepareObservations(Assertions.GpuObservationPrograms programs) { }
+
+    #region Render Target Management
+
+    /// <summary>
+    /// Creates a render target (GBuffer with color attachment) for testing.
+    /// </summary>
+    /// <param name="width">Width in pixels.</param>
+    /// <param name="height">Height in pixels.</param>
+    /// <param name="format">Internal format (e.g., TextureFormat.Rgba16f).</param>
+    /// <returns>A framebuffer borrowing a texture owned by this test fixture.</returns>
+    protected GpuFramebuffer CreateRenderTarget(int width, int height, TextureFormat format)
+    {
+        EnsureContextValid(beginUniformFrame: false);
+        var texture = _targetResources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = format, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+        var gBuffer = DynamicGpuFramebuffer.CreateSingle(texture);
+        return gBuffer ?? throw new InvalidOperationException("Failed to create GBuffer");
+    }
+
+    /// <summary>
+    /// Creates a render target with multiple render targets (MRT).
+    /// </summary>
+    /// <param name="width">Width in pixels.</param>
+    /// <param name="height">Height in pixels.</param>
+    /// <param name="formats">Internal formats for each color attachment.</param>
+    /// <returns>A framebuffer borrowing textures owned by this test fixture.</returns>
+    protected GpuFramebuffer CreateMRTRenderTarget(int width, int height, params TextureFormat[] formats)
+    {
+        EnsureContextValid(beginUniformFrame: false);
+        var textures = new DynamicTexture2D[formats.Length];
+        for (int i = 0; i < formats.Length; i++)
+        {
+            textures[i] = _targetResources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = formats[i], Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+        }
+        var gBuffer = DynamicGpuFramebuffer.CreateMRT(textures);
+        return gBuffer ?? throw new InvalidOperationException("Failed to create MRT GBuffer");
+    }
+
+    #endregion
+
+    #region Fullscreen Quad Rendering
+
+    /// <summary>
+    /// Renders a native reference program through direct GL selection and draw calls.
+    /// </summary>
+    /// <param name="programId">The native executable owned by the reference test.</param>
+    protected void RenderNativeReferenceFullscreenQuad(int programId)
+    {
+        EnsureContextValid(beginUniformFrame: false);
+        EnsureQuadInitialized();
+
+        GL.UseProgram(programId);
+        GL.BindVertexArray(_quadVao);
+        GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
+        GL.BindVertexArray(0);
+        GL.UseProgram(0);
+    }
+
+    #endregion
+
+    #region Pixel Readback
+
+    /// <summary>
+    /// Reads all pixels from the specified GBuffer as float arrays.
+    /// </summary>
+    /// <param name="gBuffer">The GBuffer to read from.</param>
+    /// <returns>Array of RGBA float values (4 floats per pixel).</returns>
+    protected float[] ReadPixelsFloat(GpuFramebuffer gBuffer)
+    {
+        EnsureContextValid(beginUniformFrame: false);
+
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gBuffer.FboId);
+        
+        var pixels = new float[gBuffer.Width * gBuffer.Height * 4];
+        GL.ReadPixels(0, 0, gBuffer.Width, gBuffer.Height, 
+            OpenTK.Graphics.OpenGL.PixelFormat.Rgba, PixelType.Float, pixels);
+
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, 0);
+        return pixels;
+    }
+
+    /// <summary>
+    /// Reads all pixels from the specified GBuffer as byte arrays.
+    /// </summary>
+    /// <param name="gBuffer">The GBuffer to read from.</param>
+    /// <returns>Array of RGBA byte values (4 bytes per pixel).</returns>
+    protected byte[] ReadPixelsByte(GpuFramebuffer gBuffer)
+    {
+        EnsureContextValid(beginUniformFrame: false);
+
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gBuffer.FboId);
+        
+        var pixels = new byte[gBuffer.Width * gBuffer.Height * 4];
+        GL.ReadPixels(0, 0, gBuffer.Width, gBuffer.Height, 
+            OpenTK.Graphics.OpenGL.PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, 0);
+        return pixels;
+    }
+
+    /// <summary>
+    /// Reads a single pixel from the specified GBuffer.
+    /// </summary>
+    /// <param name="gBuffer">The GBuffer to read from.</param>
+    /// <param name="x">X coordinate.</param>
+    /// <param name="y">Y coordinate.</param>
+    /// <returns>RGBA float values for the pixel.</returns>
+    protected (float R, float G, float B, float A) ReadPixel(GpuFramebuffer gBuffer, int x, int y)
+    {
+        EnsureContextValid(beginUniformFrame: false);
+
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, gBuffer.FboId);
+        
+        float[] pixel = new float[4];
+        GL.ReadPixels(x, y, 1, 1, OpenTK.Graphics.OpenGL.PixelFormat.Rgba, PixelType.Float, pixel);
+
+        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, 0);
+        return (pixel[0], pixel[1], pixel[2], pixel[3]);
+    }
+
+    #endregion
+
+    #region Utility Methods
+
+    /// <summary>
+    /// Checks for GL errors and returns the error code.
+    /// </summary>
+    /// <returns>The GL error code, or NoError if no error.</returns>
+    protected ErrorCode CheckGLError()
+    {
+        return GL.GetError();
+    }
+
+    /// <summary>
+    /// Asserts that there are no GL errors pending.
+    /// Drains all queued errors (GL can queue multiple).
+    /// </summary>
+    /// <param name="context">Context message for error reporting.</param>
+    protected void AssertNoGLError(string context = "")
+    {
+        var errors = new List<ErrorCode>();
+        ErrorCode error;
+        while ((error = GL.GetError()) != ErrorCode.NoError)
+        {
+            errors.Add(error);
+        }
+        
+        if (errors.Count > 0)
+        {
+            var errorList = string.Join(", ", errors);
+            var message = string.IsNullOrEmpty(context) 
+                ? $"GL Error(s): {errorList}" 
+                : $"GL Error(s) ({context}): {errorList}";
+            throw new InvalidOperationException(message);
+        }
+    }
+
+    #endregion
+
+    #region IDisposable
+
+    /// <summary>
+    /// Disposes GPU resources used by the render test base.
+    /// </summary>
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Override this to dispose additional resources in derived classes.
+    /// </summary>
+    protected virtual void Dispose(bool disposing)
+    {
+        if (_disposed)
+            return;
+
+        if (disposing && _quadInitialized && _fixture.IsContextValid)
+        {
+            GL.DeleteVertexArray(_quadVao);
+            GL.DeleteBuffer(_quadVbo);
+            _quadVao = 0;
+            _quadVbo = 0;
+            _quadInitialized = false;
+        }
+
+        if (disposing) { frameLighting.Dispose(); _targetResources.Dispose(); }
+        _disposed = true;
+    }
+
+    #endregion
+
+    #endregion
+
+    #region Private
+
+    /// <summary>Initializes the fullscreen quad VAO on first use.</summary>
+    private void EnsureQuadInitialized()
+    {
+        if (_quadInitialized)
+            return;
+
+        // Fullscreen quad vertices: position (x,y) and texcoord (u,v)
+        // Two triangles covering the screen from -1 to 1 in NDC
+        float[] quadVertices =
+        [
+            // First triangle
+            -1.0f, -1.0f,  0.0f, 0.0f,  // bottom-left
+             1.0f, -1.0f,  1.0f, 0.0f,  // bottom-right
+             1.0f,  1.0f,  1.0f, 1.0f,  // top-right
+            // Second triangle
+            -1.0f, -1.0f,  0.0f, 0.0f,  // bottom-left
+             1.0f,  1.0f,  1.0f, 1.0f,  // top-right
+            -1.0f,  1.0f,  0.0f, 1.0f,  // top-left
+        ];
+
+        _quadVao = GL.GenVertexArray();
+        _quadVbo = GL.GenBuffer();
+
+        GL.BindVertexArray(_quadVao);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, _quadVbo);
+        GL.BufferData(BufferTarget.ArrayBuffer, quadVertices.Length * sizeof(float), quadVertices, BufferUsageHint.StaticDraw);
+
+        // Position attribute (location 0)
+        GL.EnableVertexAttribArray(0);
+        GL.VertexAttribPointer(0, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 0);
+
+        // TexCoord attribute (location 1)
+        GL.EnableVertexAttribArray(1);
+        GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 2 * sizeof(float));
+        GL.BindVertexArray(0);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, 0);
+        _quadInitialized = true;
+    }
+
+    #endregion
+}

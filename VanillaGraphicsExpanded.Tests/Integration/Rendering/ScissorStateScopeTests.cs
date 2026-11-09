@@ -1,0 +1,78 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.Rendering;
+
+/// <summary>Verifies cached scissor scopes preserve caller state without adopting unknown driver state.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class ScissorStateScopeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+{
+    #region Public API
+    /// <summary>Nested scopes and exceptional exits restore their own known entry state.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void KnownStateRestoresAfterNestedException(bool initial)
+    {
+        // Arrange: Establish known scissor state and nest two scopes with different rectangles.
+        // Act: Throw from the inner operation and unwind both scopes.
+        // Assert: Native and cached scissor state return to the known outer entry value.
+        EnsureContextValid();
+        SetScissor(initial);
+        try
+        {
+            Assert.Throws<InvalidOperationException>((Action)(() =>
+            {
+                using var outer = OpenGlStateCache.Current.PreserveScissorState();
+                SetScissor(!initial);
+                using (OpenGlStateCache.Current.PreserveScissorState())
+                {
+                    SetScissor(initial);
+                    Assert.Equal(initial, GL.IsEnabled(EnableCap.ScissorTest));
+                }
+                Assert.Equal(!initial, GL.IsEnabled(EnableCap.ScissorTest));
+                throw new InvalidOperationException("Controlled operation failure.");
+            }));
+            Assert.Equal(initial, GL.IsEnabled(EnableCap.ScissorTest));
+            // Re-entering also proves restoration updated the authoritative cached value.
+            using (OpenGlStateCache.Current.PreserveScissorState()) SetScissor(!initial);
+            Assert.Equal(initial, GL.IsEnabled(EnableCap.ScissorTest));
+        }
+        finally { SetScissor(false); }
+    }
+
+    /// <summary>Unknown cache state rejects capture rather than querying or changing an independently set driver state.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnknownStateRejectsWithoutMutatingDriver(bool driverEnabled)
+    {
+        // Arrange: Set native scissor state directly while the cache remains unknown.
+        // Act: Request a preserving scope that requires known entry state.
+        // Assert: The scope rejects capture without querying or changing the driver state.
+        EnsureContextValid();
+        if (driverEnabled) GL.Enable(EnableCap.ScissorTest); else GL.Disable(EnableCap.ScissorTest);
+        OpenGlStateCache.Current.InvalidateAll();
+        try
+        {
+            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.Current.PreserveScissorState());
+            Assert.Equal(driverEnabled, GL.IsEnabled(EnableCap.ScissorTest));
+            // A rejected scope must not silently learn the driver value for the next attempt.
+            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.Current.PreserveScissorState());
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { SetScissor(false); }
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Uses the same narrow pipeline contract as an authoritative caller state boundary.</summary>
+    private static void SetScissor(bool enabled)
+    {
+        var mask = GlPipelineStateMask.From(GlPipelineStateId.ScissorTestEnable);
+        OpenGlStateCache.Current.Apply(new GlPipelineDesc(enabled ? default : mask, enabled ? mask : default));
+    }
+    #endregion
+}

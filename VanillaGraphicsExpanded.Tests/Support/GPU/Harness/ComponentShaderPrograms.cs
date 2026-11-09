@@ -1,0 +1,78 @@
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+using Vintagestory.Client.NoObf;
+
+namespace VanillaGraphicsExpanded.Tests.Support.GPU.Harness;
+
+/// <summary>Owns production shader instances for isolated pass tests, using the built binary assets.</summary>
+internal sealed class ComponentShaderPrograms : IDisposable
+{
+    private readonly BinaryShaderApiFixture assets;
+    private readonly EngineShaderPlatformScope platform = new();
+    private readonly List<GpuProgram> programs = [];
+    private readonly List<GpuComputeProgram> computePrograms = [];
+    private readonly TestFrameLightingPublication frameLighting = new();
+
+    /// <summary>Shares the owned engine boundary with scene resources that are disposed before this owner.</summary>
+    internal Vintagestory.API.Client.ICoreClientAPI Api => assets.Api;
+
+    #region Program lifetime
+    /// <summary>Uses current built assets or an explicitly frozen asset root for matched diagnostics.</summary>
+    internal ComponentShaderPrograms(TestAssetSnapshot? snapshot = null)
+    {
+        assets = new BinaryShaderApiFixture(snapshot);
+    }
+
+    /// <summary>Configures a real shader before loading its declared variant; retains ownership through test teardown.</summary>
+    public T Create<T>(Action<T>? configure = null, IReadOnlyDictionary<string, string?>? settings = null, string? identity = null) where T : GpuProgram, new()
+    {
+        // Nested engine fixtures may have released the import resolver since the previous draw.
+        VanillaGraphicsExpanded.PBR.ShaderImportsSystem.Instance.Initialize(assets.Api);
+        var program = new T();
+        programs.Add(program);
+        program.PassName = identity ?? program.ProgramContract.Identity;
+        program.AssetDomain = "vanillagraphicsexpanded";
+        program.ConfigureOptions(() =>
+        {
+            if (settings != null) program.SetDefines(settings);
+            configure?.Invoke(program);
+        });
+        program.Initialize(assets.Api);
+        Assert.True(program.CompileAndLink(), string.Join(Environment.NewLine, assets.Logs));
+        frameLighting.Attach(program);
+        return program;
+    }
+
+    /// <summary>Creates and owns a production compute facade inside the fixture asset boundary.</summary>
+    internal T CreateCompute<T>(Func<Vintagestory.API.Client.ICoreClientAPI, T> create) where T : GpuComputeProgram
+    {
+        var program = create(Api);
+        computePrograms.Add(program);
+        Assert.True(program.EnsureReady(), program.PreparationLog);
+        frameLighting.Attach(program);
+        return program;
+    }
+
+    /// <summary>Loads and owns the production depth compute executable for component tests.</summary>
+    internal DepthHierarchyComputeShader CreateDepthHierarchy()
+    {
+        var program = DepthHierarchyComputeShader.Create(Api);
+        computePrograms.Add(program);
+        return program;
+    }
+
+    /// <summary>Releases programs while their engine boundary and graphics context are still available.</summary>
+    public void Dispose()
+    {
+        foreach (var program in programs) { program.Dispose(); }
+        programs.Clear();
+        foreach (var program in computePrograms) { program.Dispose(); }
+        computePrograms.Clear();
+        frameLighting.Dispose();
+        platform.Dispose();
+        assets.Dispose();
+    }
+    #endregion
+}

@@ -7,22 +7,38 @@ namespace VanillaGraphicsExpanded.Tests.Unit.PBR.Materials;
 /// <summary>Checks explicit surface-detail selection without legacy migration without rendering.</summary>
 public sealed class TerrainSurfaceDetailModeTests
 {
+    #region Public API
     #region Reload contract
-    /// <summary>Compile-time relief settings change the reload snapshot.</summary>
+    /// <summary>Relief inputs change the reload snapshot and sanitization restores finite ordered fade bounds.</summary>
     [Fact]
-    public void SnapshotTracksOnlyActiveSettings()
+    public void SnapshotTracksReliefInputsAndSanitizationOrdersFadeBounds()
     {
-        var config=new VgeConfig.MaterialAtlasConfig();config.Sanitize();
+        // Arrange: capture a sanitized baseline before changing one compiled relief input at a time.
+        var config = new VgeConfig.MaterialAtlasConfig();
+        config.Sanitize();
         var initial=TerrainReliefConfiguration.Capture(config);
 
-        config.ParallaxMinSteps++;Assert.NotEqual(initial,TerrainReliefConfiguration.Capture(config));
-        initial=TerrainReliefConfiguration.Capture(config);config.ParallaxFadeEnd++;Assert.NotEqual(initial,TerrainReliefConfiguration.Capture(config));
-        initial=TerrainReliefConfiguration.Capture(config);config.ParallaxDebugMode++;Assert.NotEqual(initial,TerrainReliefConfiguration.Capture(config));
-        initial=TerrainReliefConfiguration.Capture(config);config.TerrainSurfaceDetailMode=0;Assert.NotEqual(initial,TerrainReliefConfiguration.Capture(config));
-        config.ParallaxFadeStart=float.NaN;config.ParallaxFadeEnd=float.NaN;config.Sanitize();
-        Assert.True(float.IsFinite(config.ParallaxFadeStart)&&float.IsFinite(config.ParallaxFadeEnd));
-        config.ParallaxFadeEnd=config.ParallaxFadeStart;config.Sanitize();
-        Assert.True(config.ParallaxFadeEnd>config.ParallaxFadeStart);
+        // Act and assert: each relief input participates in the captured reload identity.
+        config.ParallaxMinSteps++;
+        Assert.NotEqual(initial, TerrainReliefConfiguration.Capture(config));
+        initial = TerrainReliefConfiguration.Capture(config);
+        config.ParallaxFadeEnd++;
+        Assert.NotEqual(initial, TerrainReliefConfiguration.Capture(config));
+        initial = TerrainReliefConfiguration.Capture(config);
+        config.ParallaxDebugMode++;
+        Assert.NotEqual(initial, TerrainReliefConfiguration.Capture(config));
+        initial = TerrainReliefConfiguration.Capture(config);
+        config.TerrainSurfaceDetailMode = 0;
+        Assert.NotEqual(initial, TerrainReliefConfiguration.Capture(config));
+
+        // Act and assert: invalid fade inputs are made finite, then equal bounds are made strictly ordered.
+        config.ParallaxFadeStart = float.NaN;
+        config.ParallaxFadeEnd = float.NaN;
+        config.Sanitize();
+        Assert.True(float.IsFinite(config.ParallaxFadeStart) && float.IsFinite(config.ParallaxFadeEnd));
+        config.ParallaxFadeEnd = config.ParallaxFadeStart;
+        config.Sanitize();
+        Assert.True(config.ParallaxFadeEnd > config.ParallaxFadeStart);
     }
     #endregion
 
@@ -38,7 +54,10 @@ public sealed class TerrainSurfaceDetailModeTests
     [InlineData("{\"TerrainSurfaceDetailMode\":99}", 2)]
     public void SelectionSurvivesSanitizeAndRoundTrip(string json, int expected)
     {
+        // Arrange: deserialize a legacy or explicit mode selection.
         var config = JsonConvert.DeserializeObject<VgeConfig.MaterialAtlasConfig>(json)!;
+
+        // Act and assert: sanitization preserves the selected mode across repeated calls and serialization.
         config.Sanitize();
         Assert.Equal(expected, config.TerrainSurfaceDetailMode);
 
@@ -50,6 +69,7 @@ public sealed class TerrainSurfaceDetailModeTests
         config.EnableNormalMaps = false;
         Assert.Equal(expected != 0, config.RequiresNormalDepthAtlas);
     }
+    #endregion
     #endregion
 }
 

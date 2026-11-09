@@ -282,7 +282,7 @@ the source depth aspect and selector. Counter observations return thirty-two wor
 complete image buffers. Keep existing local tuple reads and tests of readback APIs independent from this checker.
 
 Atmosphere scheduling tests use explicit controlled producer completion; real worker/publication and
-lookup/numerical tests retain the integrator. `AtmosphereLookupTests.RecordBoundedUpdateCost` is a
+lookup/numerical tests retain the integrator. `AtmosphereLookupCostDiagnosticTests.RecordBoundedUpdateCost` is a
 diagnostic timing workload. Resource-association retention is checked by a focused real-GC test;
 identity reuse, unregistration and retirement use deterministic CPU tests.
 

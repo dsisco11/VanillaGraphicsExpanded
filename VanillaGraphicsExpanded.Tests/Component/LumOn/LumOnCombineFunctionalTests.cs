@@ -1,0 +1,1075 @@
+using VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
+using System.Numerics;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Collections.Generic;
+
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.Rendering;
+using Xunit;
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+namespace VanillaGraphicsExpanded.Tests.Component.LumOn;
+
+/// <summary>
+/// Functional tests for the LumOn Combine/Integrate shader pass.
+///
+/// These tests verify that the combine shader correctly:
+/// - Adds indirect diffuse to direct lighting
+/// - Modulates indirect contribution by surface albedo
+/// - Reduces indirect for metallic surfaces (metals don't receive diffuse)
+/// - Applies indirectIntensity and indirectTint to the indirect contribution
+/// - Passes through direct lighting when lumOnEnabled=0
+/// - Skips indirect for sky pixels
+///
+/// Test configuration:
+/// - Full-res: 4×4 pixels
+/// </summary>
+/// <remarks>
+/// The combine formula from lumon_material.fsh:
+/// <code>
+/// diffuseWeight = 1.0 - metallic
+/// indirectContrib = indirect * albedo * diffuseWeight * intensity * tint
+/// output = directLight + indirectContrib
+/// </code>
+/// </remarks>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
+{
+    #region Public API
+    /// <summary>Uses the shared GPU context to execute the combine shader contract cases.</summary>
+    public LumOnCombineFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
+    #region Diffuse and metallic endpoints
+
+    /// <summary>Verifies fully diffuse material receives the diffuse-dominant indirect contribution.</summary>
+
+    [Fact]
+    public void Composite_Metallic0_UsesDiffuseDominant()
+    {
+        EnsureShaderTestAvailable();
+
+        // Arrange: Prepare authored inputs, the shader variant, and its bound resources.
+
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);
+        var albedo = (r: 1.0f, g: 0.0f, b: 0.0f);
+
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f, emissive: 0.0f, reflectivity: 1.0f);
+        var normalData = CreateUniformNormalData(ScreenWidth, ScreenHeight, 0f, 0f, 1f);
+        // Use a depth that produces a non-zero view vector with our test invProjection.
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.25f);
+
+        // Column-major diag(0, 0, 1, 1) => forces reconstructed viewPos.x/y=0.
+        var invProj = new float[]
+        {
+            0,0,0,0,
+            0,0,0,0,
+            0,0,1,0,
+            0,0,0,1
+        };
+
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f);
+
+        // Bind required-but-unused debug shader textures
+        var dummyRgba = CreateUniformColorData(ScreenWidth, ScreenHeight, 0f, 0f, 0f, 0f);
+        using var dummyTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, dummyRgba);
+
+        var programId = CompileDebugShader(enablePbrComposite: 1, enableAO: 0);
+
+
+        // Diffuse debug view
+        SetupDebugCompositeUniforms(programId,
+            debugMode: (int)LumOnDebugMode.CompositeIndirectDiffuse,
+            indirectIntensity: 1.0f,
+            indirectTint: (1f, 1f, 1f),
+            enablePbrComposite: 1,
+            enableAO: 0,
+            diffuseAOStrength: 1.0f,
+            specularAOStrength: 1.0f,
+            invProjection: invProj);
+
+        programId.PrimaryDepth = depthTex;
+
+        using var anchorInputs1 = LayeredTestTexture.Create(ImageAssertions.Programs, dummyTex, dummyTex);
+        programId.ProbeAnchors = anchorInputs1;
+        programId.RadianceTexture0 = dummyTex;
+        programId.RadianceTexture1 = dummyTex;
+        programId.IndirectHalf = dummyTex;
+        programId.HistoryMeta = dummyTex;
+        programId.ProbeAtlasMeta = dummyTex;
+        programId.ProbeAtlasCurrent = dummyTex;
+        programId.ProbeAtlasFiltered = dummyTex;
+        programId.ProbeAtlasGatherInput = dummyTex;
+        programId.IndirectDiffuseFull = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        using var surfaceInput1 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, materialTex, null);
+        programId.GBufferSurface = surfaceInput1;
+
+        // Act: Render this shader configuration into the test target.
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var diffuseOut = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+
+        // Specular debug view uses a separate executable with the same explicit texture bindings.
+        programId = CompileDebugShader(LumOnDebugMode.CompositeIndirectSpecular, enablePbrComposite: 1, enableAO: 0);
+        SetupDebugCompositeUniforms(programId,
+            debugMode: (int)LumOnDebugMode.CompositeIndirectSpecular,
+            indirectIntensity: 1.0f,
+            indirectTint: (1f, 1f, 1f),
+            enablePbrComposite: 1,
+            enableAO: 0,
+            diffuseAOStrength: 1.0f,
+            specularAOStrength: 1.0f,
+            invProjection: invProj);
+        programId.PrimaryDepth = depthTex;
+
+        programId.IndirectDiffuseFull = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        using var surfaceInput2 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, materialTex, null);
+        programId.GBufferSurface = surfaceInput2;
+
+        // Act: Render this shader configuration into the test target.
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        // Assert: Read back the output and verify the case-specific behavior.
+        var specOut = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+
+        // Compare at center-ish pixel for stability
+        var (dr, dg, db, _) = ReadLocalPixel(diffuseOut);
+        var (sr, sg, sb, _) = ReadLocalPixel(specOut);
+
+        float diffuseLuma = dr + dg + db;
+        float specLuma = sr + sg + sb;
+
+        Assert.True(diffuseLuma > specLuma,
+            $"Expected diffuse to dominate for metallic=0. Diffuse={diffuseLuma:F3}, Spec={specLuma:F3}");
+    }
+
+    /// <summary>Verifies fully metallic material uses the specular-dominant indirect contribution.</summary>
+
+    [Fact]
+    public void Composite_Metallic1_UsesSpecularDominant()
+    {
+        EnsureShaderTestAvailable();
+
+        // Arrange: Prepare authored inputs, the shader variant, and its bound resources.
+
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);
+        var albedo = (r: 0.8f, g: 0.2f, b: 0.1f);
+
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.1f, metallic: 1.0f, emissive: 0.0f, reflectivity: 1.0f);
+        var normalData = CreateUniformNormalData(ScreenWidth, ScreenHeight, 0f, 0f, 1f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.25f);
+
+        var invProj = new float[]
+        {
+            0,0,0,0,
+            0,0,0,0,
+            0,0,1,0,
+            0,0,0,1
+        };
+
+
+
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f);
+        var dummyRgba = CreateUniformColorData(ScreenWidth, ScreenHeight, 0f, 0f, 0f, 0f);
+
+        using var dummyTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, dummyRgba);
+        var programId = CompileDebugShader(enablePbrComposite: 1, enableAO: 0);
+
+
+        SetupDebugCompositeUniforms(programId,
+            debugMode: (int)LumOnDebugMode.CompositeIndirectDiffuse,
+            indirectIntensity: 1.0f,
+            indirectTint: (1f, 1f, 1f),
+            enablePbrComposite: 1,
+            enableAO: 0,
+            diffuseAOStrength: 1.0f,
+            specularAOStrength: 1.0f,
+            invProjection: invProj);
+
+        programId.PrimaryDepth = depthTex;
+
+        using var anchorInputs2 = LayeredTestTexture.Create(ImageAssertions.Programs, dummyTex, dummyTex);
+        programId.ProbeAnchors = anchorInputs2;
+        programId.RadianceTexture0 = dummyTex;
+        programId.RadianceTexture1 = dummyTex;
+        programId.IndirectHalf = dummyTex;
+        programId.HistoryMeta = dummyTex;
+        programId.ProbeAtlasMeta = dummyTex;
+        programId.ProbeAtlasCurrent = dummyTex;
+        programId.ProbeAtlasFiltered = dummyTex;
+        programId.ProbeAtlasGatherInput = dummyTex;
+        programId.IndirectDiffuseFull = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        using var surfaceInput3 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, materialTex, null);
+        programId.GBufferSurface = surfaceInput3;
+
+        // Act: Render this shader configuration into the test target.
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        var diffuseOut = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+
+        programId = CompileDebugShader(LumOnDebugMode.CompositeIndirectSpecular, enablePbrComposite: 1, enableAO: 0);
+        SetupDebugCompositeUniforms(programId,
+            debugMode: (int)LumOnDebugMode.CompositeIndirectSpecular,
+            indirectIntensity: 1.0f,
+            indirectTint: (1f, 1f, 1f),
+            enablePbrComposite: 1,
+            enableAO: 0,
+            diffuseAOStrength: 1.0f,
+            specularAOStrength: 1.0f,
+            invProjection: invProj);
+        programId.PrimaryDepth = depthTex;
+
+        programId.IndirectDiffuseFull = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        using var surfaceInput4 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, materialTex, null);
+        programId.GBufferSurface = surfaceInput4;
+
+        // Act: Render this shader configuration into the test target.
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        // Assert: Read back the output and verify the case-specific behavior.
+        var specOut = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+
+        var (dr, dg, db, _) = ReadLocalPixel(diffuseOut);
+        var (sr, sg, sb, _) = ReadLocalPixel(specOut);
+
+        float diffuseLuma = dr + dg + db;
+        float specLuma = sr + sg + sb;
+
+        Assert.True(specLuma > diffuseLuma,
+            $"Expected specular to dominate for metallic=1. Diffuse={diffuseLuma:F3}, Spec={specLuma:F3}");
+    }
+    #endregion
+    #region Reflectivity independence
+
+    /// <summary>Verifies changing reflectivity does not change indirect output while the AO path is stubbed.</summary>
+
+    [Fact]
+    public void Composite_ReflectivityDoesNotActAsAmbientOcclusion()
+    {
+        EnsureShaderTestAvailable();
+
+        // Arrange: Prepare authored inputs, the shader variant, and its bound resources.
+
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);
+        var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);
+
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+
+        // AO is currently stubbed (no-op). Reflectivity must not be treated as AO.
+        var materialAo1 = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f, emissive: 0.0f, reflectivity: 1.0f);
+        var materialAo0 = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f, emissive: 0.0f, reflectivity: 0.0f);
+
+        var normalData = CreateUniformNormalData(ScreenWidth, ScreenHeight, 0f, 0f, 1f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.25f);
+
+        var invProj = new float[]
+        {
+            0,0,0,0,
+            0,0,0,0,
+            0,0,1,0,
+            0,0,0,1
+        };
+
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+        using var materialAo1Tex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialAo1);
+        using var materialAo0Tex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialAo0);
+
+
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f);
+        var dummyRgba = CreateUniformColorData(ScreenWidth, ScreenHeight, 0f, 0f, 0f, 0f);
+
+        using var dummyTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, dummyRgba);
+        var programId = CompileDebugShader(enablePbrComposite: 1, enableAO: 1);
+
+
+        float RenderWithAoTexture(DynamicTexture2D materialTex)
+        {
+            SetupDebugCompositeUniforms(programId,
+                debugMode: (int)LumOnDebugMode.CompositeIndirectDiffuse,
+                indirectIntensity: 1.0f,
+                indirectTint: (1f, 1f, 1f),
+                enablePbrComposite: 1,
+                enableAO: 1,
+                diffuseAOStrength: 1.0f,
+                specularAOStrength: 0.0f,
+                invProjection: invProj);
+
+            programId.PrimaryDepth = depthTex;
+
+            using var anchorInputs3 = LayeredTestTexture.Create(ImageAssertions.Programs, dummyTex, dummyTex);
+            programId.ProbeAnchors = anchorInputs3;
+            programId.RadianceTexture0 = dummyTex;
+            programId.RadianceTexture1 = dummyTex;
+            programId.IndirectHalf = dummyTex;
+            programId.HistoryMeta = dummyTex;
+            programId.ProbeAtlasMeta = dummyTex;
+            programId.ProbeAtlasCurrent = dummyTex;
+            programId.ProbeAtlasFiltered = dummyTex;
+            programId.ProbeAtlasGatherInput = dummyTex;
+            programId.IndirectDiffuseFull = indirectTex;
+            programId.GBufferAlbedo = albedoTex;
+            using var surfaceInput5 = LayeredTestTexture.Create(ImageAssertions.Programs, normalTex, materialTex, null);
+            programId.GBufferSurface = surfaceInput5;
+
+            // Act: Render this shader configuration into the test target.
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            // Assert: Read back the output and verify the case-specific behavior.
+            var outData = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+            var (r, g, b, _) = ReadLocalPixel(outData);
+            return r + g + b;
+        }
+
+        float lumaAo1 = RenderWithAoTexture(materialAo1Tex);
+        float lumaAo0 = RenderWithAoTexture(materialAo0Tex);
+
+        Assert.True(MathF.Abs(lumaAo1 - lumaAo0) < 1e-3f,
+            $"AO is stubbed; reflectivity must not attenuate indirect. Reflectivity1={lumaAo1:F3}, Reflectivity0={lumaAo0:F3}");
+    }
+    #endregion
+    #region Composite controls
+
+    /// <summary>
+    /// Tests that direct and indirect lighting are correctly combined.
+    ///
+    /// DESIRED BEHAVIOR:
+    /// - output = direct + (indirect * albedo * diffuseWeight * intensity * tint)
+    /// - With white albedo, full diffuse weight (metallic=0), intensity=1, tint=white:
+    ///   output = direct + indirect
+    ///
+    /// Setup:
+    /// - Direct: (1, 0, 0) = red
+    /// - Indirect: (0, 1, 0) = green
+    /// - Albedo: (1, 1, 1) = white
+    /// - Metallic: 0 (dielectric, full diffuse)
+    ///
+    /// Expected:
+    /// - Output = (1, 1, 0) = yellow (red + green)
+    /// </summary>
+    [Fact]
+    public void BasicComposite_AddsIndirect()
+    {
+        EnsureShaderTestAvailable();
+
+        // Arrange: Prepare authored inputs, the shader variant, and its bound resources.
+
+        var direct = (r: 1.0f, g: 0.0f, b: 0.0f);   // Red
+        var indirect = (r: 0.0f, g: 1.0f, b: 0.0f); // Green
+        var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);   // White
+
+        // Create input textures
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);  // Dielectric
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);  // Valid geometry
+
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, sceneDirectData);
+
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            TextureFormat.Rgba16f);
+
+        var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        SetupCombineUniforms(programId, indirectIntensity: 1.0f, indirectTint: (1f, 1f, 1f), lumOnEnabled: 1);
+
+        // Bind inputs
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        using var surfaceInput6 = LayeredTestTexture.Create(ImageAssertions.Programs, null, materialTex, null);
+        programId.GBufferSurface = surfaceInput6;
+        programId.PrimaryDepth = depthTex;
+
+        // Act: Render this shader configuration into the test target.
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+
+
+
+        // DESIRED: output = direct + indirect = (1,0,0) + (0,1,0) = (1,1,0)
+        // Assert: Read back the output and verify the case-specific behavior.
+        AssertRgb(outputGBuffer[0],new(1,1,0));
+    }
+
+    /// <summary>
+    /// Tests that indirect lighting is modulated by surface albedo.
+    ///
+    /// DESIRED BEHAVIOR:
+    /// - indirectContrib = indirect * albedo * diffuseWeight
+    /// - With red albedo: only red channel of indirect passes through
+    ///
+    /// Setup:
+    /// - Direct: (0, 0, 0) = black (to isolate indirect)
+    /// - Indirect: (1, 1, 1) = white
+    /// - Albedo: (1, 0, 0) = red
+    /// - Metallic: 0
+    ///
+    /// Expected:
+    /// - Output = (1, 0, 0) = red (white indirect filtered by red albedo)
+    /// </summary>
+    [Fact]
+    public void AlbedoModulation_AppliedToIndirect()
+    {
+        EnsureShaderTestAvailable();
+
+        // Arrange: Prepare authored inputs, the shader variant, and its bound resources.
+
+        var direct = (r: 0.0f, g: 0.0f, b: 0.0f);   // Black
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f); // White
+        var albedo = (r: 1.0f, g: 0.0f, b: 0.0f);   // Red
+
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
+
+
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            TextureFormat.Rgba16f);
+
+        var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
+
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        using var surfaceInput7 = LayeredTestTexture.Create(ImageAssertions.Programs, null, materialTex, null);
+        programId.GBufferSurface = surfaceInput7;
+        programId.PrimaryDepth = depthTex;
+
+        // Act: Render this shader configuration into the test target.
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+
+
+
+        // DESIRED: output = indirect * albedo = (1,1,1) * (1,0,0) = (1,0,0)
+        // Assert: Read back the output and verify the case-specific behavior.
+        AssertRgb(outputGBuffer[0],new(1,0,0));
+    }
+
+    /// <summary>
+    /// Tests that indirectIntensity scales the indirect contribution.
+    ///
+    /// DESIRED BEHAVIOR:
+    /// - indirectContrib = indirect * albedo * diffuseWeight * intensity
+    /// - With intensity=2.0: indirect contribution is doubled
+    ///
+    /// Setup:
+    /// - Direct: (0, 0, 0) = black
+    /// - Indirect: (0.25, 0.25, 0.25) = gray
+    /// - Albedo: (1, 1, 1) = white
+    /// - Metallic: 0
+    /// - indirectIntensity: 2.0
+    ///
+    /// Expected:
+    /// - Output = (0.5, 0.5, 0.5) = doubled indirect
+    /// </summary>
+    [Fact]
+    public void IndirectIntensity_ScalesContribution()
+    {
+        EnsureShaderTestAvailable();
+
+        // Arrange: Prepare authored inputs, the shader variant, and its bound resources.
+
+        var direct = (r: 0.0f, g: 0.0f, b: 0.0f);
+        var indirect = (r: 0.25f, g: 0.25f, b: 0.25f);
+        var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);
+        const float intensity = 2.0f;
+
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
+
+
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            TextureFormat.Rgba16f);
+
+        var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        SetupCombineUniforms(programId, indirectIntensity: intensity, lumOnEnabled: 1);
+
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        using var surfaceInput8 = LayeredTestTexture.Create(ImageAssertions.Programs, null, materialTex, null);
+        programId.GBufferSurface = surfaceInput8;
+        programId.PrimaryDepth = depthTex;
+
+        // Act: Render this shader configuration into the test target.
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+
+
+
+        // DESIRED: output = indirect * intensity = 0.25 * 2.0 = 0.5
+        float expectedValue = indirect.r * intensity;  // 0.5
+
+        // Assert: Read back the output and verify the case-specific behavior.
+        AssertRgb(outputGBuffer[0],new(expectedValue));
+    }
+
+    /// <summary>
+    /// Tests that when lumOnEnabled=0, direct lighting passes through unchanged.
+    ///
+    /// DESIRED BEHAVIOR:
+    /// - With lumOnEnabled=0: output = direct (no indirect added)
+    /// - Feature toggle for performance or debugging
+    ///
+    /// Setup:
+    /// - Direct: (0.5, 0.3, 0.1)
+    /// - Indirect: (1, 1, 1) = bright (should be ignored)
+    /// - lumOnEnabled: 0
+    ///
+    /// Expected:
+    /// - Output = (0.5, 0.3, 0.1) = direct only
+    /// </summary>
+    [Fact]
+    public void LumOnDisabled_PassthroughDirect()
+    {
+        EnsureShaderTestAvailable();
+
+        // Arrange: Prepare authored inputs, the shader variant, and its bound resources.
+
+        var direct = (r: 0.5f, g: 0.3f, b: 0.1f);
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);  // Should be ignored
+
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, 1f, 1f, 1f);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
+
+
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            TextureFormat.Rgba16f);
+
+        var programId = CompileCombineShader(lumOnEnabled: 0, enablePbrComposite: 0);
+
+        // DISABLE LumOn
+        SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 0);
+
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        using var surfaceInput9 = LayeredTestTexture.Create(ImageAssertions.Programs, null, materialTex, null);
+        programId.GBufferSurface = surfaceInput9;
+        programId.PrimaryDepth = depthTex;
+
+        // Act: Render this shader configuration into the test target.
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+
+
+
+        // DESIRED: output = direct (passthrough, no indirect)
+        // Assert: Read back the output and verify the case-specific behavior.
+        AssertRgb(outputGBuffer[0],new(direct.r,direct.g,direct.b));
+    }
+
+    /// <summary>
+    /// Tests that sky pixels pass through direct lighting without indirect contribution.
+    ///
+    /// DESIRED BEHAVIOR:
+    /// - For sky (depth=1.0): output = direct (no indirect added)
+    /// - Sky doesn't receive bounced light from surfaces
+    ///
+    /// Setup:
+    /// - Direct: (0.3, 0.5, 0.8) = sky blue
+    /// - Indirect: (1, 0, 0) = red (should be ignored for sky)
+    /// - Depth: 1.0 (sky)
+    ///
+    /// Expected:
+    /// - Output = (0.3, 0.5, 0.8) = direct only
+    /// </summary>
+    [Fact]
+    public void SkyPixels_NoIndirect()
+    {
+        EnsureShaderTestAvailable();
+
+        // Arrange: Prepare authored inputs, the shader variant, and its bound resources.
+
+        var direct = (r: 0.3f, g: 0.5f, b: 0.8f);   // Sky blue
+        var indirect = (r: 1.0f, g: 0.0f, b: 0.0f); // Red (should be ignored)
+
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, 1f, 1f, 1f);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 1.0f);  // SKY
+
+
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            TextureFormat.Rgba16f);
+
+        var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
+
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        using var surfaceInput10 = LayeredTestTexture.Create(ImageAssertions.Programs, null, materialTex, null);
+        programId.GBufferSurface = surfaceInput10;
+        programId.PrimaryDepth = depthTex;
+
+        // Act: Render this shader configuration into the test target.
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+
+
+
+        // DESIRED: Sky pixels output direct only (no indirect for sky)
+        // Assert: Read back the output and verify the case-specific behavior.
+        AssertRgb(outputGBuffer[0],new(direct.r,direct.g,direct.b));
+    }
+    #endregion
+    #region Material response
+
+    /// <summary>
+    /// Tests that metallic surfaces receive reduced indirect diffuse.
+    ///
+    /// DESIRED BEHAVIOR:
+    /// - Metals don't receive diffuse lighting (they only reflect specularly)
+    /// - diffuseWeight = 1.0 - metallic
+    /// - With metallic=1.0: no indirect diffuse contribution
+    ///
+    /// Setup:
+    /// - Direct: (0.2, 0.2, 0.2) = dark gray
+    /// - Indirect: (1, 1, 1) = bright white (should be blocked for metal)
+    /// - Metallic: 1.0 (full metal)
+    ///
+    /// Expected:
+    /// - Output ≈ direct (indirect blocked by metallic)
+    /// </summary>
+    [Fact]
+    public void MetallicSurface_ReducesIndirect()
+    {
+        EnsureShaderTestAvailable();
+
+        // Arrange: Prepare authored inputs, the shader variant, and its bound resources.
+
+        var direct = (r: 0.2f, g: 0.2f, b: 0.2f);
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);  // Should be blocked
+        var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);
+
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 1.0f);  // FULL METAL
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
+
+
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            TextureFormat.Rgba16f);
+
+        var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
+
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        using var surfaceInput11 = LayeredTestTexture.Create(ImageAssertions.Programs, null, materialTex, null);
+        programId.GBufferSurface = surfaceInput11;
+        programId.PrimaryDepth = depthTex;
+
+        // Act: Render this shader configuration into the test target.
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+
+
+
+        // DESIRED: For metallic=1.0, diffuseWeight=0, so output ≈ direct only
+        // Assert: Read back the output and verify the case-specific behavior.
+        AssertRgb(outputGBuffer[0],new(direct.r,direct.g,direct.b));
+    }
+
+    /// <summary>
+    /// Tests that indirectTint colors the indirect lighting contribution.
+    ///
+    /// DESIRED BEHAVIOR:
+    /// - indirectTint multiplies the indirect contribution
+    /// - Allows artistic control over indirect light color
+    ///
+    /// Setup:
+    /// - White indirect light
+    /// - Red tint (1, 0, 0)
+    ///
+    /// Expected:
+    /// - Indirect contribution should be red-tinted
+    /// </summary>
+    [Fact]
+    public void IndirectTint_ColorsIndirectLight()
+    {
+        EnsureShaderTestAvailable();
+
+        // Arrange: Prepare authored inputs, the shader variant, and its bound resources.
+
+        var direct = (r: 0.0f, g: 0.0f, b: 0.0f);   // No direct
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f); // White indirect
+        var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);   // White albedo
+
+        var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+        var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+        var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+        var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);
+        var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
+
+
+        using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, sceneDirectData);
+        using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+        using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+        using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(
+            ScreenWidth, ScreenHeight,
+            TextureFormat.Rgba16f);
+
+        var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        SetupCombineUniforms(programId, indirectIntensity: 1.0f, indirectTint: (1f, 0f, 0f), lumOnEnabled: 1);  // Red tint
+
+        programId.SceneDirect = sceneDirectTex;
+        programId.IndirectDiffuse = indirectTex;
+        programId.GBufferAlbedo = albedoTex;
+        using var surfaceInput12 = LayeredTestTexture.Create(ImageAssertions.Programs, null, materialTex, null);
+        programId.GBufferSurface = surfaceInput12;
+        programId.PrimaryDepth = depthTex;
+
+        // Act: Render this shader configuration into the test target.
+        TestFramework.RenderQuadTo(programId, outputGBuffer);
+        // Assert: Read back the output and verify the case-specific behavior.
+        var outputData = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+
+        // Output should be red (white indirect * red tint)
+        var (r, g, b, _) = ReadLocalPixel(outputData);
+        Assert.True(r > 0.5f, $"Red tint should produce red output, got R={r:F3}");
+        Assert.True(g < 0.1f, $"Red tint should suppress green, got G={g:F3}");
+        Assert.True(b < 0.1f, $"Red tint should suppress blue, got B={b:F3}");
+    }
+
+    /// <summary>
+    /// Tests that partial metallic values blend diffuse correctly.
+    ///
+    /// DESIRED BEHAVIOR:
+    /// - metallic=0.5 should give diffuseWeight=0.5
+    /// - Indirect contribution should be half of full dielectric
+    ///
+    /// Setup:
+    /// - Metallic = 0.5
+    /// - Bright indirect light
+    ///
+    /// Expected:
+    /// - Output between full dielectric and full metal
+    /// </summary>
+    [Fact]
+    public void PartialMetallic_BlendsDiffuse()
+    {
+        EnsureShaderTestAvailable();
+
+        // Arrange: Prepare authored inputs, the shader variant, and its bound resources.
+
+        // All three material inputs use the same specialization; rebind inputs for each draw.
+        var programId = CompileCombineShader(enablePbrComposite: 0);
+
+        var direct = (r: 0.2f, g: 0.2f, b: 0.2f);
+        var indirect = (r: 1.0f, g: 1.0f, b: 1.0f);
+        var albedo = (r: 1.0f, g: 1.0f, b: 1.0f);
+
+        float dielectricBrightness;
+        float halfMetallicBrightness;
+        float fullMetallicBrightness;
+
+        // Dielectric (metallic=0)
+        {
+            var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+            var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+            var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+            var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.0f);
+            var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
+
+
+            using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, sceneDirectData);
+            using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+            using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+            using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ScreenWidth, ScreenHeight,
+                TextureFormat.Rgba16f);
+
+            SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
+
+            programId.SceneDirect = sceneDirectTex;
+            programId.IndirectDiffuse = indirectTex;
+            programId.GBufferAlbedo = albedoTex;
+            using var surfaceInput13 = LayeredTestTexture.Create(ImageAssertions.Programs, null, materialTex, null);
+            programId.GBufferSurface = surfaceInput13;
+            programId.PrimaryDepth = depthTex;
+
+            // Act: Render this shader configuration into the test target.
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            // Assert: Read back this material case before comparing its brightness.
+            var outputData = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+            var (r, g, b, _) = ReadLocalPixel(outputData);
+            dielectricBrightness = (r + g + b) / 3f;
+        }
+
+        // Half metallic (metallic=0.5)
+        {
+            var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+            var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+            var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+            var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 0.5f);
+            var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
+
+
+            using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, sceneDirectData);
+            using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+            using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+            using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ScreenWidth, ScreenHeight,
+                TextureFormat.Rgba16f);
+
+            SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
+
+            programId.SceneDirect = sceneDirectTex;
+            programId.IndirectDiffuse = indirectTex;
+            programId.GBufferAlbedo = albedoTex;
+            using var surfaceInput14 = LayeredTestTexture.Create(ImageAssertions.Programs, null, materialTex, null);
+            programId.GBufferSurface = surfaceInput14;
+            programId.PrimaryDepth = depthTex;
+
+            // Act: Render this shader configuration into the test target.
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            // Assert: Read back this material case before comparing its brightness.
+            var outputData = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+            var (r, g, b, _) = ReadLocalPixel(outputData);
+            halfMetallicBrightness = (r + g + b) / 3f;
+        }
+
+        // Full metallic (metallic=1.0)
+        {
+            var sceneDirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, direct.r, direct.g, direct.b);
+            var indirectData = CreateUniformColorData(ScreenWidth, ScreenHeight, indirect.r, indirect.g, indirect.b);
+            var albedoData = CreateUniformColorData(ScreenWidth, ScreenHeight, albedo.r, albedo.g, albedo.b);
+            var materialData = CreateUniformMaterialData(ScreenWidth, ScreenHeight, roughness: 0.5f, metallic: 1.0f);
+            var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
+
+
+            using var sceneDirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, sceneDirectData);
+            using var indirectTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, indirectData);
+            using var albedoTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, albedoData);
+            using var materialTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, materialData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var outputGBuffer = TestFramework.CreateTestGBuffer(
+                ScreenWidth, ScreenHeight,
+                TextureFormat.Rgba16f);
+
+            SetupCombineUniforms(programId, indirectIntensity: 1.0f, lumOnEnabled: 1);
+
+            programId.SceneDirect = sceneDirectTex;
+            programId.IndirectDiffuse = indirectTex;
+            programId.GBufferAlbedo = albedoTex;
+            using var surfaceInput15 = LayeredTestTexture.Create(ImageAssertions.Programs, null, materialTex, null);
+            programId.GBufferSurface = surfaceInput15;
+            programId.PrimaryDepth = depthTex;
+
+            // Act: Render this shader configuration into the test target.
+            TestFramework.RenderQuadTo(programId, outputGBuffer);
+            // Assert: Read back this material case before comparing its brightness.
+            var outputData = outputGBuffer[0].ReadPixelsRegion(2,2,1,1);
+            var (r, g, b, _) = ReadLocalPixel(outputData);
+            fullMetallicBrightness = (r + g + b) / 3f;
+        }
+
+        // Half metallic should be between dielectric and full metallic
+        // Assert: Compare the three measured responses to verify partial-metallic blending.
+        Assert.True(halfMetallicBrightness < dielectricBrightness,
+            $"Half metallic ({halfMetallicBrightness:F3}) should be darker than dielectric ({dielectricBrightness:F3})");
+        Assert.True(halfMetallicBrightness > fullMetallicBrightness,
+            $"Half metallic ({halfMetallicBrightness:F3}) should be brighter than full metallic ({fullMetallicBrightness:F3})");
+    }
+
+
+    #endregion
+    #endregion
+    #region Protected
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.Support.GPU.Observations.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+        programs.Prepare("predicate-surface", 0, 0);
+    }
+
+    #endregion
+
+    #region Private
+    #region Shader program creation
+    /// <summary>
+    /// Compiles and links the combine shader.
+    /// </summary>
+    private LumOnCombineShaderProgram CompileCombineShader(
+        int lumOnEnabled = 1,
+        int enablePbrComposite = 0,
+        int enableAO = 0,
+        int enableShortRangeAo = 0) =>
+        Programs.Create<LumOnCombineShaderProgram>(settings: new Dictionary<string, string?>
+            {
+                ["VGE_LUMON_ENABLED"] = lumOnEnabled.ToString(),
+                ["VGE_LUMON_PBR_COMPOSITE"] = enablePbrComposite.ToString(),
+                ["VGE_LUMON_ENABLE_AO"] = enableAO.ToString(),
+                ["VGE_LUMON_ENABLE_SHORT_RANGE_AO"] = enableShortRangeAo.ToString(),
+            });
+
+    /// <summary>
+    /// Compiles and links the LumOn debug shader.
+    /// Selects the composite debug view for tests that exercise the combine path.
+    /// </summary>
+    private LumOnDebugShaderProgram CompileDebugShader(LumOnDebugMode mode = LumOnDebugMode.CompositeIndirectDiffuse,
+        int enablePbrComposite = 1,
+        int enableAO = 0,
+        int enableShortRangeAo = 0) =>
+        Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(mode), settings: new Dictionary<string, string?>
+            {
+                ["VGE_LUMON_PBR_COMPOSITE"] = enablePbrComposite.ToString(),
+                ["VGE_LUMON_ENABLE_AO"] = enableAO.ToString(),
+                ["VGE_LUMON_ENABLE_SHORT_RANGE_AO"] = enableShortRangeAo.ToString(),
+            });
+
+    #endregion
+
+    #region Program uniform configuration
+    /// <summary>
+    /// Sets up common uniforms for the combine shader.
+    /// </summary>
+    private void SetupCombineUniforms(LumOnCombineShaderProgram programId,
+        float indirectIntensity = 1.0f,
+        (float r, float g, float b) indirectTint = default,
+        int lumOnEnabled = 1,
+        int enablePbrComposite = 0,
+        int enableAO = 0,
+        float diffuseAOStrength = 1.0f,
+        float specularAOStrength = 0.5f,
+        float[]? invProjection = null,
+        float[]? view = null)
+    {
+        var tint = indirectTint == default ? (1f,1f,1f) : indirectTint;
+        programId.IndirectIntensity = indirectIntensity;
+        programId.IndirectTint = new(tint.Item1,tint.Item2,tint.Item3);
+        programId.DiffuseAOStrength = diffuseAOStrength;
+        programId.SpecularAOStrength = specularAOStrength;
+        UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: view);
+    }
+
+    private static float[] IdentityMatrix4x4 =>
+    [
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    ];
+
+    /// <summary>
+    /// Sets up uniforms for composite debug views in lumon_debug.fsh.
+    /// </summary>
+    private void SetupDebugCompositeUniforms(LumOnDebugShaderProgram programId,
+        int debugMode,
+        float indirectIntensity,
+        (float r, float g, float b) indirectTint,
+        int enablePbrComposite,
+        int enableAO,
+        float diffuseAOStrength,
+        float specularAOStrength,
+        float[] invProjection)
+    {
+        var tint = indirectTint == default ? (1f,1f,1f) : indirectTint;
+        programId.IndirectIntensity = indirectIntensity;
+        programId.IndirectTint = new(tint.Item1,tint.Item2,tint.Item3);
+        programId.DiffuseAOStrength = diffuseAOStrength;
+        programId.SpecularAOStrength = specularAOStrength;
+        UpdateAndBindLumOnFrameUbo(programId, invProjectionMatrix: invProjection, viewMatrix: IdentityMatrix4x4);
+        programId.DebugMode = debugMode;
+    }
+
+    #endregion
+
+    #region Pixel observation and assertions
+    /// <summary>
+    /// Decodes only the originally nominated local pixel captured before the next draw.
+    /// </summary>
+    private static (float r, float g, float b, float a) ReadLocalPixel(float[] data)
+    {
+        Assert.Equal(4,data.Length);
+        int idx=0;
+        return (data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
+    }
+
+    /// <summary>Checks every original output RGB against the authored constant with the original strict float tolerance.</summary>
+    private void AssertRgb(GpuTexture image,Vector3 expected)
+    {
+        ImageAssertions.Predicates.Predicate(image, SurfacePredicates.LumOnCombineFunctionalTests_AssertRgb,
+            parameters:new(expected,TestEpsilon)).AssertEqual();
+    }
+
+    #endregion
+    #endregion
+
+}

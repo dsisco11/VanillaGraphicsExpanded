@@ -1,0 +1,226 @@
+using Assertions = VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Collections.Immutable;
+using System.Numerics;
+using System.Runtime.CompilerServices;
+using HarmonyLib;
+using Moq;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
+using VanillaGraphicsExpanded.Rendering.Shaders;
+using Vintagestory.API.Client;
+using Vintagestory.API.Common;
+using Vintagestory.API.MathTools;
+using Vintagestory.Client.NoObf;
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+namespace VanillaGraphicsExpanded.Tests.Support.Lighting;
+
+/// <summary>Executes five real sky programs with their separate generated inputs against simultaneous color/glow attachments.</summary>
+internal sealed class ProductionSkyDrawScene : IDisposable
+{
+    private const int Size = 32;
+    private readonly List<IDisposable> owned = [];
+    private readonly SkyDrawScene native;
+    private readonly GpuProgram[] programs;
+    private readonly RHIGraphicsPipeline[] pipelines;
+    private readonly ArrayGraphicsGeometry fullscreen, stars;
+    private readonly DynamicTexture2D[] outputs;
+    private readonly RHIRenderPassDescription pass;
+    private readonly SkyDrawTestPass[] passes;
+    private readonly List<string> events = [];
+    private static readonly System.Reflection.FieldInfo ActiveBoundary = typeof(RHICommandContext).GetField(
+        "activeBoundary", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+    internal readonly HashSet<RHIBoundaryScope> Boundaries = [];
+    internal readonly List<string> Draws = [];
+    internal readonly List<Assertions.GpuImageSet> PrefixImages = [];
+    internal bool ReadPrefixes;
+
+    #region Public API
+    #region Setup
+    /// <summary>Authors independent source, disk and atmospheric inputs without world-admission or catalog-generation work.</summary>
+    internal ProductionSkyDrawScene(float variation)
+    {
+        native = Own(new SkyDrawScene());
+        try
+        {
+            var library = Own(new ComponentShaderPrograms());
+            var camera = Own(TestFrameCamera.CreateSolar(Size, Size));
+            var storage = Own(new TestFrameLightingPublication());
+            storage.Capture(.001f);
+            var galaxy = library.Create<CelestialGalaxyProgram>();
+            var star = library.Create<CelestialStarProgram>();
+            var moon = library.Create<MoonProgram>();
+            var sun = library.Create<SunProgram>();
+            var sky = library.Create<AtmosphereSkyShaderProgram>();
+            programs = [galaxy, star, moon, sun, sky];
+            galaxy.Frame = star.Frame = camera;
+            moon.Frame = sun.Frame = camera;
+            sky.FrameInputs = camera;
+            galaxy.FrameLightingInputs = star.FrameLightingInputs = storage.Buffer;
+            moon.FrameLightingInputs = sun.FrameLightingInputs = sky.FrameLightingInputs = storage.Buffer;
+            galaxy.DrawInputs.Capture(Matrix4x4.Identity, variation, -1);
+            star.DrawInputs.Capture(Matrix4x4.Identity, 1, -1);
+            var cube = Own(RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.Rgba32f, Width = 1, Height = 1, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+            for (int face = 0; face < 6; face++)
+            {
+                using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)cube).Target), 0, cube.TextureId);
+                GL.TexSubImage2D(TextureTarget.TextureCubeMapPositiveX + face, 0, 0, 0, 1, 1,
+                    PixelFormat.Rgba, PixelType.Float, new float[] { .02f, .01f, .005f, 1 });
+            }
+            var transmission = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .8f, .7f, .6f, 1f, .8f, .7f, .6f, 1f }).AsSpan()).ToArray())]).RequireResource());
+            galaxy.GalaxyMap = star.GalaxyMap = cube;
+            galaxy.ExternalTransmission = star.ExternalTransmission = transmission;
+            moon.DrawInputs.Capture(new(Vector3.Normalize(new(-.002f, 0, -1)), Vector3.UnitX,
+                Vector3.UnitY, Vector3.UnitZ, new(.05f * variation, .1f, .2f), .002f, -1));
+            float[] lookup = Enumerable.Range(0, 8).SelectMany(_ => new[] { .003f, .002f * variation, .001f, 1f }).ToArray();
+            var atmosphere = Own(new AtmosphereModSystem());
+            atmosphere.Publish(new(-Vector3.UnitZ, new(.01f, .008f * variation, .006f), Vector3.Zero,
+                Vector3.Zero, Vector3.Zero, ImmutableArray.Create(lookup))
+            { Width = 4, Height = 2, HorizonElevation = -1 });
+            var lighting = AtmosphereModSystem.Lighting!;
+            sun.DrawInputs.Capture(lighting, .001f);
+            var api = new Mock<ICoreClientAPI> { DefaultValue = DefaultValue.Mock };
+            var uniforms = new DefaultShaderUniforms { WaterMurkColor = new Vec4f(), PlayerPos = new Vec3f() };
+            AccessTools.Field(typeof(DefaultShaderUniforms), "SkyDaylight").SetValue(uniforms, 1f);
+            api.SetupGet(value => value.Render.ShaderUniforms).Returns(uniforms);
+            api.SetupGet(value => value.Ambient.BlendedFogMin).Returns(.25f);
+            api.SetupGet(value => value.World.Player).Returns(CreatePlayer());
+            var depth = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 1, Height = 1, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 1f }).AsSpan()).ToArray())]).RequireResource());
+            var frames = Enumerable.Repeat<FrameBufferRef>(null!, 25).ToList();
+            frames[(int)EnumFrameBuffer.LiquidDepth] = new() { DepthTextureId = depth.TextureId };
+            api.SetupGet(value => value.Render.FrameBuffers).Returns(frames);
+            // This owner supplies the real owned-celestial compatibility flag; no callback admission is claimed.
+            Own(new CelestialDrawPass(api.Object, null!));
+            sky.Capture(api.Object, lighting, true);
+            outputs = Enumerable.Range(0, 2).Select(_ => Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())).ToArray();
+            var target = Own(DynamicGpuFramebuffer.CreateMRT(outputs)!);
+            pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: 0), new(AttachmentIndex: 1)]);
+            var metadata = RHICommandContext.Current.DescribeRenderTargets(pass);
+            fullscreen = Own(new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout, PrimitiveTopology.Triangles,
+                new Dictionary<int, GpuVbo>(), 3));
+            var stream = Own(RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource());
+            stream.UploadData(new[] { new Vector4(Vector3.Normalize(new(.002f, .001f, -1)), .001f * variation), new Vector4(1, .5f, .25f, 0) });
+            stars = Own(new ArrayGraphicsGeometry(CelestialStarGeometry.Layout, PrimitiveTopology.Triangles,
+                new Dictionary<int, GpuVbo> { [0] = stream }));
+            
+            pipelines = new RHIGraphicsPipeline[5];
+            for (int index = 0; index < 5; index++)
+            {
+                var blend = index < 4 ? new ColorBlendDesc
+                {
+                    Enabled = true,
+                    SourceRgb = BlendFactor.One,
+                    DestinationRgb = BlendFactor.One,
+                    SourceAlpha = BlendFactor.Zero,
+                    DestinationAlpha = BlendFactor.One
+                }
+                    : new ColorBlendDesc
+                    {
+                        Enabled = true,
+                        SourceRgb = BlendFactor.One,
+                        DestinationRgb = BlendFactor.OneMinusSourceAlpha,
+                        SourceAlpha = BlendFactor.SourceAlpha,
+                        DestinationAlpha = BlendFactor.OneMinusSourceAlpha
+                    };
+                pipelines[index] = Own(RHICommandContext.Current.CreateGraphicsPipeline(new(programs[index].Shader,
+                    index == 1 ? CelestialStarGeometry.Layout : CelestialDrawPass.FullscreenLayout,
+                    metadata, DynamicPipelineState.Viewport, blending: [blend, blend])).RequireResource());
+            }
+            passes = Enumerable.Range(0, 4).Select(index => new SkyDrawTestPass(index,
+                index == 0 ? pipelines[..2] : [pipelines[index + 1]], commands => Draw(commands, index), events)).ToArray();
+        }
+        catch { Dispose(); throw; }
+    }
+
+    /// <summary>Restores identical hostile inherited graphics state and independent black MRT content before each candidate.</summary>
+    internal void Initialize()
+    {
+        foreach (var image in outputs) image.UploadDataImmediate(new float[Size * Size * 4]);
+        Draws.Clear();
+        Boundaries.Clear();
+        foreach (var image in PrefixImages) image.Dispose();
+        PrefixImages.Clear();
+        native.Initialize();
+    }
+    #endregion
+
+    #region Submission and inspection
+    /// <summary>Prepares the four complete optional-pass footprints before any graphics boundary is entered.</summary>
+    internal SkyDraw[] PrepareDraws() => passes.Select(source => source.PrepareDraw()).OfType<SkyDraw>().ToArray();
+
+    /// <summary>Runs the same four prepared passes through separate graphics boundaries or the production explicit shared list.</summary>
+    internal void Draw(bool shared)
+    {
+        var work = PrepareDraws();
+        if (shared) SkyDraw.Run(work);
+        else foreach (var item in work) {
+    var commands=RHICommandContext.Current;
+    using var scope41=commands.EnterBoundary(new(item.Name,true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>(item.Pipelines,value=>value),operations:BoundaryOperations.RenderPasses));
+    scope41.Run(()=>item.Execute(commands));
+}
+    }
+
+    /// <summary>Retains actual color/glow images without changing the current production MRT selectors.</summary>
+    internal Assertions.GpuImageSet CaptureOutput(bool activeAttachment = false) => new(outputs, activeAttachment);
+
+    /// <summary>Checks inherited state using the common hostile graphics fixture.</summary>
+    internal void AssertRestored() => native.AssertRestored();
+
+    /// <summary>Retires every borrower before its source allocations and native shader boundary.</summary>
+    public void Dispose()
+    {
+        foreach (var image in PrefixImages) image.Dispose();
+        PrefixImages.Clear();
+        for (int index = owned.Count - 1; index >= 0; index--) owned[index].Dispose();
+    }
+    #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Uses the installed client representation because its interface contains methods unsupported by Moq's proxy emitter.</summary>
+    private static ClientPlayer CreatePlayer()
+    {
+        var player = (ClientPlayer)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlayer));
+        var data = (ClientWorldPlayerData)RuntimeHelpers.GetUninitializedObject(typeof(ClientWorldPlayerData));
+        AccessTools.Field(typeof(ClientWorldPlayerData), "entityplayer").SetValue(data, new EntityPlayer());
+        AccessTools.Field(typeof(ClientPlayer), "worlddata").SetValue(player, data);
+        return player;
+    }
+
+    /// <summary>Preserves five distinct program input slices and the production galaxy/star pass and blending order.</summary>
+    private void Draw(RHICommandContext commands, int passIndex)
+    {
+        // The command context is a singleton; actual restoration scopes distinguish separate entries.
+        Boundaries.Add(Assert.IsType<RHIBoundaryScope>(ActiveBoundary.GetValue(commands)));
+        commands.BeginRenderPass(pass);
+        int start = passIndex == 0 ? 0 : passIndex + 1;
+        int end = passIndex == 0 ? 2 : start + 1;
+        for (int index = start; index < end; index++)
+        {
+            commands.SetPipeline(pipelines[index]);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.BindResources(programs[index].CaptureBindings());
+            commands.Draw(index == 1 ? stars.Inputs : fullscreen.Inputs, index == 1 ? new(0, 6, InstanceCount: 1) : new(0, 3));
+            Draws.Add(programs[index].GetType().Name);
+            if (ReadPrefixes) PrefixImages.Add(CaptureOutput(activeAttachment: true));
+        }
+        commands.EndRenderPass();
+    }
+
+    /// <summary>Records dependency construction order for deterministic reverse cleanup.</summary>
+    private T Own<T>(T resource) where T : IDisposable
+    {
+        owned.Add(resource);
+        return resource;
+    }
+    #endregion
+}

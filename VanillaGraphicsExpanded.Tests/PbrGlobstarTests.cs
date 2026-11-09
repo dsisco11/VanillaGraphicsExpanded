@@ -1,43 +1,16 @@
-using System.Text.RegularExpressions;
-
 using VanillaGraphicsExpanded.PBR.Materials;
 
 namespace VanillaGraphicsExpanded.Tests;
 
+/// <summary>Checks equal-priority material mapping rule order.</summary>
 public sealed class PbrGlobstarTests
 {
-    [Fact]
-    public void Globstar_MatchesAcrossSegments_WithDoubleStar()
-    {
-        Regex regex = PbrGlobstar.CompileRegex("assets/**/textures/block/**/metal/**/*.png");
-
-        Assert.Matches(regex, "assets/game/textures/block/metal/iron.png");
-        Assert.Matches(regex, "assets/survival/textures/block/ore/metal/copper/ingot.png");
-        Assert.DoesNotMatch(regex, "assets/game/textures/item/metal/iron.png");
-    }
-
-    [Fact]
-    public void Star_DoesNotCrossSegments()
-    {
-        Regex regex = PbrGlobstar.CompileRegex("assets/*/textures/*.png");
-
-        Assert.Matches(regex, "assets/game/textures/foo.png");
-        Assert.DoesNotMatch(regex, "assets/game/textures/block/foo.png");
-    }
-
-    [Fact]
-    public void Question_MatchesSingleCharWithinSegment()
-    {
-        Regex regex = PbrGlobstar.CompileRegex("assets/game/textures/block/liquid/water?.png");
-
-        Assert.Matches(regex, "assets/game/textures/block/liquid/water1.png");
-        Assert.DoesNotMatch(regex, "assets/game/textures/block/liquid/water12.png");
-    }
-
+    #region Public API
+    /// <summary>Equal-priority matching rules select the first candidate in the tested order.</summary>
     [Fact]
     public void TieBreak_FirstRuleWins_WhenPriorityEqual()
     {
-        // First matching rule should win when priority ties.
+        // Arrange: construct matching rules with equal priority and stable sequence order.
         var early = new PbrMaterialMappingRule(
             OrderIndex: 1,
             Priority: 0,
@@ -64,24 +37,25 @@ public sealed class PbrGlobstarTests
 
         const string key = "assets/game/textures/block/liquid/water.png";
 
+        // Act: apply the current local winner-selection logic to the ordered candidates.
         PbrMaterialMappingRule? winner = null;
         foreach (PbrMaterialMappingRule rule in new[] { early, later })
         {
             if (!rule.MatchRegex.IsMatch(key)) continue;
-
             if (winner == null)
             {
                 winner = rule;
                 continue;
             }
-
             if (rule.Priority > winner.Value.Priority)
             {
                 winner = rule;
             }
         }
 
+        // Assert: the first rule remains selected when priorities tie.
         Assert.NotNull(winner);
         Assert.Equal("early", winner?.Id);
     }
+    #endregion
 }

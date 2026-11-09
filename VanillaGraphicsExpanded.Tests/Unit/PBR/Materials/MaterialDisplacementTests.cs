@@ -1,18 +1,16 @@
 using VanillaGraphicsExpanded.PBR.Tessellation;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using VanillaGraphicsExpanded.PBR.Materials;
-using VanillaGraphicsExpanded.Tests.Fixtures;
-using Vintagestory.API.Common;
+using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.PBR.Materials;
 
-/// <summary>Protects opt-in physical displacement independently of BRDF authoring.</summary>
+/// <summary>Checks local physical-displacement bounds and tessellation-setting sanitization.</summary>
 [Collection("PbrMaterialRegistry")]
 public sealed class MaterialDisplacementTests
 {
+    #region Public API
     #region Authoring validation
-    /// <summary>Valid amplitudes retain metre units and invalid values opt out with a diagnostic.</summary>
+    /// <summary>Valid amplitudes retain metre units while invalid values opt out with a diagnostic.</summary>
     [Theory]
     [InlineData(0f, 0f, false)]
     [InlineData(.02f, .02f, false)]
@@ -23,60 +21,49 @@ public sealed class MaterialDisplacementTests
     [InlineData(float.PositiveInfinity, 0f, true)]
     public void AmplitudesAreBoundedOptIn(float input, float expected, bool invalid)
     {
-        var diagnostics=new List<string>();
-        Assert.Equal(expected, MaterialDisplacement.ResolveAmplitude(input, diagnostics.Add));
+        // Arrange: collect diagnostics to distinguish valid values from rejected input.
+        var diagnostics = new List<string>();
+
+        // Act: resolve the authored amplitude.
+        float resolved = MaterialDisplacement.ResolveAmplitude(input, diagnostics.Add);
+
+        // Assert: only invalid input reports an issue.
+        Assert.Equal(expected, resolved);
         Assert.Equal(invalid ? 1 : 0, diagnostics.Count);
     }
 
-    /// <summary>Definition parsing resolves material amplitude while missing values remain disabled.</summary>
-    [Fact]
-    public void RegistryResolvesMaterialOnlyAmplitude()
-    {
-        var file=JsonConvert.DeserializeObject<PbrMaterialDefinitionsJsonFile>("""
-            {"version":1,"defaults":{"roughness":0.8},"materials":{
-                "plain":{},"relief":{"displacement":{"amplitudeMetres":0.03}},
-                "invalid":{"displacement":{"amplitudeMetres":1}}},"mapping":[]}
-            """)!;
-        try
-        {
-            PbrMaterialRegistry.Instance.InitializeFromParsedSources(new TestLogger(),
-                [new("game",new AssetLocation("game","config/vge/material_definitions.json"),file)],[],true);
-            Assert.True(PbrMaterialRegistry.Instance.TryGetMaterial("game:plain",out var plain));
-            Assert.Equal(0,plain.DisplacementAmplitudeMetres);
-            Assert.True(PbrMaterialRegistry.Instance.TryGetMaterial("game:relief",out var relief));
-            Assert.Equal(.03f,relief.DisplacementAmplitudeMetres);
-            Assert.True(PbrMaterialRegistry.Instance.TryGetMaterial("game:invalid",out var invalid));
-            Assert.Equal(0,invalid.DisplacementAmplitudeMetres);
-        }
-        finally { PbrMaterialRegistry.Instance.Clear(); }
-    }
-    /// <summary>The shipped schema exposes geometric amplitude only on material definitions.</summary>
-    [Fact]
-    public void SchemaKeepsDisplacementOutsideBrdfAndMappingOverrides()
-    {
-        var schema=JObject.Parse(TestAssetSnapshot.Built.Text("schemas/pbr_material_definitions.schema.json"));
-        var definitions=schema["$defs"]!;
-        Assert.NotNull(definitions["material"]!["properties"]!["displacement"]);
-        Assert.Null(definitions["BRDFProperties"]!["properties"]!["displacement"]);
-        Assert.Null(definitions["mappingOverrides"]!["properties"]!["displacement"]);
-        Assert.Equal(0f,(float)definitions["displacement"]!["properties"]!["amplitudeMetres"]!["minimum"]!);
-        Assert.Equal(.05f,(float)definitions["displacement"]!["properties"]!["amplitudeMetres"]!["maximum"]!);
-    }
-
-    /// <summary>Invalid subdivision settings become finite ordered bounds before GPU publication.</summary>
+    /// <summary>Invalid subdivision settings become finite, ordered bounds.</summary>
     [Fact]
     public void SubdivisionSettingsSanitizeNonFiniteAndOutOfRangeValues()
     {
-        var settings=new VanillaGraphicsExpanded.PBR.Tessellation.TerrainSubdivisionSettings
-        {MaximumLevel=99,TargetEdgePixels=float.NaN,FadeStartMetres=float.PositiveInfinity,FadeEndMetres=-1};
+        // Arrange: combine non-finite and out-of-range authored values.
+        var settings = new TerrainSubdivisionSettings
+        { MaximumLevel = 99, TargetEdgePixels = float.NaN, FadeStartMetres = float.PositiveInfinity, FadeEndMetres = -1 };
+
+        // Act: sanitize the invalid values.
         settings.Sanitize();
-        Assert.Equal(8,settings.MaximumLevel); Assert.Equal(8,settings.TargetEdgePixels);
-        Assert.Equal(4,settings.FadeStartMetres); Assert.Equal(5,settings.FadeEndMetres);
-        settings.MaximumLevel=0; settings.TargetEdgePixels=999; settings.FadeStartMetres=200; settings.FadeEndMetres=float.NaN;
+
+        // Assert: sanitization clamps values and restores an ordered fade interval.
+        Assert.Equal(8, settings.MaximumLevel);
+        Assert.Equal(8, settings.TargetEdgePixels);
+        Assert.Equal(4, settings.FadeStartMetres);
+        Assert.Equal(5, settings.FadeEndMetres);
+
+        // Arrange: cover the lower level bound, upper pixel bound, and invalid fade end.
+        settings.MaximumLevel = 0;
+        settings.TargetEdgePixels = 999;
+        settings.FadeStartMetres = 200;
+        settings.FadeEndMetres = float.NaN;
+        // Act: sanitize the second set of invalid values.
         settings.Sanitize();
-        Assert.Equal(1,settings.MaximumLevel); Assert.Equal(256,settings.TargetEdgePixels);
-        Assert.Equal(127,settings.FadeStartMetres); Assert.Equal(128,settings.FadeEndMetres);
+
+        // Assert: both lower and upper limits are enforced.
+        Assert.Equal(1, settings.MaximumLevel);
+        Assert.Equal(256, settings.TargetEdgePixels);
+        Assert.Equal(127, settings.FadeStartMetres);
+        Assert.Equal(128, settings.FadeEndMetres);
     }
+    #endregion
     #endregion
 }
 

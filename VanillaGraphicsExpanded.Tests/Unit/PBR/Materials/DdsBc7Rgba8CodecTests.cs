@@ -5,12 +5,16 @@ using VanillaGraphicsExpanded.PBR.Materials.Cache;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.PBR.Materials;
 
+/// <summary>Checks BC7 DDS encoding preserves dimensions and keeps lossy channels within the expected budget.</summary>
 [Trait("Category", "Unit")]
 public sealed class DdsBc7Rgba8CodecTests
 {
+    #region Public API
+    /// <summary>A BC7 DDS round trip preserves dimensions and remains within the per-channel error budget.</summary>
     [Fact]
     public void RoundTrip_PreservesDimensions_AndIsReasonablyClose()
     {
+        // Arrange: build a small RGBA gradient that varies across both axes.
         using var stream = new MemoryStream();
 
         const int width = 8;
@@ -30,11 +34,13 @@ public sealed class DdsBc7Rgba8CodecTests
             }
         }
 
+        // Act: encode as BC7, then decode back to RGBA8.
         DdsBc7Rgba8Codec.WriteBc7Dds(stream, width, height, src);
 
         stream.Position = 0;
         byte[] dst = DdsBc7Rgba8Codec.ReadRgba8FromDds(stream, out int rw, out int rh);
 
+        // Assert: lossy compression keeps the image shape and each channel within tolerance.
         Assert.Equal(width, rw);
         Assert.Equal(height, rh);
         Assert.Equal(src.Length, dst.Length);
@@ -47,4 +53,5 @@ public sealed class DdsBc7Rgba8CodecTests
             Assert.InRange(delta, 0, MaxDelta);
         }
     }
+    #endregion
 }

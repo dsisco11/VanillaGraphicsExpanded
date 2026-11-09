@@ -1,0 +1,116 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
+using VanillaGraphicsExpanded.Tests.Integration.Support.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
+using Assertions = VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
+
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.PBR.Materials;
+/// <summary>Checks coverage and depth using the complete installed standard shader pair.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+{
+    #region Public API
+    #region Installed terrain-independent meshes
+    /// <summary>Opaque container and first-person draws retain alpha and reject a later background draw.</summary>
+    [Theory]
+    [InlineData(0, 1, 0)]
+    [InlineData(0, 2, 0)]
+    [InlineData(1, 1, 0)]
+    [InlineData(1, 1, 1)]
+    [InlineData(1, 2, 0)]
+    [InlineData(1, 1, 2, 1)]
+    public void StandardMeshOccludesBackground(int offsetVariant, int route, int ssao, int oit = 0)
+    {
+        // Arrange: Build the installed shader pair and a real color/depth target for the selected route variants.
+        EnsureContextValid();
+        string vertex = InstalledEngineShaderSources.Build("standard.vsh", 0, oit, ssao, 0, offsetVariant);
+        string fragment = InstalledEngineShaderSources.Build("standard.fsh", 0, oit, ssao, 0, offsetVariant);
+        using var program = GpuProgramObject.Adopt(TestShaderCache.CreateGraphics(vertex, fragment));
+        using var vao = NativeResourceSetup.CreateVertexArray();
+        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var framework = new ShaderTestFramework();
+        using var texture = framework.CreateTexture(1, 1, TextureFormat.Rgba32f, [1f, .25f, .1f, 1f]);
+        using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
+        using var glow = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var engineNormal = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var position = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var gbuffer = new GBufferTextures(1, 1);
+        using var attachments = new GpuResourceCollection();
+        GpuFramebufferAttachment[] colors = [
+            attachments.Own(GpuFramebufferAttachment.FromTexture(color)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(glow)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(engineNormal)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(position)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(gbuffer.Surface, layer: 0)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(gbuffer.Surface, layer: 1)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(gbuffer.PatchId)),
+            attachments.Own(GpuFramebufferAttachment.FromTexture(gbuffer.Surface, layer: 2))];
+        var depthAttachment = attachments.Own(GpuFramebufferAttachment.FromTexture(depth));
+        using var target = DynamicGpuFramebuffer.Create(colors, depthAttachment);
+        var layout = GpuProgramLayout.TryBuild(program.ProgramId);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
+        vertices.UploadData<float>([-1, -1, -.5f, 3, -1, -.5f, -1, 3, -.5f]);
+        vertices.Bind();
+        GL.EnableVertexAttribArray(0);
+        GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 12, 0);
+        GL.VertexAttrib2(1, .5f, .5f); GL.VertexAttrib4(2, 1f, 1f, 1f, 1f);
+        // Engine vertex flags encode positive Y magnitude in bits 18..20.
+        GL.VertexAttribI1(3, 7 << 18);
+        // SSAO variants consume this generic input; no partial-glow tint is authored here.
+        GL.VertexAttrib1(4, 0f);
+        float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+        foreach (string name in new[] { "modelMatrix", "viewMatrix", "projectionMatrix" })
+            ShaderTestFramework.SetNativeUniformMatrix4(layout.GetUniformLocation(program.ProgramId, name), identity);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "rgbaTint"), 1f, 1f, 1f, 1f);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "rgbaLightIn"), 1f, 1f, 1f, 1f);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "rgbaAmbientIn"), 1f, 1f, 1f);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "viewDistance"), 256f);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "dontWarpVertices"), 1);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "vge_pbrRoute"), route);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialRadiance"), 11);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialAttenuation"), 12);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "depthOffset"), -.05f);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texture).Target)))]);
+        FramebufferTestSetup.BindForEngineRendering(target);
+        GL.Enable(EnableCap.DepthTest); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
+        GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
+        GL.ClearColor(0, 0, 0, 0); GL.ClearDepth(1); GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+        // Act: Draw the foreground mesh, then a distinguishable farther mesh into the same depth buffer.
+        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+        float[] foreground = target[0].ReadPixels();
+        // Assert: The foreground coverage and route outputs survive while depth rejects the later background draw.
+        Assert.Equal(1f, foreground[3]);
+        if (route == 1)
+        {
+            // Deferred capture must publish unlit albedo and overwrite the cleared material target.
+            Assert.InRange(foreground[0], .999f, 1.001f);
+            Assert.InRange(Assertions.GpuLocalRead.Tuple(gbuffer.Surface,0,0,1)[0], .499f, .501f);
+            float[] normal = Assertions.GpuLocalRead.Tuple(gbuffer.Surface,0,0);
+            Assert.Equal(.5f, normal[0]);
+            Assert.Equal(1f, normal[1]);
+            Assert.Equal(.5f, normal[2]);
+        }
+        if (offsetVariant > 0 && route == 1)
+        {
+            Assert.Equal(-1f, Assertions.GpuLocalRead.Tuple(gbuffer.Surface,0,0)[3]);
+            Assert.InRange(Assertions.GpuLocalRead.Scalar(position, 2), -.501f, -.499f);
+        }
+        // Draw a distinguishable farther opaque mesh after the first mesh. Depth must reject it.
+        vertices.UploadData<float>([-1, -1, .5f, 3, -1, .5f, -1, 3, .5f]);
+        ShaderTestFramework.SetNativeUniform(layout.GetUniformLocation(program.ProgramId, "rgbaTint"), 0f, 1f, 0f, .25f);
+        GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+        Assert.Equal(foreground, target[0].ReadPixels());
+    }
+    #endregion
+    #endregion
+}
+

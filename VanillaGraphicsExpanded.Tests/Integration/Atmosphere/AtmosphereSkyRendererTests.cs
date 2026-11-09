@@ -1,0 +1,45 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.Atmosphere;
+
+/// <summary>Checks the sky's procedural geometry ownership without engine mesh allocation.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class AtmosphereSkyRendererTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+{
+    #region Public API
+    /// <summary>Creating and retiring the empty sky VAO preserves unrelated native buffer storage and bindings.</summary>
+    [Fact]
+    public void ProceduralSkyGeometryPreservesIncomingBindings()
+    {
+        // Arrange: bind unrelated native vertex and index resources before constructing the subject geometry.
+        EnsureContextValid();
+        using var priorVao = NativeResourceSetup.CreateVertexArray();
+        using var priorArray = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var priorElements = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, priorVao.VertexArrayId);
+        priorArray.UploadData(new float[] { 0, 0, 0 });
+        priorElements.UploadIndices(new uint[] { 0 });
+        OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(priorVao.VertexArrayId, priorElements.BufferId);
+        OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, priorArray.BufferId);
+        // Act: create and explicitly retire the renderer's empty procedural geometry.
+        using var geometry = new ArrayGraphicsGeometry(new([]), PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo>(), 3);
+        // Assert: construction preserves the caller's current native bindings.
+        Assert.Equal(priorVao.VertexArrayId, GL.GetInteger(GetPName.VertexArrayBinding));
+        Assert.Equal(priorArray.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
+        Assert.Equal(priorElements.BufferId, GL.GetInteger(GetPName.ElementArrayBufferBinding));
+        // Act: explicitly retire the geometry before checking unrelated native owners.
+        geometry.Dispose();
+        // Assert: disposal also preserves the caller's resources and bindings.
+        Assert.True(GL.IsVertexArray(priorVao.VertexArrayId));
+        Assert.True(GL.IsBuffer(priorArray.BufferId));
+        Assert.True(GL.IsBuffer(priorElements.BufferId));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+}

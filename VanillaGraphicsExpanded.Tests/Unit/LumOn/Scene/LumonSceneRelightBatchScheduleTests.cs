@@ -5,11 +5,14 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.Scene;
 /// <summary>Prevents unavailable geometry in one texel bucket from starving the remainder of a surface page.</summary>
 public sealed class LumonSceneRelightBatchScheduleTests
 {
+    #region Public API
     /// <summary>Retiring one mapping restarts only that page while preserving an unrelated partial sweep.</summary>
     [Fact]
     public void RemovingOnePagePreservesOtherPartialSweeps()
     {
+        // Arrange
         var schedule = new LumonSceneRelightBatchSchedule();
+        // Act and Assert
         foreach (ulong page in new ulong[] { 1, 2 })
         {
             Assert.Equal(0u, schedule.Next(page, 2));
@@ -26,7 +29,9 @@ public sealed class LumonSceneRelightBatchScheduleTests
     [Fact]
     public void FailedBucketDoesNotStarveValidBuckets()
     {
+        // Arrange
         var schedule = new LumonSceneRelightBatchSchedule();
+        // Act and Assert
         for (int i = 0; i < 3; i++)
         {
             uint bucket = schedule.Next(1, 3);
@@ -47,7 +52,9 @@ public sealed class LumonSceneRelightBatchScheduleTests
     [Fact]
     public void HistoryResetDiscardsPartialSuccess()
     {
+        // Arrange
         var schedule = new LumonSceneRelightBatchSchedule();
+        // Act and Assert
         schedule.Next(1, 2); Assert.False(schedule.Complete(1, 2, true));
         schedule.Clear();
         Assert.Equal(0u, schedule.Next(1, 2));
@@ -57,4 +64,5 @@ public sealed class LumonSceneRelightBatchScheduleTests
         Assert.Equal(1u, schedule.Next(1, 2));
         Assert.True(schedule.Complete(1, 2, true));
     }
+    #endregion
 }

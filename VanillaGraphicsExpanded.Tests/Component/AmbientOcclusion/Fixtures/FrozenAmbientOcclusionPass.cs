@@ -1,0 +1,80 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.PBR.Postprocessing;
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+namespace VanillaGraphicsExpanded.Tests.Component.AmbientOcclusion.Fixtures;
+/// <summary>Freezes the prior AO owner, including its single-filter mutation policy, for complete-path comparisons.</summary>
+internal sealed class FrozenAmbientOcclusionPass : IDisposable
+{
+    private GpuResourceCollection resources=new();
+    private DynamicTexture2D? raw,filtered,output;
+    private GpuFramebuffer? rawTarget,filteredTarget,outputTarget;
+    private AmbientOcclusionQuality quality;
+    private int nativeQuality;
+    private AoHorizonReferenceProgram? horizon;
+    private AmbientOcclusionFilterShaderProgram? filter;
+    private RHIGraphicsPipeline? horizonPipeline,filterPipeline;
+    #region Public API
+    /// <summary>Publishes visibility and its receiver depth only after the owner completes submission.</summary>
+    internal GpuTexture? Texture=>output;
+    /// <summary>Reports allocated texel bytes without including driver metadata.</summary>
+    internal long StorageBytes { get; private set; }
+    /// <summary>Reuses stable resources and prepares all executable contracts outside the command boundary.</summary>
+    internal RHIGraphicsPipeline[] Prepare(PostprocessDraw draw,int width,int height,int nativeQuality,
+        AoHorizonReferenceProgram horizon,AmbientOcclusionFilterShaderProgram filter)
+    {
+        quality=AmbientOcclusionQuality.FromNative(nativeQuality);this.nativeQuality=nativeQuality;
+        if(output is null || output.Width!=width || output.Height!=height) {
+            Dispose();
+            try {
+                int rw=Math.Max(1,(width+quality.Divisor-1)/quality.Divisor),rh=Math.Max(1,(height+quality.Divisor-1)/quality.Divisor);
+                rawTarget=Create(rw,rh,TextureFormat.Rgba16f,"Raw",out raw);
+                filteredTarget=Create(rw,rh,TextureFormat.Rgba16f,"Filtered",out filtered);
+                outputTarget=Create(width,height,TextureFormat.Rgba16f,"Visibility",out output);
+            } catch { Dispose();throw; }
+        }
+        this.horizon=horizon;this.filter=filter;
+        if(!horizon.EnsureReady() || !filter.EnsureReady())
+            throw new InvalidOperationException("Ambient occlusion shaders are unavailable.");
+        horizonPipeline=draw.Prepare(horizon,rawTarget!.PostprocessPass());
+        filterPipeline=draw.Prepare(filter,filteredTarget!.PostprocessPass());
+        return [horizonPipeline,filterPipeline];
+    }
+    /// <summary>Samples the shared hierarchy, integrates horizons and reconstructs visibility without feedback or history.</summary>
+    internal void Render(RHICommandContext commands,PostprocessDraw draw,GpuTexture depth,GpuTexture surface,DynamicTexture2D hierarchy,VgeFrameUniformBuffer camera)
+    {
+        var frame=new System.Numerics.Vector4(0,0,quality.Divisor,0);
+        // Release one quarter of retained cosine-space occlusion per weaker radial observation; this is not a world-space thickness.
+        var sampling=new System.Numerics.Vector4(1.25f,0.25f,quality.Directions,quality.Steps);
+        var distance=new System.Numerics.Vector4(64,96,0,0);
+        horizon!.Capture(depth,surface,hierarchy,camera,nativeQuality);
+        draw.Submit(commands,horizonPipeline!,rawTarget!.PostprocessPass(),horizon.CaptureBindings());
+        filter!.DepthImage=depth;filter.SurfaceImage=surface;filter.SourceImage=raw;
+        filter.Capture(camera,frame,sampling,distance);
+        draw.Submit(commands,filterPipeline!,filteredTarget!.PostprocessPass(),filter.CaptureBindings());
+        filter.SourceImage=filtered;frame.W=1;
+        filter.Capture(camera,frame,sampling,distance);
+        draw.Submit(commands,filterPipeline!,outputTarget!.PostprocessPass(),filter.CaptureBindings());
+    }
+    /// <summary>Withdraws all resources together; no prior-frame image survives retirement.</summary>
+    public void Dispose() {
+        resources.Dispose();resources=new();
+        raw=filtered=output=null;rawTarget=filteredTarget=outputTarget=null;
+        horizon=null;filter=null;horizonPipeline=filterPipeline=null;StorageBytes=0;
+    }
+    #endregion
+    #region Private
+    /// <summary>Owns sized storage and registers framebuffer borrowers in the same retirement collection.</summary>
+    private GpuFramebuffer Create(int width,int height,TextureFormat format,string name,out DynamicTexture2D texture) {
+        texture=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = format, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"AmbientOcclusion.{name}" }).RequireResource());
+        StorageBytes+=(long)width*height*8;
+        var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(texture));
+        return resources.Own(DynamicGpuFramebuffer.Create([attachment],debugName:$"AmbientOcclusion.{name}"));
+    }
+    #endregion
+}

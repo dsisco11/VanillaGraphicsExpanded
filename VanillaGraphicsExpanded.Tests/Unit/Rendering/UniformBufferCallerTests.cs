@@ -1,0 +1,105 @@
+using System.Numerics;
+using System.Reflection;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.Materials;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.LumOn.Shaders;
+
+namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
+
+/// <summary>Checks multi-value setters without creating a GL context.</summary>
+public sealed class UniformBufferCallerTests
+{
+    #region Public API
+    /// <summary>Repeated light arrays remain clean; a later color change still dirties the block.</summary>
+    [Fact]
+    public void PointLightArraysDetectChangesAcrossBothArrays()
+    {
+        // Arrange: publish the initial two-entry light state and consume its dirty marker.
+        using var buffer = new VgeLightsUniformBuffer();
+        float[] positions = [1, 2, 3, 4, 5, 6];
+        float[] colors = [7, 8, 9, 10, 11, 12];
+        // Act: repeat the same arrays, then change one color component.
+        buffer.Capture(2, positions, colors);
+        ResetDirty(buffer);
+        buffer.Capture(2, positions, colors);
+        // Assert: identical input stays clean while the later change updates the packed value.
+        Assert.False(buffer.IsDirty);
+        colors[5] = 13;
+        buffer.Capture(2, positions, colors);
+        Assert.True(buffer.IsDirty);
+        Assert.Equal(13f, UboPacking.ReadFloat(buffer.Bytes, 1616 + 16 + 8));
+    }
+
+    /// <summary>Changes confined to the second atmosphere vector cannot be short-circuited.</summary>
+    [Fact]
+    public void AtmosphereChecksBothVectors()
+    {
+        // Arrange: prepare an atmosphere state that can vary sun and moon independently.
+        using var buffer = new PbrCompositeParamsUbo();
+        Assert.Equal(192, buffer.SizeBytes);
+        var lighting = new AtmosphereLighting(Vector3.UnitY, default, default, default, default, []);
+        // Act: repeat the same state, then vary the sun and night-source fields separately.
+        buffer.SetAtmosphere(lighting);
+        ResetDirty(buffer);
+        buffer.SetAtmosphere(lighting);
+        // Assert: unchanged data stays clean.
+        Assert.False(buffer.IsDirty);
+        buffer.SetAtmosphere(lighting with { Sun = Vector3.UnitX });
+        Assert.True(buffer.IsDirty);
+        Assert.Equal(1f, UboPacking.ReadFloat(buffer.Bytes, 64));
+        ResetDirty(buffer);
+        buffer.SetAtmosphere(lighting with { HasNightSources = true, Moon = Vector3.UnitZ });
+        Assert.True(buffer.IsDirty);
+        Assert.Equal(0f, UboPacking.ReadFloat(buffer.Bytes, 56));
+        Assert.Equal(0f, UboPacking.ReadFloat(buffer.Bytes, 180));
+        Assert.Equal(1f, UboPacking.ReadFloat(buffer.Bytes, 184));
+    }
+
+    /// <summary>Repeated disabled near-field mapping leaves the uniform block clean.</summary>
+    [Fact]
+    public void SharedNearFieldMappingStaysCleanWhenUnchanged()
+    {
+        // Arrange: establish the disabled mapping state.
+        using var buffer = new LumOnNearFieldParamsUbo();
+        // Act: repeat the same shared-null mapping after consuming its initial dirty state.
+        buffer.SetShared(null, null);
+        ResetDirty(buffer);
+        buffer.SetShared(null, null);
+        // Assert: repeated disabled mapping leaves the CPU block clean.
+        Assert.False(buffer.IsDirty);
+    }
+
+    /// <summary>Kernel writes detect changes and reject invalid complete sources before mutation.</summary>
+    [Fact]
+    public void KernelValidationIsAtomicAndIdenticalWeightsStayClean()
+    {
+        // Arrange: publish one valid kernel and consume its dirty marker.
+        using var buffer = new PbrHeightBakeParamsUbo();
+        float[] weights = Enumerable.Range(1, 8).Select(value => (float)value).ToArray();
+        // Act: repeat valid input and attempt each invalid complete source.
+        buffer.SetKernelWeights(weights, 8);
+        ResetDirty(buffer);
+        buffer.SetKernelWeights(weights, 8);
+        // Assert: identical weights stay clean, and invalid inputs do not replace them.
+        Assert.False(buffer.IsDirty);
+        byte[] stored = buffer.Bytes.ToArray();
+        Assert.Throws<ArgumentException>(() => buffer.SetKernelWeights(new float[5], 8));
+        Assert.Throws<ArgumentOutOfRangeException>(() => buffer.SetKernelWeights(new float[65], 65));
+        Assert.Throws<ArgumentOutOfRangeException>(() => buffer.SetKernelWeights(weights, -1));
+        Assert.Throws<ArgumentNullException>(() => buffer.SetKernelWeights(null!, 0));
+        Assert.Equal(stored, buffer.Bytes.ToArray());
+        Assert.False(buffer.IsDirty);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Simulates successful dirty-state consumption while leaving GPU binding outside these CPU tests.</summary>
+    private static void ResetDirty(CpuUniformBuffer buffer)
+    {
+        foreach (var (name, value) in new (string, object)[] { ("isDirty", false), ("dirtyStartBytes", int.MaxValue), ("dirtyEndExclusiveBytes", 0) })
+            typeof(CpuUniformBuffer).GetField(name, BindingFlags.NonPublic | BindingFlags.Instance)!.SetValue(buffer, value);
+    }
+    #endregion
+}

@@ -1,0 +1,97 @@
+using VanillaGraphicsExpanded.Tests.Support.Cache;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using System;
+using System.IO;
+using OpenTK.Graphics.OpenGL4;
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.Spirv;
+
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.Rendering.Shaders;
+
+/// <summary>Checks asset-level cache selection, exact ownership transfer and abandoned RHI candidate cleanup.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class ShaderAssetCandidateTests(HeadlessGLFixture fixture)
+{
+    private readonly CountingDiskCacheFileSystem storage = new();
+
+    #region Public API
+    /// <summary>Asset preparation persists a ready executable and reuses its opaque bytes for a new owned generation.</summary>
+    [Fact]
+    public void CacheSelectionRetainsIndependentReadyOwnership()
+    {
+        // Arrange: Use an isolated disk cache and one canonical asset-backed compute contract.
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        string directory = Path.Combine(Path.GetTempPath(), "VGE-ShaderAsset-" + Guid.NewGuid().ToString("N"));
+        using var policy = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory, fileSystem: storage));
+        using var assets = new BinaryShaderApiFixture();
+        try
+        {
+            var plan = Plan();
+            using var first = new ShaderAssetCandidate(plan, Read,
+                () => ShaderDigestIndexCache.ForAssets(assets.Api.Assets, ShaderImportsSystem.DefaultDomain));
+            // Act: Complete the cold candidate, then prepare a second owner from its cached bytes.
+            first.Complete(TestContext.Current.CancellationToken);
+            Assert.False(first.Cached);
+            using var original = first.TakeShader();
+            Assert.Throws<InvalidOperationException>(() => first.TakeShader());
+            first.Dispose();
+            original.RequireUsable();
+            using var second = new ShaderAssetCandidate(plan, Read,
+                () => ShaderDigestIndexCache.ForAssets(assets.Api.Assets, ShaderImportsSystem.DefaultDomain));
+            second.Complete(TestContext.Current.CancellationToken);
+            Assert.True(second.Cached);
+            using var restored = second.TakeShader();
+            Assert.NotEqual(original.Program.ProgramId, restored.Program.ProgramId);
+            Assert.Equal(original.Interface.PreparedBindings.Entries.Count, restored.Interface.PreparedBindings.Entries.Count);
+            original.Dispose();
+            restored.RequireUsable();
+            // Assert: Cache reuse creates a distinct usable program and consuming either candidate transfers ownership once.
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
+            if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, true);
+        }
+    }
+
+    /// <summary>Ready but unconsumed creation remains candidate-owned and is retired when the asset request is abandoned.</summary>
+    [Fact]
+    public void AbandonedReadyAssetRetiresItsExecutable()
+    {
+        // Arrange: Prepare a candidate with no shared cache and retain it without transferring its ready shader.
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var policy = DriverProgramCache.UseStoreForTesting(null);
+        using var assets = new BinaryShaderApiFixture();
+        try
+        {
+            using var candidate = new ShaderAssetCandidate(Plan(), Read,
+                () => ShaderDigestIndexCache.ForAssets(assets.Api.Assets, ShaderImportsSystem.DefaultDomain));
+            // Act: Complete the candidate and abandon it while it still owns the executable.
+            candidate.Complete(TestContext.Current.CancellationToken);
+            Assert.True(candidate.IsReady);
+            candidate.Dispose();
+            Assert.False(candidate.IsReady);
+            // Assert: Abandonment retires the executable and prevents a later ownership transfer.
+            Assert.Throws<ObjectDisposedException>(() => candidate.TakeShader());
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Selects a canonical existing compute contract and its typed defaults.</summary>
+    private static ShaderLoadPlan Plan() => new(new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1")));
+    /// <summary>Reads the canonical precompiled fixture payload.</summary>
+    private static ReadOnlySpan<byte> Read(string path) => TestAssetSnapshot.ReadBuiltBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path));
+    #endregion
+}

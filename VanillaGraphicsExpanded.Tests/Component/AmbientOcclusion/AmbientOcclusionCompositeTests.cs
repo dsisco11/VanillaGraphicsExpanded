@@ -1,0 +1,196 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.Materials.Energy;
+using VanillaGraphicsExpanded.PBR.Postprocessing;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
+
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+namespace VanillaGraphicsExpanded.Tests.Component.AmbientOcclusion;
+
+
+/// <summary>Constrains ambient visibility to indirect transport at a matched world receiver.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class AmbientOcclusionCompositeTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
+{
+
+
+    #region Public API
+    /// <summary>Checks split material response, actual view angle, neutral/full/partial AO and independent strengths in both lighting modes.</summary>
+    [Theory]
+    [InlineData(false,false)]
+    [InlineData(true,false)]
+    [InlineData(true,true)]
+    public void DiffuseAndSpecularVisibilityRespectMaterialAndView(bool lumon,bool pbr)
+    {
+        // Arrange: Select legacy/LumOn and PBR variants, then use fixed material, view, AO, and visibility inputs.
+        // Act and assert: Exercise baseline, roughness/view sweeps, independent AO strengths, and off-axis receiver composition.
+
+        var shader = CreateCompositeProgram(lumon, pbr);
+        // Retain the baseline receiver, unmatched-depth and proxy checks in each executable variant.
+        VerifyComposition(shader, lumon,pbr,.5f,1f,0f,0f,1f,1f);
+        foreach(float roughness in new[]{0f,.05f,.5f,1f})
+        foreach(float nDotV in new[]{.1f,.5f,1f}) {
+            VerifyComposition(shader,lumon,pbr,roughness,nDotV,0f,.35f,1f,1f);
+            VerifyComposition(shader,lumon,pbr,roughness,nDotV,1f,.35f,1f,1f);
+        }
+        VerifyComposition(shader,lumon,pbr,.05f,.1f,1f,1f,1f,1f);
+        VerifyComposition(shader,lumon,pbr,.05f,.1f,0f,.35f,0f,1f);
+        VerifyComposition(shader,lumon,pbr,.05f,.1f,0f,.35f,1f,0f);
+        VerifyComposition(shader,lumon,pbr,.05f,.1f,0f,.35f,0f,0f);
+        VerifyComposition(shader,lumon,pbr,.05f,.1f,0f,.35f,.5f,.25f);
+        VerifyComposition(shader,lumon,pbr,.05f,.1f,1f,.35f,1f,1f,offAxis:true);
+        VerifyComposition(shader,lumon,pbr,.05f,.1f,0f,.35f,-1f,2f);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Creates the fixed-option executable reused by one numerical test invocation.</summary>
+    private PBRCompositeShaderProgram CreateCompositeProgram(bool lumon, bool pbr)
+    {
+        EnsureShaderTestAvailable();
+        return Programs.Create<PBRCompositeShaderProgram>(p =>
+        {
+            p.LumOnEnabled = lumon;
+            p.EnablePbrComposite = pbr;
+            p.EnableShortRangeAo = false;
+        });
+    }
+
+    /// <summary>Renders one receiver setup with case-local resources and shared per-invocation executable.</summary>
+    private void VerifyComposition(PBRCompositeShaderProgram shader, bool lumon,bool pbr,float roughness,float nDotV,float metallic,float ao,float diffuseStrength,float specularStrength,bool offAxis=false)
+    {
+        using var direct = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[1f,1f,1f,1f]);
+        using var specular = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[2f,2f,2f,1f]);
+        using var emission = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[3f,3f,3f,1f]);
+        using var indirect = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[2f,2f,2f,1f]);
+        using var albedo = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[.5f,.5f,.5f,1f]);
+        float encodedX=offAxis?.5f:.5f+.5f*MathF.Sqrt(1-nDotV*nDotV);
+        float encodedZ=offAxis?1f:.5f+.5f*nDotV;
+        float receiverX=offAxis?2*MathF.Sqrt(1-nDotV*nDotV)/nDotV:0;
+        using var normal = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[encodedX,.5f,encodedZ,1f]);
+        using var proxyNormal = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[encodedX,.5f,encodedZ,-1f]);
+        using var material = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[roughness,metallic,0f,0f]);
+        using var position = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[receiverX,0f,-2f,1f]);
+        using var depth = TestFramework.CreateTexture(1,1,TextureFormat.R32f,[.75f]);
+        using var visibility = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[ao,2f,0f,0f]);
+        using var wrongDepth = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[ao,20f,0f,0f]);
+        using var lighting = LayeredTestTexture.Create(ImageAssertions.Programs, direct,specular,emission);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal,material,indirect);
+        using var proxySurface = LayeredTestTexture.Create(ImageAssertions.Programs, proxyNormal,material,indirect);
+        using var target = TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f,3);
+        using var positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); positions.UploadData(new float[] {-1,-1,0, 3,-1,0, -1,3,0});
+        using var uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); uv.UploadData(new float[] {0,0, 2,0, 0,2});
+        using var geometry = new ArrayGraphicsGeometry(EngineFullscreenGeometry.Layout, PrimitiveTopology.Triangles,
+            new Dictionary<int,GpuVbo> { [0]=positions, [1]=uv });
+        var passDescription = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0),new(AttachmentIndex:1),new(AttachmentIndex:2)]);
+        var pass = RHICommandContext.Current.DescribeRenderTargets(passDescription);
+        using var frameCamera = TestFrameCamera.Create([1,0,0,0,0,1,0,0,0,0,-4,0,receiverX,0,0,1],
+            [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
+        try
+        {
+            shader.DirectLighting=lighting;shader.IndirectDiffuse=indirect;shader.GBufferAlbedo=albedo;
+            shader.GBufferSurface=surface;shader.GBufferPosition=position;shader.PrimaryDepth=depth;
+            shader.FrameInputs = frameCamera;
+
+            shader.IndirectTint=new(1,1,1);shader.IndirectIntensity=1;shader.DiffuseAOStrength=diffuseStrength;shader.SpecularAOStrength=specularStrength;
+        // Arrange: publish the controlled lighting, surface, depth, and atmosphere inputs.
+            shader.SetAtmosphere(null);shader.SetWaterVolume(null);shader.SetUnderwater(false);
+            using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader,EngineFullscreenGeometry.Layout,pass,DynamicPipelineState.Viewport)).RequireResource();
+            /// <summary>Publishes prepared inputs and reads only after the graphics boundary restores state.</summary>
+            float[] Render()
+            {
+                {
+                    var commands=RHICommandContext.Current;
+                    using var scope0=commands.EnterBoundary(new("Tests.AmbientComposition",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+                    scope0.Run(()=>{
+                        commands.BeginRenderPass(passDescription);commands.SetPipeline(pipeline);
+                        commands.SetDynamicState(new(){Viewport=commands.PassViewport});
+                        // Publish the complete retained inputs before every draw, including changed AO controls.
+                        commands.BindResources(shader.CaptureBindings());
+                        commands.Draw(geometry.Inputs,new(0,3));commands.EndRenderPass();
+                    });
+                }
+                return target[0].ReadPixels();
+            }
+            // Act: capture the baseline without AO, then render with compatible AO visibility.
+            shader.SetAmbientOcclusion(null);float[] baseline=Render();
+            Assert.InRange(baseline[0],6f,8f);
+            shader.SetAmbientOcclusion(visibility);
+            // Subsequent sibling-field writes must preserve the AO publication flag.
+            shader.DiffuseAOStrength=diffuseStrength;shader.SpecularAOStrength=specularStrength;
+            float[] dark=Render();
+            // Assert: compare baseline and AO-composited radiance with the independent material evaluation.
+            // Independent scalar material evaluation isolates direct/emissive radiance from the two indirect terms.
+            double f0=.04*(1-metallic)+.5*metallic;
+            double reflectance=MicrofacetEnergyTable.Reflectance(MicrofacetEnergyTable.Shared.Sample(roughness,nDotV),new((float)f0)).X;
+            double diffuse=lumon&&!pbr?1-metallic:(1-reflectance)*(1-metallic);
+            double spec=lumon&&!pbr?0:2*reflectance;
+            double diffuseVisibility=1+(ao-1)*Math.Clamp(diffuseStrength,0,1);
+            double derivedSpecular=Math.Clamp(Math.Pow(nDotV+ao,Math.Pow(2,-16*roughness-1))-1+ao,0,1);
+            double specularVisibility=1+(derivedSpecular-1)*Math.Clamp(specularStrength,0,1);
+            double expected=6+diffuse*diffuseVisibility+spec*specularVisibility;
+            double expectedBaseline=6+diffuse+spec;
+            for(int c=0;c<3;c++) {
+                Assert.InRange(baseline[c],expectedBaseline-.001,expectedBaseline+.001);
+                Assert.InRange(dark[c],expected-.001,expected+.001);
+            }
+            // Act: supply AO evidence with mismatched receiver depth and then a proxy surface.
+            shader.SetAmbientOcclusion(wrongDepth);float[] unmatched=Render();
+            // Assert: incompatible depth and proxy geometry leave composition at the baseline.
+            for(int c=0;c<3;c++)Assert.InRange(unmatched[c],baseline[c]-.001f,baseline[c]+.001f);
+            // Act: draw the same visibility through proxy geometry after the receiver-depth comparison.
+            shader.GBufferSurface=proxySurface;shader.SetAmbientOcclusion(visibility);float[] proxy=Render();
+            // Assert proxy fragments do not consume receiver AO evidence.
+            for(int c=0;c<3;c++)Assert.InRange(proxy[c],baseline[c]-.001f,baseline[c]+.001f);
+            Assert.Equal(ErrorCode.NoError,GL.GetError());
+        }
+        finally
+        {
+            ClearCompositeInputs(shader);
+        }
+    }
+
+    /// <summary>Releases all borrowed case resources before their owning textures and camera are disposed.</summary>
+    private static void ClearCompositeInputs(PBRCompositeShaderProgram shader)
+    {
+        shader.SetAmbientOcclusion(null);
+        shader.SetWaterVolume(null);
+        shader.SetUnderwater(false);
+        shader.RefractionSourceEnabled = false;
+        shader.PreOverlaySourceEnabled = false;
+        shader.SetAtmosphere(null);
+        shader.FrameInputs = null;
+        shader.DirectLighting = default;
+        shader.LightShaftOcclusion = default;
+        shader.PreOverlayColor = default;
+        shader.PreOverlayDepth = default;
+        shader.IndirectDiffuse = default;
+        shader.GBufferAlbedo = default;
+        shader.GBufferSurface = default;
+        shader.PrimaryDepth = default;
+        shader.GBufferPosition = default;
+        shader.WaterTransport = default;
+        shader.AtmosphereAerialRadiance = default;
+        shader.AtmosphereAerialAttenuation = default;
+        shader.IndirectTint = new(0, 0, 0);
+        shader.IndirectIntensity = 0;
+        shader.DiffuseAOStrength = 0;
+        shader.SpecularAOStrength = 0;
+    }
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.Support.GPU.Observations.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+    }
+    #endregion
+}

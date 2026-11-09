@@ -1,0 +1,274 @@
+using System;
+using System.Collections.Generic;
+
+using TinyPreprocessor.Core;
+
+using VanillaGraphicsExpanded;
+using VanillaGraphicsExpanded.PBR;
+
+using Xunit;
+
+namespace VanillaGraphicsExpanded.Tests.Component.Rendering.Shaders;
+
+/// <summary>Verifies emitted shader text and source-ID mappings from in-memory imports.</summary>
+public sealed class ShaderSourceCodeTests
+{
+    #region Public API
+    /// <summary>Places source directives after the root version line and preserves source identity.</summary>
+    [Fact]
+    public void FromSource_InjectsLineDirectives_UsesCorrectLineNumbers_ForRoot_AfterVersionDirective()
+    {
+        // Arrange
+        const string include = "void Foo() { }\n";
+
+        const string shader =
+            "#version 330 core\n" +
+            "@import \"./includes/shared.glsl\"\n" +
+            "void main() { Foo(); }\n";
+
+        var sources = new Dictionary<string, string>
+        {
+            ["shaders/includes/shared.glsl"] = include
+        };
+
+        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
+        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+
+        /// <summary>Resolves the root shader and any imported text by resource identity.</summary>
+        TinyTokenizer.Ast.SyntaxTree ContentProvider(ResourceId id)
+        {
+            string raw = id.Path;
+            string path = raw;
+            int colon = raw.IndexOf(':');
+            if (colon >= 0)
+            {
+                path = raw[(colon + 1)..];
+            }
+
+            if (path == "shaders/testshader.fsh")
+            {
+                return ShaderImportsSystem.Instance.CreateSyntaxTree(shader, "testshader.fsh")!;
+            }
+
+            return sources.TryGetValue(path, out var text)
+                ? ShaderImportsSystem.Instance.CreateSyntaxTree(text, path)!
+                : TinyTokenizer.Ast.SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
+        }
+
+        // Act
+        var code = ShaderSourceCode.FromSource(
+            shaderName: "testshader",
+            stageExtension: "fsh",
+            rawSource: shader,
+            sourceName: "testshader.fsh",
+            importPreprocessor: preprocessor,
+            contentProvider: ContentProvider,
+            ct: TestContext.Current.CancellationToken);
+
+        var emitted = NormalizeLineEndings(code.EmittedSource);
+
+        // Assert
+        Assert.Contains("void Foo()", emitted);
+        Assert.DoesNotContain("@import", emitted);
+        Assert.NotEmpty(code.LineDirectiveSourceIdToResource);
+
+        /// <summary>Finds the stable source ID for a root or imported resource path.</summary>
+        static int FindSourceId(IReadOnlyDictionary<int, string> map, string suffix)
+        {
+            foreach (var (id, resource) in map)
+            {
+                if (resource.Replace('\\', '/').Contains(suffix, StringComparison.Ordinal))
+                {
+                    return id;
+                }
+            }
+            throw new InvalidOperationException($"Source id not found for suffix '{suffix}'.");
+        }
+
+        int rootId = FindSourceId(code.LineDirectiveSourceIdToResource, "shaders/testshader.fsh");
+
+        Assert.Contains($"#line 2 {rootId}\n", emitted);
+    }
+
+    // Stable repro for upstream issue:
+    // In current TinyPreprocessor versions, our SourceMap sometimes reports a single range mapped to the root resource
+    // even when @import content has been inlined. That prevents correct #line switching to imported resources.
+    /// <summary>Retains a skipped reproduction for missing imported-resource source-map segments.</summary>
+    [Fact(Skip = "Upstream: TinyPreprocessor SourceMap does not include imported resource segments in this scenario; keep as repro to report.")]
+    public void FromSource_SourceMap_ShouldIncludeImportedResourceSegments()
+    {
+        // Arrange
+        const string include = "void Foo() { }\n";
+
+        const string shader =
+            "#version 330 core\n" +
+            "@import \"./includes/shared.glsl\"\n" +
+            "void main() { Foo(); }\n";
+
+        var sources = new Dictionary<string, string>
+        {
+            ["shaders/includes/shared.glsl"] = include
+        };
+
+        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
+        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+
+        /// <summary>Resolves the root shader and any imported text by resource identity.</summary>
+        TinyTokenizer.Ast.SyntaxTree ContentProvider(ResourceId id)
+        {
+            string raw = id.Path;
+            string path = raw;
+            int colon = raw.IndexOf(':');
+            if (colon >= 0)
+            {
+                path = raw[(colon + 1)..];
+            }
+
+            if (path == "shaders/testshader.fsh")
+            {
+                return ShaderImportsSystem.Instance.CreateSyntaxTree(shader, "testshader.fsh")!;
+            }
+
+            return sources.TryGetValue(path, out var text)
+                ? ShaderImportsSystem.Instance.CreateSyntaxTree(text, path)!
+                : TinyTokenizer.Ast.SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
+        }
+
+        // Act
+        var code = ShaderSourceCode.FromSource(
+            shaderName: "testshader",
+            stageExtension: "fsh",
+            rawSource: shader,
+            sourceName: "testshader.fsh",
+            importPreprocessor: preprocessor,
+            contentProvider: ContentProvider,
+            ct: TestContext.Current.CancellationToken);
+
+        // Assert
+        Assert.NotNull(code.ImportResult);
+
+        // Expected: SourceMap contains a segment for the imported resource id.
+        var ranges = code.ImportResult!.SourceMap.QueryRangeByEnd(0, code.FinalTree.TextLength);
+        Assert.Contains(ranges, r => r.Resource.Path.Replace('\\', '/').Contains("shaders/includes/shared.glsl", StringComparison.Ordinal));
+    }
+
+    /// <summary>Inlines representative include text and retains its line mapping.</summary>
+    [Theory]
+    [InlineData("// Shared code\nfloat PI = 3.14159;\n", "float PI = 3.14159")]
+    [InlineData("#define VGE_VIEW_INPUTS 1\n#define VGE_TERRAIN_NORMAL_INPUTS 1\nlayout(std140, binding = 28) uniform EyeInputs\n{\n    mat4 modelViewMatrix;\n    vec3 surface;\n    int outputMode;\n    int vge_twoSidedTerrain;\n};\n", "uniform EyeInputs")]
+    public void FromSource_InlinesImports_AndProvidesSourceMap(string include, string declaration)
+    {
+        // Arrange
+        const string shader = "#version 330 core\n" +
+                              "@import \"./includes/shared.glsl\"\n" +
+                              "void main() { }\n";
+
+        var sources = new Dictionary<string, string>
+        {
+            ["shaders/includes/shared.glsl"] = include
+        };
+
+        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
+        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+
+        /// <summary>Resolves the root shader and immutable include text by resource identity.</summary>
+        TinyTokenizer.Ast.SyntaxTree ContentProvider(ResourceId id)
+        {
+            // ResourceIds produced by the resolver look like `{domain}:{path}`.
+            string raw = id.Path;
+            string path = raw;
+            int colon = raw.IndexOf(':');
+            if (colon >= 0)
+            {
+                path = raw[(colon + 1)..];
+            }
+
+            if (path == "shaders/testshader.fsh")
+            {
+                return ShaderImportsSystem.Instance.CreateSyntaxTree(shader, "testshader.fsh")!;
+            }
+
+            return sources.TryGetValue(path, out var text)
+                ? ShaderImportsSystem.Instance.CreateSyntaxTree(text, path)!
+                : TinyTokenizer.Ast.SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
+        }
+
+        // Act
+        var code = ShaderSourceCode.FromSource(
+            shaderName: "testshader",
+            stageExtension: "fsh",
+            rawSource: shader,
+            sourceName: "testshader.fsh",
+            importPreprocessor: preprocessor,
+            contentProvider: ContentProvider,
+            ct: TestContext.Current.CancellationToken);
+
+        var emitted = NormalizeLineEndings(code.EmittedSource);
+
+        // Assert
+        Assert.Contains(declaration, emitted);
+        // A token-based insertion anchor may precede a block's semicolon. Directives must
+        // nevertheless start on their own line so preprocessing preserves valid GLSL.
+        Assert.All(emitted.Split('\n').Where(line => line.Contains("#line", StringComparison.Ordinal)),
+            line => Assert.StartsWith("#line", line.TrimStart()));
+        Assert.DoesNotContain("@import", emitted);
+
+        Assert.NotNull(code.ImportResult);
+
+        // TinyPreprocessor exposes SourceMap as public API.
+        Assert.NotNull(code.ImportResult!.SourceMap);
+
+        // If #line injection ran, we should see directives and a non-empty id map.
+        Assert.Contains("#line ", emitted);
+        Assert.NotEmpty(code.LineDirectiveSourceIdToResource);
+    }
+
+    /// <summary>Places generated defines after the GLSL version directive and before main.</summary>
+    [Fact]
+    public void FromSource_InsertsDefines_AfterVersionDirective()
+    {
+        // Arrange
+        const string shader = "#version 330 core\n" +
+                              "void main() { }\n";
+
+        var resolver = new DictionarySyntaxTreeResourceResolver(new Dictionary<string, string>(), ShaderImportsSystem.DefaultDomain);
+        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
+
+        var defines = new Dictionary<string, string?>
+        {
+            ["FOO"] = "1",
+            ["BAR"] = null
+        };
+
+        // Act
+        var code = ShaderSourceCode.FromSource(
+            shaderName: "testshader",
+            stageExtension: "fsh",
+            rawSource: shader,
+            sourceName: "testshader.fsh",
+            defines: defines,
+            importPreprocessor: preprocessor,
+            ct: TestContext.Current.CancellationToken);
+
+        var emitted = NormalizeLineEndings(code.EmittedSource);
+
+        // Assert
+        int idxVersion = emitted.IndexOf("#version 330 core\n", StringComparison.Ordinal);
+        Assert.True(idxVersion >= 0);
+
+        int idxDefineFoo = emitted.IndexOf("#define FOO 1\n", StringComparison.Ordinal);
+        int idxDefineBar = emitted.IndexOf("#define BAR\n", StringComparison.Ordinal);
+        Assert.True(idxDefineFoo > idxVersion);
+        Assert.True(idxDefineBar > idxVersion);
+
+        int idxMain = emitted.IndexOf("void main()", StringComparison.Ordinal);
+        Assert.True(idxMain > idxDefineFoo);
+        Assert.True(idxMain > idxDefineBar);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Normalizes generated text to a stable newline convention for assertions.</summary>
+    private static string NormalizeLineEndings(string text) => text.ReplaceLineEndings("\n");
+    #endregion
+}

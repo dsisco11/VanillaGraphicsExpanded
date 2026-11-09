@@ -73,7 +73,7 @@ The trace shader now resolves supported screen-hit segments through the existing
 
 The separate PBR direct-light renderer returns early while LumOn is enabled, so its outputs are not a current-frame source for this path. No new buffer or sampler is introduced, and the shader does not sample final composition or add world lighting behind an accepted opaque hit.
 
-Sources: [screen tracer](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh), [shared hit-lighting evaluator](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_near_field_hit_lighting.glsl), [reproduction controls](../VanillaGraphicsExpanded.Tests/GPU/LumOnNearFieldFunctionalTests.ScreenHits.cs).
+Sources: [screen tracer](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/lumon_probe_atlas_trace.fsh), [shared hit-lighting evaluator](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/lumon_near_field_hit_lighting.glsl), [reproduction controls](../VanillaGraphicsExpanded.Tests/Component/LumOn/LumOnNearFieldFunctionalTests.ScreenHits.cs).
 
 Limits: this retains the voxel-light approximation and published full-cube geometry requirements. Screen hits now incur bounded local traversal and shading work; live GPU cost remains unmeasured. Near-field hit lighting is unchanged by world-cache suppression, so a black WP lighting-effect view does not mean this local lighting is absent.
 ### WP-03: SH projection biases angular energy by confidence
@@ -211,7 +211,7 @@ Automated cases now cover both replacements, including doorways, blocked neighbo
 - [ ] Correct angular confidence weighting and readiness/publication contracts where the reproduction confirms impact.
 - [ ] Assess further shared scene-lighting integration beyond the near-field hit radiance source established by the priority design work.
 
-The [world-fallback GPU tests](../VanillaGraphicsExpanded.Tests/GPU/LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests.cs) now also accept voxel-derived atlas data and verify separate histories, filtering, both gather modes, and signed diagnostic output. The [reproduction report](LumOn.WorldProbeLighting.ReproductionTests.md) records focused validation and its limits. Scheduler behavior, production upload/publication, upsampling, final composition and live-game correctness remain unverified by this fixture.
+The [world-fallback GPU tests](../VanillaGraphicsExpanded.Tests/Component/LumOn/LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests.cs) now also accept voxel-derived atlas data and verify separate histories, filtering, both gather modes, and signed diagnostic output. The [reproduction report](LumOn.WorldProbeLighting.ReproductionTests.md) records focused validation and its limits. Scheduler behavior, production upload/publication, upsampling, final composition and live-game correctness remain unverified by this fixture.
 
 The sampling-path replacements and their automated visibility regressions are complete. The next validation is live scene appearance and performance, followed by the remaining end-to-end lighting and readiness investigations above.
 

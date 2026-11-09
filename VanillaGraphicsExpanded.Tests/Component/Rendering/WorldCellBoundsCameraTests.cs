@@ -1,0 +1,118 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using VanillaGraphicsExpanded.DebugView;
+using VanillaGraphicsExpanded.Rendering.Shaders;
+using Vintagestory.API.MathTools;
+using Vintagestory.API.Client;
+using Vintagestory.API.Common;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+
+namespace VanillaGraphicsExpanded.Tests.Component.Rendering;
+
+/// <summary>Exercises the bounds renderer's stage wiring and shared camera projection without a game world.</summary>
+public sealed class WorldCellBoundsCameraTests
+{
+    #region Public API
+    /// <summary>World lines subscribe to the terrain camera stage and retire the same registration.</summary>
+    [Fact]
+    public void BoundsUseSceneStageAndUnregisterIt()
+    {
+        // Arrange: script only the registration boundary, leaving unrelated engine access unavailable.
+        var calls = new List<(string Name, EnumRenderStage Stage)>();
+        var events = Proxy<IClientEventAPI>((method, args) =>
+        {
+            if (method.Name is "RegisterRenderer" or "UnregisterRenderer")
+                calls.Add((method.Name, (EnumRenderStage)args![1]!));
+            return null;
+        });
+        var api = Client(events, null);
+        // Act: construct the production nested renderer, invoke the irrelevant stage, and dispose it.
+        using (var renderer = CreateRenderer(api))
+        {
+            Assert.Equal(new[] { ("RegisterRenderer", EnumRenderStage.OIT) }, calls);
+            // A late overlay callback must not query camera, shader, or world services.
+            renderer.OnRenderFrame(.016f, EnumRenderStage.AfterBlit);
+        }
+        // Assert: registration and retirement use the same OIT stage.
+        Assert.Equal(new[] { ("RegisterRenderer", EnumRenderStage.OIT), ("UnregisterRenderer", EnumRenderStage.OIT) }, calls);
+    }
+
+    /// <summary>The shader retains its frame-camera binding, which preserves scene-view translation in projection.</summary>
+    [Theory]
+    [InlineData(-.25f)]
+    [InlineData(0f)]
+    [InlineData(.25f)]
+    public void FrameCameraBindingPreservesSceneViewTranslation(float bob)
+    {
+        // Arrange: use a nonzero eye translation and view bob so dropped view state is observable.
+        float[] projection = [2,0,0,0, 0,3,0,0, 0,0,-1,-1, 0,0,-2,0];
+        float[] view = [1,0,0,0, 0,1,0,0, 0,0,1,0, -.3f,-1.6f-bob,.2f,1];
+        using var frameCamera = TestFrameCamera.Create(Mat4f.Invert(new float[16], projection), view, 1920, 1080);
+        using var shader = new VgeDebugLinesShaderProgram { FrameInputs = frameCamera };
+        Assert.Same(frameCamera, ((IVgeDebugLinesShaderProgramBindings)shader).FrameInputs);
+        // Independent scalar oracle applies view then projection, with a nonzero position and homogeneous W.
+        float[] point = [1.25f, 2.5f, -8, 1];
+        // Act: compose an independent scalar projection and compare it with the captured frame matrix.
+        float[] expected = Transform(projection, Transform(view, point));
+        float[] uploadedMatrix = frameCamera.CurrentViewProjection.ToArray();
+        float[] actual = Transform(uploadedMatrix, point);
+        // Assert: all clip-space components preserve the full view translation.
+        for (int i = 0; i < 4; i++) Assert.InRange(actual[i], expected[i] - .00001f, expected[i] + .00001f);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Constructs the production nested renderer, retaining its constructor and disposal behavior.</summary>
+    private static IRenderer CreateRenderer(ICoreClientAPI api)
+    {
+        var type = typeof(VgeBuiltInDebugViews).GetNestedType("VgeWorldCellBoundsWireframeRenderer", BindingFlags.NonPublic)!;
+        return (IRenderer)Activator.CreateInstance(type, api)!;
+    }
+
+    /// <summary>Supplies only constructor and matrix dependencies; unexpected access fails the fixture.</summary>
+    private static ICoreClientAPI Client(IClientEventAPI events, IRenderAPI? render)
+    {
+        var loader = Proxy<IModLoader>((method, _) => method.Name == "GetModSystem" ? null : throw new InvalidOperationException(method.Name));
+        return Proxy<ICoreClientAPI>((method, _) => method.Name switch
+        {
+            "get_Event" => events,
+            "get_ModLoader" => loader,
+            "get_Render" => render,
+            _ => throw new InvalidOperationException(method.Name)
+        });
+    }
+
+    /// <summary>Applies a column-major matrix with an independent scalar multiplication oracle.</summary>
+    private static float[] Transform(float[] matrix, float[] point)
+    {
+        var result = new float[4];
+        for (int row = 0; row < 4; row++)
+        for (int column = 0; column < 4; column++) result[row] += matrix[column * 4 + row] * point[column];
+        return result;
+    }
+
+    /// <summary>Creates a narrowly scripted API interface without implementing unrelated engine behavior.</summary>
+    private static T Proxy<T>(System.Func<MethodInfo, object?[]?, object?> invoke) where T : class
+    {
+        T instance = DispatchProxy.Create<T, ApiProxy>();
+        ((ApiProxy)(object)instance).Handler = invoke;
+        return instance;
+    }
+
+    /// <summary>Routes proxied engine API calls through the scenario's scripted handler.</summary>
+    public class ApiProxy : DispatchProxy
+    {
+        #region Public API
+        /// <summary>Gets or sets the handler used to answer the proxied interface call.</summary>
+        public System.Func<MethodInfo, object?[]?, object?> Handler { get; set; } = null!;
+
+        #endregion
+
+        #region Private
+
+        /// <summary>Forwards calls while preserving their actual method and arguments.</summary>
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) => Handler(targetMethod!, args);
+        #endregion
+    }
+    #endregion
+}

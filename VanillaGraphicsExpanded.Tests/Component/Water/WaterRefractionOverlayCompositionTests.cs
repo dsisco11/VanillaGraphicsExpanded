@@ -1,0 +1,119 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Collections.Immutable;
+using System.Numerics;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.PBR.Liquids;
+using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.Rendering;
+using Vintagestory.API.Client;
+using Vintagestory.GameContent;
+
+
+namespace VanillaGraphicsExpanded.Tests.Component.Water;
+
+/// <summary>Checks clean world restoration in the production composite without altering first-person presentation.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
+{
+
+
+    #region Public API
+    /// <summary>Restores only overlay pixels, retaining invalid metadata when no clean world capture exists.</summary>
+    [Theory]
+    [InlineData(false, false, false)]
+    [InlineData(false, false, true)]
+    [InlineData(false, true, false)]
+    [InlineData(false, true, true)]
+    [InlineData(true, true, false)]
+    [InlineData(true, true, true)]
+    public void CleanCaptureRestoresWorldBehindFirstPersonPixels(bool lumon, bool overlay, bool captured)
+    {
+        // Arrange: establish this scenario's controlled inputs and starting state.
+
+        EnsureShaderTestAvailable();
+        // Arrange: capture fixed-function state for restoration around the composite draw.
+        using var fixedFunction = LegacyFixedFunctionReference.Capture(OpenGlStateCache.Current);
+        var program = Programs.Create<PBRCompositeShaderProgram>(value =>
+        {
+            value.LumOnEnabled = lumon;
+            value.EnablePbrComposite = false;
+            value.EnableShortRangeAo = false;
+        });
+        using var direct = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [6f, 3f, 2f, 1f]);
+        using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [0f, 0f, 0f, 0f]);
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [overlay ? .01f : .8f]);
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, 1f, .5f, overlay ? -1f : 1f]);
+        using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [0f, 0f, -.1f, 1f]);
+        using var cleanColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var cleanDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        cleanColor.UploadDataImmediate([2f, 1f, .5f, 1f]);
+        cleanDepth.UploadDataImmediate([.75f]);
+        using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.R32f);
+        using var atmosphere = new AtmosphereModSystem();
+        var snapshot = new AtmosphereLighting(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
+            ImmutableArray.Create(0f, 0f, 0f, 1f))
+        {
+            Width = 1,
+            Height = 1,
+            AerialRadiance = ImmutableArray.CreateRange(new float[96]),
+            AerialAttenuation = ImmutableArray.CreateRange(new float[96])
+        };
+        atmosphere.Publish(snapshot);
+        using var directLighting = LayeredTestTexture.Create(ImageAssertions.Programs, direct, zero, zero);
+        program.DirectLighting = directLighting;
+        program.IndirectDiffuse = zero;
+        program.GBufferAlbedo = zero;
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, zero, zero);
+        program.GBufferSurface = surface;
+        program.GBufferPosition = position;
+        program.PrimaryDepth = depth;
+        using var frameCamera = TestFrameCamera.Create([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 20, 0, 0, 0, 0, 1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
+        program.FrameInputs = frameCamera;
+
+        program.SetAtmosphere(snapshot);
+        program.SetWaterVolume(null);
+        program.SetUnderwater(false);
+        program.RefractionSourceEnabled = true;
+        program.PreOverlaySourceEnabled = captured;
+        // Missing capture deliberately leaves optional samplers absent; the availability guard must prevent fetches.
+        program.PreOverlayColor = captured ? cleanColor : null;
+        program.PreOverlayDepth = captured ? cleanDepth : null;
+        // Act: run the composite with the selected clean-capture and first-person overlay inputs.
+        TestFramework.RenderQuadTo(program, target);
+        float[] presentation = target[0].ReadPixels();
+        float[] source = target[1].ReadPixels();
+        float[] sourceDepth = target[2].ReadPixels();
+        bool restored = overlay && captured;
+        bool unavailable = overlay && !captured;
+        float[] expected = unavailable ? [0f, 0f, 0f] : restored ? [2f, 1f, .5f] : [6f, 3f, 2f];
+        // The visible first-person composite retains its own lighting; only the immutable refraction pair is restored.
+        // Assert: verify presentation, restored source radiance, and unavailable-source metadata.
+        for (int channel = 0; channel < 3; ++channel)
+        {
+            Assert.InRange(MathF.Abs(presentation[channel] - new float[] { 6f, 3f, 2f }[channel]), 0, .0001f);
+            Assert.InRange(MathF.Abs(source[channel] - expected[channel]), 0, .0001f);
+        }
+        // An unavailable physical pair is sanitized at publication, before depth-only searches.
+        Assert.Equal(unavailable ? 0f : 1f, source[3]);
+        Assert.InRange(MathF.Abs(sourceDepth[0] - (unavailable ? 1f : restored ? .75f : .8f)), 0, .000001f);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+        // The fixture's raw texture helpers do not own VGE's resource-slot cache.
+        OpenGlStateCache.Current.InvalidateAll();
+    }
+
+
+    #endregion
+    #region Private
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.Support.GPU.Observations.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+    }
+    #endregion
+}

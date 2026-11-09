@@ -5,13 +5,17 @@ namespace VanillaGraphicsExpanded.Tests.Unit.Rendering.Contracts;
 /// <summary>Requires generated references to own the complete packaged catalog and its isolated scopes.</summary>
 public sealed class GeneratedShaderCatalogTests
 {
+    #region Public API
     #region Generated coverage
     /// <summary>Every packaged contract comes directly from the generated catalog, without a reflection fallback.</summary>
     [Fact]
     public void GeneratedCatalogContainsEveryPackagedProgram()
     {
+        // Arrange: Read the immutable generated program declarations for this test process.
+        // Act: Enumerate their stages, assignments, and compiled binary selections.
         var generated = GeneratedShaderCatalog.Programs();
         // Keep the aggregate inventory together so drift reports every changed count.
+        // Assert: Freeze the inventory and ensure every program is the registry-owned instance.
         Assert.Equal((Programs: 183, Stages: 232, Assignments: 792, Binaries: 807),
             (Programs: generated.Count,
                 Stages: generated.SelectMany(p => p.Stages).Select(s => s.Identity).Distinct().Count(),
@@ -19,8 +23,10 @@ public sealed class GeneratedShaderCatalogTests
                 Binaries: new ShaderVariantResolver(generated).Binaries.Count));
         Assert.Equal(GpuShaderContracts.Registry.Programs.Keys.Order(StringComparer.Ordinal), generated.Select(p => p.Identity).Order(StringComparer.Ordinal));
         Assert.All(generated, program => Assert.Same(program, GpuShaderContracts.Registry.FindProgram(program.Identity)));
+        // Act: Project away diagnostic test programs to inspect only distributable output.
         // The build tool omits diagnostic tests/ programs from the distributable catalog.
         var packaged = generated.Where(program => !program.Identity.StartsWith("tests/", StringComparison.Ordinal));
+        // Assert: The packaged subset retains its frozen binary count.
         Assert.Equal(761, new ShaderVariantResolver(packaged).Binaries.Count);
     }
 
@@ -28,10 +34,13 @@ public sealed class GeneratedShaderCatalogTests
     [Fact]
     public void GeneratedScopesKeepFixturesSeparate()
     {
+        // Arrange and act: Materialize the isolated validation and generator scopes.
         var isolated = GeneratedShaderCatalog.Programs("build-validation");
+        // Assert: Fixture declarations stay isolated from the distributable catalog.
         Assert.Equal(2, isolated.Count);
         Assert.All(isolated, program => Assert.DoesNotContain(GeneratedShaderCatalog.Programs(), p => p.Identity == program.Identity));
         Assert.Single(GeneratedShaderCatalog.Programs("generator-fixture"));
     }
+    #endregion
     #endregion
 }

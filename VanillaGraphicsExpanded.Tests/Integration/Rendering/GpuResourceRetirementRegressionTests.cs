@@ -1,0 +1,257 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.Rendering;
+
+/// <summary>Checks borrowed transfer rejection, backing deletion dependencies, and deferred shader retirement.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixture)
+{
+    #region Public API
+    /// <summary>Non-owning renderbuffer and framebuffer wrappers cannot transfer an external owner's identity.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void NonOwningWrapRejectsExternalOwnerHandleTransfer(bool framebuffer, bool releaseHandle)
+    {
+        // Arrange: create an owned native object and a borrowed wrapper of the selected resource kind.
+        fixture.EnsureContextValid();
+        fixture.InitializeResourceDisposal();
+        try
+        {
+            using GpuResource owner = framebuffer
+                ? DynamicGpuFramebuffer.CreateEmpty()
+                : RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
+            if (owner is GpuFramebuffer target) target.Bind();
+            using GpuResource borrower = framebuffer
+                ? DynamicGpuFramebuffer.Wrap(checked((int)owner.ResourceId), width: 4, height: 4)
+                : VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderbufferIntegration.Borrow(checked((int)owner.ResourceId));
+            nint original = owner.ResourceId;
+            // Act: attempt to transfer the borrowed identity through either public ownership API.
+            Assert.Throws<NotSupportedException>(() => { if (releaseHandle) borrower.ReleaseHandle(); else borrower.Detach(); });
+
+            // Assert: rejected transfer leaves both wrappers and the native owner unchanged.
+            Assert.Equal(original, owner.ResourceId);
+            Assert.True(owner.IsValid);
+            Assert.False(borrower.IsDisposed);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Observed backing deletion withdraws dependent usability before or after explicit managed association.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BackingDeletionInvalidatesDependentMetadata(bool associateBacking)
+    {
+        // Arrange: create a native buffer backing a texture view, with optional canonical acquisition first.
+        fixture.EnsureContextValid();
+        fixture.InitializeResourceDisposal();
+        int buffer = GL.GenBuffer();
+        try
+        {
+            using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer))
+                GL.BufferData(BufferTarget.ArrayBuffer, 1024, IntPtr.Zero, BufferUsageHint.StaticDraw);
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            var original = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, buffer));
+            if (associateBacking) Assert.Same(original, manager.AcquireResource(GpuResourceKind.Buffer, buffer, new GpuBufferMetadataReader()));
+            using var view = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTextureIntegration.CreateBufferView(buffer, SizedInternalFormat.R32f, true, 0, 0, null).RequireResource();
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(view));
+            Assert.True(entry.MetadataAvailable);
+            // Act: retire the backing buffer through the production resource manager.
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer));
+
+            // Assert: dependent view facts become unavailable while its last descriptor remains private.
+            Assert.False(GL.IsBuffer(buffer));
+            Assert.Null(manager.FindResource(GpuResourceKind.Buffer, buffer));
+            Assert.Equal(GpuResourceRegistrationState.Deleted, original.State);
+            Assert.False(entry.MetadataAvailable);
+            Assert.False(view.IsValid);
+            Assert.False(view.HasMetadataSnapshot);
+            Assert.Equal(0, view.BufferId);
+            // The last descriptor remains private for recovery/provenance, rather than being
+            // exposed as supplied usable facts after backing availability has been withdrawn.
+            Assert.Equal((nint)buffer, view.PublishedMetadata.Buffer!.Value.BufferId);
+            GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)All.TextureBufferDataStoreBindingExt, out int actualBuffer);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            if (GL.IsBuffer(buffer)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer));
+            fixture.CleanupGpuResources();
+            OpenGlStateCache.Current.InvalidateAll();
+        }
+    }
+
+    /// <summary>A delete-pending shader cannot regain a live canonical registration before physical destruction.</summary>
+    [Fact]
+    public void DeletePendingShaderCannotBeReacquiredAsLive()
+    {
+        // Arrange: attach a shader so native deletion remains deferred after retirement is observed.
+        fixture.EnsureContextValid();
+        fixture.InitializeResourceDisposal();
+        int shader = GL.CreateShader(ShaderType.VertexShader);
+        int program = GL.CreateProgram();
+        GpuShaderModule? original = null;
+        bool attached = false;
+        try
+        {
+            GL.AttachShader(program, shader);
+            attached = true;
+            original = new GpuShaderModule(shader, ShaderStage.Vertex);
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            var retired = manager.GetResourceRegistration(original)!;
+            // Act: retire the still-attached shader before detaching it from the program.
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
+
+            // Assert: the pending native name is no longer adoptable through its old registration.
+            Assert.Equal(GpuResourceRegistrationState.Deleted, retired.State);
+            Assert.True(GL.IsShader(shader));
+            GL.GetShader(shader, ShaderParameter.DeleteStatus, out int pending);
+            Assert.Equal(1, pending);
+            Assert.Throws<InvalidOperationException>(() => new GpuShaderModule(shader, ShaderStage.Vertex));
+            Assert.Null(manager.FindResource(GpuResourceKind.Shader, shader));
+            GL.DetachShader(program, shader);
+            attached = false;
+            Assert.False(GL.IsShader(shader));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            original?.Dispose();
+            if (attached && GL.IsProgram(program) && GL.IsShader(shader)) GL.DetachShader(program, shader);
+            if (GL.IsProgram(program)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program));
+            if (GL.IsShader(shader)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
+            fixture.CleanupGpuResources();
+            OpenGlStateCache.Current.InvalidateAll();
+        }
+    }
+    /// <summary>A current program marked for deletion cannot be adopted again while its native destruction is deferred.</summary>
+    [Fact]
+    public void DeletePendingCurrentProgramCannotBeReacquiredAsLive()
+    {
+        // Arrange: link an executable and make it current so native deletion remains pending.
+        fixture.EnsureContextValid();
+        fixture.InitializeResourceDisposal();
+        int shader = GL.CreateShader(ShaderType.VertexShader), program = GL.CreateProgram();
+        GpuProgramObject? original = null;
+        try
+        {
+            // Linking a minimal executable makes the program eligible to remain current after deletion.
+            GL.ShaderSource(shader, "#version 430\nvoid main() { gl_Position = vec4(0.0); }");
+            GL.CompileShader(shader);
+            GL.AttachShader(program, shader);
+            GL.LinkProgram(program);
+            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
+            Assert.Equal(1, linked);
+            original = GpuProgramObject.Adopt(program);
+            GL.UseProgram(program);
+            OpenGlStateCache.Current.InvalidateAll();
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            var retired = manager.GetResourceRegistration(original)!;
+            // Act: request native deletion while the executable is current.
+            GL.DeleteProgram(program);
+
+            // Assert: the deferred native object cannot be adopted as a live registry entry.
+            Assert.True(GL.IsProgram(program));
+            GL.GetProgram(program, GetProgramParameterName.DeleteStatus, out int pending);
+            Assert.Equal(1, pending);
+            Assert.Equal(GpuResourceRegistrationState.Deleted, retired.State);
+            Assert.Throws<InvalidOperationException>(() => GpuProgramObject.Adopt(program));
+            Assert.Null(manager.FindResource(GpuResourceKind.Program, program));
+            GL.UseProgram(0);
+            Assert.False(GL.IsProgram(program));
+            using var fresh = NativeResourceSetup.CreateProgram();
+            Assert.True(fresh.IsValid);
+            Assert.NotSame(retired, manager.GetResourceRegistration(fresh));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            GL.UseProgram(0);
+            original?.Dispose();
+            if (GL.IsProgram(program)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program));
+            if (GL.IsShader(shader)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
+            fixture.CleanupGpuResources();
+            OpenGlStateCache.Current.InvalidateAll();
+        }
+    }
+
+    /// <summary>Deletion detaches bound images while unbound descriptors retain their retired original backing identity.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void FramebufferBackingDeletionPreservesBoundAndRetainedSemantics(bool renderbuffer, bool boundAtDeletion)
+    {
+        // Arrange: attach raw native storage and publish an actual framebuffer descriptor.
+        fixture.EnsureContextValid();
+        fixture.InitializeResourceDisposal();
+        int backing = renderbuffer ? GL.GenRenderbuffer() : GL.GenTexture();
+        int framebuffer = GL.GenFramebuffer();
+        try
+        {
+            // Raw factories and setup are maintained before a wrapper requests their facts.
+            if (renderbuffer)
+            {
+                GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, backing);
+                GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.Rgba8, 4, 4);
+            }
+            else
+            {
+                GL.BindTexture(TextureTarget.Texture2D, backing);
+                GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 4, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            }
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
+            if (renderbuffer) GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, backing);
+            else GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, backing, 0);
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            var original = manager.FindResource(renderbuffer ? GpuResourceKind.Renderbuffer : GpuResourceKind.Texture, backing)!;
+            var entry = manager.AcquireResource(GpuResourceKind.Framebuffer, framebuffer, GpuFramebufferMetadataReader.Instance)!;
+            Assert.NotNull(entry);
+            Assert.True(entry.MetadataAvailable);
+            Assert.Same(original, entry.Metadata.Attachments[FramebufferSlot.Color0].OriginalBacking);
+            using var borrower = DynamicGpuFramebuffer.Wrap(framebuffer, width: 4, height: 4);
+            borrower.PublishRenderPassMetadata();
+            var selectedImage = Assert.IsType<GpuFramebufferAttachment>(borrower.GetAttachment(FramebufferSlot.Color0));
+            if (!boundAtDeletion) GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+            // Act: retire the selected backing object with the framebuffer either bound or detached.
+            if (renderbuffer) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, backing));
+            else RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, backing));
+            // Assert: bound and retained framebuffer paths preserve their distinct native semantics.
+            Assert.Equal(GpuResourceRegistrationState.Deleted, original.State);
+            Assert.False(manager.IsResourceMetadataAvailable(selectedImage));
+            // Bound framebuffer deletion detaches its images. An unbound framebuffer retains
+            // the old object, represented by its retired original registration rather than a name lookup.
+            Assert.True(entry.MetadataAvailable);
+            if (boundAtDeletion)
+            {
+                Assert.Empty(entry.Metadata.Attachments);
+                Assert.Null(borrower.GetAttachment(FramebufferSlot.Color0));
+            }
+            else
+            {
+                Assert.Same(original, entry.Metadata.Attachments[FramebufferSlot.Color0].OriginalBacking);
+                Assert.ThrowsAny<InvalidOperationException>(() => selectedImage.ValidateSlot(FramebufferSlot.Color0));
+            }
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, framebuffer));
+            if (renderbuffer && GL.IsRenderbuffer(backing)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, backing));
+            if (!renderbuffer && GL.IsTexture(backing)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, backing));
+            fixture.CleanupGpuResources();
+            OpenGlStateCache.Current.InvalidateAll();
+        }
+    }
+    #endregion
+}

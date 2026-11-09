@@ -4,8 +4,11 @@ using VanillaGraphicsExpanded.LumOn.WorldProbes;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 
+/// <summary>Checks lum on clipmap topology behavior and contract rules.</summary>
 public sealed class LumOnClipmapTopologyTests
 {
+    #region Public API
+    /// <summary>Verifies the update origins origin matches snapped anchor behavior.</summary>
     [Theory]
     [InlineData(0.0, 1.7, 0.0)]
     [InlineData(0.99, 3.01, 0.99)]
@@ -14,12 +17,14 @@ public sealed class LumOnClipmapTopologyTests
     [InlineData(-12.34, -64.0, 98.76)]
     public void UpdateOrigins_OriginMatchesSnappedAnchor(double camX, double camY, double camZ)
     {
+        // Arrange
         const int resolution = 8;
         const double baseSpacing = 2.0;
 
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution);
+        // Act
         scheduler.UpdateOrigins(new Vec3d(camX, camY, camZ), baseSpacing);
-
+        // Assert
         Assert.True(scheduler.TryGetLevelParams(0, out var origin, out _));
 
         var cam = new Vec3d(camX, camY, camZ);
@@ -31,6 +36,7 @@ public sealed class LumOnClipmapTopologyTests
         Assert.Equal(expected.Z, origin.Z, 10);
     }
 
+    /// <summary>Verifies the update origins camera local stays near clipmap center behavior.</summary>
     [Theory]
     [InlineData(0.0, 1.7, 0.0)]
     [InlineData(1.99, 3.99, 1.99)]
@@ -38,12 +44,14 @@ public sealed class LumOnClipmapTopologyTests
     [InlineData(-1.99, -3.01, -1.99)]
     public void UpdateOrigins_CameraLocalStaysNearClipmapCenter(double camX, double camY, double camZ)
     {
+        // Arrange
         const int resolution = 8;
         const double spacing = 2.0;
 
         var scheduler = new LumOnWorldProbeScheduler(levelCount: 1, resolution);
+        // Act
         scheduler.UpdateOrigins(new Vec3d(camX, camY, camZ), spacing);
-
+        // Assert
         Assert.True(scheduler.TryGetLevelParams(0, out var origin, out _));
 
         Vec3d local = LumOnClipmapTopology.WorldToLocal(new Vec3d(camX, camY, camZ), origin, spacing);
@@ -56,9 +64,11 @@ public sealed class LumOnClipmapTopologyTests
         Assert.InRange(local.Z, half, half + 1.0);
     }
 
+    /// <summary>Verifies the index to probe center world first and last centers are inside outer bounds behavior.</summary>
     [Fact]
     public void IndexToProbeCenterWorld_FirstAndLastCentersAreInsideOuterBounds()
     {
+        // Arrange
         const int resolution = 8;
         const double spacing = 2.0;
 
@@ -67,12 +77,13 @@ public sealed class LumOnClipmapTopologyTests
         var origin = LumOnClipmapTopology.GetOriginMinCorner(anchor, spacing, resolution);
 
         double size = spacing * resolution;
-
+        // Act
         Vec3d first = LumOnClipmapTopology.IndexToProbeCenterWorld(new Vec3i(0, 0, 0), origin, spacing);
         Vec3d last = LumOnClipmapTopology.IndexToProbeCenterWorld(new Vec3i(resolution - 1, resolution - 1, resolution - 1), origin, spacing);
 
         // Centers are offset by half a cell from the outer bounds.
         double inset = spacing * 0.5;
+        // Assert
         Assert.Equal(origin.X + inset, first.X, 10);
         Assert.Equal(origin.Y + inset, first.Y, 10);
         Assert.Equal(origin.Z + inset, first.Z, 10);
@@ -89,5 +100,5 @@ public sealed class LumOnClipmapTopologyTests
         Assert.InRange(last.Y, origin.Y, origin.Y + size);
         Assert.InRange(last.Z, origin.Z, origin.Z + size);
     }
+    #endregion
 }
-

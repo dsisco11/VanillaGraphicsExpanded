@@ -9,7 +9,7 @@ and [RHI ownership contracts](Rendering.GpuCommands.Contracts.md#authority-and-o
 
 ## Reproduction
 
-The CPU-only [ResourcePublicationTraversalTests](../VanillaGraphicsExpanded.Tests/Unit/Rendering/ResourcePublicationTraversalTests.cs)
+The CPU-only [ResourcePublicationTraversalTests](../VanillaGraphicsExpanded.Tests/Component/Rendering/ResourcePublicationTraversalTests.cs)
 creates one VAO registration and unrelated buffer registrations, then publishes the same VAO facts eight
 times. A scoped, test-only Harmony probe counts actual iterations of the existing recovery loop.
 It adds no production counters, native GL work, timing threshold or game launch.

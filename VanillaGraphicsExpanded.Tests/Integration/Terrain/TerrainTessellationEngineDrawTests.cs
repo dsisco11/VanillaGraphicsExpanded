@@ -1,0 +1,224 @@
+using VanillaGraphicsExpanded.Tests.Integration.Terrain.Fixtures;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Terrain;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.PBR.Materials;
+using System.Runtime.CompilerServices;
+using HarmonyLib;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.HarmonyPatches;
+using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.PBR.Tessellation;
+using VanillaGraphicsExpanded.Rendering;
+using Vintagestory.Client.NoObf;
+
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.Terrain;
+
+/// <summary>Exercises the engine's actual grouped draw and safe candidate rejection without a game instance.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
+{
+
+
+    #region Public API
+    /// <summary>Uses the shared headless context.</summary>
+    public TerrainTessellationEngineDrawTests(HeadlessGLFixture fixture) : base(fixture) { }
+
+    #region Production grouped draw
+    /// <summary>The patched engine multidraw preserves index offsets/counts and restores patch state.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw(bool ordinaryDraw)
+    {
+        // Arrange: establish this scenario's controlled inputs and starting state.
+
+        EnsureContextValid();
+        // These raw engine fixture draws require an authored baseline, independently of earlier tests.
+        GL.Disable(EnableCap.RasterizerDiscard); GL.Disable(EnableCap.ScissorTest); GL.Disable(EnableCap.StencilTest);
+        GL.Disable(EnableCap.CullFace); GL.Disable(EnableCap.SampleCoverage); GL.Disable(EnableCap.SampleMask);
+        for(int index=0;index<GpuSupport.Graphics.MaxClipDistances;index++)GL.Disable(EnableCap.ClipDistance0+index);
+        GL.ColorMask(true,true,true,true); GL.PolygonMode(TriangleFace.FrontAndBack,PolygonMode.Fill);
+        OpenGlStateCache.Current.InvalidateAll();
+        using var shaders = new TerrainShaderTestFixture();
+        int vertex = shaders.Compile(ShaderType.VertexShader, VertexSource);
+        int fragment = shaders.Compile(ShaderType.FragmentShader, FragmentSource);
+        var owner = CreateOwner(shaders, vertex, fragment);
+        using var vertexArray = NativeResourceSetup.CreateVertexArray();
+        int vao = vertexArray.VertexArrayId, indices = GL.GenBuffer();
+        var harmony = new Harmony("VGE.Tests.TerrainGroupedDraw");
+        var previous = ShaderProgramBase.CurrentShaderProgram;
+        var previousMode = ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode;
+        bool previousHook = TerrainTessellationPrograms.DrawHookAvailable; bool previousMeshHook = TerrainTessellationPrograms.MeshDrawHookAvailable;
+        int previousPatch = OpenGlStateCache.Current.PatchVertices;
+        var previousProvoking = OpenGlStateCache.Current.ProvokingVertex;
+        var previousLog = TerrainTessellationPrograms.Log;
+        string diagnostic = string.Empty;
+        try
+        {
+        // Arrange native state and Harmony interception before comparing ordinary and patched draw paths.
+            OpenGlStateCache.Current.SetProvokingVertex(ProvokingVertexMode.LastVertexConvention);
+            TerrainTessellationPrograms.Log = message => diagnostic += message;
+            harmony.CreateClassProcessor(typeof(TerrainTessellationDrawHook)).Patch();
+        // Act and assert: submit the selected engine route, then verify captured state and output.
+            Assert.True(TerrainTessellationPrograms.DrawHookAvailable);
+            OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao); GL.BindBuffer(BufferTarget.ElementArrayBuffer, indices);
+            // Grouped draws skip sentinel indices; ordinary draws use the first triangle directly.
+            GL.BufferData(BufferTarget.ElementArrayBuffer, 6 * sizeof(uint),
+                ordinaryDraw ? new uint[] { 0, 1, 2, 0, 1, 2 } : new uint[] { 2, 2, 2, 0, 1, 2 }, BufferUsageHint.StaticDraw);
+            using var framework = new ShaderTestFramework();
+            using var target = framework.CreateTestGBuffer(8, 8, TextureFormat.Rgba32f);
+            using var camera = TestFrameCamera.CreateIdentity(8,8);
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+            FramebufferTestSetup.BindForEngineRendering(target); GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, owner.ProgramId);
+            GL.DrawElements(PrimitiveType.Triangles, 3, DrawElementsType.UnsignedInt, 3 * sizeof(uint));
+            using var expected=new GpuImageSnapshot(target[0]);
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = 2;
+            TerrainTessellationTestAssets.Prepare(owner);
+            TerrainTessellationPatches.Configure(owner);
+            TerrainTessellationPrograms.Prepare(owner);
+            owner.PopulateDisplacementUniforms();
+            ShaderProgramBase.CurrentShaderProgram = owner;
+            Assert.True(TerrainTessellationPrograms.Active, diagnostic);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, owner.ProgramId);
+            owner.Uniform("vge_displacementTex", 13);
+            owner.Uniform("vge_displacementRecords", 14);
+            owner.Uniform("vge_normalDepthTex", 15);
+            GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
+            OpenGlStateCache.Current.SetPatchVertices(5);
+            // Installed IL uses no instance fields: this avoids creating windows, audio or a game.
+            var platform = (ClientPlatformWindows)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlatformWindows));
+            // Uninitialized engine owners must not finalize absent game state; this test releases GL resources explicitly.
+            GC.SuppressFinalize(platform);
+            var mesh = (VAO)RuntimeHelpers.GetUninitializedObject(typeof(VAO));
+            GC.SuppressFinalize(mesh);
+            mesh.VaoId = vao; mesh.vboIdIndex = indices; mesh.drawMode = PrimitiveType.Triangles;
+            mesh.IndicesCount = 3;
+            int[] offsets = [3 * sizeof(uint), 0];
+            int[] counts = [3];
+            if (ordinaryDraw) platform.RenderMesh(mesh);
+            else platform.RenderMesh(mesh, offsets, counts, 1, false);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+            Assert.Equal(new[] { 12, 0 }, offsets); Assert.Equal(new[] { 3 }, counts);
+            Assert.Equal(PrimitiveType.Triangles, mesh.drawMode);
+            Assert.Equal(5, GL.GetInteger(GetPName.PatchVertices));
+            Assert.True(GpuLocalRead.Scalar(target[0],3)>.9f);
+            // A managed argument failure must also execute the installed finalizer.
+            Assert.ThrowsAny<Exception>(() => platform.RenderMesh(null!, offsets, counts, 1, false));
+            Assert.Equal(5, GL.GetInteger(GetPName.PatchVertices));
+            // Close the manually declared engine interval after checking its native handback.
+            ShaderProgramBase.CurrentShaderProgram = null;
+            ImageAssertions.Predicates.Predicate(target[0], GeometryPredicates.TerrainTessellationEngineDrawTests_PatchedEngineGroupedDrawMatchesOrdinaryIndexedDraw,expected.Texture).AssertEqual();
+        }
+        finally
+        {
+            harmony.UnpatchAll(harmony.Id);
+            TerrainTessellationPrograms.Forget(owner); ShaderProgramBase.CurrentShaderProgram = previous;
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = previousMode;
+            TerrainTessellationPrograms.DrawHookAvailable = previousHook; TerrainTessellationPrograms.MeshDrawHookAvailable = previousMeshHook;
+            OpenGlStateCache.Current.SetPatchVertices(previousPatch);
+            OpenGlStateCache.Current.SetProvokingVertex(previousProvoking);
+            TerrainTessellationPrograms.Log = previousLog;
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0); GL.DeleteBuffer(indices);
+            GpuProgramObject.Adopt(owner.ProgramId).Dispose();
+        }
+    }
+    #endregion
+
+    #region Failure ownership
+    /// <summary>An unsupported output array leaves the original executable and shader ownership intact.</summary>
+    [Fact]
+    public void UnsupportedInterfaceRetainsOrdinaryExecutable()
+    {
+        // Arrange: establish this scenario's controlled inputs and starting state.
+
+        EnsureContextValid();
+        using var shaders = new TerrainShaderTestFixture();
+        int vertex = shaders.Compile(ShaderType.VertexShader, VertexSource.Replace("out vec4 rgba;", "out vec4 rgba[1];").Replace("rgba =", "rgba[0] ="));
+        int fragment = shaders.Compile(ShaderType.FragmentShader, FragmentSource.Replace("in vec4 rgba;", "in vec4 rgba[1];").Replace("color=rgba;", "color=rgba[0];"));
+        var owner = CreateOwner(shaders, vertex, fragment);
+        int original = owner.ProgramId;
+        var previousMode = ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode;
+        bool previousHook = TerrainTessellationPrograms.DrawHookAvailable; bool previousMeshHook = TerrainTessellationPrograms.MeshDrawHookAvailable;
+        var previousLog = TerrainTessellationPrograms.Log;
+        try
+        {
+            ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = 2;
+            TerrainTessellationPrograms.DrawHookAvailable = true; TerrainTessellationPrograms.MeshDrawHookAvailable = true;
+            string diagnostic = ""; TerrainTessellationPrograms.Log = message => diagnostic += message;
+            TerrainTessellationTestAssets.Prepare(owner);
+            TerrainTessellationPatches.Configure(owner);
+            TerrainTessellationPrograms.Prepare(owner);
+            owner.PopulateDisplacementUniforms();
+        // Act and assert: installation rejects the unsupported output while retaining the original executable and stage ownership.
+            Assert.Equal(original, owner.ProgramId); Assert.True(GL.IsProgram(original));
+            Assert.True(GL.IsShader(vertex)); Assert.True(GL.IsShader(fragment));
+            Assert.Contains("Unsupported terrain output declaration", diagnostic);
+        }
+        finally
+        {
+            TerrainTessellationPrograms.Forget(owner); ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = previousMode;
+            TerrainTessellationPrograms.DrawHookAvailable = previousHook; TerrainTessellationPrograms.MeshDrawHookAvailable = previousMeshHook; TerrainTessellationPrograms.Log = previousLog;
+            GpuProgramObject.Adopt(owner.ProgramId).Dispose();
+        }
+    }
+    #endregion
+
+    #endregion
+
+    #region Private
+    #region Fixture inputs
+    /// <summary>Wraps linked stages in the same engine ownership model used by terrain.</summary>
+    private static TerrainLinkedTestProgram CreateOwner(TerrainShaderTestFixture shaders, int vertex, int fragment)
+    {
+        using var executable = TerrainShaderTestFixture.Link(vertex, fragment);
+        return new TerrainLinkedTestProgram
+        {
+            PassName = "chunkopaque", AssetDomain = "game", ProgramId = (int)executable.Detach(),
+            VertexShader = new Shader { ShaderId = vertex, Code = shaders.Source(vertex) }, FragmentShader = new Shader { ShaderId = fragment }
+        };
+    }
+
+    private const string VertexSource = """
+        #version 430 core
+        out vec4 rgba;
+        out vec4 worldPos;
+        out vec3 normal;
+        out vec2 uv;
+        flat out vec2 vge_uvBase;
+        flat out vec2 vge_uvExtent;
+        flat out int renderFlags;
+        void main() {
+            vec2 p[3] = vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3));
+            gl_Position = vec4(p[gl_VertexID],0,1);
+            rgba = vec4(p[gl_VertexID] * 0.25 + 0.25,0.5,1);
+            worldPos = gl_Position;
+            normal = vec3(0, 0, 1);
+            uv = vec2(0);
+            vge_uvBase = vec2(0);
+            vge_uvExtent = vec2(1);
+            renderFlags = 0;
+        }
+        """;
+    private const string FragmentSource = """
+        #version 430 core
+        in vec4 rgba;
+        layout(location=0) out vec4 color;
+        void main() { color=rgba; }
+        """;
+    #endregion
+    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
+    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.Support.GPU.Observations.GpuObservationPrograms programs)
+    {
+        base.PrepareObservations(programs);
+        programs.Prepare("predicate-geometry", 0, 0);
+    }
+    #endregion
+}

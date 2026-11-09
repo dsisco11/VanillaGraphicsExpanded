@@ -11,28 +11,33 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 /// <summary>Checks that render-origin rebasing keeps published world probes anchored.</summary>
 public sealed class WorldProbeRuntimeOriginTests
 {
-    #region Render origin
+    #region Public API
     /// <summary>Fractional camera movement preserves absolute placement without mutating cached scheduler parameters.</summary>
     [Fact]
     public void RebasePreservesWorldPositionsAndCachedOrigins()
     {
+        // Arrange
         var api = new Mock<ICoreClientAPI>();
         api.SetupGet(value => value.Event).Returns(Mock.Of<IClientEventAPI>());
         api.SetupGet(value => value.Logger).Returns(Mock.Of<ILogger>());
+        // Act
         using var buffers = new LumOnWorldProbeClipmapBufferManager(api.Object, new VgeConfig());
         var published = new Vec3d(16777216.25, 32.5, -16777216.75);
         Vector3[] original = [new(-8.25f, -2.5f, 4.75f), new(-16.25f, -10.5f, -3.25f)];
         Vector3[] ring = [new(1, 2, 3), new(3, 2, 1)];
         buffers.UpdateRuntimeParams(published, new((float)published.X, (float)published.Y, (float)published.Z),
             2, 2, 8, original, ring);
+        // Assert
         Assert.True(buffers.TryGetRuntimeParams(out _, out _, out _, out _, out _, out var cached, out var cachedRings));
         var snapshot = cached.ToArray();
         // Revisit the same camera after different origins to expose cumulative rebasing drift.
+        // Act
         foreach (double movement in new[] { .125, 32.25, -.5, .125 })
         {
             var camera = new Vec3d(published.X + movement, published.Y + 1.625, published.Z - movement);
             Assert.True(buffers.TryGetRuntimeParams(out var origin, out _, out float spacing, out int levels,
                 out int resolution, out var rebased, out var rings, camera));
+            // Assert
             Assert.Equal(camera, origin);
             Assert.Equal(2f, spacing);
             Assert.Equal(2, levels);
@@ -46,7 +51,9 @@ public sealed class WorldProbeRuntimeOriginTests
             }
             Assert.Equal(snapshot, cached);
         }
+        // Act
         Assert.True(buffers.TryGetRuntimeParams(out var unchanged, out _, out _, out _, out _, out var final, out _));
+        // Assert
         Assert.Equal(published, unchanged);
         Assert.Same(cached, final);
         Assert.Equal(snapshot, final);

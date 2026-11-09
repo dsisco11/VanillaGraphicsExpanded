@@ -1,0 +1,239 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Reflection;
+using System.Runtime.CompilerServices;
+using HarmonyLib;
+using Moq;
+using OpenTK.Graphics.OpenGL;
+using Vintagestory.API.Client;
+using Vintagestory.Client.NoObf;
+using VanillaGraphicsExpanded.HarmonyPatches;
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Rendering;
+
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+namespace VanillaGraphicsExpanded.Tests.Integration.Rendering;
+
+/// <summary>Exercises the raw engine framebuffer boundary against VGE's cached primary blend policy.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+{
+    #region External state ownership
+    /// <summary>An external OIT framebuffer bind must not let primary-only blend repair disable accumulation attachments.</summary>
+    [Theory]
+    [InlineData("CurrentFrameBuffer")]
+    [InlineData("CurrentFrameBufferKeepVw")]
+    public void ExternalFramebufferBindDoesNotAlterOitBlend(string property)
+    {
+        // Arrange: Initialize primary and six-output OIT targets with a manager that has already injected its hooks.
+        EnsureContextValid();
+        using var framework = new ShaderTestFramework();
+        using var primary = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
+        using var oit = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f, 6);
+        using var assets = new BinaryShaderApiFixture();
+        var render = new Mock<IRenderAPI>();
+        var frames = Enumerable.Range(0, (int)EnumFrameBuffer.Primary + 1).Select(_ => new FrameBufferRef()).ToList();
+        frames[(int)EnumFrameBuffer.Primary].FboId = primary.FboId;
+        render.SetupGet(value => value.FrameBuffers).Returns(frames);
+        var api = new Mock<ICoreClientAPI>();
+        api.SetupGet(value => value.Render).Returns(render.Object);
+        api.SetupGet(value => value.Logger).Returns(assets.Api.Logger);
+        using var manager = new GBufferManager(api.Object);
+        const BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
+        typeof(GBufferManager).GetField("isInitialized", fields)!.SetValue(manager, true);
+        typeof(GBufferManager).GetField("isInjected", fields)!.SetValue(manager, true);
+        var harmony = new Harmony("VGE.Tests.FramebufferBoundary");
+        var platform = (ClientPlatformWindows)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlatformWindows));
+        GC.SuppressFinalize(platform);
+        var setter = AccessTools.PropertySetter(typeof(ClientPlatformWindows), property);
+        try
+        {
+            harmony.CreateClassProcessor(typeof(FramebufferBindingHook)).Patch();
+            FramebufferTestSetup.BindForEngineRendering(primary);
+            // Invoke the installed engine setter: its raw GL bind must be observed by the production hook.
+            // Act: Bind OIT through the installed engine setter, reapply primary blend policy, then select primary and default targets.
+            setter.Invoke(platform, [new FrameBufferRef { FboId = oit.FboId, Width = 1, Height = 1 }]);
+            // Assert: Primary-only repair leaves OIT accumulators intact and applies primary policy only on primary target.
+            Assert.Equal(oit.FboId, OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
+            Assert.Equal(oit.FboId, OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
+            Assert.Equal(oit.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
+            GL.Enable(IndexedEnableCap.Blend, 4); GL.Enable(IndexedEnableCap.Blend, 5);
+            GL.BlendFunc(4, BlendingFactorSrc.One, BlendingFactorDest.One);
+            GL.BlendFunc(5, BlendingFactorSrc.One, BlendingFactorDest.One);
+            manager.ReapplyGBufferBlendState();
+            foreach (int index in new[] { 4, 5 })
+            {
+                Assert.True(GL.IsEnabled(IndexedEnableCap.Blend, index), "Primary-only repair disabled OIT accumulation.");
+                GL.GetInteger((GetIndexedPName)GetPName.BlendSrcRgb, index, out int source);
+                GL.GetInteger((GetIndexedPName)GetPName.BlendDstRgb, index, out int destination);
+                Assert.Equal((int)BlendingFactorSrc.One, source); Assert.Equal((int)BlendingFactorDest.One, destination);
+            }
+            setter.Invoke(platform, [frames[(int)EnumFrameBuffer.Primary]]);
+            manager.ReapplyGBufferBlendState();
+            Assert.False(GL.IsEnabled(IndexedEnableCap.Blend, 4));
+            Assert.False(GL.IsEnabled(IndexedEnableCap.Blend, 5));
+            setter.Invoke(platform, [null]);
+            Assert.Equal(0, OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
+            Assert.Equal(0, OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
+            Assert.Equal(0, GL.GetInteger(GetPName.DrawFramebufferBinding));
+        }
+        finally { harmony.UnpatchAll(harmony.Id); GpuFramebuffer.Unbind(); }
+    }
+    /// <summary>Receiver storage is reused without transferring owned fallback textures into the engine deletion list.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReceiverPositionPreservesTextureOwnership(bool enginePosition)
+    {
+        // Arrange: Supply a primary framebuffer whose position slot is either engine-owned or absent.
+        EnsureContextValid();
+        using var framework = new ShaderTestFramework();
+        using var primary = framework.CreateTestGBuffer(2, 2, TextureFormat.Rgba16f, 4);
+        using var assets = new BinaryShaderApiFixture();
+        var frames = Enumerable.Range(0, (int)EnumFrameBuffer.Primary + 1).Select(_ => new FrameBufferRef()).ToList();
+        var frame = frames[(int)EnumFrameBuffer.Primary];
+        frame.FboId = primary.FboId;
+        frame.Width = frame.Height = 2;
+        frame.ColorTextureIds = new int[4];
+        for (int slot = 0; slot < 3; slot++) frame.ColorTextureIds[slot] = primary[slot].TextureId;
+        int borrowed = primary[3].TextureId;
+        frame.ColorTextureIds[3] = enginePosition ? borrowed : 0;
+        var render = new Mock<IRenderAPI>();
+        render.SetupGet(value => value.FrameBuffers).Returns(frames);
+        var api = new Mock<ICoreClientAPI>();
+        api.SetupGet(value => value.Render).Returns(render.Object);
+        api.SetupGet(value => value.Logger).Returns(assets.Api.Logger);
+        int receiver;
+        // Act: Set up the manager repeatedly and, for fallback storage, resize the receiving primary framebuffer.
+        using (var manager = new GBufferManager(api.Object))
+        {
+            manager.SetupGBuffers();
+            receiver = manager.PositionTextureId;
+            Assert.NotEqual(0, receiver);
+            Assert.Equal(enginePosition ? borrowed : 0, frame.ColorTextureIds[3]);
+            manager.SetupGBuffers();
+            Assert.Equal(receiver, manager.PositionTextureId);
+            if (enginePosition) Assert.Equal(borrowed, receiver);
+            else
+            {
+                frame.Width = frame.Height = 4;
+                manager.SetupGBuffers();
+                receiver = manager.PositionTextureId;
+                GL.GetTextureLevelParameter(receiver, 0, GetTextureParameter.TextureWidth, out int width);
+                GL.GetTextureLevelParameter(receiver, 0, GetTextureParameter.TextureHeight, out int height);
+                Assert.Equal(4, width);
+                Assert.Equal(4, height);
+                Assert.Equal(0, frame.ColorTextureIds[3]);
+            }
+        }
+        // Assert: Position storage remains owned by its original source and borrowed attachments stay live.
+        Assert.Equal(enginePosition, GL.IsTexture(receiver));
+        Assert.True(GL.IsTexture(borrowed));
+        GpuFramebuffer.Unbind();
+    }
+
+    /// <summary>Primary teardown must not transfer VGE-owned attachments to the engine's deletion list.</summary>
+    [Fact]
+    public void UnloadPrimaryRemovesVgeTexturesFromEngineBookkeeping()
+    {
+        // Arrange: Publish manager-owned surface/patch images alongside engine framebuffer metadata.
+        EnsureContextValid();
+        using var framework = new ShaderTestFramework();
+        using var primary = framework.CreateTestGBuffer(2, 2, TextureFormat.Rgba16f, 4);
+        using var assets = new BinaryShaderApiFixture();
+        var frames = Enumerable.Range(0, (int)EnumFrameBuffer.Primary + 1).Select(_ => new FrameBufferRef()).ToList();
+        var frame = frames[(int)EnumFrameBuffer.Primary];
+        frame.FboId = primary.FboId;
+        frame.Width = frame.Height = 2;
+        frame.ColorTextureIds = Enumerable.Range(0, 4).Select(slot => primary[slot].TextureId).ToArray();
+        var render = new Mock<IRenderAPI>();
+        render.SetupGet(value => value.FrameBuffers).Returns(frames);
+        var api = new Mock<ICoreClientAPI>();
+        api.SetupGet(value => value.Render).Returns(render.Object);
+        api.SetupGet(value => value.Logger).Returns(assets.Api.Logger);
+
+        using var manager = new GBufferManager(api.Object);
+        manager.SetupGBuffers();
+        int[] owned = [manager.SurfaceTextureId, manager.PatchIdTextureId];
+
+        Assert.Equal(4, frame.ColorTextureIds.Length);
+        Assert.DoesNotContain(owned, texture => frame.ColorTextureIds.Contains(texture));
+
+        // Act: Unload the primary G-buffer while retaining the manager's texture owners.
+        manager.UnloadGBuffer(EnumFrameBuffer.Primary);
+
+        // Assert: Engine bookkeeping excludes VGE-owned names, and those textures remain valid.
+        Assert.Equal(4, frame.ColorTextureIds.Length);
+        Assert.All(owned, texture => Assert.True(GL.IsTexture(texture)));
+        GpuFramebuffer.Unbind();
+    }
+
+    /// <summary>Resize recreation safely abandons attachment names already deleted by engine teardown.</summary>
+    [Fact]
+    public void ResizeAfterExternalTextureDeletionDoesNotDeleteStaleNames()
+    {
+        // Arrange: Publish G-buffer resources, then emulate engine deletion of manager attachment names.
+        EnsureContextValid();
+        using var framework = new ShaderTestFramework();
+        using var primary = framework.CreateTestGBuffer(2, 2, TextureFormat.Rgba16f, 4);
+        using var assets = new BinaryShaderApiFixture();
+        var frames = Enumerable.Range(0, (int)EnumFrameBuffer.Primary + 1).Select(_ => new FrameBufferRef()).ToList();
+        var frame = frames[(int)EnumFrameBuffer.Primary];
+        frame.FboId = primary.FboId;
+        frame.Width = frame.Height = 2;
+        frame.ColorTextureIds = Enumerable.Range(0, 4).Select(slot => primary[slot].TextureId).ToArray();
+        var render = new Mock<IRenderAPI>();
+        render.SetupGet(value => value.FrameBuffers).Returns(frames);
+        var api = new Mock<ICoreClientAPI>();
+        api.SetupGet(value => value.Render).Returns(render.Object);
+        api.SetupGet(value => value.Logger).Returns(assets.Api.Logger);
+
+        using var manager = new GBufferManager(api.Object);
+        manager.SetupGBuffers();
+        int[] stale = [manager.SurfaceTextureId, manager.PatchIdTextureId];
+        GL.DeleteTextures(stale.Length, stale);
+        frame.Width = frame.Height = 4;
+
+        // Act: Rebuild after the primary framebuffer dimensions change.
+        manager.SetupGBuffers();
+
+        // Assert: Rebuilt manager images are valid and no stale-name deletion produced a GL error.
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+        Assert.All([manager.SurfaceTextureId, manager.PatchIdTextureId],
+            texture => Assert.True(GL.IsTexture(texture)));
+        GpuFramebuffer.Unbind();
+    }
+
+    /// <summary>Direct-light buffer recreation does not restore a texture binding deleted by the engine.</summary>
+    [Fact]
+    public void DirectLightingResizeInvalidatesExternallyDeletedTextureBinding()
+    {
+        // Arrange: Bind a tracked texture and delete its released native name before framebuffer rebuild.
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        var frames = Enumerable.Repeat<FrameBufferRef>(null!, Enum.GetValues<EnumFrameBuffer>().Max(value => (int)value) + 1).ToList();
+        frames[(int)EnumFrameBuffer.Primary] = new FrameBufferRef { Width = 4, Height = 4 };
+        var render = new Mock<IRenderAPI>();
+        render.SetupGet(value => value.FrameBuffers).Returns(frames);
+        var api = new Mock<ICoreClientAPI>();
+        api.SetupGet(value => value.Render).Returns(render.Object);
+        api.SetupGet(value => value.Logger).Returns(assets.Api.Logger);
+        using var buffers = new DirectLightingBufferManager(api.Object);
+        Assert.True(buffers.EnsureBuffers(2, 2));
+        using var stale = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D, 0, stale.TextureId);
+        GL.DeleteTexture(stale.ReleaseHandle().ToInt32());
+        // Act: Rebuild direct-light resources and ensure their dimensions match the new primary target.
+        GBufferHooks.RebuildFrameBuffers_Hook();
+
+        // Assert: The new radiance allocation is live with the expected layered shape and no GL error.
+        Assert.True(buffers.EnsureBuffers(4, 4));
+
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+        Assert.True(GL.IsTexture(buffers.Radiance!.TextureId));
+        Assert.Equal(3, buffers.Radiance.Depth);
+    }
+    #endregion
+}

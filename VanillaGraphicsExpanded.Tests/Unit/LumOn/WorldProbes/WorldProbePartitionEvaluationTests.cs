@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.Unit.LumOn.WorldProbes;
 /// <summary>Characterizes the spatial mapping and lifetime barriers for a possible probe partition.</summary>
 public sealed class WorldProbePartitionEvaluationTests
 {
-    #region Spatial equivalence
+    #region Public API
     /// <summary>Both even and odd lattices fit fixed cells when sampling offsets remain consumer-owned.</summary>
     [Theory]
     [InlineData(8, 1.5, -0.01)]
@@ -16,6 +16,7 @@ public sealed class WorldProbePartitionEvaluationTests
     [InlineData(21, 6.0, -1000000.25)]
     public void ProbePositions_MapToWorldZeroCells_WithoutChangingSampling(int resolution, double spacing, double camera)
     {
+        // Arrange
         var scheduler = new LumOnWorldProbeScheduler(1, resolution);
         scheduler.UpdateOrigins(new(camera, camera, camera), spacing);
         Assert.True(scheduler.TryGetLevelParams(0, out var origin, out _));
@@ -24,12 +25,14 @@ public sealed class WorldProbePartitionEvaluationTests
         double offset = resolution % 2 == 0 ? 0.5 : 0.0;
 
         // Logical cells are identified by their sample, not by copying an odd grid's half-cell origin.
+        // Act
         for (int z = 0; z < resolution; z++)
         for (int y = 0; y < resolution; y++)
         for (int x = 0; x < resolution; x++)
         {
             var sample = LumOnClipmapTopology.IndexToProbeCenterWorld(new(x, y, z), origin, spacing);
             var key = layout.Coordinate(new(sample.X, sample.Y, sample.Z));
+            // Assert
             Assert.True(keys.Add(key));
             var bounds = layout.Bounds(key);
             Assert.Equal(sample.X, bounds.Min.X + offset * spacing, 8);
@@ -43,33 +46,40 @@ public sealed class WorldProbePartitionEvaluationTests
     [Fact]
     public void OddResolution_OriginalVolumeBoundsAreNotTheLogicalCellEnvelope()
     {
+        // Arrange
         const int resolution = 9;
         const double spacing = 1.5;
         var origin = LumOnClipmapTopology.GetOriginMinCorner(new(0, 0, 0), spacing, resolution);
         var layout = new PartitionLayout(new(spacing, spacing, spacing));
         var bounds = new PartitionBounds(new(origin.X, origin.Y, origin.Z),
             new(origin.X + resolution * spacing, origin.Y + resolution * spacing, origin.Z + resolution * spacing));
-        Assert.Equal(1000, layout.Intersecting(bounds).Count());
+        // Act
+        int intersectingCells = layout.Intersecting(bounds).Count();
+        // Assert
+        Assert.Equal(1000, intersectingCells);
         Assert.Equal(729, resolution * resolution * resolution);
     }
-    #endregion
 
-    #region Lifetime barriers
     /// <summary>A completion for a retired world position cannot validate the storage slot's replacement.</summary>
     [Fact]
     public void Teleport_LateSuccessfulCompletionPreservesReassignedSlotDirty()
     {
+        // Arrange
         const int resolution = 8;
         const double spacing = 4;
         var scheduler = new LumOnWorldProbeScheduler(1, resolution);
         scheduler.UpdateOrigins(new(0, 0, 0), spacing);
+        // Act
         var request = Assert.Single(scheduler.BuildUpdateList(1, new(0, 0, 0), spacing, [1], 1, int.MaxValue, 1));
         Assert.True(scheduler.TryClaim(request, 1));
+        // Assert
         Assert.True(scheduler.TryGetLevelParams(0, out var oldOrigin, out _));
         var oldPosition = LumOnClipmapTopology.IndexToProbeCenterWorld(request.LocalIndex, oldOrigin, spacing);
 
         // An exact whole-window jump reuses the same storage index for a different world position.
+        // Act
         scheduler.UpdateOrigins(new(resolution * spacing, 0, 0), spacing);
+        // Assert
         Assert.True(scheduler.TryGetLevelParams(0, out var newOrigin, out _));
         var newPosition = LumOnClipmapTopology.IndexToProbeCenterWorld(request.LocalIndex, newOrigin, spacing);
         Assert.Equal(resolution * spacing, newPosition.X - oldPosition.X);
