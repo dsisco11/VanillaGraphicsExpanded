@@ -2,11 +2,10 @@ Test suite organization and reviewability
 ========================================
 
 Status
-  Phase 1 inventory and Phase 2 layout decisions complete. Detailed case and
-  owner routing is recorded in testing-inventory/README.md and its linked
-  artifacts; proposed destinations are in testing-inventory/Phase2.LayoutDecisions.md
-  and its move maps. This document does not
-  authorize test removal. The four test projects are
+  Phase 1 inventory and Phase 2 layout decisions are complete. The resulting
+  conventions, case reconciliation, and renamed-case mapping are retained below;
+  the working inventories and generators are removed in Phase 6. This document
+  does not authorize test removal. The four test projects are
   VanillaGraphicsExpanded.Tests, OpenGLInterceptionGenerator.Tests, ShaderBuildTool.Tests,
   and ShaderContractGenerator.Tests. A source-file count is not a runtime-case count.
   Phase 3 is complete after the user-authorized primary-agent final review and
@@ -19,7 +18,7 @@ Status
   review's cached-shader pixel equality, wrapped-blit routing, blitter-disposal
   name, native-unbind, empty-memory-snapshot name, and three LumOn numerical-oracle
   gaps have been corrected. Four discovery-name changes are recorded in
-  testing-inventory/Phase2.MethodMoves.csv. Debug and Release builds pass, and the
+  the renamed-case mapping below. Debug and Release builds pass, and the
   corrected focused selection passes 9/9 in each configuration. The three changed
   LumOn numerical cases also pass 3/3 in three fresh Release processes. The final
   review found and corrected a memory-object failure-path cleanup gap. A full
@@ -42,6 +41,9 @@ Status
   with no failures; the six-result difference between main All discovery and
   execution is the documented dynamic Poisson theory expansion. The existing
   runner filters remain in place, and current-state test documentation is reconciled.
+  Phase 6 is complete after a second review and independent completion audit.
+  The 31 migration-only inventory and generator files are removed; the retained
+  conventions, decisions, renamed cases, and open findings are recorded below.
 
 Objective and authority
   Make each test's actual boundary, behavior, and ownership clear enough to apply the
@@ -104,9 +106,9 @@ Phase 1: Inventory and agree on classification
     the resulting conventions and the exact migration inventory before moving files.
 
 Phase 2: Establish coherent ownership and layout
-  See testing-inventory/Phase2.LayoutDecisions.md for the routing convention,
-  source-family map, and affected-file/runner dependency map. The Phase 1 routing
-  inventories remain the method-level authority until migration is reconciled.
+  The retained conventions and migration decisions below summarize the routing
+  and dependency rules. The migrated source and verified runner selections are
+  the current owners after the method-level reconciliation in Phase 5.
   ☑ Define a small directory and namespace convention for the main project by actual
     level and domain. Keep purpose and environment orthogonal through traits/selection;
     use GPU/native and diagnostic folders only when they aid discovery without implying
@@ -208,18 +210,209 @@ Phase 5: Reconcile selection and qualify the result
     primary agent supplied the final test review. The independent completion audit
     found no unresolved issue.
 
+Retained classification, ownership, and coverage decisions
+  Test level follows the exercised contract: Unit isolates a narrow rule;
+  Component exercises a cohesive subsystem and its internal composition;
+  Integration crosses a real boundary between independently functioning parts;
+  EndToEnd requires a complete representative deployed workflow. No reviewed
+  case established a complete deployed game workflow. Purpose (correctness,
+  diagnostic, benchmark) and environment (CPU, GPU/native, filesystem, generated
+  code) are separate from level. Roslyn compilation, a GPU fixture, a mock, or a
+  class name alone does not set the level. Native loading, GL state, ABI and real
+  persistence/process contracts can be Integration; numerical GPU output and
+  generated code executed with controlled collaborators can be Component.
+
+  The four test projects remain separate. Current test sources use
+  <Level>/<Domain>/<OwnedBehavior>Tests.cs with matching namespaces. Files own
+  one behavior; partial files keep their class stem and scenario suffix. Fixtures
+  live beside their owning boundary, in the narrowest shared level support area,
+  or under project-root Support for genuine cross-level use. Shared context,
+  executable, singleton, and global-state fixtures retain their collection
+  serialization, exclusive leases, context affinity, and disposal ownership.
+  Test assets keep their published output identities even when owners move.
+  Real I/O stays where it proves persistence, process lifetime, or native
+  interoperability. A controlled filesystem substitute is not a real disk
+  persistence witness. Directory and file names describe the observed contract,
+  while Category and Purpose traits keep their existing runner-selection roles.
+
+  The migration preserved all original cases, rows, assertions, skips, traits,
+  runner membership, and fixture lifetimes except source-backed name/oracle
+  corrections documented above. No case removal, parameter reduction, execution
+  policy change, or runtime improvement was approved by this reorganization.
+  The 27 retained methods pending separate oracle decisions are listed below.
+  Their original selection was deliberately preserved; a meaningful replacement
+  behavior or independent expected-result source needs separate test design.
+  The draw-time RHI reentry witness and independent V-cycle superiority oracle
+  remain open. The support review also recorded possible failure-path cleanup
+  for sequential Dispose owners (ComponentShaderPrograms, ShaderTestFramework,
+  LumOnShaderFunctionalTestBase, RuntimeLightingHost, SurfaceCacheRuntimeFixture,
+  SurfaceLightingConsumerRuntimeFixture), patch/capture scopes
+  (ProgramAcquisitionCapture, NativeShaderAllocationCapture), and native buffer
+  initialization (ExposureTestStorage.Create, ComponentAtomicCounters). These
+  were source-review observations, not observed failures; their present status
+  needs a separate focused review. It also recorded no active consumer for
+  ObjectParamsUbo, RasterCameraExposureShader, SkipOnCIAttribute, and the test
+  support LumOnWorldProbeResolveParamsUbo. Removing support requires a separate
+  decision. GeneratorCompilation's temporary PE cleanup was corrected in
+  Phase 4 and is not an open item.
+
+  Other retained source-review limits (separate test-design decisions; no case
+  or runner selection changes were approved here):
+    - GpuEboIntegrationTests upload and overwrite cases assert wrapper count,
+      type, and size without reading uploaded bytes. The disposed-upload case
+      now in GpuEboManagedRulesTests accepts any exception or success and does
+      not establish a precise disposed-upload failure contract.
+    - StateValueLayoutTests.ReportManagedSizes and
+      ShaderTokenizerDiagnosticsTests.Diagnostic_DumpTokens remain ordinary
+      report-only Facts; their diagnostic purpose and selection need a decision.
+      LocalExposureQualificationTests.WarmProductionCost prepares the baseline
+      global pipeline but submits the final program's binding capture for that
+      baseline action, so its comparative cost does not isolate the named path.
+    - LiquidDepthShaderProgramTests.ColorAndDepthProgramsLinkSharedWaveBlock
+      proves program readiness and checks declared block slots, not native linked
+      block introspection. FramebufferRoutingDsaTests.NamedRestorationProducesEquivalentResults
+      renders the named route twice, not named versus fallback.
+      GpuInitialTextureDependencyTests.UnavailableBackingPreventsInitialPublication
+      never reads its authored unavailable backing and observes reservation reuse.
+    - GpuTextureSamplerIntegrationTests.BindScope_RestoresPreviousTextureAndSampler
+      checks cache getters rather than native restored bindings.
+      GpuResourceMetadataAcquisitionTests.ContextRetirementRemovesRegistrationWithoutDeletingNativeObjects
+      checks registry retirement, not native survival.
+      GpuResourceMetadataPublicationTests.RejectedBufferAllocationPreservesMeasuredCapacity
+      checks the guard and managed capacity, not measured native capacity.
+      GpuVaoIntegrationTests and GpuVboIntegrationTests deletion-named cases
+      inspect wrapper state without an independent native deletion query.
+      GpuResourceRetirementRegressionTests.FramebufferBackingDeletionPreservesBoundAndRetainedSemantics
+      checks registry/borrower attachment facts, not native framebuffer attachments.
+    - GpuSupportLimitsTests proves no-recapture counts only in Debug;
+      GpuSpecializedQueryIntegrationTests establishes availability and
+      nonnegative results, not elapsed-time accuracy. GpuSemaphoreLifecycleTests
+      replaces optional external-memory driver slots with authored state and
+      does not prove external payload interoperability.
+      GpuVertexSelectionAndMultiBindingTests and GpuVertexWrapperMetadataTests
+      vary a DSA capability but still submit named GL calls; a real alternative
+      path witness remains undecided.
+    - LumOnDebugFunctionalTests generally checks visible output or a selected
+      color predicate, not full numerical debug-mode mapping. Named parameter
+      responses in LumOn gather, temporal, and trace functional cases sometimes
+      have only positivity, ordering, or weak relational oracles; the exact
+      SampleStride, LeakThreshold, NormalMismatch, NeighborhoodClamping,
+      HitDistanceRejectThreshold, RaySteps, InvViewMatrix, and RayExitsScreen
+      claims need independent behavior witnesses. LumonScene publication cases
+      use controlled/counting page-table writers and nominated tile-center
+      samples; they do not prove deployed world rendering, GPU page-table
+      publication, or every pixel in each tile.
+
+  Deferred oracle methods (current paths; 27 total):
+    - PbrGlobstarTests.cs::TieBreak_FirstRuleWins_WhenPriorityEqual
+    - Squirrel3NoiseTests.cs::Constants_MatchShaderInclude
+    - Unit/GpuEboUnitTests.cs::GpuEbo_HasIndexTypeProperty
+    - Unit/GpuEboUnitTests.cs::DebugName_VariousValidStrings_ShouldBeAcceptable
+    - Unit/GpuEboUnitTests.cs::UploadIndices_HasOverloadsForAllIndexTypes
+    - Unit/GpuEboUnitTests.cs::TryUploadIndices_HasOverloadsForAllIndexTypes
+    - Unit/GpuEboUnitTests.cs::Create_WithNullDebugName_AcceptsNull
+    - Unit/GpuEboUnitTests.cs::IndexDataTypes_CorrespondToIndexFormats
+    - Unit/GpuEboUnitTests.cs::OverriddenMethods_HaveCorrectSignatures
+    - Unit/GpuEboUnitTests.cs::IndexCounts_ValidRanges_ShouldBeSupported
+    - Unit/GpuEboUnitTests.cs::IndexFormat_AllValidTypes_AreSupported
+    - Unit/GpuEboUnitTests.cs::BufferUsageHint_AllValidHints_AreSupported
+    - Unit/GpuEboUnitTests.cs::PrimitiveType_AllValidTypes_AreSupported
+    - Unit/GpuEboUnitTests.cs::GpuEbo_InheritsFromGpuBufferObject
+    - Unit/GpuEboUnitTests.cs::GpuEbo_IsSealed
+    - Unit/GpuEboUnitTests.cs::GpuEbo_IsInternal
+    - Unit/GpuEboUnitTests.cs::GpuEbo_ImplementsIDisposable
+    - Unit/GpuEboUnitTests.cs::GpuEbo_HasIndexCountProperty
+    - Unit/GpuVboUnitTests.cs::Create_WithNullDebugName_AcceptsNull
+    - Unit/GpuVboUnitTests.cs::BufferTarget_AllValidTargets_AreSupported
+    - Unit/GpuVboUnitTests.cs::BufferUsageHint_AllValidHints_AreSupported
+    - Unit/GpuVboUnitTests.cs::GpuVbo_InheritsFromGpuBufferObject
+    - Unit/GpuVboUnitTests.cs::GpuVbo_IsSealed
+    - Unit/GpuVboUnitTests.cs::GpuVbo_IsInternal
+    - Unit/GpuVboUnitTests.cs::GpuVbo_ImplementsIDisposable
+    - Unit/GpuVboUnitTests.cs::DebugName_VariousValidStrings_ShouldBeAcceptable
+    - Unit/PBR/Materials/MaterialAtlasCacheWarmupPlannerTests.cs::CountExisting_CountsHits_ByPayloadKind
+
+  Renamed-case mapping (original path and method -> current path and method;
+  58 methods; all paths relative to VanillaGraphicsExpanded.Tests):
+    - ConfigurableRasterizerDescriptionTests.cs::ProfileAndClipCapabilitiesAreEnforced -> Integration/Rendering/Pipelines/RasterDescriptionRulesTests.cs::SupportedProfilesAcceptRasterDescriptions
+    - GPU/CommandBindingKnowledgeTests.cs::DirectHelperPreservesAuthoredFactsAndRecoversStaleCopies -> Integration/Rendering/CommandBindingKnowledgeTests.cs::DirectVertexBindingHelpersPublishAuthoredStateWithoutPrequeries
+    - GPU/EngineFramebufferRoutingTests.cs::PatchedNativeRoutingSharesTheOwnedMapping -> Integration/Rendering/EngineFramebufferRoutingTests.cs::NativeRoutingCallsUpdateTheOwnedMapping
+    - GPU/EngineGraphicsGeometryTests.cs::InstalledEngineDrawPreservesSubmissionContract -> Integration/Rendering/EngineGraphicsGeometryTests.cs::ImportedEngineGeometrySubmissionPreservesContract
+    - GPU/EngineStateRecompilationGpuTests.cs::WarmCullCallersTrackBothTransitionsWithoutRewriting -> Integration/Rendering/EngineStateCallerBindingTests.cs::OptimizedCullCallersKeepCacheAndNativeStateSynchronized
+    - GPU/EngineStateSwitchingGpuTests.cs::PatchedDepthCallRestoresPreviouslyCachedValue -> Integration/Rendering/EngineStateSwitchingGpuTests.cs::NativeDepthCallRestoresPreviouslyCachedValue
+    - GPU/EngineStateSwitchingGpuTests.cs::PatchedTextureBindingPreservesSamplerAndTracksActiveUnit -> Integration/Rendering/EngineStateSwitchingGpuTests.cs::NativeTextureBindingPreservesSamplerAndTracksActiveUnit
+    - GPU/FramebufferAttachmentNotificationTests.cs::ReleasedTransferIntentIsNotRetainedByLiveTargets -> Integration/Rendering/FramebufferAttachmentNotificationTests.cs::CompletedBlitDoesNotPreventTargetResize
+    - GPU/GpuBufferImageCreationTests.cs::RenderbufferFallbackPublishesActualSamples -> Integration/Rendering/GpuBufferImageCreationTests.cs::RenderbufferAllocationPublishesNativeSampleCount
+    - GPU/GpuControlledTexturePublicationTests.cs::MultisampleFallbackPublishesActualSampleCount -> Integration/Rendering/GpuControlledTexturePublicationTests.cs::MultisampleAllocationPublishesActualSampleCount
+    - GPU/GpuMemoryObjectLifecycleTests.cs::NativeMemorySetupPreservesOriginalEmptySnapshot -> Component/Rendering/GpuMemoryObjectLifecycleTests.cs::GeneratedMemoryCallbacksPreserveRegistrationIdentityAndRevision
+    - GPU/GpuProgramLayoutBindingTests.cs::ProgramLayout_TryBindSamplerTexture_UsesLayoutBindingUnit -> Integration/Rendering/GpuProgramLayoutBindingTests.cs::ComputeDispatchUsesLayoutResolvedSamplerAndImageSlots
+    - GPU/GpuRenderBoundaryTests.cs::BlitterRepeatedCopiesAndDisposalPreserveBorrowedTargets -> Integration/Rendering/GpuRenderBoundaryTests.cs::RepeatedBlitsKeepEndpointResourcesAlive
+    - GPU/GpuResourceWrapperLifecycleTests.cs::BorrowerConstructionRefreshesExternallyReallocatedTextureAliases -> Integration/Rendering/GpuResourceWrapperLifecycleTests.cs::ExternalTextureReallocationRefreshesSharedAliasesWithoutDescriptorReads
+    - GPU/GpuResourceWrapperLifecycleTests.cs::RenderbufferWrapRefreshesExternallyReallocatedAliases -> Integration/Rendering/GpuResourceWrapperLifecycleTests.cs::ExternalRenderbufferReallocationRefreshesSharedAliasesWithoutDescriptorReads
+    - GPU/GpuVertexSelectionAndMultiBindingTests.cs::ManagedGeometrySupportsSharedLegacyBinding -> Integration/Rendering/GpuVertexSelectionAndMultiBindingTests.cs::ManagedGeometryCreationLeavesNoGlErrorsWithDirectStateAccessDisabled
+    - GPU/GpuVertexSelectionAndMultiBindingTests.cs::DoubleHelperConfiguresMultipleAttributes -> Integration/Rendering/GpuVertexSelectionAndMultiBindingTests.cs::NativeDoubleAttributeConfigurationPreservesFormatAndDivisor
+    - GPU/GpuVertexWrapperMetadataTests.cs::WrapperConfigurationUsesSelectedAddressing -> Integration/Rendering/GpuVertexWrapperMetadataTests.cs::NativeAttributeConfigurationUpdatesCacheWithoutChangingResourceMetadata
+    - GPU/LumOnCombineFunctionalTests.cs::Composite_AO_ReducesIndirectInCreases -> Component/LumOn/LumOnCombineFunctionalTests.cs::Composite_ReflectivityDoesNotActAsAmbientOcclusion
+    - GPU/LumOnDebugShaderDemandTimingTests.cs::SelectedAndCachedProgramsRenderIdenticalPixels -> Integration/LumOn/LumOnDebugShaderDemandTimingTests.cs::SelectedAndCachedProgramsMatchPixelsWithinTolerance
+    - GPU/LumonScenePipelineSmokeTests.cs::PipelineSmoke_FeedbackToCaptureToRelight_PopulatesManyPages -> Component/LumOn/LumonScenePipelinePublicationTests.cs::FeedbackCaptureAndRelightPublishesMultiplePages
+    - GPU/LumOnUpsampleFunctionalTests.cs::SpatialSigma_AffectsDenoising -> Component/LumOn/LumOnUpsampleFunctionalTests.cs::LargerSpatialSigma_SmoothsTheGradientMoreStrongly
+    - GPU/RHIAuxiliaryTests.cs::OptionalRequestsRejectBeforeDispatch -> Integration/Rendering/RHIAuxiliaryTests.cs::OptionalRequestsValidateImportsAndSparseRanges
+    - GPU/RHICommandContextIntegrationTests.cs::InvalidDrawContractEmitsNoDraw -> Integration/Rendering/RHICommandContextIntegrationTests.cs::InvalidDrawContractRejectsSelectedFailure
+    - GPU/RHICommandListTests.cs::CancelCreatesNoNativeResultsOrUniformPublication -> Integration/Rendering/RHICommandListTests.cs::CancelResolvesPendingRequestsWithoutUniformPublication
+    - GPU/RHIImageTests.cs::InvalidInputsRejectBeforeNativeMutation -> Integration/Rendering/RHIImageTests.cs::InvalidTextureInputsRejectWithoutGlErrors
+    - GPU/RHIImageTests.cs::MultisampleImageCopiesPreserveAllocation -> Integration/Rendering/RHIImageTests.cs::MultisampleCopyPreservesStorageRevisionAndRejectsPixelUpload
+    - GPU/ShaderDefineInjectionTests.cs::LumOnCombine_Compiles_WithVGE_LUMON_ENABLED_Variant -> Integration/Rendering/Shaders/DeclaredShaderVariantLoadingTests.cs::LumOnCombineLoads_ForEachFeatureState
+    - GPU/ShaderDefineInjectionTests.cs::LumOnCombine_Compiles_WithPbrCompositeVariants -> Integration/Rendering/Shaders/DeclaredShaderVariantLoadingTests.cs::LumOnCombineLoads_WithPbrCompositeSettings
+    - GPU/ShaderDefineInjectionTests.cs::PbrComposite_Compiles_WithToggleVariants -> Integration/Rendering/Shaders/DeclaredShaderVariantLoadingTests.cs::PbrCompositeLoads_WithToggleSettings
+    - GPU/ShaderDefineInjectionTests.cs::LumOnUpsample_Compiles_WithToggleVariants -> Integration/Rendering/Shaders/DeclaredShaderVariantLoadingTests.cs::LumOnUpsampleLoads_WithToggleSettings
+    - GPU/ShaderDefineInjectionTests.cs::LumOnProbeAtlasTrace_Compiles_WithLoopBoundVariants -> Integration/Rendering/Shaders/DeclaredShaderVariantLoadingTests.cs::ProbeAnchorTraceLoads_WithLoopBoundSettings
+    - GPU/ShaderDefineInjectionTests.cs::LumOnProbeAtlasTemporal_Compiles_WithTexelDistributionVariants -> Integration/Rendering/Shaders/DeclaredShaderVariantLoadingTests.cs::ProbeAtlasTemporalLoads_WithTexelDistribution
+    - GPU/ShaderDefineInjectionTests.cs::Shaders_CompileAndLink_WithInjectedDefines -> Integration/Rendering/Shaders/DeclaredShaderVariantLoadingTests.cs::LumOnCombineLoads_WithPerProgramSettings
+    - GPU/ShaderDefineInjectionTests.cs::GlobalDefinesInclude_Defaults_CompileWithoutInjection -> Integration/Rendering/Shaders/DeclaredShaderVariantLoadingTests.cs::DefaultDeclaredVariantLoads_WithoutPerProgramOverrides
+    - GPU/ShaderDefineInjectionTests.cs::LumOnDebugWorldProbe_Compiles_WithWorldProbeEnabledVariant -> Integration/Rendering/Shaders/DeclaredShaderVariantLoadingTests.cs::WorldProbeDebugVariantLoads_ForEachFeatureState
+    - GraphicsPipelineDescriptionTests.cs::ShaderSpecializationsAndBindingLayoutsChangeIdentity -> Integration/Rendering/Pipelines/GraphicsPipelineDescriptionRulesTests.cs::DistinctSameTypeExecutableGenerationsChangeIdentity
+    - GraphicsPipelineDescriptionTests.cs::AssemblyAndTessellationAreValidatedAndIdentified -> Integration/Rendering/Pipelines/GraphicsPipelineDescriptionRulesTests.cs::PrimitiveRestartIdentityAndPatchStageValidation
+    - MaterialAtlasParamsBuilderNoiseTests.cs::BuildRgb16fPixelBuffers_AppliesNoiseWithinRect_AndIsDeterministic -> Unit/PBR/Materials/MaterialAtlasParamsBuilderNoiseTests.cs::BuildRgb16fPixelBuffers_IsDeterministicAndVariesInsideCoveredRect
+    - ShaderPatchingTests.cs::Insert_BeforeFunction_InsertsAtCorrectPosition -> Unit/Rendering/Shaders/GLSLASTEditRulesTests.cs::Insert_BeforeFunction_PreservesInsertedTextAndMain
+    - TraceSceneDebugShaderCoordSpaceTests.cs::TraceSceneDebug_UsesSharedFrameWorldspaceConversion -> Unit/Rendering/Shaders/TraceSceneDebugShaderCoordSpaceTests.cs::TraceSceneCellSourceContainsConversionToken
+    - TraceSceneDebugShaderCoordSpaceTests.cs::ScenesOverviewDebug_UsesSharedFrameWorldspaceConversion -> Unit/Rendering/Shaders/TraceSceneDebugShaderCoordSpaceTests.cs::ScenesOverviewSourceContainsTraceCellHelperToken
+    - TraceSceneDebugShaderCoordSpaceTests.cs::SurfaceCache_IrradianceSampling_DoesNotRejectNeedsRelight -> Unit/Rendering/Shaders/TraceSceneDebugShaderCoordSpaceTests.cs::SurfaceCacheSourceContainsCaptureFlagAndNotCombinedLiteral
+    - TraceSceneDebugShaderCoordSpaceTests.cs::RelightShader_UsesCpuBatchIndex_ForDeterministicCoverage -> Unit/Rendering/Shaders/TraceSceneDebugShaderCoordSpaceTests.cs::RelightShaderSourceContainsBatchIndexAndHashLiterals
+    - Unit/LumOn/WorldProbes/BlockAccessorWorldProbeTraceSceneTests.cs::Trace_WhenDirectionContainsNaN_ReturnsMiss -> Unit/LumOn/WorldProbes/BlockAccessorWorldProbeTraceSceneTests.cs::Trace_WhenDirectionContainsNaN_ReturnsInvalid
+    - Unit/LumOn/WorldProbes/BlockAccessorWorldProbeTraceSceneTests.cs::Trace_WhenDirectionContainsInfinity_ReturnsMiss -> Unit/LumOn/WorldProbes/BlockAccessorWorldProbeTraceSceneTests.cs::Trace_WhenDirectionContainsInfinity_ReturnsInvalid
+    - Unit/LumOn/WorldProbes/WorldProbeCoordinateSpaceTests.cs::CameraBob_DoesNotAffectPlayerRelativeLookup -> Unit/LumOn/WorldProbes/WorldProbeLookupPositionCalculationTests.cs::LookupPosition_RepeatedInputsProduceSameCoordinates
+    - Unit/LumOn/WorldProbes/WorldProbeCoordinateSpaceTests.cs::PlayerRelativeCoordinates_ProduceWorldStableLookup -> Unit/LumOn/WorldProbes/WorldProbeLookupPositionCalculationTests.cs::LookupPosition_ReturnsExpectedOffsetFromRelativeOrigins
+    - Unit/LumOn/WorldProbes/WorldProbeSchedulerStressTests.cs::BuildUpdateList_Stress_DoesNotExceedBudgetsOverManyFrames -> Unit/LumOn/WorldProbes/WorldProbeSchedulerStressTests.cs::BuildUpdateList_Stress_RespectsTraceCapOverManyFrames
+    - Unit/LumOnDebugViewsPhase5UnitTests.cs::LumOnDebugMode_ProbeAtlasPhase3Modes_AreAppendOnlyAndStable -> Unit/LumOn/LumOnDebugViewContractTests.cs::DebugModeIdentifiersRetainAssignedValues
+    - Unit/PBR/Materials/MaterialAtlasParamsSyncAsyncParityTests.cs::MaterialParams_SyncVsAsyncTileBuild_ProducesIdenticalAtlas_ForFixedSnapshot -> Unit/PBR/Materials/MaterialAtlasParamsPageTileParityTests.cs::MaterialParams_PageAndReverseOrderTiles_ProduceIdenticalAtlas_ForFixedSnapshot
+    - Unit/PBR/Materials/MaterialDisplacementTests.cs::SchemaKeepsDisplacementOutsideBrdfAndMappingOverrides -> Integration/PBR/Materials/MaterialDisplacementSchemaTests.cs::BuiltSchemaKeepsDisplacementOnMaterialDefinitions
+    - Unit/PBR/Materials/TerrainSurfaceDetailModeTests.cs::SnapshotTracksOnlyActiveSettings -> Unit/PBR/Materials/TerrainSurfaceDetailModeTests.cs::SnapshotTracksReliefInputsAndSanitizationOrdersFadeBounds
+    - Unit/Rendering/Contracts/PackagedShaderAssetTests.cs::PackagedBuildDigestsMatchEveryCompiledVariant -> Integration/Rendering/Shaders/PackagedShaderArtifactTests.cs::PublishedShaderBinariesMatchCatalogDigests
+    - Unit/Rendering/Contracts/ShaderRegistryTests.cs::SourcesAndRegistryCoverEachOther -> Integration/Rendering/Shaders/ShaderCatalogSourceArtifactTests.cs::PublishedCatalogCoversPackagedShaderSources
+    - Unit/Rendering/GlPipelineDescValidationTests.cs::ValidateDesc_BlendEnableIndexed_NormalizesSortOrder -> Unit/Rendering/Shaders/GlPipelineDescValidationTests.cs::Constructor_NormalizesBlendEnableIndexedAttachmentOrder
+    - Unit/Rendering/GlPipelineDescValidationTests.cs::ValidateDesc_BlendFuncIndexed_SortsByAttachmentIndex -> Unit/Rendering/Shaders/GlPipelineDescValidationTests.cs::Constructor_NormalizesBlendFuncIndexedAttachmentOrder
+    - WorldCellBoundsCameraTests.cs::BoundsPreserveFullSceneViewTranslation -> Component/Rendering/WorldCellBoundsCameraTests.cs::FrameCameraBindingPreservesSceneViewTranslation
+
 Phase 6: Remove migration-only inventory and tooling
-  ☐ After Phase 5 qualification, inventory every file created solely to carry out this
+  Cleanup inventory (2026-11-08): 24 tracked working documents/exports under
+  docs/testing-inventory/ and seven tracked generation/normalization scripts under
+  tools/TestSuiteInventory/ were created solely for this migration. A tracked-file
+  and repository-reference search found no later migration-only scripts, exports,
+  or reports elsewhere. The raw Release discovery and TRX receipts referenced in
+  the Phase 5 qualification record remain under %TEMP% as verification evidence.
+  Test sources, support fixtures, shader assets, runsettings, build entry points,
+  and this authoritative plan are retained.
+  ☑ After Phase 5 qualification, inventory every file created solely to carry out this
     reorganization, including docs/testing-inventory/ and tools/TestSuiteInventory/.
     Identify any later temporary scripts, exports, or reports before removing them.
-  ☐ Preserve the final classification conventions, accepted coverage decisions, case
+  ☑ Preserve the final classification conventions, accepted coverage decisions, case
     and runner-selection reconciliation, renamed-case mapping, and unresolved findings
     in this plan or appropriate permanent documentation. Keep the evidence needed to
     explain the completed migration without retaining working inventories.
-  ☐ Remove all migration-only inventory and tooling files, then update or remove their
+  ☑ Remove all migration-only inventory and tooling files, then update or remove their
     references in the plan, project documentation, and any commands. Retain actual test
     sources, fixtures, assets, authoritative plans, and required verification evidence.
-  ☐ Review the remaining documentation and repository file list to confirm the temporary
+  ☑ Review the remaining documentation and repository file list to confirm the temporary
     files and stale links are gone, the retained decisions are findable, and no test or
     runner behavior changed during cleanup.
 
