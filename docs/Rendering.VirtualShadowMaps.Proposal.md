@@ -1,10 +1,11 @@
 # Shared virtual shadow maps
 
-Status: design discussion in progress. This document records the established direction and
-remaining design questions. It describes proposed behavior, not an implemented system.
-Targeted source and installed-engine inspection has established the integration findings
-below. Concrete APIs, algorithms, and performance targets remain under discussion. No
-implementation checklist or detailed execution plan is established here.
+Status: complete proposal draft for review. This document records established requirements,
+recommended design choices, and source-backed integration findings. It describes proposed
+behavior, not an implemented system. User-established constraints are binding; the remaining
+recommendations require proposal approval. Numerical starting values are tuning hypotheses,
+not measured results. Implementation and qualification gates close the document; no
+implementation checklist or runtime changes are established here.
 
 ## Purpose and scope
 
@@ -42,6 +43,160 @@ The following requirements are established:
   optional extensions or OpenGL 4.6 features. Additional capabilities may optimize it,
   but cannot be required for baseline correctness or hidden in performance assumptions.
 
+## Recommended architecture and completion decisions
+
+The detailed sections below develop this proposed design. These choices close the design
+discussion at proposal level; exact API names, shader layouts, and measured tuning belong
+to implementation design and qualification after approval.
+
+| Concern | Recommendation |
+| --- | --- |
+| Physical pages | Resident D32F depth-array layers; initial tuning size 128 by 128, no mip chain or stored gutter |
+| Directional projection | Independent orthographic clipmap levels for sun and moon; adjacent levels double world-space texel width |
+| Point projection | Six perspective faces with virtual page addressing and explicit face-edge sampling |
+| Baseline routing | OpenGL 4.5 geometry-shader layer output, instance-attribute metadata, bounded indirect command intervals |
+| Receiver coverage | A current-frame surface-demand prepass before any participating surface shading |
+| Terrain search | Conservative DDA-style slab sweep over fixed chunk partitions and covered light motion |
+| World boundary | Engine-published loaded-chunk envelope per dimension, with unresolved interior gaps |
+| Candidate cache | Coordinate-keyed headers and segmented candidate lists from bounded GPU storage |
+| Sampling | Bounded manual PCF and explicit virtual lookup for every tap; statically addressed array samplers |
+| Overload | Complete reduced-detail coverage first, then stable light-level withdrawal and recovery |
+| Fog | Separate consumer readiness, full integration after surface shadows |
+
+### Light identity and projection contract
+
+Use stable source keys: distinct sun/moon IDs, entity lifetime plus emission slot, player
+lifetime plus hand, and block position plus source slot/lifetime for block-owned emitters.
+Authored providers supply equivalent stable keys. Scope every key to its world and dimension.
+Source replacement gets a new generation.
+Movement changes projection, not identity. Extend the light-collection/publication boundary;
+do not infer identity by matching positions or frame-list indices. Required native moving-light
+collectors must supply identity before their shadow integration is considered complete.
+
+The [held-source collector](../VanillaGraphicsExpanded/PBR/HeldLighting/HeldLightSources.cs)
+already knows player, hand, and admitted frame index but releases that association each frame.
+The [light publication](../VanillaGraphicsExpanded/Rendering/VgeLightsUniformBuffer.cs) needs
+identity alongside its retained payload. The same current snapshot drives shadow demand,
+rendering, and illumination. Unknown identity defensively leaves a light illuminated without
+cached shadows; that is not acceptance of missing required source integration.
+
+Keep both solar and lunar direct contributions through atmosphere publication, lighting
+evaluation, intensity bounds, water, and other forward consumers. Shadow visibility attenuates
+each source's direct term, not ambient/emissive contributions. Preserve the existing lighting
+calibration and storage conventions.
+
+Snap directional clipmap placement to texel/page increments in the current light basis.
+Camera translation can reuse matching pages; rotation of the light basis changes depth validity.
+Fit directional
+caster depth to the represented domain, not just camera-visible receivers. Point faces use
+consistent fixed axes; changing light position invalidates their old depth. Page keys contain
+source/lifetime, projection generation, face/level, and virtual XY coordinates.
+
+Use conventional projected depth and explicit comparisons in the shared sampler. Point
+near-plane distance, bias, and depth range are explicit quality tunables. Near-source geometry
+and extreme directional depth spans require validation; clipping cannot silently substitute
+for candidate completeness. Existing represented depth-clamp support may be evaluated for
+near-plane crossings, without adding custom clipping. Finite-precision shadows still have
+contact/bias limitations that visual acceptance must assess.
+
+### Current-frame demand and shading order
+
+Establish surface readiness before the first participating forward or deferred shading
+consumer. The recommended sequence is scene/animation preparation, current light capture,
+surface-demand prepass, candidate/page work, readiness publication, then normal surface
+shading. Do not rely only on opaque receiver resolution at order 8.5: earlier forward draws
+may already need shadows. Place the proposed demand/shadow gate after current
+[light capture](../VanillaGraphicsExpanded/Rendering/VgeLightsRenderer.cs) and before the
+earliest affected world draw, preserving downstream visual shading order.
+
+The demand prepass uses current transforms, deformation, alpha tests, and visibility rules.
+Opaque/cutout depth can reject hidden opaque surfaces. Transparent demand covers every
+contributing layer; nearest-layer-only demand is insufficient. Use opaque-depth rejection
+where valid, without transparent depth writes that hide other contributing layers. Conservative
+projected receiver bounds are allowed when cheaper, provided extra demand is budgeted and
+coverage is complete. Include filter footprints and any receiver-position bias in demand
+and candidate coverage. Late categories must provide conservative requests before the gate.
+Previous-frame feedback may prioritize work but cannot certify current newly visible coverage.
+
+Prepare entity animation once and reuse it for demand and shadow draws. Offscreen casters
+require current preparation despite camera-visible `BeforeRender` gating. The new prepass
+and preparation costs belong to the shadow budget. Unfinished demand or overflow makes
+affected lights unready. This is a proposed integration change, not an existing capability.
+
+### World publication and cache contract
+
+Use one adapter at the engine's world-chunk publication boundary. Bootstrap at a safe native
+boundary, then consume load/unload/edit changes through existing events and a narrow lifecycle
+integration where necessary. Existing `ChunkDirty` use in the
+[trace geometry renderer](../VanillaGraphicsExpanded/LumOn/Scene/Geometry/TraceGeometryRenderer.cs)
+does not alone prove coverage of every upload/retirement. Verify those boundaries during
+implementation; do not replace them with mesh-pool membership hooks or per-page snapshots.
+
+Publish a bounded coordinate-keyed GPU lookup of availability, native identity/generation,
+empty/connectivity freshness, and this batch's geometry references. Freeze each render
+publication, drain changes before certifying results, and retain the engine's ownership.
+Use the envelope of its loaded partitions in the relevant dimension as the finite domain,
+including offscreen chunks. Interior missing or pending data is unresolved, not empty.
+Outside the envelope is outside the client's represented world; no guarantee is made about
+shadows from unloaded terrain. This explicit limitation may cause streaming-edge changes.
+It does not authorize an additional caster-distance cutoff within the domain.
+
+Association headers identify light, receiver coverage, dimension, movement interval,
+domain/influence generations, completion, and candidate-list spans. Store native coordinates
+in segmented lists from one bounded allocator. Exhaustion leaves the replacement incomplete.
+Publish a replacement only after complete traversal and deduplication; old and new generations
+both count against the memory allowance. When old coverage expires, retire it even if the
+replacement is unfinished. No automatic double-sized cache is assumed.
+
+Bounds-only associations retain spatial candidates independently of mesh allocations;
+apply current empty/material/geometry eligibility when consuming them. Pruned associations
+record the dependency revisions that justified omissions. Process changed partitions against
+active covered regions and pruning dependencies in bounded GPU batches. Incomplete invalidation
+checks cannot certify affected results. This association data is not a mesh-pool registry.
+Deduplication uses bounded hash/bitset storage; capacity failure rejects completeness.
+
+Use spherical directional caps and axis-aligned point-source boxes anchored when an association
+is built, enclosing all intermediate movement. Refresh within a guard band before coverage
+expires; predictions schedule work but cannot extend validity. Source influence changes must
+stay within the covered bound or invalidate it. The actual point-light attenuation contract
+is defined by [VgePointIlluminance](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/pbr_photometric.glsl):
+authored payloads carry a positive radius; engine payloads derive radius as
+`min(25, length(max(payload.xyz, 0)))`, with zero contribution beyond it. Demand follows this
+same convention. [PunctualLight](../VanillaGraphicsExpanded/PBR/PunctualLight.cs) supplies
+authored radius. Do not invent a different shadow-only illumination range.
+
+### Sampling, allocation, and lifecycle contract
+
+Use bounded GPU page tables and free/retirement queues. Physical assignments are
+`(array, layer, generation)`; lookup/probe exhaustion is failure, not aliasing. Allocate
+demanded pages, evict invalid/unreferenced entries before current required coverage, and
+never overwrite a layer still referenced by scheduled GPU work.
+
+Start with 3-by-3 manual PCF using point-fetched depth and explicit comparisons. Resolve
+every tap through virtual addressing and validity. Across point-face edges, map tap direction
+to the adjacent face and evaluate its reference depth in that face's projection. Across
+directional levels, use world-consistent lookup and request all participating samples.
+Never average depth pages into a fallback level. Bias uses a shared texel/depth convention
+with bounded slope/normal adjustments and material-aware culling.
+
+Generate a bounded dispatch over statically named depth-array samplers. Point fetches avoid
+implicit-derivative requirements in divergent selection. The supported array count is limited
+by slots available in every participating shader as well as memory/hardware limits. Optional
+bindless access is not required. Larger filters/contact-hardening are later quality modes
+only if their coverage and work fit the same contracts; they are not baseline dependencies.
+
+Own resources through the existing RHI and configuration lifecycle. Withdraw publications
+before retirement on disable, world leave, context loss, source/dimension removal, shader
+replacement, or relevant reconfiguration. Borrowed engine geometry remains engine-owned;
+withdraw work if its captured range/transform generation changes. Retain frame storage until
+GPU users complete, polling without blocking. Barriers establish visibility, not permission
+for premature reuse. Separate source, projection, world, candidate, assignment, and readiness
+generations prevent stale work from becoming current.
+
+Use one shadow provider per participating light/consumer. Migrate sampling coherently so
+native shadow stages do not duplicate work or apply a second shadow approximation. Existing
+native rendering can remain only where explicitly selected, not as a hidden coarse fallback.
+
 ## Terminology
 
 | Term | Meaning |
@@ -77,7 +232,7 @@ light-specific representations define how world-space locations map into shadow 
 | Required sampling coverage and resolution | Shadow consumers, interpreted through the light representation |
 | Terrain chunk occlusion candidate generation | Shared shadow system, using GPU compute and existing chunk information |
 | Current terrain geometry and render categories | Existing engine chunk references and pass-and-atlas table |
-| Selected geometry drawing and entity integration | Scene rendering integration; exact boundary remains open |
+| Selected geometry drawing and entity integration | Scene adapters over borrowed engine geometry and once-per-frame entity preparation |
 | Shadow lookup and filtering | Shared sampling infrastructure with projection-specific handling |
 
 ```mermaid
@@ -98,10 +253,9 @@ flowchart TD
     Sampling --> Fog
 ```
 
-The diagram expresses responsibilities, not a decided render-pass order or concrete API.
-GPU candidate generation is established; the remaining execution and submission details
-are open. Fog participates in the intended architecture even though its complete
-integration follows surface shadows.
+The diagram expresses responsibilities. The current-frame demand contract above defines
+the proposed ordering; concrete APIs are implementation details. Fog participates in the
+architecture even though its complete integration follows surface shadows.
 
 ## Dynamic lighting and validity
 
@@ -123,7 +277,7 @@ consequences. The design must distinguish them. In particular:
 
 Sun and moon are independent directional-light clients sharing the directional
 allocation. Their simultaneous operation must not depend on an exclusive day/night
-shadow switch. Exact contribution-based priorities remain to be specified.
+shadow switch. The configurable allocation policy below defines their proposed priorities.
 
 ## Chunk occlusion candidates
 
@@ -140,9 +294,9 @@ positives: a chunk may be selected even when its actual mesh blocks none of the 
 light. Required occluders must not be omitted.
 
 The regular grid should constrain the spatial search. GPU execution alone does not
-justify comparing every loaded chunk against every other loaded chunk. Search bounds,
-candidate storage, output capacity, and work scheduling remain design decisions within
-the bounded-resource objective.
+justify comparing every loaded chunk against every other loaded chunk. The domain,
+segmented candidate storage, bounded continuation, and admission policy specified here
+constrain that work independently of the number of depth updates.
 
 ### Existing spatial ownership
 
@@ -156,7 +310,7 @@ be called per receiver, light, or shadow page.
 Preserve native chunk identity, including dimension-aware Y encoding. GPU input describes
 the existing chunk partitions and their availability; it does not define another mesh-pool
 classification or subdivide terrain. Source-side publication must follow the engine's
-ownership and mutation rules. The exact refresh mechanism remains open; the inspected
+ownership and mutation rules through the proposed world-publication adapter; the inspected
 loaded-index getter itself contains no explicit lock. Coordinate-relative GPU arithmetic
 should preserve integer chunk identity, following the project's existing
 [world-origin split](../VanillaGraphicsExpanded/Rendering/FrameWorldSpaceBridge.cs).
@@ -172,17 +326,17 @@ near the camera does not justify excluding distant chunks that can shadow them. 
 particular, low sun angles can make distant terrain relevant to nearby receivers.
 
 The proposed finite terrain domain follows the engine's available chunk coverage in the
-relevant dimension, with a conservative bounding region enclosing it. The exact publication
-of that domain remains open. It must include available offscreen chunks and must not shrink
+relevant dimension, with a conservative bounding region enclosing it. The world-publication
+adapter supplies that envelope. It must include available offscreen chunks and must not shrink
 to the subset visited by a work batch merely to make that batch appear complete. Within
 this domain, do not impose a second arbitrary caster-distance cutoff. The actual search
 visits only grid cells that may intersect the light/receiver relationship described below.
 
 Completeness is relative to this declared world-data domain. Terrain outside available
 world coverage cannot be reconstructed from chunk boxes; stopping at its boundary is a
-world-data limitation, not proof that farther terrain cannot cast a shadow. Adoption of
-this available-world boundary and its visible behavior remain quality decisions. A shorter
-caster horizon would be a separate approximation requiring explicit discussion.
+world-data limitation, not proof that farther terrain cannot cast a shadow. This is the
+recommended boundary for review, with streaming-edge behavior requiring visual acceptance.
+A shorter caster horizon would be a separate approximation requiring explicit discussion.
 
 Within the declared domain, distinguish known empty chunks from unavailable information.
 A missing lookup, pending geometry, or stale classification is not proof of emptiness.
@@ -216,10 +370,11 @@ the source along a receiver-to-light ray is not required merely because it is on
 infinite line. Include the receiver and source chunks when their boxes intersect the region.
 
 This point-light search is finite for bounded receiver and source regions even without
-assuming a finite illumination cutoff. The existing
-[light publication](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/vge_lights_ubo.glsl)
-contains positions and colors, not an explicit range. Any influence-radius rejection must
-be derived from an agreed lighting/shadow-coverage contract, not invented from that buffer.
+an illumination cutoff. For receiver eligibility, use the existing finite attenuation
+radius described above: explicit for authored lights, derived from RGB for legacy engine
+payloads. Keep its complete covered bound when caching across changes. A receiver outside
+the current radius needs no current contribution, but that does not justify truncating
+occluder segments for eligible receivers.
 
 ### GPU chunk-grid DDA and bounded continuation
 
@@ -354,15 +509,16 @@ A search that exhausts its work or output allowance is unfinished, not complete 
 shorter horizon. Continue it in bounded slices while its covered light movement and
 dependencies remain valid, or reject the affected update through the proposed overload
 policy. Broader angular/positional intervals trade less frequent regeneration for larger
-candidate sets; intervals and refresh scheduling must be evaluated together. No finite
-degree or movement threshold is selected here.
+candidate sets; intervals and refresh scheduling must be evaluated together. The settings
+section supplies proposed initial coverage sizes and a refresh guard, subject to measurement.
 
 Chunk availability changes require reconsideration of associations whose swept region
 intersects the changed partition, including newly loaded potential occluders. Previously
 completed associations cannot remain valid solely because the light stayed in its interval.
-The affected-collection lookup and publication strategy remain open; neither implies a
-reverse mesh-pool registry. New page uses and filter-neighbor samples must have association
-coverage for their full receiving footprint before claiming the page is valid for them.
+Bounded GPU checks against active covered regions and recorded pruning dependencies handle
+these changes without a reverse mesh-pool registry. New page uses and filter-neighbor samples
+must have association coverage for their full receiving footprint before claiming the page
+is valid for them.
 
 ### Reuse across light movement
 
@@ -371,16 +527,16 @@ projection can require new depth rendering while leaving the candidate associati
 usable. Do not rebuild associations merely because a shadow map needs updating.
 
 For the sun and moon, the proposed reuse mechanism covers an angular interval and
-refreshes candidates when the direction leaves that interval. The calculation must
+starts refreshing within the guard band before the direction leaves it. The calculation must
 include potential occluders over the entire interval, rather than calculate only one
 exact direction and reuse it until a threshold. Sun and moon retain independent coverage.
-The interval widths and selection method remain open; no specific degree threshold has
-been selected.
+Use the anchored spherical cap and configurable radius specified above; its full interior
+must be conservatively bounded, including when split across traversal direction sectors.
 
 For moving point lights, the corresponding candidate is a bounded region of source
 positions, combined with bounded receiver demand. Any influence cutoff must agree with
-the lighting/coverage contract. The precise positional coverage and refresh policy remain
-open. This must support carried lights as a primary workload.
+the lighting/coverage contract. Use the anchored source box and refresh guard specified
+above. This must support carried lights as a primary workload.
 
 | Change | Consequence |
 | --- | --- |
@@ -434,8 +590,9 @@ connectivity must remain potentially open. Sources or receivers inside the chunk
 cannot be classified by an unrelated boundary-to-boundary connection.
 
 Using the engine's opacity rules for shadow rejection still requires validation against
-the shadow-casting material rules. The transfer/publication mechanism and dependency
-invalidation are unresolved; no new mesh-pool classification hooks are implied.
+the shadow-casting material rules. Publish metadata and dependency revisions through the
+world adapter, retaining bounds-only selection wherever that proof is unavailable. This
+requires no new mesh-pool classification hooks or duplicate voxel connectivity analysis.
 
 Evidence: `ClientChunk`, `SystemChunkVisibilityCalc`, `ChunkCuller`, and
 `WorldChunk.UpdateEmptyFlag` in the installed `VintagestoryLib.dll`. The
@@ -443,7 +600,7 @@ Evidence: `ClientChunk`, `SystemChunkVisibilityCalc`, `ChunkCuller`, and
 contains the relevant IL, assembly version, module identity, and SHA-256. This is static
 inspection evidence, not a measured performance or live visual result.
 
-## Configurable budgets and allocation
+## Configurable budgets, priorities, and allocation
 
 Memory capacity and rendering work are separate constraints. Limiting resident pages
 does not alone bound the cost of repeatedly drawing geometry into those pages.
@@ -458,26 +615,49 @@ lights receive shadows. Selection uses stable priorities and hysteresis to avoid
 frequent switching as lights enter or leave view or their importance changes. Lights
 excluded from shadow casting continue to contribute illumination.
 
-The following controls have been suggested, but their exact public configuration
-contract is not yet settled:
+Expose persisted, validated settings through the existing configuration system, with a
+quality profile for internal work ceilings and advanced overrides where useful. Settings
+are data, not fixed integer constants embedded in the allocator. These are proposed initial
+tuning values, not measured suitable defaults:
 
-| Candidate control | Intent |
+| Setting | Proposed starting value and meaning |
 | --- | --- |
-| Shadow memory budget | Bound physical page storage and associated cache resources |
-| Shadow update budget | Bound scheduled work and target an affordable rendering cost |
-| Maximum shadow-casting local lights | Provide an explicit limit on simultaneous shadowed local lights |
-| Directional/local reservations | Protect each category while allowing unused capacity to be borrowed |
+| Total shadow memory | 256 MiB, including depth, tables, associations, commands, and temporary generations |
+| GPU work target | 2 ms per frame for all shadow work, including demand preparation; scheduling target, not a guaranteed time ceiling |
+| Shadowed local lights | At most 8 simultaneously; separate from the existing illumination capacity |
+| Directional reservation | 50% of memory and scheduled work; local lights reserve the remainder, with unused shares borrowable |
+| Surface quality | Balanced profile controlling requested texel density and bounded refinement |
+| Directional association coverage | Spherical cap with 1-degree angular radius around its anchor |
+| Point association coverage | Source box with 2-metre half extents around its anchor |
+| Refresh guard | Start replacement in the outer quarter of covered angular distance or box extent; expiration still invalidates old coverage |
+| Selection hysteresis | Challenger score at least 20% higher and 0.5-second minimum hold while valid |
+| Recovery | Eight consecutive frames of complete current coverage before restoring a withdrawn light's shadows |
 
-Configuration requires defaults and validated limits. Units, values, setting names,
-runtime adjustment behavior, borrowing/reclamation rules, and priority thresholds remain
-open. A GPU time target, if exposed, is a scheduling target rather than a guaranteed
-exact per-frame ceiling. Measured-cost scheduling and enforceable work limits are
-candidate mechanisms, not yet an approved implementation.
+Profiles must supply finite ceilings for input visits, traversal slabs/cells, association
+segments, requests, groups, submitted command slots, page instances, tessellation work
+estimates, and retry attempts. Validate against hardware capacities and integer limits.
+Allocation failure reduces usable capacity and reports it; configuration cannot promise
+unsupported resources. Driver overhead means tracked bytes are not an exact process VRAM cap.
 
-Preferential treatment of the player's carried light has been suggested. The precise
-priority policy, including sun/moon contribution and fairness among local lights, remains
-to be designed. Page size and other internal tuning details are not established as
-user-facing settings.
+Directional priority uses visible direct contribution and estimated cost, with an opportunity
+for each contributing sun/moon light within the directional share. Local priority gives the
+player's carried source explicit preference, then uses visible contribution and estimated
+cost. Bounded waiting age discourages starvation among otherwise comparable lights; stable
+source ID breaks ties. Priority cannot guarantee shadows that do not fit even at the minimum
+accepted detail. Illumination is independent of shadow admission.
+
+Borrow only unused reservations. Reclaim borrowed capacity at a scheduling boundary through
+lower detail or light withdrawal, preserving in-flight resources until their users complete.
+A smaller budget drains excess allocations before admitting more; report the temporary
+retirement footprint rather than pretending it disappeared immediately. Grow incrementally.
+A page-format change withdraws affected publications and retires the old pool before replacing
+it within the allowance; do not silently allocate two full pools.
+
+Nonblocking GPU timing feedback adjusts estimates for later frames. Never wait for a timing
+result to schedule the current frame. Hard work ceilings bound identifiable operations;
+neither a millisecond target nor historical measurements guarantee worst-case execution time.
+Score calibration and profile values require qualification on the combined moving-light
+workload before being presented as shipping defaults.
 
 ## Resolution, demand, and coarse coverage
 
@@ -560,8 +740,8 @@ The GPU can reduce request/page validity into a per-light readiness result befor
 shading, without CPU readback. All participating surface consumers must use the same
 result for that rendering interval. This requires demand, including transparent-surface
 and filter-neighbor coverage, to be available before the first affected consumer shades.
-The existing frame-order integration does not yet establish that contract. A late miss
-cannot retroactively withdraw shadows from pixels already shaded.
+The proposed demand prepass establishes that contract; the existing integration does not
+already provide it. A late miss cannot retroactively withdraw shadows from pixels already shaded.
 
 The proposed scheduler should first seek complete demanded coverage for admitted lights
 at an affordable detail, then spend remaining work on refinement. Both choices are subject
@@ -572,16 +752,16 @@ individual pages may still be retained for reuse only while they remain valid.
 As a defensive sampling rule, an unexpected invalid lookup returns unshadowed visibility
 and records a demand/validity failure, rather than reading stale or uninitialized storage.
 That guard does not replace the normal completeness gate or establish acceptable visual
-behavior. The exact diagnostic mechanism remains open. Fog will need its own readiness
-scope when integrated; incomplete fog-only coverage should not silently withdraw complete
+behavior. Record per-light misses and show the validity overlay specified in qualification.
+Fog has its own readiness scope; incomplete fog-only coverage must not withdraw complete
 surface shadows.
 
 ### Stable recovery without stale-depth fading
 
 Use hysteresis for selecting lights, changing requested detail, and restoring shadowing
 after overload. In particular, a light that has lost coverage should demonstrate sustained
-ability to complete its current requests before shadowing is restored. Exact margins,
-history length, and priority rules remain to be selected. Hysteresis may delay enabling
+ability to complete its current requests before shadowing is restored. The configuration
+section gives initial margins and recovery history for tuning. Hysteresis may delay enabling
 shadows; it cannot keep invalid depths usable after light motion or geometry changes.
 
 A fade-in is possible while complete current shadow data is available. A planned fade-out
@@ -607,6 +787,15 @@ shadow integration follows basic opaque/cutout surface shadows and transparent s
 support. Fog-specific coverage is requested according to its needs rather than imposed
 unconditionally on every light.
 
+At final integration, generate requests from the participating volume sampling cells and
+their filter footprints. Reuse compatible surface pages and allocate additional pages only
+within the shared budget. Schedule surface coverage first; fog-only work cannot evict pages
+needed by an already-admitted surface result. Publish independent per-light fog readiness
+before volume lighting; missing fog coverage leaves that light's fog contribution unshadowed.
+History must reject changed light/projection, page validity, and readiness generations rather
+than accumulate obsolete shadowing. Fog resolution, temporal stability, and separate readiness
+transitions require qualification after surface behavior is accepted.
+
 This establishes a broad dependency order only. It does not prescribe implementation
 tasks, milestones, or completion claims.
 
@@ -625,7 +814,7 @@ geometry references. Each location includes the native pool ID, vertex/index ran
 bounds, detail level, and visibility state, but not the render pass or atlas. Uploaded
 chunk-part descriptions are subsequently released.
 
-A candidate drawing approach, not yet a committed submission algorithm, is:
+The recommended drawing contract is:
 
 1. Supply current chunk geometry references as GPU-readable input, using the engine's
    native pool IDs and ranges. Preparing this input does not depend on reading GPU
@@ -662,8 +851,8 @@ terrain or animated-entity adapter.
 
 No new generic "caster record" system has been selected. Any integration must preserve
 existing geometry and material ownership, including cutouts, deformation, terrain
-displacement, animation, and moving-chunk transforms. Entity integration remains a
-separate open boundary rather than being forced into static terrain chunk membership.
+displacement, animation, and moving-chunk transforms. Entities use their own scene adapter
+and current preparation, without forcing them into static terrain chunk membership.
 
 ## Proposed GPU candidate-to-draw handoff
 
@@ -722,15 +911,16 @@ correct overflow policy: a silently truncated collection can omit required occlu
 If complete selection or drawing cannot fit, affected pages cannot be published as valid.
 The response must connect to the agreed detail reduction and light-priority policy and
 the proposed missing-page behavior. Previous associations are reusable only while their
-coverage and dependencies remain valid. Exact storage layout, allocation, and overflow
-handling remain undecided.
+coverage and dependencies remain valid. Segmented association storage and bounded page
+tables use explicit allocation failure; incomplete output cannot become a published result.
 
 ### Bounded expansion and submission
 
 The proposed scheduler bounds selection work before it produces drawing commands, then
-admits complete page updates. This is a design recommendation; numerical limits, storage
-layout, and scheduling algorithms are not selected. All limits derive from validated
-configuration and hardware constraints. They need not each become a separate public setting.
+admits complete page updates. The proposed profiles and priority rules constrain this work;
+exact memory layouts and calibrated limits follow implementation and measurement. All limits
+derive from validated configuration and hardware constraints. They need not each become a
+separate public setting.
 
 | Work or storage to bound | What the bound must include |
 | --- | --- |
@@ -784,7 +974,7 @@ submission. This does not require slots for every loaded chunk or every resident
 Input preparation must itself stay bounded. Use existing chunk references for a bounded
 spatial work region and the authoritative pass-and-atlas table for compatible groups;
 do not scan individual pool allocations for every page or build a reverse pool registry.
-The practical publication strategy and its cost remain to be established. A page can
+The proposed world adapter must qualify publication correctness and cost. A page can
 be admitted only if its complete required geometry is available within the supplied
 inputs. Reaching an input, group, or command limit cannot silently remove its occluders.
 
@@ -793,7 +983,9 @@ chunk bounds with requested page coverage before resolving eligible current rang
 does not construct an unconditional product of all pages and all loaded geometry.
 Overlapping receivers must produce at most one occurrence of the same eligible range
 for a page. Visits and duplicate-processing work count against the budget even when
-they produce no draw. Exact deduplication and compaction algorithms remain open.
+they produce no draw. Use bounded keyed insertion for the page identity/generation and
+native range identity/generation, then prefix-sum compaction into admitted lists. Collision/probe or output
+exhaustion rejects completeness; it cannot discard an unknown duplicate as if already present.
 
 #### Admit complete pages before clearing or drawing
 
@@ -824,7 +1016,7 @@ geometry intersecting each larger page. A page that still cannot fit requires th
 missing-page/light fallback, not an endlessly retried same-frame expansion. Reconsidering
 requests must itself have bounded work. The proposed missing-page policy withdraws the
 affected light's surface shadows if complete current coverage remains unavailable;
-its adoption and visual acceptance remain open.
+it is a review recommendation whose visual behavior requires acceptance.
 
 Candidate maintenance can be resumed across bounded work slices while its covered light
 movement and dependencies remain valid. Reusing spatial progress does not authorize
@@ -848,7 +1040,7 @@ identified in the inspected shaders; indirect support is only part of the requir
 
 ## Page routing within existing pipeline constraints
 
-### Constraint and remaining candidates
+### Selected route and alternatives
 
 The pipeline-state system deliberately excludes custom shader clipping. The tiled-atlas
 route that remaps each draw into a tile and uses custom clip distances to contain it is
@@ -941,10 +1133,10 @@ For square pages with one depth level and no multisampling, nominal depth storag
 ```text
 bytesPerPage = storedPageWidth * storedPageWidth * depthBytesPerTexel
 pageCapacity = floor(depthStorageBudget / bytesPerPage)
-physicalPage = (array identifier, layer index)
+physicalPage = (array identifier, layer index, assignment generation)
 ```
 
-The stored width includes any borders eventually selected. The depth-storage allowance
+The selected baseline has no stored borders. The depth-storage allowance
 must leave budget for page tables, associations, commands, and other shadow resources;
 driver allocation overhead also prevents this formula from being an exact VRAM receipt.
 Allocation must satisfy the applicable hardware limits as well as the budget.
@@ -960,14 +1152,14 @@ groups. Compute routes commands into those known groups; the CPU need not read b
 which individual layers were selected. Multiple arrays also consume sampling resources.
 Receiver pixels can select different arrays, so ordinary sampler-array indexing cannot
 be assumed legal for an arbitrary per-pixel array identifier. A bounded set of statically
-addressed sampler accesses is a candidate, with explicit filtering/derivative handling;
+addressed sampler accesses is the proposed baseline, using explicit point fetches and comparisons;
 optional bindless access must not become an unstated requirement. See the
 [GLSL sampler indexing rules, section 4.1.7](https://registry.khronos.org/OpenGL/specs/gl/GLSLangSpec.4.60.pdf).
 
 The supported array count and configuration range must account for sampler availability
 in every participating receiver path and for submission cost. Larger configured budgets
-cannot bypass those limits. The multi-array sampling contract remains open under the
-established OpenGL 4.5 baseline before layered storage can be adopted as the complete design.
+cannot bypass those limits. Use the static dispatch and manual per-tap addressing contract
+above, validating each consumer's available slots before accepting a configured capacity.
 
 ### Per-draw page selection
 
@@ -993,8 +1185,8 @@ command and shader-storage barriers described above.
 These options follow [shader draw parameters](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_shader_draw_parameters.txt)
 and [base-instance attribute addressing](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_base_instance.txt).
 The baseline transport must fit the available vertex inputs and preserve existing
-instancing semantics for each caster path. Its concrete geometry integration remains
-open; optional shader draw parameters cannot substitute for that baseline contract.
+instancing semantics for each caster path. Each scene adapter must implement and qualify
+that transport; optional shader draw parameters cannot substitute for the baseline contract.
 
 ### Projection and material compatibility
 
@@ -1040,78 +1232,79 @@ Physical storage locations need not be neighboring virtual pages or even belong 
 the same light. Filtering must resolve samples through virtual addressing, or use a
 separately specified valid-border scheme. Ordinary filtering across unrelated atlas tiles
 is incorrect if atlas storage is selected; array layers also do not supply neighboring
-virtual-page samples automatically. The same requirement applies at point-light face boundaries; filter width,
-border policy, and missing-neighbor handling remain open.
+virtual-page samples automatically. The selected 3-by-3 manual filter resolves neighbors
+through page/face addressing, without stored gutters. Its required neighbors participate in
+readiness; a missing tap follows the same defensive invalid-lookup rule as a missing center.
 
 Intermediate layered rendering would additionally need bounded batches and transfer
-accounting. No page size, storage dimensions, or performance advantage is established
-by this source inspection.
+accounting. The initial page dimensions are a proposed tuning choice, not a performance
+advantage established by source inspection.
 
 ## Other integration findings
 
-Targeted inspection established these additional constraints; the resulting concrete
-changes remain to be designed:
+Targeted inspection established these additional constraints. The recommended architecture
+above incorporates them; the corresponding runtime changes are not implemented:
 
 | Finding | Design consequence | Source |
 | --- | --- | --- |
 | Atmosphere data contains independent solar/lunar quantities, but direct-light properties select one emitter | Simultaneous sun/moon shadows require corresponding direct-light evaluation and publication changes, not just more shadow storage | [AtmosphereLighting](../VanillaGraphicsExpanded/PBR/Atmosphere/AtmosphereLighting.cs) |
 | The shared local-light publication contains positions and colors without persistent source identity | Preserve source identity for stable selection, hysteresis, and page ownership; frame-local list indices are insufficient | [VgeLightsUniformBuffer](../VanillaGraphicsExpanded/Rendering/VgeLightsUniformBuffer.cs), [HeldLightSources](../VanillaGraphicsExpanded/PBR/HeldLighting/HeldLightSources.cs) |
 | Existing local-light contributions are unshadowed in deferred, forward, and liquid shading | Shadow sampling must reach all participating surface paths | [Deferred shading](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/pbr_direct_lighting.fsh), [forward shading](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/pbr_forward_surface.glsl), [liquid shading](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/pbr_liquid.glsl) |
-| The engine's native shadow stages precede opaque rendering; VGE resolves receiver data at opaque order 8.5 and evaluates direct lighting at 9.0 | Generating opaque requests and rendering pages between those VGE operations is a candidate; transparent and late receivers need their own earlier demand | [Receiver publication](../VanillaGraphicsExpanded/PBR/SceneColor/SceneColorParticleCapture.cs), [direct lighting](../VanillaGraphicsExpanded/PBR/DirectLightingRenderer.cs); installed `ClientMain.MainRenderLoop` |
+| The engine's native shadow stages precede opaque rendering; VGE resolves receiver data at opaque order 8.5 and evaluates direct lighting at 9.0 | That late interval cannot serve earlier forward receivers; use the proposed demand/shadow gate after current light capture and before the first participating surface draw | [Receiver publication](../VanillaGraphicsExpanded/PBR/SceneColor/SceneColorParticleCapture.cs), [direct lighting](../VanillaGraphicsExpanded/PBR/DirectLightingRenderer.cs); installed `ClientMain.MainRenderLoop` |
 | Entity `BeforeRender` is camera-visibility gated while animation advancement is separate | Offscreen shadow casters need an explicit preparation contract; do not repeat animation advancement per shadow page | Installed `SystemRenderEntities.OnBeforeRender` and `OnRenderFrameShadows` |
 
 The existing 100-entry local-light publication capacity is an engine lighting constraint,
 not the proposed configurable limit on shadow-casting lights. No runtime performance or
 visual acceptance claim follows from this source and assembly inspection.
 
-## Open design decisions and next discussion
+## Qualification gates and review status
 
-GPU-resident candidate selection, indirect commands, and resident depth-array pages are
-the recommended drawing direction under OpenGL 4.5 and the prohibition on custom shader
-clipping. The proposed baseline uses geometry-shader layer routing, instance-attribute
-metadata selection, and bounded indirect-command intervals. Optional extensions may
-reduce their costs; baseline performance still requires measurement.
+The proposal is complete for review. Its recommendations close the architecture discussion
+without claiming implementation, measured performance, or visual acceptance. The principal
+qualification obligations are:
 
-The proposed work policy bounds input preparation, candidate expansion, aggregate command
-slots, page instances, and drawing cost separately, admitting complete page updates.
-Terrain range instancing is recommended to reduce command overhead without disguising
-repeated geometry cost. Numerical limits and performance validation remain open.
+- **Conservative traversal:** compare GPU results with an exhaustive chunk-box reference over
+  bounded domains. Cover negative coordinates, boundary ties, all directional sectors,
+  angular-cap interiors, source/receiver overlap, near-horizontal light, streaming changes,
+  and pause/resume. No reference occluder may be omitted; record false-positive cost.
+- **Scene integration:** preserve native pass/atlas ownership and detail selection. Cover
+  ordinary and shader-storage terrain, displacement, cutouts, offscreen entities, moving
+  chunks, animation, and source identity. Verify lifetime boundaries before using borrowed ranges.
+- **Publication and exhaustion:** exercise cache replacement, stale completion, edits that
+  open passages, range retirement, lookup collisions, allocation overflow, and configuration
+  shrink/disable. Incomplete work must never publish complete coverage. Validate empty and
+  connectivity metadata against shadow opacity; retain bounds-only operation where unproven.
+- **OpenGL 4.5:** run with optional draw-parameter, indirect-count, and vertex/TES layer-output
+  paths disabled. Verify metadata transport, geometry routing, selective clear, barriers,
+  static sampler dispatch, and capability-limited configurations on the baseline path.
+- **Demand and sampling:** validate pre-shading readiness for opaque, cutout, water, and all
+  contributing transparent layers. Exercise virtual-page, clipmap, and cube-face seams,
+  filter-neighbor demand, large coordinates, near-light geometry, and depth precision.
+- **Performance:** measure CPU and GPU p50/p95/p99 cost by demand, publication, association,
+  command generation, clear, depth rendering, and sampling. Include continuously moving
+  carried/local lights plus changing sun and moon, edits, streaming, and displaced terrain.
+  Record memory, submitted inactive slots, repeated geometry, candidate false positives,
+  and shadow-ready duty cycle. A low time achieved by routinely withdrawing shadows does
+  not satisfy the moving-light target. Hardware-specific acceptance numbers need measured
+  calibration; the proposed 2 ms is a scheduling hypothesis, not a performance claim.
+- **User-run visual acceptance:** assess contact/bias behavior, simultaneous celestial
+  contribution, streaming edges, detail transitions, and whole-light overload withdrawal.
+  Source inspection and headless checks cannot substitute for this acceptance.
+- **Volumetric integration last:** qualify volume demand, independent fog readiness,
+  filtering/history validity, and contention with the already-qualified surface system.
 
-The recommended missing-page policy seeks complete current surface coverage at reduced
-detail before withdrawing a light's shadows, with stable recovery and no stale-depth
-fallback. Adoption, visual acceptance, and the pre-shading demand/readiness contract
-remain open. Multi-array sampling and the supported configuration range also remain open.
+Provide counters and debug views for requested/resident/valid pages, association coverage
+and age, unfinished traversals, overflow reasons, per-light readiness, selected detail,
+withdrawal/recovery, source identity, and baseline submission cost. Unexpected sampling
+misses increment a per-light diagnostic and appear in a validity overlay.
 
-The proposed spatial search uses swept directional rays or point-light segments over the
-covered movement interval. The concrete traversal candidate advances one-chunk-thick
-slabs, enclosing the complete swept cross-section at each step, with resumable cell
-enumeration. Its correctness and performance remain to be validated. It introduces no
-arbitrary caster-distance cap within the declared world-data domain. The
-next concrete decision is the available-world boundary: which engine-published coverage
-defines that domain, and what quality policy applies at streaming gaps and its outer edge.
-Candidate storage, publication, and interval sizing remain open.
+The main risks are conservative candidate volume at low celestial angles, baseline geometry
+routing and repeated depth work, extra surface-demand draws, whole-light withdrawal from
+small coverage gaps, and native publication/geometry lifetime integration. Measure them
+explicitly; optional extensions, stale depths, custom clipping, and hidden distance cutoffs
+are not escape routes from the established requirements.
 
-Other unresolved details include:
-
-- Exact light projections and addressing. Nested orthographic clipmaps for directional
-  lights and six perspective faces for point lights are the starting candidates;
-  resolutions, page sizes, face-boundary handling, and filtering are undecided.
-- Receiver request generation, frame ordering, and coordination between surface and
-  volumetric consumers.
-- Conservative angular and positional coverage, spatial search, candidate capacity and
-  overflow behavior, and targeted refresh when topology changes.
-- Freshness and shadow-opacity suitability of existing empty/connectivity information,
-  including operation when engine traversability data is unavailable.
-- Adoption and details of the proposed GPU candidate-to-draw handoff, page routing,
-  terrain detail selection, current geometry publication, and entity preparation for
-  repeatedly updated pages.
-- Stable light identity and migration of direct celestial consumers to simultaneous
-  solar and lunar lighting.
-- Budget units and defaults, work-cost estimation, admission priorities, hysteresis,
-  and reservation reclamation.
-- Missing-page handling, overload transitions, and any permitted temporal approximation.
-- Depth representation, bias, soft-shadow filtering, and resource lifecycle integration.
-- Measurable performance and visual acceptance targets for the combined dynamic workload.
-
-These details require further discussion and targeted source inspection. The established
-requirements above do not authorize an implementation plan or code changes by themselves.
+Exact API names, shader layouts, tuned defaults, and implementation task order follow proposal
+approval. The recommended loaded-world boundary, complete-light fallback, and starting
+settings are reviewable design choices, not claims that the user previously approved them.
+No implementation plan or runtime code change is authorized by this document alone.
