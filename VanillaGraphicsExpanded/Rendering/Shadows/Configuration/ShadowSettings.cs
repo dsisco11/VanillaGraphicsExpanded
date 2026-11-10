@@ -10,6 +10,8 @@ public sealed class ShadowSettings
     [JsonProperty] public ShadowInputSettings Inputs { get; set; } = new();
     /// <summary>Configurable GPU association storage, continuation and aggregate work allowances.</summary>
     [JsonProperty] public ShadowCandidateSettings Candidates { get; set; } = new();
+    /// <summary>Configurable physical depth and page metadata allowances.</summary>
+    [JsonProperty] public ShadowPageSettings Pages { get; set; } = new();
 
     #region Public API
     /// <summary>Materializes finite input and candidate policies under the existing configuration owner.</summary>
@@ -19,6 +21,8 @@ public sealed class ShadowSettings
         Inputs.Sanitize();
         Candidates ??= new();
         Candidates.Sanitize();
+        Pages ??= new();
+        Pages.Sanitize();
     }
     #endregion
 }

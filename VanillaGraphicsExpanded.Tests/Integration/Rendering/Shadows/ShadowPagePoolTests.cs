@@ -1,0 +1,478 @@
+using System.Collections;
+using System.Reflection;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Integration;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering.Shadows.Configuration;
+using VanillaGraphicsExpanded.Rendering.Shadows.Geometry;
+using VanillaGraphicsExpanded.Rendering.Shadows.Lights;
+using VanillaGraphicsExpanded.Rendering.Shadows.Pages;
+using VanillaGraphicsExpanded.Rendering.Shadows.Projections;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Harness;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+using Xunit;
+
+namespace VanillaGraphicsExpanded.Tests.Integration.Rendering.Shadows;
+
+/// <summary>Verifies physical-page allocation and coverage certificates through the GL 4.5 compute path.</summary>
+[Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
+public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
+{
+    private static readonly ShadowBounds Small = new(-1, -1, 2, 1, 1, 3);
+    private static readonly ShadowBounds Expanded = new(-1, -1, 8, 1, 1, 9);
+    private static readonly ShadowBounds RequiredUnion = new(-1, -1, 2, 1, 1, 9);
+    private static readonly ShadowBounds LateDepth = new(-1, -1, 12, 1, 1, 13);
+    private static readonly ShadowBounds CompleteUnion = new(-1, -1, 2, 1, 1, 13);
+    private static readonly ShadowSourceKey Sun = new(11, 2, ShadowSourceKind.Sun, 3, 7, 0);
+
+    #region Public API
+    #region Coverage and Lookup
+    /// <summary>Incomplete and mismatched assignments cannot publish; coverage and current required unions are distinct.</summary>
+    [Fact]
+    public void PageCertificateRequiresMatchingDrawAssignmentAndCompleteRequiredUnion()
+    {
+        // Arrange: allocate a tiny GL 4.5 page table and keep every operation inside one controlled batch.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(layers: 2, arrays: 1));
+        var key = Key(0, 0, projection: 3);
+        Assert.True(pool.BeginBatch());
+
+        // Act: allocate a pending page and try incomplete and stale-assignment publication commands.
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, Small)));
+        var allocated = Result(pool);
+        Assert.Equal(0u, allocated[0]);
+        long assignment = Assignment(allocated);
+        Assert.True(assignment > 0);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, key, Small, assignment, complete: false)));
+        Assert.Equal(4u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key, Small)));
+        Assert.Equal(5u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, key, Small, assignment + 1, complete: true)));
+        Assert.Equal(4u, Result(pool)[0]);
+
+        // Act: publish near-depth coverage, then require another receiver at the same XY page and a different Z interval.
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, key, Small, assignment, complete: true)));
+        Assert.Equal(0u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key, Expanded)));
+        Assert.Equal(2u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Require, key, Expanded)));
+        Assert.Equal(2u, Result(pool)[0]);
+
+        // Assert: a replacement must cover every region required in this batch before the old page is retired.
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, Small)));
+        Assert.Equal(6u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, RequiredUnion)));
+        var replacement = Result(pool);
+        Assert.Equal(0u, replacement[0]);
+        long replacementAssignment = Assignment(replacement);
+        // A receiver arrives after allocation, so the pending certificate no longer covers the current required union.
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Require, key, LateDepth)));
+        Assert.Equal(5u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, key, RequiredUnion,
+            replacementAssignment, complete: true)));
+        Assert.Equal(6u, Result(pool)[0]);
+
+        // The old near-depth certificate stays valid while the incomplete replacement is safely canceled.
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key, Small)));
+        Assert.Equal(0u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key, LateDepth)));
+        Assert.Equal(5u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.CancelReplacement, key, RequiredUnion, replacementAssignment)));
+        Assert.Equal(0u, Result(pool)[0]);
+        pool.SealBatch();
+
+        // Act: after the fence, accumulate all current depth regions and publish a complete wider replacement.
+        GL.Finish(); pool.Poll();
+        Assert.True(pool.BeginBatch());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Require, key, Small)));
+        Assert.Equal(0u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Require, key, Expanded)));
+        Assert.Equal(2u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Require, key, LateDepth)));
+        Assert.Equal(2u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, CompleteUnion)));
+        var complete = Result(pool); Assert.Equal(0u, complete[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, key, CompleteUnion,
+            Assignment(complete), complete: true)));
+        Assert.Equal(0u, Result(pool)[0]);
+
+        // Assert: the new assignment now serves every region that was requested during either frame interval.
+        foreach (var region in new[] { Small, Expanded, LateDepth })
+        {
+            Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key, region)));
+            Assert.Equal(0u, Result(pool)[0]);
+        }
+        pool.SealBatch();
+    }
+
+    /// <summary>Full 64-bit page keys distinguish sources, virtual coordinates and projection generations.</summary>
+    [Fact]
+    public void PageLookupDoesNotAliasDifferentProjectionOrPageIdentity()
+    {
+        // Arrange: publish one synthetic complete key and reserve its physical assignment.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(layers: 2, arrays: 1));
+        var key = Key(5, -4, projection: (1L << 40) + 19);
+        Assert.True(pool.BeginBatch());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, Small)));
+        var allocation = Result(pool); Assert.Equal(0u, allocation[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, key, Small, Assignment(allocation), complete: true)));
+        Assert.Equal(0u, Result(pool)[0]);
+
+        // Act and assert: only the exact source/projection/page tuple resolves this certificate.
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key, Small)));
+        Assert.Equal(0u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key with { X = key.X + 1 }, Small)));
+        Assert.Equal(1u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key with { Projection = key.Projection + 1 }, Small)));
+        Assert.Equal(1u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key with { Source = key.Source with { Lifetime = 8 } }, Small)));
+        Assert.Equal(1u, Result(pool)[0]);
+        pool.SealBatch();
+    }
+    #endregion
+
+    #region Bounded Allocation and Identity Retirement
+    /// <summary>Key, source and dimension retirement commands have distinct identity scopes.</summary>
+    [Fact]
+    public void RetirementCommandsRemoveOnlyTheirDocumentedIdentityScope()
+    {
+        // Arrange: publish two pages for one source, the other celestial source, and another dimension.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(layers: 4, arrays: 1));
+        var sunA = Key(1, 2, source: Sun);
+        var sunB = Key(2, 2, source: Sun);
+        var moon = Key(1, 2, source: Sun with { Kind = ShadowSourceKind.Moon, Slot = 1 });
+        var otherDimension = Key(1, 2, source: Sun with { Dimension = 3 });
+        Assert.True(pool.BeginBatch());
+        Publish(pool, sunA, Small); Publish(pool, sunB, Small); Publish(pool, moon, Small); Publish(pool, otherDimension, Small);
+
+        // Act: retire one exact virtual key, then retire every remaining source in its world dimension.
+        Assert.True(pool.Execute(Request(ShadowPageOperation.RetireKey, sunA, Small)));
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, sunB, Small)));
+        uint siblingPage = Result(pool)[0];
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, moon, Small)));
+        uint sameDimensionMoon = Result(pool)[0];
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, otherDimension, Small)));
+        uint differentDimensionBefore = Result(pool)[0];
+        Assert.True(pool.Execute(Request(ShadowPageOperation.RetireDimension, sunB, Small)));
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, sunB, Small)));
+        uint sunAfterDimensionRemoval = Result(pool)[0];
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, moon, Small)));
+        uint moonAfterDimensionRemoval = Result(pool)[0];
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, otherDimension, Small)));
+        uint differentDimensionAfter = Result(pool)[0];
+
+        // Assert: exact-key removal preserves siblings; dimension removal covers both sun and moon, not another dimension.
+        Assert.Equal(0u, siblingPage);
+        Assert.Equal(0u, sameDimensionMoon);
+        Assert.Equal(0u, differentDimensionBefore);
+        Assert.Equal(1u, sunAfterDimensionRemoval);
+        Assert.Equal(1u, moonAfterDimensionRemoval);
+        Assert.Equal(0u, differentDimensionAfter);
+        pool.SealBatch();
+    }
+
+    /// <summary>Resident layer exhaustion rejects new allocation rather than aliasing an occupied assignment.</summary>
+    [Fact]
+    public void PageCapacityFailureDoesNotAliasExistingAssignment()
+    {
+        // Arrange: expose exactly one resident physical layer and begin one page-operation interval.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        var fixedDefines = ShadowPageShader.Contract.Stages[0].FixedDefines
+            .ToDictionary(pair => pair.Key, pair => (string?)pair.Value.MacroLiteral);
+        output.WriteLine("=== Runtime-preprocessed shadows/pages.csh ===");
+        output.WriteLine(ShaderSourceCode.Load(assets.Api, "shadows/pages", "csh", fixedDefines).EmittedSource);
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(layers: 1, arrays: 1));
+        Assert.True(pool.BeginBatch());
+
+        // Act: reserve the only slot, then request a distinct page before its assignment is retired.
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, Key(0, 0), Small)));
+        var first = Result(pool); Assert.Equal(0u, first[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, Key(1, 0), Small)));
+        var overflow = Result(pool);
+
+        // Assert: capacity is explicit and the rejected request never receives the existing slot's generation.
+        Assert.Equal(3u, overflow[0]);
+        Assert.Equal(0u, first[1]);
+        Assert.NotEqual(first[2], overflow[2]);
+        pool.SealBatch();
+    }
+
+    /// <summary>A retired layer is unavailable within its batch and a later reuse receives a new assignment generation.</summary>
+    [Fact]
+    public void RetiredLayerWaitsForFenceAndRejectsItsPriorGeneration()
+    {
+        // Arrange: use one physical layer so every successful allocation must reuse the same slot after retirement.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(layers: 1, arrays: 1));
+        var firstKey = Key(0, 0); var secondKey = Key(1, 0);
+        Assert.True(pool.BeginBatch());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, firstKey, Small)));
+        var original = Result(pool);
+        Assert.Equal(0u, original[0]);
+        int originalSlot = checked((int)original[1]);
+        long originalAssignment = Assignment(original);
+        pool.SealBatch();
+
+        // Act: retire the first assignment, then request a different page before this batch's fence can authorize reuse.
+        Assert.True(pool.BeginBatch());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.RetireKey, firstKey, Small)));
+        Assert.Equal(0u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, secondKey, Small)));
+        var premature = Result(pool);
+        pool.SealBatch();
+
+        // Assert: retirement cannot be bypassed within the same submission interval despite the layer being idle.
+        Assert.Equal(3u, premature[0]);
+        GL.Finish(); pool.Poll();
+
+        // Act: after fence completion, allocate the new key and try to certify it with the stale assignment.
+        Assert.True(pool.BeginBatch());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, secondKey, Small)));
+        var reused = Result(pool);
+        Assert.Equal(0u, reused[0]);
+        Assert.Equal(originalSlot, checked((int)reused[1]));
+        Assert.NotEqual(originalAssignment, Assignment(reused));
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, secondKey, Small, originalAssignment, complete: true)));
+        var rejected = Result(pool);
+
+        // Assert: the old generation cannot publish the new physical contents.
+        Assert.Equal(4u, rejected[0]);
+        pool.SealBatch();
+    }
+
+    /// <summary>A one-probe lookup rejects a collision even though other resident layers remain free.</summary>
+    [Fact]
+    public void ProbeLimitExhaustionRejectsWithoutConsumingAnotherOwnersSlot()
+    {
+        // Arrange: find two serialized page keys with the same initial bucket under a deliberate one-probe policy.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        var settings = Settings(layers: 4, arrays: 1); settings.ProbeLimit = 1;
+        using var pool = ShadowPagePool.Create(assets.Api, settings);
+        var keys = CollidingKeys(pool.Capacity);
+        Assert.NotEqual(keys.First, keys.Second);
+        Assert.True(pool.BeginBatch());
+
+        // Act: occupy the colliding bucket and submit the second distinct key with three physical layers still free.
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, keys.First, Small)));
+        Assert.Equal(0u, Result(pool)[0]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, keys.Second, Small)));
+        var exhausted = Result(pool);
+
+        // Assert: bounded lookup reports failure and never returns another page's physical identity.
+        Assert.Equal(4, pool.Capacity);
+        Assert.Equal(1, pool.ProbeLimit);
+        Assert.Equal(3u, exhausted[0]);
+        Assert.NotEqual(0u, exhausted[1]);
+        Assert.Equal(0u, exhausted[2]);
+        pool.SealBatch();
+    }
+    #endregion
+
+    #region Resource Lifetime and Capacity
+    /// <summary>Native reload and explicit disable cancel a queued replacement before fence completion.</summary>
+    [Fact]
+    public void ReloadAndWithdrawCancelPendingReconfiguration()
+    {
+        // Arrange: register the pool through the current client lifetime before requesting replacement storage.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        var lifetime = ClientRenderingLifetime.Create(assets.Api, GpuShaderProgramLibraries.Require(assets.Api));
+        lifetime.Attach(static () => { });
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(pageSize: 8, layers: 1, arrays: 1));
+        try
+        {
+            // Act: queue reconfiguration, then let the native reload owner withdraw the pool synchronously.
+            pool.Reconfigure(Settings(pageSize: 16, layers: 1, arrays: 1));
+            Assert.False(pool.IsAvailable);
+            ClientRenderingLifetime.BeginNativeReload();
+            Assert.True(lifetime.Reloading);
+            ClientRenderingLifetime.CompleteNativeReload();
+            GL.Finish(); pool.Poll();
+
+            // Assert: reload withdrawal supersedes replacement and leaves the pool empty and unavailable.
+            Assert.False(lifetime.Reloading);
+            Assert.False(pool.IsAvailable);
+            Assert.Equal(0, pool.AllocatedBytes);
+        }
+        finally
+        {
+            if (lifetime.Reloading) ClientRenderingLifetime.CompleteNativeReload();
+            pool.Dispose();
+            lifetime.Shutdown();
+        }
+    }
+
+    /// <summary>Explicit withdrawal supersedes a queued pool replacement through fence completion.</summary>
+    [Fact]
+    public void ReconfigureThenWithdrawDoesNotRecreateResources()
+    {
+        // Arrange: start a new settings replacement while the original allocation is still owned.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(pageSize: 8, layers: 1, arrays: 1));
+        pool.Reconfigure(Settings(pageSize: 16, layers: 1, arrays: 1));
+        Assert.False(pool.IsAvailable);
+        Assert.True(pool.AllocatedBytes > 0);
+
+        // Act: disable the feature before the replacement retirement fence is consumed.
+        pool.Withdraw();
+        GL.Finish(); pool.Poll();
+
+        // Assert: the newer disable wins; polling cannot silently recreate the obsolete requested policy.
+        Assert.False(pool.IsAvailable);
+        Assert.Equal(0, pool.AllocatedBytes);
+        Assert.False(pool.BeginBatch());
+    }
+
+    /// <summary>Actual render-context retirement invokes the pool owner callback before the context registration changes.</summary>
+    [Fact]
+    public void RenderContextRetirementWithdrawsPoolAndOwnedStorage()
+    {
+        // Arrange: capture the real harness registration so it can be restored exactly after its retirement callback runs.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(pageSize: 8, layers: 1, arrays: 1));
+        var original = RenderContextRegistry.Current();
+        var registrations = (IDictionary)typeof(RenderContextRegistry).GetField("registrations", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
+        object registration = registrations[original.Handle]!;
+        var replacement = new object();
+        try
+        {
+            // Act: retire the harness-owned context through the existing registry contract.
+            RenderContextRegistry.Retire(fixture);
+            Assert.False(pool.IsAvailable);
+            Assert.Equal(0, pool.AllocatedBytes);
+            RenderContextRegistry.RegisterCurrent(replacement, static _ => true);
+        }
+        finally
+        {
+            // Restore the original harness receipt so later tests retain the same actual current GL context identity.
+            lock (registrations) registrations[original.Handle] = registration;
+        }
+
+        // Assert: the exact original owner generation was restored, while its pool remains retired.
+        Assert.Equal(original, RenderContextRegistry.Current());
+        Assert.False(pool.IsAvailable);
+        Assert.Equal(0, pool.AllocatedBytes);
+    }
+
+    /// <summary>Retirement preserves in-flight storage and dimension/source operations apply the exact intended scope.</summary>
+    [Fact]
+    public void RetirementAndReconfigurationRespectFenceAndSourceScopes()
+    {
+        // Arrange: create a table with multiple resident array layers and publish two celestial pages.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(layers: 2, arrays: 2));
+        Assert.True(pool.Grow());
+        var sun = Key(0, 0, 5, Sun);
+        var moon = Key(0, 0, 5, Sun with { Kind = ShadowSourceKind.Moon, Slot = 1 });
+        Assert.True(pool.BeginBatch());
+        Publish(pool, sun, Small); Publish(pool, moon, Small);
+        pool.SealBatch();
+
+        // Act: remove the solar source and verify the distinct lunar page remains addressable.
+        Assert.True(pool.BeginBatch());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.RetireSource, sun, Small)));
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, moon, Small)));
+        uint moonStillCurrent = Result(pool)[0];
+        pool.SealBatch();
+
+        // Assert: source removal is isolated; an array shrink retains bytes until its GPU fence completes.
+        Assert.Equal(0u, moonStillCurrent);
+        long beforeShrink = pool.AllocatedBytes;
+        pool.SetArrayTarget(1);
+        Assert.Equal(2, pool.ResidentArrays);
+        Assert.True(pool.DrainingBytes > 0);
+        GL.Finish(); pool.Poll();
+        Assert.Equal(1, pool.ResidentArrays);
+        Assert.Equal(0, pool.DrainingBytes);
+        Assert.True(pool.AllocatedBytes < beforeShrink);
+
+        // Act: withdraw and rebuild with a different format policy after all prior users have retired.
+        pool.Reconfigure(Settings(pageSize: 16, layers: 2, arrays: 1));
+        Assert.False(pool.IsAvailable);
+        GL.Finish(); pool.Poll();
+
+        // Assert: the replacement is a fresh usable pool with no surviving old publication.
+        Assert.True(pool.IsAvailable);
+        Assert.Equal(16, pool.PageSize);
+        Assert.Equal(1, pool.ResidentArrays);
+        Assert.True(pool.BeginBatch());
+        pool.SealBatch();
+    }
+
+    /// <summary>Unsupported static sampler capacity and over-budget complete layouts fail before claiming allocation.</summary>
+    [Fact]
+    public void PagePoolRejectsUnsupportedSamplerAndMemoryLimits()
+    {
+        // Arrange: initialize the actual context so effective device limits are available to validation.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+
+        // Act and assert: the baseline requires four named sampler bindings and charges full configured capacity.
+        Assert.Throws<InvalidOperationException>(() => ShadowPagePool.Create(assets.Api,
+            Settings(pageSize: 16, layers: 1, arrays: 1), availableSamplerSlots: 3));
+        Assert.Throws<InvalidOperationException>(() => ShadowPagePool.Create(assets.Api,
+            new ShadowPageSettings { MemoryMiB = 1, PageSize = 1024, LayersPerArray = 2048, ArrayCapacity = 4 }));
+    }
+    #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Creates a small policy while retaining four static baseline sampler banks.</summary>
+    private static ShadowPageSettings Settings(int pageSize = 8, int layers = 2, int arrays = 1) => new()
+    { MemoryMiB = 16, PageSize = pageSize, LayersPerArray = layers, ArrayCapacity = arrays,
+        ProbeLimit = 128, OperationsPerBatch = 256 };
+    /// <summary>Builds a stable absolute source/projection/page tuple for synthetic page operations.</summary>
+    private static ShadowPageKey Key(int x, int y, long projection = 5, ShadowSourceKey? source = null) =>
+        new(source ?? Sun, projection, 0, x, y);
+    /// <summary>Creates a page command with one controlled world and scene dependency stamp.</summary>
+    private static ShadowPageRequest Request(ShadowPageOperation operation, ShadowPageKey key, ShadowBounds region,
+        long assignment = 0, bool complete = false) => new(operation, key, region, 13, 17, 19, assignment, complete);
+    /// <summary>Reads only the test-visible result words after the preceding ordered dispatch.</summary>
+    private static uint[] Result(ShadowPagePool pool)
+    {
+        using var mapped = pool.Results.MapRange<uint>(0, 8, BufferMapAccess.Read);
+        Assert.True(mapped.IsMapped); return mapped.Span.ToArray();
+    }
+    /// <summary>Finds distinct serialized keys sharing a bounded linear-probe start bucket.</summary>
+    private static (ShadowPageKey First, ShadowPageKey Second) CollidingKeys(int capacity)
+    {
+        var seen = new Dictionary<uint, ShadowPageKey>();
+        for (int x = -10000; x <= 10000; x++)
+        {
+            var key = Key(x, 17);
+            var words = Request(ShadowPageOperation.Allocate, key, Small).Pack();
+            uint hash = 2166136261u;
+            unchecked { for (int i = 0; i < 17; i++) hash = (hash ^ words[i]) * 16777619u; }
+            uint bucket = hash % (uint)capacity;
+            if (seen.TryGetValue(bucket, out var prior) && prior != key) return (prior, key);
+            seen[bucket] = key;
+        }
+        throw new Xunit.Sdk.XunitException("Could not find a deterministic page-key probe collision.");
+    }
+    /// <summary>Combines GPU low/high assignment words without losing signed bit patterns.</summary>
+    private static long Assignment(uint[] result) => unchecked((long)(((ulong)result[3] << 32) | result[2]));
+    /// <summary>Allocates and publishes a synthetic page certificate inside the caller's open batch.</summary>
+    private static long Publish(ShadowPagePool pool, ShadowPageKey key, ShadowBounds region)
+    {
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, region)));
+        var result = Result(pool); Assert.Equal(0u, result[0]);
+        long assignment = Assignment(result);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, key, region, assignment, complete: true)));
+        Assert.Equal(0u, Result(pool)[0]); return assignment;
+    }
+    #endregion
+}

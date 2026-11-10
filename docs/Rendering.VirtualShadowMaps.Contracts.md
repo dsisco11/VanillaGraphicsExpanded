@@ -2,7 +2,8 @@
 
 This is the implementation design for the [shared virtual shadow map proposal](Rendering.VirtualShadowMaps.Proposal.md).
 It specifies interfaces and invariants. Native input publication and the bounded dependency primitives
-described below and GPU candidate traversal are implemented; shadow rendering, admission and sampling are **not implemented**.
+described below, GPU candidate traversal, projection providers, page storage and shared sampling are implemented.
+Native shadow rendering, complete frame admission and production lighting consumers are **not implemented**.
 The [implementation plan](Rendering.VirtualShadowMaps.todo)
 controls delivery. Numerical profiles are provisional, not measured shipping defaults.
 The [qualification protocol](Rendering.VirtualShadowMaps.Qualification.md) defines the evidence needed
@@ -120,6 +121,82 @@ are 64 slabs, 4096 cells, 32768 probes and 256 changed partitions; corresponding
 1024, 65536, 524288 and 8192. `RefreshGuardFraction` defaults to 0.25. Invalid fields sanitize to finite
 defaults; incompatible aggregate memory/hardware layouts reject allocation. Pools freeze the policy at
 creation; live rendering reconfiguration and the total resource budget belong to the later coordinator.
+
+## Projections, physical pages and sampling
+
+`DirectionalShadowProjection` owns one sun or moon basis, a depth interval fitted to all eight
+represented-domain corners and levels whose world texel widths double. Page keys use absolute light-space
+XY; snapping the camera's clipmap center changes selected pages without changing matching mappings.
+`Update` retains an unchanged mapping and advances projection generation for basis/depth changes.
+`PointShadowProjection` uses fixed +X, -X, +Y, -Y, +Z, -Z faces with deterministic X/Y/Z tie ownership.
+Position, near/far or face-resolution changes advance its generation. Both providers expose page-local
+normalized-device coordinates and retain double precision until bounded page/local-texel conversion.
+Sampling inputs split positions into signed integer 32-block chunk origins and relative double coordinates;
+origins outside the native signed coordinate range are rejected before packing.
+Out-of-range coordinates fail instead of wrapping. Source keys retain world, dimension and lifetime.
+
+Depth is conventional near=0/far=1, empty=1, with explicit less-or-equal comparisons. Point near distance
+is a positive configurable value (initially 0.05 metres); the far distance is supplied from represented
+influence, preserving the lighting radius convention. Directional depth includes configurable padding
+around represented caster coverage. Bias shifts the receiver along its unit normal and subtracts a
+bounded texel-scaled depth adjustment, including slope. Each adjustment is capped at four texels.
+The planned material convention preserves native winding/back-face culling where appropriate and retains
+two-sided/cutout material behavior; front-face culling is not a substitute for receiver bias. Actual material
+rasterization, near-source crossings and depth-clamp evaluation remain scene-adapter qualification work.
+No custom clipping is introduced.
+
+`ShadowPagePool` owns D32F two-dimensional array layers with one level, nearest sampling and no gutters or
+multisampling. It allocates metadata once and grows one resident array per request. The planned shared
+binding layout reserves four statically named array samplers; actual fragment/compute limits and supplied
+consumer slot availability are checked before allocation. The final lighting integrations must recheck
+their real binding availability. Array groups are explicit: slot / layers-per-array selects the group,
+slot modulo layers-per-array selects its layer.
+
+The GPU table has fixed 256-byte slots. State distinguishes free, building, ready and retired assignments;
+these bounded slot sets also serve as the free and retirement queues. Full source/projection/face/page
+identity is checked after bounded hash probing. Exhaustion reports failure; no hash-only equality or
+CPU selection readback exists. A pool incarnation plus monotonic assignment counter prevents reuse of
+old completion tokens; counter exhaustion rejects allocation. Unreferenced entries can be withdrawn
+before required entries, but their layers remain unavailable until the submitted batch fence signals.
+All page users submit inside `BeginBatch`/`SealBatch`; fence polling never waits for GPU completion.
+
+Rendered coverage occupies a separate depth-inclusive enclosure with world/scene epoch/sequence stamps.
+`Require` accumulates the current required enclosure independently of the rendered certificate. An
+allocation cannot enlarge that certificate. A complete replacement must cover the current enclosure,
+including any additional requests that arrived while it was building, and publish the exact allocated
+region/dependencies/assignment after complete drawing. Old depths retain only their old region until
+replacement publication. Enclosing multiple regions requires complete caster selection for that enclosure.
+`CancelReplacement` retires only the exact unfinished assignment, allowing a larger replacement after safe
+retirement while the old certificate continues to cover its original region. Stale cancellation tokens fail.
+One fixed enclosure and bounded probes keep metadata and containment work finite. The actual admission
+owner must supply complete current requirements before eviction/allocation and a truthful draw-completion
+certificate; controlled synthetic pages do not establish that future geometry integration.
+
+`SetArrayTarget` withdraws excess groups and exposes their bytes until fences allow disposal. `Withdraw`
+handles disable/world leave; source/dimension retirement is a GPU operation. `Reconfigure` withdraws and
+drains the old layout before allocating its replacement, preventing two full pools. The existing client
+rendering lifetime's publication callback withdraws the pool synchronously on shader reload; context
+retirement closes the owner through the existing RHI lifetime. Physical
+pages do not own or retain engine geometry. The coordinator must continue polling a withdrawn owner until
+its tracked allocations drain. Terminal disposal uses the existing RHI resource retirement boundary.
+
+The shared `includes/shadows/sampling.glsl` resolves all nine filter taps through virtual addressing and
+coverage/dependency lookup, then performs point-fetched comparisons through statically named samplers.
+Cube-edge taps reconstruct the ray and evaluate conventional depth in the destination face on the biased
+receiver's radial shell. Directional levels use the same world receiver with their own texel width; there
+is no depth averaging or implicit fallback level. The same tap resolver is available to demand producers.
+The compute entry returns all nine page addresses plus visibility and a diagnosed invalid-tap mask.
+Any invalid tap returns unshadowed visibility for the query. Production per-light readiness, diagnostic
+aggregation and overlays remain owned by the later frame/consumer integration.
+
+Accepted `VirtualShadows.Pages` controls are provisional: `MemoryMiB` 128, `PageSize` 128,
+`LayersPerArray` 256, `ArrayCapacity` 4, `ProbeLimit` 128 and `OperationsPerBatch` 256. Projection/bias
+controls are `PointNear` 0.05, `DepthBiasTexels` 0.5, `NormalBiasTexels` 0.5 and `SlopeBiasTexels` 1.
+The four-bank ceiling is the implemented shader interface, not a hard-coded shadow-memory budget.
+The pool validates depth plus metadata/command/result storage against its allowance, integer and hardware
+limits; `AllocatedBytes` includes resident retirement storage. `ShadowSampler` separately reports its
+672-byte query/output allocation. Candidate, input, sampler and future command storage remain charged to
+their owners and must all fit the eventual total budget. Driver overhead is outside these nominal counts.
 
 ## Ownership and source layout
 
@@ -316,7 +393,7 @@ explicitly owned remaining consumers.
 ## Persisted settings and effective policy
 
 The opt-in `VirtualShadows` object in [VgeConfig](../VanillaGraphicsExpanded/LumOn/VgeConfig.cs)
-currently exposes input-publication and candidate allowances. Extend it with the remaining schema below when rendering
+currently exposes input-publication, candidate and physical-page allowances. Extend it with the remaining schema below when rendering
 policy is implemented. Its types live in `Rendering/Shadows/Configuration`, avoiding further
 growth of unrelated nested settings. [ConfigModSystem](../VanillaGraphicsExpanded/ModSystems/ConfigModSystem.cs)
 continues to load/sanitize, materialize missing defaults and apply ConfigLib paths; it remains the configuration

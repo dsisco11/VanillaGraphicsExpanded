@@ -2,9 +2,9 @@ Shared virtual shadow maps
 ==========================
 
 Source proposal: [Rendering.VirtualShadowMaps.Proposal.md](Rendering.VirtualShadowMaps.Proposal.md)
-Status: Phases 1–3 complete. Shadows are not enabled.
-Authority: the audited proposal governs scope and behavior. The explicit complete-todo-phase 3 request
-authorizes Phase 3; later phases remain unchecked. The proposal's recommendations are the
+Status: Phases 1–4 complete. Shadows are not enabled.
+Authority: the audited proposal governs scope and behavior. The explicit complete-todo-phase 4 request
+authorizes Phase 4; later phases remain unchecked. The proposal's recommendations are the
 planned design, while its numerical starting values remain tuning hypotheses.
 
 Goal and governing contracts
@@ -314,38 +314,74 @@ Phase 4: Implement projections, physical pages and shared sampling
   Outcome: both light types can allocate, address, validate and sample depth pages using controlled GPU
   fixtures; the engine caster-rendering path is intentionally not yet integrated.
 
-  ☐ Implement independent sun/moon orthographic clipmaps and six perspective point-light faces.
-    ☐ Double world texel width between directional levels; snap placement while preserving matching
+  Documentation traceability and verification:
+  Inherited sources: proposal, implementation contracts and qualification protocol linked above.
+  | Task group | Controlling source sections | Implementation and observed evidence |
+  | --- | --- | --- |
+  | Projections and depth convention | Proposal: Light identity and projection contract; Contracts: Generations, failure and lifetime / Rendering and admission contract; FrameWorldSpaceBridge | Projections providers, explicit page NDC, independent sources, update generations; unit and GPU large-coordinate/level/face checks |
+  | Storage, capacity and lifecycle | Proposal: Sampling, allocation, and lifecycle contract / Configurable budgets / Configurable capacity across depth arrays; Contracts: ownership and persisted settings | GPU table and table-backed free/retirement queues, RHI array owner, frozen settings, nonblocking fences; GPU probe/capacity/assignment/grow/shrink/reconfiguration checks |
+  | Receiving coverage and publication | Proposal: Page coverage and reuse; Contracts: publication interfaces / generations | Separate rendered and demanded enclosures, exact dependency stamps, complete replacement certificate; GPU different-depth/union/incomplete-publication checks |
+  | Shared filtering and demand taps | Proposal: Sampling, allocation, and lifecycle contract / OpenGL 4.5 execution contract / Selective clearing and sampling | Shared GLSL nine-tap address/lookup/comparison, static four-bank sampler dispatch; full sampler fixtures across pages/faces/levels/arrays and invalid lookup |
+  | Qualification and review | Qualification: Evidence boundaries and tool routes / Correctness and fault matrix; ShaderBuild.Incremental; .vscode/tasks.json | Canonical shader-enabled build and delegated CPU/GPU checks passed; primary second review, configured test review and independent completion audit completed with no unresolved findings |
+
+  Verification receipts: artifacts/virtual-shadow-maps/phase4/.
+  Canonical production build: build-attempt12-20261109-202700-717.log, 0 warnings/0 errors
+  (incremental, 4.98 seconds). CPU: phase4-cpu-attempt4.trx, 62/62 passed, no skips; retained because
+  subsequent changes affect GPU shader logic, GPU fixtures and comments/regions, not CPU behavior.
+  GPU: phase4-gpu-attempt12.trx and gpu-attempt12-20261109-202730-755.log, 27/27 passed, no skips
+  (11 page-pool, five shared-sampling, 11 prior candidate/world GPU checks; four seconds).
+  Commands from repository root, with MSBUILDDISABLENODEREUSE=1:
+    dotnet build VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj -c Debug --tl:off -v:minimal
+    dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --settings VanillaGraphicsExpanded.Tests/UnitTests.runsettings --filter "FullyQualifiedName~Rendering.Shadows" --logger "trx;LogFileName=phase4-cpu-attempt4.trx" --results-directory artifacts/virtual-shadow-maps/phase4
+    dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings --filter "FullyQualifiedName~ShadowPagePoolTests|FullyQualifiedName~ShadowSamplingTests|FullyQualifiedName~ShadowCandidateTraversalTests|FullyQualifiedName~ShadowWorldGpuBufferTests" --logger "trx;LogFileName=phase4-gpu-attempt12.trx" --results-directory artifacts/virtual-shadow-maps/phase4
+  Runtime: NVIDIA RTX 4090/PCIe/SSE2, OpenGL 4.5.0 NVIDIA 610.88, GLSL 4.50 NVIDIA;
+  96 SSBO bindings, 16 compute storage blocks, 2147483647-byte maximum storage block. Runtime shaders
+  compile as GLSL; optional draw parameters, GPU counts, direct vertex/TES layer output and bindless
+  access are unused. Logs retain exact source/test/copied shader hashes and emitted-source diagnostics.
+  Final production DLL SHA-256: 79FD6EC625ADD0C1FF2F740B06E0C6B72F5A7AD47E26F08F01D9DBE52699E770.
+  Final test DLL SHA-256: DABDC182CEB3FED4E4C5557D8C66CDC64F2D138D3038F9411E8718331AFE3104.
+  GPU witnesses include depth-only coverage growth, late demand during replacement, cancellation and
+  fenced larger retry, stale assignment rejection on same-slot reuse, probe failure with spare layers,
+  source/dimension retirement, synchronous shader reload and actual context retirement, draining shrink
+  and reconfiguration cancellation, four arrays, one missing noncenter tap, cube edges, adjacent levels,
+  and nonuniform texel comparisons across negative page seams at large coordinates. Finite shadowing
+  depths establish stale-world withdrawal; no D32F NaN-preservation claim is made. Native compiler
+  qualification required a nonreserved local name and explicit six-word dependency comparisons.
+  No game was launched. These synthetic depth fixtures do not qualify actual caster rasterization,
+  near-source/material behavior, production consumers, package identity, appearance or performance.
+
+  ☑ Implement independent sun/moon orthographic clipmaps and six perspective point-light faces.
+    ☑ Double world texel width between directional levels; snap placement while preserving matching
       translation reuse. Include source/lifetime, projection generation, face/level and virtual XY keys.
-    ☐ Fit directional depth to represented caster coverage; invalidate depth on light-basis/point-position
+    ☑ Fit directional depth to represented caster coverage; invalidate depth on light-basis/point-position
       changes. Establish explicit near-plane, bias, depth-range and material-culling conventions.
-  ☐ Implement bounded GPU page tables, allocation/eviction and free/retirement queues through the RHI.
-    ☐ Use resident D32F array layers at the initial page dimensions with no gutters/mips/MSAA. Assign
+  ☑ Implement bounded GPU page tables, allocation/eviction and free/retirement queues through the RHI.
+    ☑ Use resident D32F array layers at the initial page dimensions with no gutters/mips/MSAA. Assign
       array/layer/generation; reject lookup/probe/allocation exhaustion instead of aliasing entries.
-    ☐ Validate depth storage plus metadata/temporary resources against configured memory, layer/texture
+    ☑ Validate depth storage plus metadata/temporary resources against configured memory, layer/texture
       limits and the planned binding layouts of every participating shader. Account for array submission
       groups; Phase 7 rechecks sampler availability against the completed consumer integrations.
-    ☐ Evict invalid/unreferenced entries before required coverage; never overwrite in-flight pages.
+    ☑ Evict invalid/unreferenced entries before required coverage; never overwrite in-flight pages.
       Retain storage until GPU use completes without blocking for timing or completion readback.
-    ☐ Implement disable/world leave/context loss/source or dimension removal/shader replacement and
+    ☑ Implement disable/world leave/context loss/source or dimension removal/shader replacement and
       reconfiguration retirement. Grow incrementally, drain shrink excess visibly and avoid two full pools
       during format changes. Borrowed engine geometry remains engine-owned.
-  ☐ Store rendered receiving coverage separately from page identity, including receiver depth, filter
+  ☑ Store rendered receiving coverage separately from page identity, including receiver depth, filter
     and bias footprints, and scene/projection/assignment dependencies.
-    ☐ Bound region metadata and containment work. A conservative enclosure requires complete caster
+    ☑ Bound region metadata and containment work. A conservative enclosure requires complete caster
       selection for that enclosure; extending candidate lists alone cannot extend rendered-depth validity.
-    ☐ Require complete replacement for the union of currently required regions when coverage grows;
+    ☑ Require complete replacement for the union of currently required regions when coverage grows;
       publish depths and coverage together. Until replacement, old data covers only its certified region.
-  ☐ Implement shared manual 3-by-3 PCF with explicit per-tap virtual lookup and depth comparisons.
-    ☐ Use statically addressed depth-array samplers and point fetches. Remap cube-edge directions and
+  ☑ Implement shared manual 3-by-3 PCF with explicit per-tap virtual lookup and depth comparisons.
+    ☑ Use statically addressed depth-array samplers and point fetches. Remap cube-edge directions and
       reference depth to the destination face; keep directional-level samples world-consistent.
-    ☐ Include every tap in demand/validity, use the shared bias convention and return diagnosed unshadowed
+    ☑ Include every tap in demand/validity, use the shared bias convention and return diagnosed unshadowed
       visibility on unexpected invalid lookup. Do not average depths into coarse fallback levels.
-  ☐ Delegate unit and real GPU checks for projection/addressing, seams, multiple arrays, invalid entries,
+  ☑ Delegate unit and real GPU checks for projection/addressing, seams, multiple arrays, invalid entries,
     assignment reuse, capacity failure, retirement, large coordinates and region containment/replacement.
-    ☐ Verify receivers at different depths sharing one page and test the full sampler with optional
+    ☑ Verify receivers at different depths sharing one page and test the full sampler with optional
       capabilities disabled. Keep synthetic depth fixtures distinct from actual caster-rendering evidence.
-  ☐ Completion: baseline storage/sampling and coverage-aware validity pass their scoped checks; no optional
+  ☑ Completion: baseline storage/sampling and coverage-aware validity pass their scoped checks; no optional
     capability is needed, and remaining actual geometry/near-source qualification is explicitly owned by
     Phase 5 rather than claimed from synthetic pages.
 
