@@ -6,6 +6,8 @@ namespace VanillaGraphicsExpanded.PBR;
 /// <summary>Authors isotropic luminous flux and linear Rec.709 chromaticity at a view-space metre position.</summary>
 internal readonly record struct PunctualLight(Vector3 Position, Vector3 LinearColor, float Lumens, float InfluenceRadiusMetres)
 {
+    /// <summary>Supplies the authored provider's world-scoped lifetime; absent identity disables cached shadows only.</summary>
+    internal Rendering.Shadows.Lights.ShadowSourceKey Source { get; init; }
     #region Public API
     /// <summary>Validates source authoring and converts flux to the shared evaluated-candela payload.</summary>
     internal Vector4 IntensityPayload()

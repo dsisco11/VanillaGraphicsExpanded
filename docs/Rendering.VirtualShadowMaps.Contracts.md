@@ -1,11 +1,64 @@
 # Virtual shadow map implementation contracts
 
 This is the implementation design for the [shared virtual shadow map proposal](Rendering.VirtualShadowMaps.Proposal.md).
-It specifies interfaces and invariants; the virtual shadow runtime, configuration properties and
-shader interfaces below are **not implemented**. The [implementation plan](Rendering.VirtualShadowMaps.todo)
+It specifies interfaces and invariants. Native input publication and the bounded dependency primitives
+described below are implemented; shadow rendering, admission and sampling are **not implemented**.
+The [implementation plan](Rendering.VirtualShadowMaps.todo)
 controls delivery. Numerical profiles are provisional, not measured shipping defaults.
 The [qualification protocol](Rendering.VirtualShadowMaps.Qualification.md) defines the evidence needed
 before performance, completeness or appearance can be claimed.
+
+## Implemented input boundaries
+
+`VgeLightsRenderer` freezes source keys with the existing illumination payload after held attachment
+resolution. `NativeShadowLightSources` records the actual entity/hand or registered `IPointLight` at
+admission, and retains the collection's world-to-view matrix, dimension and integer-origin inputs.
+Movement and list ordering do not define identity. Weak owner lifetimes, hand replacement tracking,
+provider removal and world reset prevent reuse by replacement sources. Authored `PunctualLight.Source`
+supplies equivalent identity. Block-entity providers additionally retain integer block position.
+Unknown keys or unavailable collection coordinates leave illumination intact without cached-shadow input.
+Independent solar/lunar direction and irradiance are retained from the coherent atmosphere publication;
+existing lighting consumers still use their current direct-light selection until consumer migration.
+
+`NativeShadowWorldAdapter` bootstraps under `ClientWorldMap.chunksLock`, then drains bounded native
+dictionary-coordinate notifications. Load/replacement and unload interception observes writes in the
+native owning methods. The existing `ChunkDirty` event and native dirty-queue boundary mark content
+pending. Native chunk upload/removal hooks withdraw old certificates before range changes; no mesh-pool
+method is patched or classified. Tessellation carries its pre-read center/edge content revisions through
+native queue merging to upload. Required and uploaded revisions remain separate after success, so a late
+older upload cannot restore stale readiness. Edge-only work does not falsely replace the center's revision.
+A later edit, unknown queued-work stamp, missing range or exception cannot certify a current replacement.
+`Capture` retains the entire loaded envelope per dimension, including offscreen chunks, or returns
+incomplete on capacity/probe exhaustion. `TryUse` rechecks the frozen publication under the mutation
+gate before a consumer submits work. Native ranges are descriptions, not owned geometry or a drawing API.
+The terrain adapter must additionally acquire the existing RHI borrowed-storage certificates before draws.
+
+Lookup completeness is distinct from per-chunk drawable readiness. Missing coordinates inside the
+envelope, pending content and missing geometry remain unknown. Cached Empty and connectivity values
+are published as advisory metadata. Proven-fresh bits remain clear; the native asynchronous connectivity
+freshness claim is retained separately for diagnostics. This implementation does not certify voxel
+emptiness, solid classification or connectivity-based pruning. Bounds-only candidate traversal remains
+the required route until those proofs are available.
+
+The packed lookup uses 64-byte std430 records and bounded linear probing with an explicit unsigned hash.
+Native indices, lifetimes and revisions use low/high 32-bit words; coordinates remain signed integers.
+Native range descriptions are 32 bytes. CPU and GPU retain absolute chunk identity; bounded relative
+conversion rejects integer overflow. `ShadowWorldGpuBuffers` uploads only changed complete publications
+through RHI-owned SSBOs. Adapter owner identity scopes generations across reconnect/reconfiguration;
+invalid inputs withdraw the upload certificate. None of this enables GPU candidate selection yet.
+
+`ShadowSceneChanges` bounds non-terrain history, retains previous/current bounds and relevant revisions,
+and advances a broad invalidation epoch before dropping unknown or exhausted history. Pending changes
+prohibit certification. `ShadowReceivingCoverage` checks depth-inclusive bounds and applied dependency
+watermarks independently of page identity. Actual entity/moving-caster adapters are still unimplemented.
+
+The currently accepted JSON configuration is `VirtualShadows.Inputs`: `ChunkCapacity` (65536),
+`RangeCapacity` (524288), `ChangeCapacity` (8192), and `ProbeLimit` (128). These are provisional finite
+input allowances, not the total shadow budget or shadow enablement. The existing `ConfigModSystem`
+materializes/sanitizes them; reload withdraws the frozen publication while preserving pending edits,
+failed uploads and queued tessellation stamps. Retained work drains when a smaller allowance is applied;
+new work cannot silently discard its history. A genuine native map reset or world exit ends that history.
+GPU resources are lazy. The remaining settings schema below is intended design, not accepted configuration.
 
 ## Ownership and source layout
 
@@ -201,13 +254,14 @@ explicitly owned remaining consumers.
 
 ## Persisted settings and effective policy
 
-Add one opt-in `VirtualShadows` object to [VgeConfig](../VanillaGraphicsExpanded/LumOn/VgeConfig.cs)
-when configuration is implemented. Its types live in `Rendering/Shadows/Configuration`, avoiding further
+The opt-in `VirtualShadows` object in [VgeConfig](../VanillaGraphicsExpanded/LumOn/VgeConfig.cs)
+currently exposes input-publication allowances. Extend it with the remaining schema below when rendering
+policy is implemented. Its types live in `Rendering/Shadows/Configuration`, avoiding further
 growth of unrelated nested settings. [ConfigModSystem](../VanillaGraphicsExpanded/ModSystems/ConfigModSystem.cs)
 continues to load/sanitize, materialize missing defaults and apply ConfigLib paths; it remains the configuration
 owner. Add public ConfigLib mappings in the existing asset. Its event handler must not become a second
 writer racing ConfigLib saves. [LiveConfigReload](../VanillaGraphicsExpanded/ModSystems/LiveConfigReload.cs)
-delivers the sanitized snapshot; the shadow owner converts it to immutable requested/effective policies
+delivers sanitized settings; the shadow owner converts them to immutable requested/effective policies
 at a scheduling boundary. Cache enablement until its determining inputs change.
 
 The schema below defines units and validation, not actual currently accepted JSON properties.
@@ -288,13 +342,20 @@ rendering or performance proof. Recheck supported assembly identity on upgrade.
 
 | Boundary rechecked | Current evidence | Verification owner and required proof before integration |
 | --- | --- | --- |
-| Bootstrap/load/replacement | `ClientWorldMap.chunks/chunksLock`; `loadChunkMT` writes under lock and reaches dirty/loaded notifications; `OverloadChunkMT` removes old geometry and replaces dictionary entry | Native world publication task: prove initial enumeration plus deltas cannot lose concurrent changes; distinguish data load from geometry readiness |
-| Unload/moving chunk removal | Targeted calls identify `SystemUnloadChunks.UnloadChunk` and `BlockAccessorMovable.ClearChunks` calling range removal | Native world publication task: trace all unload/reset/dimension paths and event timing; withdraw before storage can be reused; no assumption that ChunkDirty covers these |
-| Mesh upload/replacement | `ChunkTesselatorManager.OnBeforeFrame` calls `AddTesselatedChunk`; it delegates center/edge uploads; removal clears corresponding native arrays | Native world publication task: prove freeze/drain/submission ordering and range lifetime across upload, retirement and failed upload; use one narrow lifecycle seam where existing events are insufficient |
+| Bootstrap/load/replacement | Adapter bootstraps under `ClientWorldMap.chunksLock`; notifications observe actual native dictionary writes in `loadChunkMT` and `OverloadChunkMT` | Required proof: bounded source fixtures and installed-IL interception checks; later live streaming qualification measures availability/cost and retained full envelopes |
+| Unload/moving chunk removal | `HandleChunkUnload` dictionary removal and native chunk center/edge range retirement withdraw publications; world exit detaches the owner | Required proof: executed native retirement and adapter replacement checks; actual moving-chunk draw preparation remains owned by the scene adapter |
+| Mesh upload/replacement | Pre-read tessellation stamps survive native `MergeIfEqual`; per-part required/uploaded revisions reject late obsolete replacements | Required proof: native merge/upload and revision-order fixtures; actual ordinary/SSBO geometry drawing and GPU storage borrowing still require terrain-adapter qualification |
 | Geometry binding/category | Existing [TerrainPassDrawHook](../VanillaGraphicsExpanded/HarmonyPatches/TerrainPassDrawHook.cs) follows native table selection; [EngineGeometryInputs](../VanillaGraphicsExpanded/Rendering/Integration/OpenGL/EngineGeometryInputs.cs) withdraws borrowed inputs on structural mutation | World publication task owns revisions/lifetime; actual terrain adapter task owns ordinary/SSBO layouts, detail/cutout/displacement and shadow-specific inputs; do not treat liquid culling ranges as general input |
 | Frame gate | Native render loop orders Before, ShadowFar/Near and then Opaque/OIT. [VgeLightsRenderer](../VanillaGraphicsExpanded/Rendering/VgeLightsRenderer.cs) captures at Opaque -10000; [receiver resolve](../VanillaGraphicsExpanded/PBR/SceneColor/SceneColorParticleCapture.cs) is 8.5 and [direct lighting](../VanillaGraphicsExpanded/PBR/DirectLightingRenderer.cs) is 9 | Light publication task preserves capture consistency; demand/readiness integration task proves position before every participating surface and audits actual registered draw order |
 | Entity preparation | `SystemRenderEntities.OnBeforeRender` gates `BeforeRender`; existing held collector resolves after current animation | Entity adapter task proves offscreen preparation and once-only advancement, including custom renderers; light publication task retains identity before held associations are cleared |
-| Empty/connectivity | Retained receipts establish cached Empty and fresh 15-pair connectivity, not solid classification | World publication task establishes revision/freshness; candidate task proves opacity-compatible pruning or keeps bounds-only behavior |
+| Empty/connectivity | Adapter retains cached Empty/connectivity and the native freshness claim separately from proven-fresh flags | Proven-fresh flags remain clear; candidate selection must keep the bounds-only path unless synchronized freshness and shadow-opacity equivalence are established |
 
-All unresolved native world-publication seams are explicit obligations of the plan's world-publication
-work. No later renderer may assume those lifetimes are established merely by this static inspection.
+The implemented world boundary is described above. The plan retains its executed verification and
+completion review separately from these source receipts. No later renderer may treat metadata publication
+as proof that native draw preparation, shadow materials or GPU command generation are already implemented.
+The additional [publication/merge IL](../artifacts/virtual-shadow-maps/publication-boundaries-inspection.txt),
+[dictionary writers](../artifacts/virtual-shadow-maps/native-dictionary-writers.txt),
+[tessellation ordering](../artifacts/virtual-shadow-maps/tessellation-order-inspection.txt) and
+[upload ordering](../artifacts/virtual-shadow-maps/upload-order-inspection.txt) receipts retain the inspected
+native source boundaries. Hook installation rejects an unqualified engine module identity instead of
+assuming a changed binary preserves these private contracts.

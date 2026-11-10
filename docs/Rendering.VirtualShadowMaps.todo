@@ -2,9 +2,9 @@ Shared virtual shadow maps
 ==========================
 
 Source proposal: [Rendering.VirtualShadowMaps.Proposal.md](Rendering.VirtualShadowMaps.Proposal.md)
-Status: Phase 1 complete; Phases 2–10 remain unchecked. Shadows are not enabled.
-Authority: the audited proposal governs scope and behavior. The explicit complete-todo-phase 1 request
-authorizes Phase 1 only. The proposal's recommendations are the
+Status: Phases 1 and 2 complete. Shadows are not enabled.
+Authority: the audited proposal governs scope and behavior. The explicit complete-todo-phase 2 request
+authorizes Phase 2; later phases remain unchecked. The proposal's recommendations are the
 planned design, while its numerical starting values remain tuning hypotheses.
 
 Goal and governing contracts
@@ -175,32 +175,62 @@ Phase 2: Publish stable lights and native world inputs
   Depends on Phase 1.
   Outcome: bounded, current inputs with native identity and lifetime rules can drive GPU selection.
 
-  ☐ Extend HeldLightSources, VgeLightsUniformBuffer and the owning light collectors to preserve stable
+  Controlling sources: proposal Light identity and projection contract, World publication and cache
+  contract, Existing spatial ownership, Existing empty and traversability information, Engine geometry
+  ownership and selected drawing, Non-terrain change publication; implementation contracts Publication
+  interfaces and Generations, failure and lifetime; qualification protocol Evidence boundaries and
+  Correctness and fault matrix. All tasks inherit the governing contracts above.
+  Task-to-document/evidence mapping:
+  | Task group | Source requirements | Implementation and verification |
+  | --- | --- | --- |
+  | Stable light collection | Proposal light identity; contracts same-frame coordinates and native/authored radius | HeldLightSources/HeldLightHooks, NativeShadowLightSources, VgeLightsUniformBuffer/VgeLightsRenderer; actual source lifetime and collector IL checks |
+  | Native world publication | Proposal world/cache, spatial ownership and geometry sections; contracts integer coordinates, unknown data, native retirement | NativeShadowWorldAdapter/NativeShadowWorldHooks, ShadowWorldPublication/GpuBuffers; native dictionary/range fixtures, mutation races, GPU metadata and capacity checks |
+  | Bounded dependencies | Proposal non-terrain change publication and receiving coverage; contracts generations/failure | ShadowSceneChanges/ShadowReceivingCoverage; pending/lost-history, bounds and epoch checks; actual non-terrain adapters remain Phase 5 |
+  | Input policy | Contracts finite input/range/change/probe limits and existing configuration owner | VirtualShadows.Inputs, ConfigModSystem sanitization and VirtualShadowModSystem reload; settings, publication withdrawal and retained pending-history checks |
+  Verification, 2026-11-09: delegated canonical Debug build passed with 20 warnings / 0 errors.
+  The focused CPU selection passed 59/59. After strengthening movement, change-history and loaded-envelope
+  assertions, the affected selection including installed HeldLightHooks integration passed 47/47.
+  Real RHI metadata upload/readback passed 1/1. These selections overlap; their counts are not additive.
+  Receipts: [build](../artifacts/virtual-shadow-maps/phase2/build-debug-attempt5.log),
+  [focused CPU](../artifacts/virtual-shadow-maps/phase2/phase2-cpu-attempt7.trx),
+  [affected CPU and held-light integration](../artifacts/virtual-shadow-maps/phase2/phase2-cpu-expanded-final.trx),
+  [GPU metadata](../artifacts/virtual-shadow-maps/phase2/phase2-gpu-attempt3.trx).
+  Final affected command (repository root, MSBUILDDISABLENODEREUSE=1):
+    dotnet test VanillaGraphicsExpanded.Tests\VanillaGraphicsExpanded.Tests.csproj -c Debug --settings VanillaGraphicsExpanded.Tests\UnitTests.runsettings --filter "FullyQualifiedName~Rendering.Shadows|FullyQualifiedName~Integration.Lighting.HeldLightTests" --logger "trx;LogFileName=phase2-cpu-expanded-final.trx" --results-directory artifacts\virtual-shadow-maps\phase2
+  Native checks use installed 1.22.7 engine classes and selected lifecycle methods with controlled fixtures;
+  static publication/tessellation/upload IL receipts remain under artifacts/virtual-shadow-maps.
+  This evidence does not establish a running game, rendered shadow correctness, performance, package
+  qualification or visual acceptance. No shadow consumer is enabled.
+  Completion review, 2026-11-09: primary second review, configured test review and independent
+  audit-stage-completion passed. Upload-provenance and test-strength findings are resolved;
+  no required Phase 2 findings remain. Later phases remain unchecked.
+
+  ☑ Extend HeldLightSources, VgeLightsUniformBuffer and the owning light collectors to preserve stable
     source identity alongside the current payload; keep capture centralized in VgeLightsRenderer.
-    ☐ Cover sun/moon, entity lifetime/emission slot, player lifetime/hand, block position/slot/lifetime
+    ☑ Cover sun/moon, entity lifetime/emission slot, player lifetime/hand, block position/slot/lifetime
       and authored providers, all scoped to world/dimension. Movement must not change identity.
-    ☐ Retain independent solar/lunar inputs for later consumer integration; keep calibration unchanged.
-    ☐ Match PunctualLight and VgePointIlluminance radius conventions exactly. Do not infer keys from
+    ☑ Retain independent solar/lunar inputs for later consumer integration; keep calibration unchanged.
+    ☑ Match PunctualLight and VgePointIlluminance radius conventions exactly. Do not infer keys from
       frame indices or positions or create a different shadow-only influence cutoff.
-    ☐ Unknown identities remain illuminated without cached shadows and are diagnosed; missing required
+    ☑ Unknown identities remain illuminated without cached shadows and are diagnosed; missing required
       collector integration prevents completion rather than being accepted as the normal fallback.
-  ☐ Implement one narrow world-publication adapter over native chunk ownership and events.
-    ☐ Verify safe bootstrap, load/unload/edit, mesh upload/replacement and retirement coverage; use a
+  ☑ Implement one narrow world-publication adapter over native chunk ownership and events.
+    ☑ Verify safe bootstrap, load/unload/edit, mesh upload/replacement and retirement coverage; use a
       narrow native lifecycle seam only where needed. Do not add mesh-pool membership hooks.
-    ☐ Publish a bounded coordinate-keyed GPU lookup of dimension-aware identity, availability, revisions,
+    ☑ Publish a bounded coordinate-keyed GPU lookup of dimension-aware identity, availability, revisions,
       Empty/connectivity freshness and current native geometry references. Preserve FrameWorldSpaceBridge
       integer identity and bounded relative arithmetic across camera-origin changes.
-    ☐ Freeze render publications; drain relevant changes before certification. Preserve borrowed native
+    ☑ Freeze render publications; drain relevant changes before certification. Preserve borrowed native
       ranges and disallow use after retirement/reuse. Do not copy LoadedChunkIndices per frame or page.
-    ☐ Publish the complete loaded-chunk envelope including offscreen chunks. Keep missing/pending cells
+    ☑ Publish the complete loaded-chunk envelope including offscreen chunks. Keep missing/pending cells
       distinct from proven empty cells; retain the explicit outside-envelope world-data limitation.
-  ☐ Implement bounded publication primitives for non-terrain scene changes and receiving-coverage
+  ☑ Implement bounded publication primitives for non-terrain scene changes and receiving-coverage
     dependencies. Phase 5 connects actual caster adapters; do not certify that integration here.
-    ☐ Carry prior/current conservative bounds, relevant revisions and pending-change state. Lost or
+    ☑ Carry prior/current conservative bounds, relevant revisions and pending-change state. Lost or
       unknown change coverage must force broader invalidation, never silent reuse.
-  ☐ Delegate focused unit and engine-boundary integration checks for identity replacement, hand/source
+  ☑ Delegate focused unit and engine-boundary integration checks for identity replacement, hand/source
     changes, dimensions, origin shifts, streaming/edit/upload races, unknown data and reused native ranges.
-  ☐ Completion: verified native publication seams supply consistent bounded inputs without a second pool
+  ☑ Completion: verified native publication seams supply consistent bounded inputs without a second pool
     classification system; source and lifecycle evidence distinguish implemented terrain publication
     from the non-terrain adapter integration still required in Phase 5.
 

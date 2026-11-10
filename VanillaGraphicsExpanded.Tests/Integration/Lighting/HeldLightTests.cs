@@ -175,7 +175,7 @@ public sealed class HeldLightTests
         HeldLightSources.Complete(fixture.Game);
         Assert.Equal(1, fixture.Game.shUniforms.PointLightsCount);
     }
-    /// <summary>Only collection is patched; the registered renderer owns post-animation work and is removed on shutdown.</summary>
+    /// <summary>Collection and provider removal are patched; the registered renderer owns post-animation work.</summary>
     [Fact]
     public void UsesOneHarmonyBoundaryAndScheduledRenderer()
     {
@@ -185,8 +185,10 @@ public sealed class HeldLightTests
         fixture.InstallCollection();
         var owned = Harmony.GetAllPatchedMethods().Where(method =>
             Harmony.GetPatchInfo(method)?.Owners.Contains(HeldLightSystem.PatchId) == true).ToArray();
-        // Assert: exactly the collection hook is owned and its renderer uses the scheduled order.
-        Assert.Equal(AccessTools.Method(typeof(SystemRenderPlayerEffects), "onBeforeRender"), Assert.Single(owned));
+        // Assert: collection and provider retirement are the only owned native boundaries.
+        Assert.Equal(2, owned.Length);
+        Assert.Contains(AccessTools.Method(typeof(SystemRenderPlayerEffects), "onBeforeRender"), owned);
+        Assert.Contains(AccessTools.Method(typeof(RenderAPIGame), "RemovePointLight"), owned);
         Assert.IsType<HeldLightRenderer>(fixture.ScheduledRenderer);
         Assert.Equal(0.45, fixture.ScheduledRenderer!.RenderOrder);
         HeldLightSystem.Stop();

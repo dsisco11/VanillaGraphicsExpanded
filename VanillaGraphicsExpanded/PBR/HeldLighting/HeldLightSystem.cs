@@ -5,6 +5,8 @@ using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.HarmonyPatches;
+using VanillaGraphicsExpanded.Rendering.Integration.Shadows;
+using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.PBR.HeldLighting;
 
@@ -17,6 +19,9 @@ internal static class HeldLightSystem
     private static ClientMain? game;
     private static Exception? collectionFailure;
     private static Action<SystemRenderPlayerEffects, byte[], EntityPos>? vanillaLight;
+    private static readonly Action<SystemRenderPlayerEffects, Vec3f, Vec3d> ProviderLight =
+        AccessTools.MethodDelegate<Action<SystemRenderPlayerEffects, Vec3f, Vec3d>>(
+            AccessTools.Method(typeof(SystemRenderPlayerEffects), "AddPointLight", [typeof(Vec3f), typeof(Vec3d)]));
     private static ICoreClientAPI? api;
     private static HeldLightRenderer? renderer;
     internal static bool Enabled { get; private set; }
@@ -109,7 +114,7 @@ internal static class HeldLightSystem
     /// <summary>Attributes extension failures while allowing disabled, already-entered collectors to run vanilla code.</summary>
     internal static void AddEntityLight(SystemRenderPlayerEffects effects, byte[] combined, Entity entity)
     {
-        if (!Enabled || entity is not EntityPlayer)
+        if (!Enabled)
         {
             // Any callback retained after shutdown stays pass-through.
             // Bound before installing the collection patch; no reflective invocation is needed during a frame.
@@ -118,6 +123,17 @@ internal static class HeldLightSystem
         }
         try { HeldLightSources.AddEntityLight(effects, combined, entity, game!); }
         catch (Exception error) { collectionFailure = error; throw; }
+    }
+
+    /// <summary>Retains the actual registered provider beside its admitted native payload.</summary>
+    internal static void AddProviderLight(SystemRenderPlayerEffects effects, IPointLight source)
+    {
+        if (!Enabled || game == null) { ProviderLight(effects, source.Color, source.Pos); return; }
+        int before = game.shUniforms.PointLightsCount;
+        ProviderLight(effects, source.Color, source.Pos);
+        if (game.shUniforms.PointLightsCount != before + 1) return;
+        var identities = NativeShadowLightSources.For(game);
+        identities.Admit(game, before, identities.Provider(source, game.EntityPlayer.Pos.Dimension));
     }
 
     /// <summary>Aborts partial collection and suppresses only the exact exception raised inside held-light work.</summary>

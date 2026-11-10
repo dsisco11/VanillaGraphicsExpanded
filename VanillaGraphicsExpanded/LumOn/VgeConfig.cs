@@ -15,6 +15,9 @@ namespace VanillaGraphicsExpanded.LumOn;
 [JsonObject(MemberSerialization.OptIn)]
 public class VgeConfig
 {
+    /// <summary>Configures shared shadow input publications without enabling shadow rendering.</summary>
+    [JsonProperty]
+    public Rendering.Shadows.Configuration.ShadowSettings VirtualShadows { get; set; } = new();
     [JsonObject(MemberSerialization.OptIn)]
     public sealed class DebugConfig
     {
@@ -1491,6 +1494,8 @@ public class VgeConfig
     /// </summary>
     public void Sanitize()
     {
+        VirtualShadows ??= new();
+        VirtualShadows.Sanitize();
         CameraExposure ??= new();
         Postprocessing ??= new();
         Postprocessing.LocalExposure ??= new();

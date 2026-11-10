@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Immutable;
+using VanillaGraphicsExpanded.Rendering.Shadows.Lights;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -16,13 +18,17 @@ internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
     internal float SummedCandelaMaximum { get; private set; }
     /// <summary>Matches native effect color/normalization admission to the same immutable engine payload.</summary>
     internal PBR.SceneColor.SceneColorPointLightBounds NativeEffectBounds { get; private set; }
+    /// <summary>Pairs the immutable native or authored payload with the same captured source identities.</summary>
+    internal ImmutableArray<ShadowPointLight> Lights { get; private set; } = ImmutableArray<ShadowPointLight>.Empty;
 
     /// <summary>Captures a complete light list without publishing partially validated input.</summary>
-    internal void Capture(int count, ReadOnlySpan<float> positions, ReadOnlySpan<float> colors)
+    internal void Capture(int count, ReadOnlySpan<float> positions, ReadOnlySpan<float> colors,
+        ReadOnlySpan<ShadowSourceKey> sources = default)
     {
         if ((uint)count > Capacity) throw new ArgumentOutOfRangeException(nameof(count));
         if (positions.Length < count * 3 || colors.Length < count * 3)
             throw new ArgumentException("Every active light requires a position and a color.");
+        if (!sources.IsEmpty && sources.Length != count) throw new ArgumentException("Source count must match the light payload.", nameof(sources));
         // Retain engine calibration and coordinates exactly. Reject malformed active components
         // before touching the previous snapshot; inactive storage is never exposed by the count.
         for (int component = 0; component < count * 3; component++)
@@ -40,15 +46,20 @@ internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
         // exposing any light. Position, window and inverse-square terms cannot amplify it.
         float candelaMaximum = PBR.LightingStorage.UpperBound(Math.Max(red, Math.Max(green, blue)) * (1 + 256.0 / (1 << 23)));
         var nativeBounds = PBR.SceneColor.SceneColorPointLightBounds.FromEngine(count, colors);
+        var snapshot = ImmutableArray.CreateBuilder<ShadowPointLight>(count);
         WriteUInt32(0, (uint)count);
         for (int light = 0; light < count; light++)
         {
             int source = light * 3;
             WriteVector4(16 + light * 16, new(positions[source], positions[source + 1], positions[source + 2], 0));
             WriteVector4(16 + Capacity * 16 + light * 16, new(colors[source], colors[source + 1], colors[source + 2], 0));
+            snapshot.Add(new(sources.IsEmpty ? default : sources[light],
+                new(positions[source], positions[source + 1], positions[source + 2]),
+                new(colors[source], colors[source + 1], colors[source + 2], 0)));
         }
         SummedCandelaMaximum = candelaMaximum;
         NativeEffectBounds = nativeBounds;
+        Lights = snapshot.MoveToImmutable();
     }
     /// <summary>Publishes VGE-authored luminous flux through the retained list without relabeling engine RGB.</summary>
     internal void CaptureAuthored(ReadOnlySpan<PBR.PunctualLight> sources)
@@ -64,15 +75,18 @@ internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
         }
         float candelaMaximum = PBR.LightingStorage.UpperBound(Math.Max(red, Math.Max(green, blue)) * (1 + 256.0 / (1 << 23)));
         WriteUInt32(0, (uint)sources.Length);
+        var snapshot = ImmutableArray.CreateBuilder<ShadowPointLight>(sources.Length);
         for (int i = 0; i < sources.Length; i++)
         {
             WriteVector4(16 + i * 16, new(sources[i].Position, 0));
             WriteVector4(16 + Capacity * 16 + i * 16, payloads[i]);
+            snapshot.Add(new(sources[i].Source, sources[i].Position, payloads[i]));
         }
         SummedCandelaMaximum = candelaMaximum;
         // Authored candela carry a different payload convention and do not certify
         // the engine's legacy RGB/range expressions used by clouds and particles.
         NativeEffectBounds = default;
+        Lights = snapshot.MoveToImmutable();
     }
     #endregion
 }

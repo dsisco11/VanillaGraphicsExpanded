@@ -7,6 +7,7 @@ using Vintagestory.API.Common.Entities;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 using Vintagestory.GameContent;
+using VanillaGraphicsExpanded.Rendering.Integration.Shadows;
 
 namespace VanillaGraphicsExpanded.PBR.HeldLighting;
 
@@ -25,13 +26,18 @@ internal sealed class HeldLightSources
 
     #region Engine collection
     /// <summary>Releases all pending frame work when the held-light subsystem shuts down.</summary>
-    internal static void Clear() => Frames.Clear();
+    internal static void Clear()
+    {
+        Frames.Clear();
+        NativeShadowLightSources.Clear();
+    }
 
     /// <summary>Starts a fresh collection; no attachment or light-array index survives across frames.</summary>
     internal static void Begin(ClientMain game)
     {
         HeldLightSources frame = Frames.GetValue(game, static _ => new HeldLightSources());
         frame.pending.Clear();
+        NativeShadowLightSources.For(game).Begin(game);
     }
 
     /// <summary>Replaces only the player entity emission call, preserving the engine's color conversion and limit.</summary>
@@ -40,7 +46,7 @@ internal sealed class HeldLightSources
         if (entity is not EntityPlayer player ||
             !UsesStandardEmission(entity.GetType()))
         {
-            AddPointLight(effects, combined, entity.Pos);
+            AddOwned(effects, combined, entity, game);
             return;
         }
         byte[]? right = GetHandLight(player, player.RightHandItemSlot);
@@ -48,13 +54,13 @@ internal sealed class HeldLightSources
         if (!Emits(right) && !Emits(left))
         {
             // Keep the original getter's spawn-glow policy and any innate/fire light when hands are dark.
-            AddPointLight(effects, combined, player.Pos);
+            AddOwned(effects, combined, player, game);
             return;
         }
         HeldLightSources frame = Frames.GetValue(game, static _ => new HeldLightSources());
         // The getter has already applied its normal side effects. Its private base source excludes both hands.
         byte[]? innate = BaseLight(player);
-        if (Emits(innate)) AddPointLight(effects, innate!, player.Pos);
+        if (Emits(innate)) AddOwned(effects, innate!, player, game);
         frame.AddHand(effects, game, player, right, true);
         frame.AddHand(effects, game, player, left, false);
     }
@@ -80,10 +86,23 @@ internal sealed class HeldLightSources
         AddPointLight(effects, hsv!, position);
         if (game.shUniforms.PointLightsCount > index)
         {
+            var identities = NativeShadowLightSources.For(game);
+            identities.Admit(game, index, identities.Entity(player, right ? 1 : 2,
+                (right ? player.RightHandItemSlot : player.LeftHandItemSlot)?.Itemstack));
             // Capture only when an entry was published. The getter returns reusable engine scratch storage.
             if (pending.Count == 0) Array.Copy(game.CurrentModelViewMatrixd, view, 16);
             pending.Add((player, right, index));
         }
+    }
+
+    /// <summary>Pairs the native converted payload with its actual entity emission owner.</summary>
+    private static void AddOwned(SystemRenderPlayerEffects effects, byte[] hsv, Entity entity, ClientMain game)
+    {
+        int before = game.shUniforms.PointLightsCount;
+        AddPointLight(effects, hsv, entity.Pos);
+        if (game.shUniforms.PointLightsCount != before + 1) return;
+        var identities = NativeShadowLightSources.For(game);
+        identities.Admit(game, before, identities.Entity(entity));
     }
 
     /// <summary>Returns the item's actual dynamic emission, including extinguished-item state.</summary>

@@ -5,6 +5,8 @@ using HarmonyLib;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.PBR.HeldLighting;
+using Vintagestory.API.Client;
+using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches;
 
@@ -19,6 +21,8 @@ internal static class HeldLightHooks
             prefix: new HarmonyMethod(typeof(HeldLightHooks), nameof(Begin)),
             transpiler: new HarmonyMethod(typeof(HeldLightHooks), nameof(Collect)),
             finalizer: new HarmonyMethod(typeof(HeldLightHooks), nameof(Finish)));
+        harmony.Patch(AccessTools.Method(typeof(RenderAPIGame), "RemovePointLight"),
+            prefix: new HarmonyMethod(typeof(HeldLightHooks), nameof(RemoveProvider)));
     }
     #endregion
 
@@ -28,6 +32,10 @@ internal static class HeldLightHooks
 
     /// <summary>Handles only exceptions attributed to the held-light extension of collection.</summary>
     private static Exception? Finish(Exception? __exception) => HeldLightSystem.FinishCollection(__exception);
+
+    /// <summary>Ends removed provider registrations even when a caller later reuses the same object.</summary>
+    private static void RemoveProvider(ClientMain ___game, IPointLight __0) =>
+        Rendering.Integration.Shadows.NativeShadowLightSources.For(___game).RemoveProvider(__0);
 
     /// <summary>Passes entity identity through the one entity-light call without replacing engine enumeration.</summary>
     internal static IEnumerable<CodeInstruction> Collect(IEnumerable<CodeInstruction> instructions)
@@ -49,6 +57,21 @@ internal static class HeldLightHooks
             matches++;
         }
         if (matches != 1) throw new InvalidOperationException($"Expected one engine entity-light call; found {matches}.");
+        var providerAdd = AccessTools.Method(typeof(SystemRenderPlayerEffects), "AddPointLight", [typeof(Vec3f), typeof(Vec3d)]);
+        int providers = 0;
+        for (int i = 4; i < code.Count; i++)
+        {
+            if (!code[i].Calls(providerAdd)) continue;
+            if (!code[i - 3].Calls(AccessTools.PropertyGetter(typeof(IPointLight), nameof(IPointLight.Color)))
+                || !code[i - 1].Calls(AccessTools.PropertyGetter(typeof(IPointLight), nameof(IPointLight.Pos))))
+                throw new InvalidOperationException("Native provider collection no longer matches the supported engine.");
+            // Keep the provider on the stack rather than reducing it to anonymous color and position.
+            for (int offset = 1; offset <= 3; offset++) { code[i - offset].opcode = OpCodes.Nop; code[i - offset].operand = null; }
+            code[i].opcode = OpCodes.Call;
+            code[i].operand = AccessTools.Method(typeof(HeldLightSystem), nameof(HeldLightSystem.AddProviderLight));
+            providers++;
+        }
+        if (providers != 1) throw new InvalidOperationException($"Expected one native provider-light call; found {providers}.");
         return code;
     }
 
