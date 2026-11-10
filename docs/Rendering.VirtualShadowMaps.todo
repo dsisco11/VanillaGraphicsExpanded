@@ -3,8 +3,8 @@ Shared virtual shadow maps
 
 Source proposal: [Rendering.VirtualShadowMaps.Proposal.md](Rendering.VirtualShadowMaps.Proposal.md)
 Status: Phases 1–4 have receipts for their original contracts; affected foundations are reopened in
-Phase 7. Existing drafts await the Phase 5 checkpoint commit. Shadows remain disabled. This document
-revision records neither a commit nor resumed runtime implementation.
+Phase 7. Phase 5's draft checkpoint is committed; its implementation remains unverified and shadows
+remain disabled. Phase 6 investigation and all later implementation work remain open.
 Authority: the user's approved Unreal-style atomic rendering and bounded temporal reuse decisions below
 supersede conflicting portions of the earlier proposal and plan. Unaffected proposal requirements remain
 binding. Phase 7 reconciles the proposal, implementation contracts and qualification protocol before
@@ -485,16 +485,25 @@ Phase 4: Implement projections, physical pages and shared sampling
 Phase 5: Commit the existing implementation draft
   Depends on the recorded work from Phases 1–4. This is a repository checkpoint, not renderer completion.
   Scope: VSM-related modified and untracked source/tests already present at the design pause, plus the
-  revised plan. No code is committed by this document revision. No Phase 5 build/test success is claimed.
+  revised plan. No Phase 5 build/test success is claimed.
 
-  ☐ Refresh the working-tree inventory and identify the exact checkpoint files, including untracked
+  Checkpoint: 8f13412ea4b7943f9bb27739d052a6819442df16
+  Subject: [Phase 5]: Checkpoint unverified VSM implementation draft
+  Captured 27 VSM files: 22 implementation/shader files, four draft test files and this plan. The staged
+  path inventory matched the committed paths; no unrelated, omitted or remaining working-tree changes
+  were present immediately after the checkpoint. Staged whitespace validation passed. No build/test,
+  renderer qualification or implementation repair was performed for this checkpoint-only contract.
+  The commit description records the incomplete native inputs/preparation, expansion and routing, and
+  the superseded full-matrix/per-page-layer design. This completion record is a subsequent docs-only change.
+
+  ☑ Refresh the working-tree inventory and identify the exact checkpoint files, including untracked
     sources/tests. Preserve unrelated user changes; do not include them implicitly.
-  ☐ Record the partial native-input/preparation, settings, expansion and routing work, its unverified
+  ☑ Record the partial native-input/preparation, settings, expansion and routing work, its unverified
     status and superseded full-matrix/per-page-layer assumptions in the checkpoint description.
-  ☐ Commit the scoped existing work and plan without adding functionality, repairing unfinished rendering,
+  ☑ Commit the scoped existing work and plan without adding functionality, repairing unfinished rendering,
     enabling shadows or refactoring it here. Record known unverified/broken state honestly.
-  ☐ Record the commit identity and verify the intended files were captured with unrelated work preserved.
-  ☐ Completion: the existing draft has a traceable commit boundary. This does not complete the former
+  ☑ Record the commit identity and verify the intended files were captured with unrelated work preserved.
+  ☑ Completion: the existing draft has a traceable commit boundary. This does not complete the former
     Phase 5 feature contract; remaining implementation and qualification belong to Phases 7–8.
 
 Phase 6: Investigate clipping exclusions and evaluate support across affected systems
