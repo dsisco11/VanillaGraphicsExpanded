@@ -2,9 +2,9 @@ Shared virtual shadow maps
 ==========================
 
 Source proposal: [Rendering.VirtualShadowMaps.Proposal.md](Rendering.VirtualShadowMaps.Proposal.md)
-Status: planned; every task is unchecked. Creating this plan does not implement or enable shadows.
-Authority: the audited proposal governs scope and behavior. This request authorizes extrapolating
-the plan; implementation requires a separate request. The proposal's recommendations are the
+Status: Phase 1 complete; Phases 2–10 remain unchecked. Shadows are not enabled.
+Authority: the audited proposal governs scope and behavior. The explicit complete-todo-phase 1 request
+authorizes Phase 1 only. The proposal's recommendations are the
 planned design, while its numerical starting values remain tuning hypotheses.
 
 Goal and governing contracts
@@ -55,7 +55,8 @@ Execution and evidence rules
 Assumptions, tuning hypotheses and decision gates
   Concrete API names, shader layouts, quality-profile ceilings and safe native publication seams
   are implementation decisions, not reasons to reopen established requirements. Record their
-  resolution in permanent shadow-system documentation, with a link here when that document exists.
+  resolution in the [implementation contracts](Rendering.VirtualShadowMaps.Contracts.md) and
+  [qualification protocol](Rendering.VirtualShadowMaps.Qualification.md), distinguishing design from runtime.
   The proposal's inspected engine is Vintage Story 1.22.7; verify the actual supported assembly and
   relevant contracts before using that receipt as current evidence. Do not assume ChunkDirty covers
   every load, unload, upload and retirement event, or that cached Empty/connectivity is always fresh.
@@ -114,31 +115,59 @@ Phase 1: Establish implementation contracts and qualification conditions
   Outcome: implementation boundaries and attributable acceptance conditions are defined before
   native integration or production rendering changes. No runtime shadow enablement occurs here.
 
-  ☐ Reconcile the complete source proposal, current repository instructions and the coverage map.
-    ☐ Record supported engine/assembly identity and recheck only the publication, geometry and frame
+  Controlling source: the complete Rendering.VirtualShadowMaps.Proposal.md and governing contracts above.
+  Recorded design: [implementation contracts](Rendering.VirtualShadowMaps.Contracts.md) and
+  [qualification protocol](Rendering.VirtualShadowMaps.Qualification.md).
+  Task-to-source/evidence mapping (all rows inherit the complete proposal):
+  | Task group | Proposal sections | Recorded requirements and evidence |
+  | --- | --- | --- |
+  | Repository/native boundaries | World publication and cache contract; Engine geometry ownership; Other integration findings | Contracts: Native boundary evidence and remaining verification; retained static receipts; phase-2 world adapter owns bootstrap/delta, unload/reset, upload/retirement and freshness proof |
+  | Interfaces/generations/failures | Shared system boundary; Light identity; Sampling/allocation/lifecycle; Page coverage and reuse; Non-terrain change publication; GPU handoff | Contracts: Ownership, Publication interfaces, Generations/failure/lifetime and Rendering/admission; separate identity/coverage and explicit completion/failure states |
+  | Persisted policy | Configurable budgets, priorities, and allocation; Configurable capacity across depth arrays; Stable recovery | Contracts: Persisted settings and effective policy; schema/validation, complete finite profile fields, effective capacity and safe reconfiguration; numeric calibration stays open |
+  | Qualification | Qualification gates and review status; Dynamic lighting and validity; Receivers, casters, and fog | Qualification protocol: hardware/profile manifest, repeatable sequences, percentile/availability metrics, correctness/fault matrix and user-run surface/fog scenarios |
+
+  Completion review, 2026-11-09: primary second review and independent audit-stage-completion passed;
+  fixture corrections rechecked, no unresolved Phase 1 findings. Later runtime/tuning/visual gates stay open.
+
+  Baseline evidence, 2026-11-09, source HEAD e356b37484c722bb7863ffac1a10fe0f434fb4fe:
+  Delegated canonical Debug build passed, 20 warnings / 0 errors; focused existing input-boundary tests
+  passed 24/24 with no failures/skips. Logs and TRX are in
+  [baseline receipts](../artifacts/virtual-shadow-maps/baseline/).
+  Commands (repository root, MSBUILDDISABLENODEREUSE=1):
+    dotnet build -c Debug --tl:off -v:minimal VanillaGraphicsExpanded\VanillaGraphicsExpanded.csproj
+    dotnet test VanillaGraphicsExpanded.Tests\VanillaGraphicsExpanded.Tests.csproj -c Debug --settings VanillaGraphicsExpanded.Tests\UnitTests.runsettings --filter "FullyQualifiedName~VgeLightsUniformBufferTests|FullyQualifiedName~FrameWorldSpaceBridgeTests|FullyQualifiedName~HeldLightTransformTests" --logger "trx;LogFileName=input-boundaries.trx" --results-directory artifacts\virtual-shadow-maps\baseline
+  Production/test shader producers validated 761/910 variants with zero compiler invocations (cache reuse).
+  SDK 10.0.401; VINTAGE_STORY=G:\Vintagestory; API/Lib/VSEssentials assembly versions 1.22.7.0.
+  Production/test-copy DLL SHA-256: 38E0DAE7AC6A6569B9C8A16E279BF24FCB738671ABD12641C175490E5E094916.
+  Existing warnings remain; no selected baseline failure. Full suite, GPU execution, package, game,
+  VSM performance and visual acceptance were not run or claimed. The build and selected CPU checks
+  establish the existing input baseline only; there is no VSM runtime implementation in this phase.
+
+  ☑ Reconcile the complete source proposal, current repository instructions and the coverage map.
+    ☑ Record supported engine/assembly identity and recheck only the publication, geometry and frame
       boundaries that the proposal explicitly leaves for implementation verification.
-    ☐ Identify the canonical build, test-selection, shader compilation and package verification routes,
+    ☑ Identify the canonical build, test-selection, shader compilation and package verification routes,
       current baseline failures and receipt locations. Delegate any required baseline build/test runs.
-    ☐ Preserve the existing spatial and traversability inspection receipts as source evidence, with
+    ☑ Preserve the existing spatial and traversability inspection receipts as source evidence, with
       their engine/version limitations; do not present them as runtime correctness or performance proof.
-  ☐ Specify stable light snapshots, world/geometry publications, projection providers, receiving
+  ☑ Specify stable light snapshots, world/geometry publications, projection providers, receiving
     coverage, candidate headers, page tables, change publication, admission and sampling interfaces.
-    ☐ Separate source, projection, world, candidate, physical assignment and readiness generations.
-    ☐ Define failure states for unknown identity/data, incomplete invalidation, capacity exhaustion,
+    ☑ Separate source, projection, world, candidate, physical assignment and readiness generations.
+    ☑ Define failure states for unknown identity/data, incomplete invalidation, capacity exhaustion,
       unsupported hardware capacity and stale work; map each to the proposal's completeness policy.
-    ☐ Choose domain-oriented steady-state file locations and directional dependencies under Rendering,
+    ☑ Choose domain-oriented steady-state file locations and directional dependencies under Rendering,
       PBR and shader assets without introducing a generic scene ownership or mesh-pool registry.
-  ☐ Define persisted configuration and quality-profile schemas through ConfigModSystem/live reload.
-    ☐ Include the initial hypotheses above, hardware validation, finite work ceilings and reported
+  ☑ Define persisted configuration and quality-profile schemas through ConfigModSystem/live reload.
+    ☑ Include the initial hypotheses above, hardware validation, finite work ceilings and reported
       effective capacity. Distinguish tracked allocation bytes, transient retirement and driver overhead.
-    ☐ Define safe shrink/grow, format replacement, enable/disable and invalid-setting behavior.
-  ☐ Establish repeatable qualification scenes and capture protocol for continuously changing sun and
+    ☑ Define safe shrink/grow, format replacement, enable/disable and invalid-setting behavior.
+  ☑ Establish repeatable qualification scenes and capture protocol for continuously changing sun and
     moon, carried/moving point lights, moving casters, edits, streaming and displaced terrain together.
-    ☐ Record target hardware/configurations, frame sequences, CPU/GPU p50/p95/p99 measurement boundaries,
+    ☑ Record target hardware/configurations, frame sequences, CPU/GPU p50/p95/p99 measurement boundaries,
       memory and ready-duty-cycle metrics, and the method for agreeing final quality/performance limits.
-    ☐ Define conservative traversal reference cases, baseline capability masking, lifecycle fault
+    ☑ Define conservative traversal reference cases, baseline capability masking, lifecycle fault
       injection and user-run visual scenarios. Do not launch the game on the user's behalf.
-  ☐ Completion: interface/failure contracts, configuration schema, source-to-task mapping and measurement
+  ☑ Completion: interface/failure contracts, configuration schema, source-to-task mapping and measurement
     protocol are reviewed and recorded; unresolved native seams have explicit verification owners in
     Phase 2. Later phases do not assume missing behavior already exists.
 
