@@ -9,6 +9,96 @@ controls delivery. Numerical profiles are provisional, not measured shipping def
 The [qualification protocol](Rendering.VirtualShadowMaps.Qualification.md) defines the evidence needed
 before performance, completeness or appearance can be claimed.
 
+## Custom clipping exclusion: decision record and current boundary
+
+Custom shader clip distances remain unsupported. This is an explicit scope decision, not evidence that
+OpenGL 4.5 or the shader compiler cannot implement them. The investigation below records repository
+history and current source behavior as inspected on 2026-11-10; it neither enables clipping nor approves
+a replacement design. The [pipeline contract](Rendering.AuthoritativePipelineState.md) and
+[engine state ownership contract](Rendering.EngineStateSwitching.md) continue to govern execution.
+
+### Decision history
+
+Historical paths below are relative to the repository at the named revision and can be inspected with
+`git show <revision>:<path>`. Deleted planning documents are historical evidence, not current contracts.
+
+| Revision (2026-10-06) | Evidence | What it establishes |
+| --- | --- | --- |
+| `f2d21f3229f0e968f7c8182fbfecf3f96159fee7` | `docs/Rendering.AuthoritativePipelineState.todo`, “Configurable clipping and compatibility raster state”; `VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/RasterizerDesc.cs` | Custom clipping was implemented with an authored `ClipDistances` mask, capability checks and state application/restoration. It was not merely forgotten in the original API. |
+| `a1a322c79866f3cbccb83c18ab0a9982a9b1401b` | `VanillaGraphicsExpanded/Rendering/Spirv/CompiledClipDistance.cs`; the same historical TODO, “Prepared graphics pipelines and executable compatibility” | A handwritten SPIR-V parser supplied compiled output evidence for mask validation, including specialization-dependent extents and final vertex-producing stage selection. This was runtime machinery, subsequently removed. |
+| `c552c4d6^` | `docs/Rendering.AuthoritativePipelineState.todo`, “Package shader interfaces and derive hardware clipping state” | A proposed correction would derive enablement from compiler-owned metadata instead of authored masks or a handwritten parser. Its unchecked tooling proof included optimized/unused built-ins, stripped binaries, specialization-dependent activity/extents and vertex/tessellation/geometry precedence. These requirements document the complexity under discussion; they do not prove that the correction shipped or that tooling could not meet it. |
+| `c552c4d68f4953bc7197ef051c5505352622de9c` | `docs/Rendering.AuthoritativePipelineState.todo:574–620`, “Package and validate shader interfaces”; corresponding code diff | The recorded decision says the user removed custom shader clipping support, superseding shader-derived enablement, finite-domain and native dependency-analysis proposals. The completed task explicitly removes custom clipping “and its special-case complexity”: authored/prepared masks, reflection/parsing, specialization-domain tables, optimizer dependency and clipping-only fixtures. It retains ordinary numeric specialization, numeric interface packaging, engine-state restoration, clip-control conventions, frustum clipping and depth clamp. |
+
+The supported explanation is deliberate feature removal to avoid the associated analysis/tooling
+complexity. The history distinguishes the implemented authored-mask/parser route from the proposed
+compiler-derived replacement. The removal checklist names both removed machinery and abandoned proposals;
+it is not evidence that every proposed optimizer or finite-domain mechanism was previously implemented.
+The original discussion's complete reasoning and any unrecorded experiments have not been recovered.
+
+### Present enforcement and callers
+
+Paths in this table describe current owners. Method names identify the relevant boundary without
+depending on historical class locations.
+
+| Boundary | Current behavior and source |
+| --- | --- |
+| Authored pipeline | [RasterizerDesc](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/RasterizerDesc.cs) has no custom clip mask. [PipelineFixedFunctionValidation.ValidateRaster](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/PipelineFixedFunctionValidation.cs) validates the native clip-limit representation, not a supported authored plane selection. |
+| Managed draw application | [GraphicsStateRelevance.RasterGroups](../VanillaGraphicsExpanded/Rendering/Pipeline/GraphicsStateRelevance.cs) includes clip-distance state for relevant rasterization. [CompleteApplication](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/FixedFunction/OpenGlStateCache.CompleteApplication.cs) calls `ApplyPipelineRasterizer`; [ApplyConfigurableRaster](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/FixedFunction/OpenGlStateCache.PipelineRasterizer.cs) calls `SetClipDistance(i, false)` for every supported index when that state is relevant. Shader output alone therefore does not enable custom clipping. |
+| Engine boundary | [BoundaryRasterizer](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/Boundaries/OpenGlStateCache.BoundaryRasterizer.cs) captures/restores individual enables. [ExternalCapabilities](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/Observation/OpenGlStateCache.ExternalCapabilities.cs) tracks native changes; [RasterParameters](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/FixedFunction/OpenGlStateCache.RasterParameters.cs) retains the guarded per-index setter and knowledge bits. These mechanisms preserve engine state; they are not an authored VGE clipping API. |
+| Compilation and metadata production | [ShaderVariantBuild.RunAsync](../ShaderBuildTool/Spirv/ShaderVariantBuild.cs) selects work through [ShaderVariantProcessor](../ShaderBuildTool/Spirv/Processing/ShaderVariantProcessor.cs). That owner invokes [ShaderCompilerProcess](../ShaderBuildTool/Spirv/ShaderCompilerProcess.cs), then obtains matching interface metadata through [ShaderInterfaceCache](../ShaderBuildTool/Spirv/Records/ShaderInterfaceCache.cs) and [ShaderInterfaceExtraction](../ShaderBuildTool/Spirv/ShaderInterfaceExtraction.cs), including cache reuse. [ShaderInterfaceReflection.Read](../ShaderBuildTool/Spirv/ShaderInterfaceReflection.cs) extracts numeric stage inputs/outputs and execution modes, with no clip-distance built-in extraction or activity analysis. |
+| Packaging and runtime preparation | [PackagedShaderInterface](../VanillaGraphicsExpanded/Rendering/Spirv/PackagedShaderInterface.cs) has no clipping facts. [PreparedProgramBinary](../VanillaGraphicsExpanded/Rendering/ProgramBinaries/PreparedProgramBinary.cs) calls [PackagedInterfaceValidation.Resolve](../VanillaGraphicsExpanded/Rendering/Spirv/PackagedInterfaceValidation.cs) for exact binary/schema/selection association. [GpuProgram.CompileSpirv](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.Spirv.cs) and [GraphicsInterfaceValidation](../VanillaGraphicsExpanded/Rendering/Pipeline/GraphicsInterfaceValidation.cs) validate numeric declarations against linked interfaces; [GraphicsExecutableInterface](../VanillaGraphicsExpanded/Rendering/Spirv/GraphicsExecutableInterface.cs) carries no clip-distance evidence for prepared enablement. |
+
+No clip-specific source rejection was found in the inspected shader build tool/model/catalogue, source
+mutator, SPIR-V metadata or shader preparation code. This is an omission of supported metadata and
+enablement, not a demonstrated compiler diagnostic for every source that writes `gl_ClipDistance`.
+Generic rejection remains: reflection rejects unsupported execution modes, user interface blocks without
+member handling, missing numeric locations, unsupported scalar types and unresolved array extents;
+runtime preparation rejects invalid metadata associations and incompatible numeric interfaces.
+No compilation probe was run to qualify a custom-clipping shader through the current complete path.
+The [incremental build contract](ShaderBuild.Incremental.md) still governs metadata/cache/publication
+identity; restoring clipping would not permit bypassing that owner.
+
+### Mechanisms that must not be conflated
+
+| Mechanism | Meaning and relationship to the exclusion |
+| --- | --- |
+| Custom shader clip distances | Shader-written `gl_ClipDistance[]` values define additional clipping half-spaces, with corresponding native enables. This is the excluded feature. Correct output evidence must account for the final vertex-producing stage and its declared/written distances. |
+| Homogeneous frustum clipping | Normal clipping of projected `gl_Position` against the view volume remains part of rasterization. Disabling user clip-distance enables does not disable it. |
+| Clip control | `RasterizerDesc.ClipOrigin` and `ClipDepth` select coordinate conventions. They do not supply additional planes and remain supported. |
+| Depth clamp | `RasterizerDesc.DepthClamp` controls depth clamping in place of near/far depth clipping. It is separately applied by `ApplyPipelineRasterizer`; it does not supply a custom page rectangle. |
+| Scissor | `RasterizerDesc.Scissor` enables a window-coordinate rectangle; [DynamicPipelineState.Scissor](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/DynamicPipelineState.cs) declares the draw-supplied value and [RHIDynamicState.Scissor](../VanillaGraphicsExpanded/Rendering/RHI/Descriptions/RHIDynamicState.cs) carries it. This is a separate raster restriction, not shader-defined planes or evidence of viewport-array support. |
+| Fragment rejection | Material cutout/discard and page-renderability checks reject shader work or writes at fragment processing. They do not enable primitive clipping. The approved atomic shadow path still requires exact page authorization and material rejection before writes; a rectangular clipping boundary would not identify sparse holes or protected retained tiles. |
+
+### Reasons that remain applicable and unresolved questions
+
+The evidence separates the reasons for removal from constraints any support reassessment must respect:
+
+- **Intentional scope and tooling complexity — explicit decision.** The removal record is direct
+  evidence. It does not establish that custom clipping was intrinsically too expensive to render.
+- **Interface/architectural constraints — documented historical requirements, still relevant.** The
+  proposed correction required compiler-derived facts associated with exact optimized binaries, correct
+  final-stage/specialization interpretation, no guessed output coverage and no handwritten replacement
+  parser. Current metadata deliberately lacks those facts. Whether today's tools can provide a narrower
+  sufficient contract remains unverified; general numeric interface reflection does not answer it.
+- **Engine state ownership — enduring implementation constraint.** Managed draws must not inherit the
+  engine's enabled distances, and boundaries must preserve the engine's state through existing owners.
+  Preservation was retained when support was removed; it is not evidence that ownership makes support
+  impossible.
+- **Compiler/backend limitations and portability — not established as the removal's cause.** The prior
+  plan required tooling proof and a decision for unsupported cases. Available evidence does not prove
+  an unavoidable compiler/SPIRV-Cross limitation or an OpenGL 4.5 prohibition. Current omission and
+  explicit disabling alone establish neither support feasibility nor infeasibility.
+- **Measured performance — no causal evidence located.** Historical numeric packaging/build receipts
+  do not measure a clipping-versus-no-clipping VSM workload. No GPU/frame-time benefit, regression or
+  suitability for carried lights is inferred from this source investigation.
+
+The support reassessment must resolve whether a fixed four-plane contract for the uncached-page
+rectangle can meet the compiler/interface requirements, which producer stages and shader variants it
+must cover, and how any derived enables would fit existing pipeline identity and state restoration.
+It must separately assess raster-work reduction and exact atomic-write authorization, compare applicable
+alternatives, and specify necessary evidence. Those are open analysis questions, not newly approved API
+or implementation choices. The exclusion remains in force until that decision is made.
+
 ## Implemented input boundaries
 
 `VgeLightsRenderer` freezes source keys with the existing illumination payload after held attachment

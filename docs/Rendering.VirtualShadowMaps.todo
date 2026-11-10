@@ -4,7 +4,8 @@ Shared virtual shadow maps
 Source proposal: [Rendering.VirtualShadowMaps.Proposal.md](Rendering.VirtualShadowMaps.Proposal.md)
 Status: Phases 1–4 have receipts for their original contracts; affected foundations are reopened in
 Phase 7. Phase 5's draft checkpoint is committed; its implementation remains unverified and shadows
-remain disabled. Phase 6 investigation and all later implementation work remain open.
+remain disabled. Phase 6A's exclusion investigation is complete; Phase 6B support analysis and all
+later implementation work remain open.
 Authority: the user's approved Unreal-style atomic rendering and bounded temporal reuse decisions below
 supersede conflicting portions of the earlier proposal and plan. Unaffected proposal requirements remain
 binding. Phase 7 reconciles the proposal, implementation contracts and qualification protocol before
@@ -513,21 +514,28 @@ Phase 6: Investigate clipping exclusions and evaluate support across affected sy
   concrete cross-system support assessment informs the design used by Phase 7.
 
   Phase 6A: Investigate why clipping was excluded
-  ☐ Trace the original decision through repository documentation, source comments, relevant Git history,
+    Evidence: [custom clipping decision record and current boundary](Rendering.VirtualShadowMaps.Contracts.md#custom-clipping-exclusion-decision-record-and-current-boundary).
+    Traceability: history/removal tasks -> decision-history revisions; present-boundary tasks -> linked
+    pipeline/state/build source owners; mechanism/rationale tasks -> distinctions and evidence classification;
+    unresolved support constraints -> the record's reassessment questions and Phase 6B below.
+    Completed 2026-11-10 after second source review and independent audit-stage-completion: no unresolved
+    findings. Added links resolve and git diff --check passes. Source/history evidence only; no compiler
+    probe, build, runtime test or performance measurement was required or performed. No code changes.
+  ☑ Trace the original decision through repository documentation, source comments, relevant Git history,
     shader/pipeline migrations and available decision records. Identify when and where clipping was
     rejected, omitted or removed; distinguish explicit decisions from incidental missing implementation.
-    ☐ Examine both the pipeline-state system and shader compiler/build tool. Locate present rejection,
+    ☑ Examine both the pipeline-state system and shader compiler/build tool. Locate present rejection,
       omission and validation boundaries and their callers; do not infer historical rationale solely
       from the fact that an API or shader feature is currently unsupported.
-    ☐ Distinguish custom shader clip distances from normal homogeneous frustum clipping, depth clamp,
+    ☑ Distinguish custom shader clip distances from normal homogeneous frustum clipping, depth clamp,
       scissor rectangles and fragment rejection. Identify exactly which mechanism each restriction covers.
-    ☐ Classify supported explanations: architectural invariants, engine state ownership, compiler/backend
+    ☑ Classify supported explanations: architectural invariants, engine state ownership, compiler/backend
       limitations, cross-stage interface rules, portability, measured performance or intentionally deferred
       scope. Cite file/line or commit evidence; label hypotheses and unrecoverable rationale explicitly.
-  ☐ Record the findings and evidence in the linked implementation contracts/design documentation without
+  ☑ Record the findings and evidence in the linked implementation contracts/design documentation without
     presenting a new proposal as existing behavior. Identify which original reasons still apply and which
     require further checking; carry unresolved constraints into 6B rather than assuming they disappeared.
-  ☐ Completion: the exclusion's history and current enforcement are traced, with evidence and uncertainty
+  ☑ Completion: the exclusion's history and current enforcement are traced, with evidence and uncertainty
     separated. No claim that clipping is feasible, required or approved follows from this investigation alone.
 
   Phase 6B: Re-evaluate the requirements for clipping support
