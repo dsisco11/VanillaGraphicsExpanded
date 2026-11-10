@@ -4,8 +4,8 @@ Shared virtual shadow maps
 Source proposal: [Rendering.VirtualShadowMaps.Proposal.md](Rendering.VirtualShadowMaps.Proposal.md)
 Status: Phases 1–4 have receipts for their original contracts; affected foundations are reopened in
 Phase 7. Phase 5's draft checkpoint is committed; its implementation remains unverified and shadows
-remain disabled. Phase 6A's exclusion investigation is complete; Phase 6B support analysis and all
-later implementation work remain open.
+remain disabled. Phase 6's history investigation and support assessment are complete. Phase 7 and all
+later implementation work remain open; the recorded baseline-ingestion question gates its dependent claim.
 Authority: the user's approved Unreal-style atomic rendering and bounded temporal reuse decisions below
 supersede conflicting portions of the earlier proposal and plan. Unaffected proposal requirements remain
 binding. Phase 7 reconciles the proposal, implementation contracts and qualification protocol before
@@ -27,10 +27,10 @@ Goal and governing contracts
   virtual-coordinate rasterization, page-table translation and atomic integer texture depth writes.
   Keep bounded initialized indirect intervals without requiring optional shader draw parameters,
   GPU draw-count buffers, bindless access or positive vertex/TES/geometry-stage SSBO limits.
-  Phase 6 investigates why custom clipping was excluded and analyzes what supporting it would require.
-  Unreal's clip distances are reference evidence, not approval to add them. The existing exclusion stays
-  in effect during analysis. Phase 7 implements the resulting agreed raster-region/support design and
-  Phase 8 qualifies it with actual native rendering.
+  The approved Phase 6B direction derives clip-distance usage from compiled SPIR-V and packages it in
+  existing per-stage shader metadata. Production shaders remain precompiled SPIR-V; no new runtime GLSL
+  compilation or parallel metadata system. Current runtime exclusion stays in effect until Phase 7
+  implements and qualifies the support; Phase 8 integrates it with actual native rendering.
   Keep surface demand and readiness ahead of every participating surface consumer. Include all
   contributing transparent layers, filter footprints and receiver-position bias. Previous-frame
   feedback may prioritize work but cannot certify current coverage. One light/consumer has one
@@ -540,32 +540,44 @@ Phase 6: Investigate clipping exclusions and evaluate support across affected sy
 
   Phase 6B: Re-evaluate the requirements for clipping support
     Depends on 6A. Analyze the complete affected path rather than adding a field to pipeline state in isolation.
-  ☐ Map the work needed from shader source through build artifacts to runtime pipeline execution.
-    ☐ Shader build tool/compiler: source parsing and mutation, generated/native shader inputs, GLSL and
+    Decision: user approved compiled-SPIR-V reflection and packaging clip-distance usage in the existing
+    shader metadata. Preserve the precompiled production route. Four literal outputs for VSM and rejection
+    of unresolved interface extents are the assessed initial implementation recommendation, not a general
+    specialization solver. Current runtime clipping remains unimplemented.
+    Evidence: [compiler-derived clipping support assessment](Rendering.VirtualShadowMaps.Contracts.md#compiler-derived-clipping-support-assessment).
+    Traceability: source/build/stage tasks -> assessment contract, probe and work table; pipeline/integration
+    tasks -> current owners and dependency order; feasibility/alternatives -> raster comparison and limits;
+    recommendation/reconciliation -> recorded user decision and concrete Phase 7/8 tasks below.
+    Completed 2026-11-10 after second review, independent test_reviewer review of the bounded offline
+    probe, and independent audit-stage-completion: no blocking findings. Ten successful compiler/reflection
+    observations support the stated fixed-output cases only; no production clipping or native image/performance
+    qualification is claimed. Links resolve and git diff --check passes. Documentation changes are uncommitted.
+  ☑ Map the work needed from shader source through build artifacts to runtime pipeline execution.
+    ☑ Shader build tool/compiler: source parsing and mutation, generated/native shader inputs, GLSL and
       SPIR-V routes where applicable, built-in declaration/reflection, stage linking, validation, cache keys,
       artifact serialization/versioning, incremental rebuilds and packaged shader compatibility.
-    ☐ Shader stages: clip-distance declaration/count, producer/consumer matching through vertex,
+    ☑ Shader stages: clip-distance declaration/count, producer/consumer matching through vertex,
       tessellation and geometry stages where used, final-position/deformation ordering, output limits and
       behavior for shader variants that do not write clip distances. Avoid assuming all paths use one stage.
-    ☐ Pipeline/RHI/backend: immutable state representation, equality/hash/cache identity, command recording,
+    ☑ Pipeline/RHI/backend: immutable state representation, equality/hash/cache identity, command recording,
       capability validation, clip-distance enable/disable state, native-engine state restoration and context
       lifecycle. Identify every affected owning API and prevent hidden global-state changes.
-    ☐ Integration/tooling: shader catalogs/bindings, native material variants, diagnostics, serialization,
+    ☑ Integration/tooling: shader catalogs/bindings, native material variants, diagnostics, serialization,
       existing tests, headless GPU qualification and deployment/package checks. List concrete files/modules
       and dependencies; separate required changes from systems verified to need no change.
-  ☐ Evaluate GL 4.5 feasibility and the original constraints against Unreal's four-plane uncached-page
+  ☑ Evaluate GL 4.5 feasibility and the original constraints against Unreal's four-plane uncached-page
     rectangle. Separate write correctness from raster-work reduction; page-table renderability checks
     remain required with clipping, especially for sparse holes and protected retained pages.
-    ☐ Compare support costs, batching implications and expected work bounds with applicable non-custom-clip
+    ☑ Compare support costs, batching implications and expected work bounds with applicable non-custom-clip
       alternatives. Do not claim measured performance from source inspection or equate scissor/depth clamp
       with shader clip distances. Any necessary build/test probe is delegated and scoped to an uncertainty.
-  ☐ Produce a concrete recommendation and implementation/verification dependency map, including risks,
+  ☑ Produce a concrete recommendation and implementation/verification dependency map, including risks,
     unresolved questions and estimated scope. Present the findings for the design discussion and record
     the resulting decision; analyzing support does not itself authorize changing the exclusion.
-    ☐ Reconcile the selected design into Phase 7 tasks and affected contracts before dependent code work.
+    ☑ Reconcile the selected design into Phase 7 tasks and affected contracts before dependent code work.
       If clipping support is selected, assign its compiler/build-tool, pipeline/RHI and integration changes
       together with their required checks; if not, record the selected raster restriction and its limits.
-  ☐ Completion: the cross-system support analysis is reviewed against 6A evidence, the recommendation and
+  ☑ Completion: the cross-system support analysis is reviewed against 6A evidence, the recommendation and
     unresolved issues are explicit, and the downstream task map is concrete. Any unresolved design choice
     remains a prerequisite for dependent Phase 7 implementation, not a runtime feature claimed complete.
 
@@ -596,10 +608,24 @@ Phase 7: Refactor existing foundations for atomic VSM rendering and temporal reu
   ☐ Reconcile the source proposal, implementation contracts and qualification protocol with both approved
     amendments before dependent code changes. Update diagrams, APIs, failure tables, configuration,
     evidence expectations and prospective phase references; preserve labelled historical receipts.
-    ☐ Implement the agreed Phase 6B support/raster-region design across its affected owners. If clipping is
-      selected, migrate the shader compiler/build tool, pipeline state, RHI/backend and shader integration
-      coherently, including artifact/cache compatibility and native-state restoration. Otherwise implement
-      the agreed alternative. Do not restore per-page layer draws as a substitute for the architecture.
+    ☐ Implement compiler-derived clipping across existing shader metadata, pipeline state and RHI owners
+      as one coherent batch. Follow the Phase 6B assessment's work/verification map; no authored enable
+      mask, parallel manifest, handwritten instruction parser or runtime GLSL compilation is introduced.
+      ☐ Extend per-stage built-in activity/extent metadata, schema/extractor identity and cache validation.
+        Preserve exact binary/entry-point/selection association on all build, reload and driver-cache routes.
+        Qualify inactive declarations, missing facts and unsupported extents; do not infer usage from size alone.
+      ☐ Carry validated facts through ShaderExecutableInputs and immutable RHI shader inputs; derive final
+        VS/TES/GS producer enables during preparation. Preserve stage matching, limit validation, complete
+        writes and generation identity; no per-draw reflection or independently authored pipeline mask.
+      ☐ Apply derived enables through existing state-cache setters and coverage, including clipping-to-none,
+        successful/failed engine restoration, recorded commands, shader retirement and context replacement.
+      ☐ Reconcile native source generation with precompiled shader variants through existing build/catalog
+        owners. Generate clip outputs after final deformation, handle built-in arrays/blocks explicitly and
+        avoid adding a geometry stage solely for clipping. Establish supported variant inventory and build
+        provenance before Phase 8; missing material variants cannot trigger runtime GLSL compilation.
+      ☐ Resolve the existing SPIR-V driver-ingestion requirement against the stated minimum-context/extension
+        contract before claiming baseline qualification. Preserve the user's precompiled route; do not silently
+        relax OpenGL requirements or use GLSL fixtures as proof of the packaged production path.
     ☐ Specify compact draw/object/view selection and separate projection-data access on baseline GL 4.5.
       Respect vertex/tessellation limits and object instancing; do not assume geometry SSBO access,
       optional draw parameters, or the presence of Unreal's vertex-factory machinery.
@@ -634,9 +660,10 @@ Phase 7: Refactor existing foundations for atomic VSM rendering and temporal reu
     clears, filtering/coverage, temporal expiry/replacement, retirement and retained input invariants.
     ☐ Verify optional extensions disabled and obsolete assets/bindings/callers removed. Synthetic atomic
       depth witnesses do not establish actual caster coverage, live appearance or performance.
-    ☐ If clipping support was selected, execute the Phase 6B compiler/build, cross-stage, pipeline-state,
-      capability and native-state regression matrix; verify unaffected shader variants and packaged/cache
-      compatibility. Otherwise qualify the chosen restriction within its stated limits.
+    ☐ Execute the Phase 6B compiler/build, cross-stage, pipeline-state, capability and native-state regression
+      matrix; verify unaffected shader variants and packaged/cache compatibility. Include clipped atomic
+      image witnesses, protected tiles, view-boundary numerics and production SPIR-V loading. The offline
+      reflection probe is feasibility evidence, not a substitute for these checks.
   ☐ Completion: one refactored foundation passes its scoped checks, linked docs/settings agree, obsolete
     implementations are removed, and second review plus independent completion audit pass.
 
@@ -669,9 +696,10 @@ Phase 8: Complete native geometry rendering into the atomic virtual shadow pool
     ☐ Translate virtual texel/page coordinates into physical destinations. Check view/source identity,
       writable assignment and renderable-page status before atomic accumulation; protect cached,
       unrequested and retained stale tiles, including sparse holes inside a bounding rectangle.
-    ☐ Apply the Phase 6B raster-region design implemented in Phase 7 and preserve framebuffer/viewport state.
-      Do not introduce
-      custom clip distances, physical-layer routing or optional hardware capabilities implicitly.
+    ☐ Use the compiler-derived clipping support implemented in Phase 7 for the four-plane uncached-page
+      rectangle; preserve framebuffer/viewport state and exact per-fragment renderability checks. Keep
+      virtual raster dimensions within effective limits or explicitly account for bounded region splitting.
+      Load packaged native-material shader variants; no dynamic GLSL or physical-layer routing substitute.
   ☐ Integrate selective integer clear, required native draws and complete replacement publication.
     ☐ Apply geometry/pose/material changes before classifying currentness; evaluate retained stale depths
       separately. Recheck native storage before submission and reject obsolete ranges.

@@ -92,12 +92,166 @@ The evidence separates the reasons for removal from constraints any support reas
   do not measure a clipping-versus-no-clipping VSM workload. No GPU/frame-time benefit, regression or
   suitability for carried lights is inferred from this source investigation.
 
-The support reassessment must resolve whether a fixed four-plane contract for the uncached-page
-rectangle can meet the compiler/interface requirements, which producer stages and shader variants it
-must cover, and how any derived enables would fit existing pipeline identity and state restoration.
-It must separately assess raster-work reduction and exact atomic-write authorization, compare applicable
-alternatives, and specify necessary evidence. Those are open analysis questions, not newly approved API
-or implementation choices. The exclusion remains in force until that decision is made.
+The reassessment below records the subsequently approved metadata direction and its remaining
+implementation requirements. The existing runtime exclusion remains in force until that work is
+implemented and qualified.
+
+## Compiler-derived clipping support assessment
+
+**Decision, 2026-11-10:** the user approved reflecting clip-distance usage from compiled SPIR-V and
+packaging the result in the existing shader metadata. Production shaders remain precompiled SPIR-V.
+This selects the metadata ownership approach; it does not claim that runtime clipping is implemented.
+The existing per-stage interface payload inside `spirv-digests.json` is the appropriate location, beside
+other compiler-derived interface facts. Clip distances are built-ins, not ordinary uniform locations or
+resource bindings. Do not introduce a second manifest, authored enable mask, runtime GLSL compilation,
+runtime SPIR-V instruction parser or a separate reflection registry.
+
+### Recommended contract and evidence
+
+Use compiler-owned reflection for the selected entry point and stage. Retain built-in input/output
+activity and concrete array shape separately: a declared array alone is not proof of use. Derive a
+contiguous enable set from the final vertex-producing stage (geometry, otherwise tessellation evaluation,
+otherwise vertex). A proven inactive output enables no distances; unavailable or incompatible metadata
+must not be interpreted as proven inactivity. Preserve exact binary, entry-point, structural-selection,
+configuration and extractor association through preparation, including driver-program-cache loads.
+
+For the initial VSM shaders, recommend four literal-sized outputs, all written after final material
+deformation and projection. Plane values vary with the view's uncached-page rectangle; the array size
+does not vary with light motion. The metadata mechanism should represent supported literal extents
+generally, rather than hard-code four into shared pipeline state. Keep ordinary numeric specializations
+unrestricted. Do not add a general specialization-expression solver: require a resolved clip interface
+for a clip-capable variant, and use structural variants when the interface changes. An unsupported
+extent must fail explicitly. Reflection activity does not prove defined writes on every control-flow
+path; generated shader construction and native execution fixtures must establish that separately.
+
+```mermaid
+flowchart LR
+    Source["Authored and generated shader variants"] --> Build["Existing build-time compiler"]
+    Build --> SPV["Optimized SPIR-V"]
+    SPV --> Reflect["Compiler-owned built-in reflection"]
+    Reflect --> Metadata["Existing per-stage metadata and digest manifest"]
+    SPV --> Prepare["Existing shader preparation"]
+    Metadata --> Prepare
+    Prepare --> Pipeline["Immutable executable facts and derived clip enables"]
+    Pipeline --> Cache["Existing state cache and boundary restoration"]
+```
+
+A delegated offline probe used pinned `dotnet-shaderc 1.2.2` with target `opengl4.5`, optimization `-O`,
+and Debug `-g` versus stripped Release, then `Silk.NET.SPIRV.Cross 2.23.0` reflection. All five fixtures
+compiled and were inspected in both configurations. `CompilerUpdateActiveBuiltins` /
+`CompilerHasActiveBuiltin` plus built-in `ValueTypeId` array queries produced these observations:
+
+| Fixture | Active clip output | Literal extent |
+| --- | --- | --- |
+| Four-distance vertex writer | Yes | 4 |
+| Declared but unused vertex output | No | 4 |
+| Vertex shader without explicit clip output | No | 1 implicit declaration |
+| Four-distance tessellation-evaluation writer | Yes | 4 |
+| Four-distance geometry writer | Yes | 4 |
+
+Receipts, exact commands, source/binary hashes and logs are under
+[clipping-support-probe](../artifacts/virtual-shadow-maps/clipping-support-probe/), particularly
+`environment.json`, `compile-receipts.json`, `reflection-receipts.json` and `probe-build-receipt.json`.
+The harness built with zero warnings/errors. These are observed standalone compiler/reflection results,
+not a production metadata integration test. The tessellation/geometry fixtures recompute outputs and do
+not exercise active input propagation. Stage linking, specialization-dependent interfaces, complete-path
+writes, native GL execution, images and performance remain unqualified. No new compiler dependency was
+needed for this probe.
+
+The [GLSL 4.50 specification, section 7.1](https://registry.khronos.org/OpenGL/specs/gl/GLSLangSpec.4.50.pdf)
+defines clip-distance arrays and the obligation to write enabled values. The
+[OpenGL 4.5 specification, section 13.5](https://registry.khronos.org/OpenGL/specs/gl/glspec45.core.pdf)
+provides user clipping in the baseline API. Four distances fit the minimum supported clip-distance count;
+actual stage interface capacity and driver link validation still matter. This establishes API availability,
+not qualification of the complete production shader route.
+
+### Cross-system work and unchanged owners
+
+Paths below are relative to `VanillaGraphicsExpanded/` unless they start with a sibling project name.
+The dependency order is metadata production, validated executable facts, pipeline application, then
+material-compatible shadow integration. Do not publish partial support between those owners.
+
+| Owner and inspected files | Required work or retained responsibility | Verification obligation |
+| --- | --- | --- |
+| `ShaderBuildTool/Spirv/ShaderInterfaceReflection.cs`, `ShaderInterfaceExtraction.cs`; `Rendering/Spirv/PackagedShaderInterface.cs` | Extend existing per-stage metadata with built-in activity and shape. Select the entry point before querying built-ins; retain input/output distinction. No manual instruction decoding or uniform-location substitution. | Fixed extents, unused/implicit declarations, missing facts, unsupported extents, all relevant stages, optimized/no-name artifacts. |
+| `ShaderBuildTool/Spirv/Records/ShaderInterfaceCache.cs`, `ShaderVariantRecord` owners, `Identity/ShaderBuildIdentities.cs`, publication owners; `Rendering/Spirv/ShaderBinaryDigest.cs`, `PackagedInterfaceValidation.cs` | Version the changed payload/extractor, invalidate stale reflection/cache receipts, reject old or malformed clip facts and bind them to exact binaries. Reuse current complete-generation publication, repair and failure preservation. No second cache or manifest. | Cold/incremental/cache-hit outputs, corrupt or mismatched metadata, variant removal, failed publication, Debug/Release and package identity. |
+| `Rendering/ProgramBinaries/PreparedProgramBinary.cs`; `Rendering/ShaderCompilation/ShaderExecutableInputs.cs`; `Rendering/RHI/Shaders/RHIShaderStageDescription.cs`, `RHIShaderDescription.cs` | Carry validated compiler facts into immutable executable preparation. Current `CreateStage` passes bytes/entry point/specializations without the packaged interface: this handoff must be extended coherently. Distinguish validated inactivity from absent metadata on lower-level raw inputs. | Wrong binary/stage/entry point/selection, missing metadata, driver-cache loading, failed and superseded candidate publication. A raw source path does not gain clipping support by guessing a count. |
+| `Rendering/RHI/Backends/OpenGL/Shaders/OpenGLBackend.ShaderCreation.cs`; `Rendering/Spirv/GraphicsExecutableInterface.cs`; `Rendering/Pipeline/GraphicsInterfaceValidation.cs` | Compose final producer facts after successful executable creation. Validate supported stage interfaces and device limits without treating numeric input/output reflection as built-in reflection. Keep source and program-cache installation behavior consistent. | Vertex-only, VS/TCS/TES, VS/GS and tessellation-plus-GS producer precedence; producer/consumer mismatches; inactive final output despite an earlier-stage output; native link failures. |
+| `Rendering/RHI/Backends/OpenGL/Pipelines/OpenGLBackend.GraphicsPipelineCreation.cs`, `OpenGLGraphicsPipelineRealization.cs`; `Rendering/Pipeline/GraphicsStateRelevance.cs` | Store the derived enables in prepared realization data. Existing `RHIGraphicsPipelineDescription` equality/hash already retains exact shader identity; avoid a second independently authored mask. Retain the shader generation through immediate and recorded submissions. | Equal/different generation identity, recorded work across reload/disposal, context retirement, relevant versus discarded raster state. |
+| `Rendering/RHI/Backends/OpenGL/State/FixedFunction/OpenGlStateCache.PipelineRasterizer.cs`, `CompleteApplication.cs`, `RasterParameters.cs`; boundary and observation owners | Replace unconditional relevant clip disabling with the prepared selection. Use existing per-index setters, admission, suppression, knowledge and restoration; disable previous enables when switching to a non-clipping executable. | A-to-B-to-A and clipping-to-none, warm suppression, external engine enables, failure cleanup and exact restoration. |
+| `Rendering/GraphicsCapabilities.cs`, `GpuSupport.Graphics.cs` | Reuse `MaxClipDistances`. Account for added varying components and combined clip/cull limits if such a combination is admitted; initially VSM does not require cull distances. Add only missing preparation-time capability facts actually needed; no per-draw discovery. | Native limits, over-limit rejection and baseline feature constraints; driver linking remains authoritative for executable capacity. |
+| `SourceCodeMutator/GlStageIoNode.cs`, `GlInterfaceBlockHeaderNode.cs`, `GlslSchema.cs`; `ShaderBuildTool/Spirv/ShaderSourceLayout.cs`; `PBR/Tessellation/TerrainTessellationStages.cs`; draft `Rendering/Shadows/Geometry/ShadowLayerStages.cs` | Reconcile source generation with built-in arrays/blocks: current material-output copying rejects arrays and output blocks, so blindly inserting clip declarations before that copying is unsafe. Generate or preserve built-ins separately, then precompile supported shadow variants through the existing build/catalog owners. Replace the obsolete layer-routing generator together with its consumers. | Final deformation/displacement before distances, correct declarations through participating stages, all four writes before every geometry emission, opaque/cutout/material variants, diagnostics for unsupported native source combinations. |
+| `ShaderBuildCatalog`, `ShaderBuildModel`, generated binding contracts; `Rendering/Shaders/GpuProgram.Spirv.cs`; asset copy and Cake packaging | Declare supported shadow structural variants and bind view/rectangle data through existing contracts. Clip metadata itself needs no separate uniform binding or pool attribute. Publish matching SPIR-V and metadata through existing deployment owners. | Build all supported native-material variants; runtime selects packaged artifacts; missing variants fail visibly. Packaged production path must not silently generate/compile GLSL. |
+
+Existing `RHIShader` retirement, shader-generation references, command recording, native enable observation,
+boundary capture/restore, resource binding and uniform publication mechanisms can be retained. Their
+contracts need regression coverage, not parallel replacements. The clip enable does not change per
+page or per light when the same four-output shader is used; rectangle values belong to view data.
+Mesh-pool traversal, chunk identity and geometry ownership need no new registry, enumeration or hooks
+for this feature. Shader binding declarations remain authoritative for resources; built-in reflection
+does not replace them.
+
+For tessellation, the evaluation shader is the final producer unless a geometry shader follows it.
+The control stage only needs clip-value propagation when the selected next stage consumes those values;
+recomputing distances after displacement avoids relying on pre-displacement distances. Where stages
+consume built-ins, declare matching interfaces and verify linking. A geometry shader must write the
+selected values for each emitted vertex. Do not add a geometry stage merely to obtain clip support.
+
+### Raster restriction, batching and work bounds
+
+The local UE 5.8 reference `ShadowDepthVertexShader.usf::ScaleBiasClipToPhysicalSmPage` constructs four
+homogeneous distances around `UncachedPageRectBounds`. `ShadowDepthPixelShader.usf` separately checks
+`bThisLODValidForRendering` before its atomic write. The VSM recommendation follows that separation:
+rectangle clipping limits raster work; exact page assignment/renderability and material rejection
+authorize writes. A rectangle can contain cached or retained tiles and sparse holes.
+
+| Restriction | Batching and likely work bound | Assessment |
+| --- | --- | --- |
+| Four shader clip distances | Rectangle values can differ by view within compatible batches; clipping removes regions outside each rectangle before ordinary fragment processing. Work inside a large sparse bounding rectangle remains. | Recommended with compiler-derived metadata. Adds four output components and stage/state validation; no measured speedup is claimed. |
+| Scissor grouped by view/rectangle | Existing scissor state gives one window rectangle per compatible submission; different rectangles require separate groups or additional indexed-state support. Native indirect commands can still batch within each group. | Viable comparison, not selected as a silent substitute. Group count grows with lights/faces/regions, not necessarily with individual pages. |
+| Fragment rectangle/page rejection only | Preserves broad batching, but primitives can generate fragments across their full projected raster footprint before rejection. Correct guarded writes alone do not bound that cost well for moving lights. | Useful correctness/reference mode; insufficient evidence to choose as the primary performance design. |
+| Cropped projection/viewport | Ordinary frustum clipping can restrict a region, but texel density, virtual-coordinate reconstruction and viewport dimensions must agree; differing regions can split batches. | Requires its own mapping/coverage proof; not equivalent to toggling depth clamp. |
+
+All options require bounded view/command/raster admission. Clamp nothing silently: virtual raster
+dimensions must fit effective viewport/framebuffer limits, or use explicitly mapped bounded regions
+whose union preserves required coverage. Charge repeated geometry work when splitting regions. Sparse
+rectangles can still be costly with clip distances; the scheduler must estimate/admit that work and
+fall back through the approved detail/availability policy. Carried point lights, all six faces, simultaneous
+moving sun/moon and dense/sparse demands belong in qualification. These are analytical bounds and risks,
+not measured timings.
+
+### Scope estimate, qualifications and remaining constraints
+
+This is a medium-sized cross-system change, not a single rasterizer field: one metadata/schema/cache
+work package, one immutable preparation/validation package and one state-application package must be
+completed together. Native material source generation and precompiled variant coverage are the larger
+integration uncertainty. They must be resolved before native shadow draws are claimed complete. No new
+top-level delivery phase is required; the implementation plan assigns foundations and controlled fixtures
+before actual native integration. No elapsed-time estimate is supported by this investigation.
+
+Recommended verification extends existing `ShaderInterfaceReflectionTests`, `PackagedInterfaceValidationTests`,
+`RHIShaderCreationTests`, `PreparedGraphicsPipelineTests`, `ConfigurableRasterizerGpuTests`,
+`DriverProgramCacheTests`, `SpirvGraphicsLifecycleTests` and `RHICommandListTests`, plus generated terrain
+stage and shadow raster fixtures. Test metadata, linkage, state restoration and actual clipped atomic
+images as separate boundaries. Preserve protected tiles and cube-face/near-plane coverage; compare
+scissor and clipping only on matched workloads. Use the canonical build, strict content verification,
+package and native acceptance routes in the [qualification protocol](Rendering.VirtualShadowMaps.Qualification.md).
+The offline probe does not replace any of those production checks.
+
+One pre-existing compatibility question remains separate from clipping: the packaged route in
+`ShaderExecutableInputs` supplies SPIR-V, and `OpenGLBackend.ShaderCreation.BeginShaderCandidate` requires
+`SupportsArbGlSpirv` when installing those stages. An `opengl4.5` offline compiler target does not remove
+that driver requirement. The user's precompiled-SPIR-V direction remains controlling; this assessment
+does not authorize a GLSL fallback or silently revise the stated OpenGL baseline. Resolve and document
+the minimum-context/extension contract before claiming a complete baseline path. Historical GLSL fixture
+receipts demonstrate those fixture routes only. This question blocks the dependent baseline claim,
+not the decision to extend existing shader metadata.
+
+Other remaining proofs are active input propagation/linking, supported specialization behavior,
+complete-path writes, exact native-material variant coverage, clipping numerics at view/face boundaries,
+and dynamic-workload cost. They are explicit implementation/qualification dependencies. The assessment
+selects a feasible reflection direction for the inspected fixed-output cases; it does not claim those
+remaining proofs already exist.
 
 ## Implemented input boundaries
 

@@ -36,9 +36,11 @@ The following requirements are established:
 - The engine's pass-and-atlas table remains the authority for mesh-pool categories.
   Do not introduce a parallel pool registry, reverse classification map, or a collection
   of hooks that reconstructs relationships the engine already maintains.
-- Custom shader clipping is unavailable by design in the pipeline-state system. Shadow
-  page routing must respect that constraint; adding or bypassing custom clipping support
-  is not part of this proposal.
+- Custom shader clipping is currently unavailable in the pipeline-state system. The approved
+  [compiler-derived support direction](Rendering.VirtualShadowMaps.Contracts.md#compiler-derived-clipping-support-assessment)
+  reflects clip-distance usage from compiled SPIR-V into existing shader metadata. The implementation
+  plan owns the required build, pipeline and integration changes; production shaders remain precompiled.
+  This decision does not permit bypassing state ownership or claim runtime support already exists.
 - OpenGL 4.5 is the required baseline. A complete rendering path must work without
   optional extensions or OpenGL 4.6 features. Additional capabilities may optimize it,
   but cannot be required for baseline correctness or hidden in performance assumptions.
