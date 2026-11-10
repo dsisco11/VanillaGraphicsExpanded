@@ -42,9 +42,20 @@ internal sealed class ShadowCandidatePool : IDisposable
     internal long AllocatedBytes { get; }
     /// <summary>True only while a valid current publication and complete change interval are bound.</summary>
     internal bool BatchValid => batchValid;
+    /// <summary>Identifies the current dependency-validation interval retained in GPU headers.</summary>
+    internal long BatchGeneration => batchGeneration;
 
     #region Public API
     #region Creation and scheduling
+    /// <summary>Validates CPU-known coverage/lifetime before a GPU consumer checks the completed current header.</summary>
+    internal bool CanConsume(ShadowCandidateHandle handle, ShadowCandidateCurrent current, ShadowWorldPublication snapshot)
+    {
+        var request = Require(handle);
+        return batchValid && submitted[handle.Slot] && ReferenceEquals(snapshot, publication)
+            && world!.Matches(snapshot) && request.Covers(current) && request.WorldOwner == snapshot.Owner
+            && changes!.Epoch == current.ChangeEpoch && changes.ToSequence == current.ChangeSequence
+            && DomainMatches(request, snapshot);
+    }
     /// <summary>Validates the complete fixed layout against policy and cached hardware limits before allocating.</summary>
     internal static ShadowCandidatePool Create(ICoreAPI api, ShadowCandidateSettings settings)
     {

@@ -46,6 +46,8 @@ internal sealed partial class ShadowPagePool : IDisposable
     internal bool IsAvailable => !disposed && !withdrawn;
     /// <summary>Sampling and draws must be submitted before this interval's retirement fence.</summary>
     internal bool CanSubmit => IsAvailable && batchOpen;
+    /// <summary>Remaining command capacity must cover all completion publications before replacement layers are cleared.</summary>
+    internal int OperationsRemaining => CanSubmit ? policy.OperationsPerBatch - operations : 0;
     private long MetadataBytes => checked(Capacity * 256L + 320L + 32L);
     private long ArrayBytes => checked(policy.PageSize * (long)policy.PageSize * 4 * policy.LayersPerArray);
 
@@ -71,6 +73,17 @@ internal sealed partial class ShadowPagePool : IDisposable
         if (!batchOpen || withdrawn || operations >= policy.OperationsPerBatch) return false;
         uint[] packed = request.Pack(); operations++;
         Dispatch(packed); return true;
+    }
+    /// <summary>Consumes a GPU-produced completion request without reading its assignment or admission result on the CPU.</summary>
+    internal bool ExecuteGenerated(RHIBufferRange request)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (!CanSubmit || OperationsRemaining == 0) return false;
+        if (request.Length != 256 || request.Offset < 0 || request.Offset % 4 != 0)
+            throw new ArgumentException("A generated page command is exactly 256 aligned bytes.", nameof(request));
+        operations++;
+        Dispatch(null, request);
+        return true;
     }
     /// <summary>Inserts a lifetime fence after all scheduled page users; no current-frame completion readback occurs.</summary>
     internal void SealBatch()
@@ -167,14 +180,17 @@ internal sealed partial class ShadowPagePool : IDisposable
 
     #region Private
     /// <summary>Binds the generated shader contract and establishes storage visibility after each command.</summary>
-    private void Dispatch(uint[] packed)
+    private void Dispatch(uint[]? packed, RHIBufferRange? generated = null)
     {
         if (!shader.EnsureReady() || shader.Shader != executable)
         { Withdraw(); throw new InvalidOperationException("Page shader replacement requires pool reconfiguration."); }
         uint[] prefix = new uint[16]; prefix[0] = (uint)Capacity; prefix[1] = (uint)(arrays.Count * policy.LayersPerArray);
         prefix[2] = (uint)ProbeLimit; prefix[3] = (uint)(targetArrays * policy.LayersPerArray);
         ShadowPageRequest.Put(prefix, 4, epoch); ShadowPageRequest.Put(prefix, 6, completed);
-        commands.UploadSubData<uint>(prefix, 0); commands.UploadSubData<uint>(packed, 64);
+        commands.UploadSubData<uint>(prefix, 0);
+        if (generated is { } source)
+            RHICommandContext.Current.CopyBuffer(source.Buffer, source.Offset, commands, 64, 256);
+        else commands.UploadSubData<uint>(packed!, 64);
         var bindings = (IShadowPageBindings)shader; bindings.Commands = commands; bindings.Entries = Entries; bindings.Results = Results;
         var rhi = RHICommandContext.Current;
         using var boundary = rhi.EnterBoundary(new("Shadows.Pages", true, compute: [shader.Pipeline]));

@@ -2,10 +2,13 @@ Shared virtual shadow maps
 ==========================
 
 Source proposal: [Rendering.VirtualShadowMaps.Proposal.md](Rendering.VirtualShadowMaps.Proposal.md)
-Status: Phases 1–4 complete. Shadows are not enabled.
-Authority: the audited proposal governs scope and behavior. The explicit complete-todo-phase 4 request
-authorizes Phase 4; later phases remain unchecked. The proposal's recommendations are the
-planned design, while its numerical starting values remain tuning hypotheses.
+Status: Phases 1–4 have receipts for their original contracts; affected foundations are reopened in
+Phase 7. Existing drafts await the Phase 5 checkpoint commit. Shadows remain disabled. This document
+revision records neither a commit nor resumed runtime implementation.
+Authority: the user's approved Unreal-style atomic rendering and bounded temporal reuse decisions below
+supersede conflicting portions of the earlier proposal and plan. Unaffected proposal requirements remain
+binding. Phase 7 reconciles the proposal, implementation contracts and qualification protocol before
+dependent code changes. Numerical starting values remain tuning hypotheses, not measured guarantees.
 
 Goal and governing contracts
   Deliver one bounded virtual shadow system for simultaneous moving sun/moon shadows and local
@@ -14,14 +17,19 @@ Goal and governing contracts
   Use the existing chunk grid and native dimension-aware identity. GPU compute generates conservative
   chunk occlusion candidates from fixed partition boxes over covered light motion. Candidate reuse
   and rendered-depth reuse have separate validity rules. Do not omit required occluders or publish
-  truncated work as complete; reduce detail and then withdraw lights' shadows while retaining light.
+  truncated work as complete. Permit explicitly bounded temporal reuse of previously complete depths;
+  reduce detail and then withdraw lights' shadows when neither current nor permitted stale coverage fits.
   Preserve native poolsByRenderPass[renderPass][atlas] authority and existing geometry ownership.
   No parallel mesh-pool registry, reverse classification map, per-page pool scan, copied terrain
   meshes, duplicate voxel connectivity analysis, or collection of pool-membership hooks.
-  OpenGL 4.5 is the complete baseline. Use resident depth-array pages, geometry-shader layer routing,
-  instance-attribute metadata and bounded initialized indirect intervals. Do not require optional
-  shader draw parameters, GPU draw-count buffers, direct vertex/TES layer output, or bindless access.
-  Do not add or bypass custom shader clipping. Use normal page projection and layer isolation.
+  OpenGL 4.5 is the complete baseline. Use compact draw/view identifiers, separate projection records,
+  virtual-coordinate rasterization, page-table translation and atomic integer texture depth writes.
+  Keep bounded initialized indirect intervals without requiring optional shader draw parameters,
+  GPU draw-count buffers, bindless access or positive vertex/TES/geometry-stage SSBO limits.
+  Phase 6 investigates why custom clipping was excluded and analyzes what supporting it would require.
+  Unreal's clip distances are reference evidence, not approval to add them. The existing exclusion stays
+  in effect during analysis. Phase 7 implements the resulting agreed raster-region/support design and
+  Phase 8 qualifies it with actual native rendering.
   Keep surface demand and readiness ahead of every participating surface consumer. Include all
   contributing transparent layers, filter footprints and receiver-position bias. Previous-frame
   feedback may prioritize work but cannot certify current coverage. One light/consumer has one
@@ -32,6 +40,86 @@ Goal and governing contracts
   Use the loaded-chunk envelope per dimension, including offscreen partitions. Interior unknown
   cells are unresolved, not empty. Do not silently introduce an additional caster-distance cap.
   Outside-envelope terrain is an explicit client world-data limitation, not guaranteed shadow coverage.
+
+Approved atomic rendering architecture
+  Follow the inspected Unreal 5.8 ordinary-mesh VSM architecture: GPU-selected geometry/view work,
+  compact identifiers into separate projection records, virtual-coordinate rasterization, per-fragment
+  physical-page lookup and atomic nearest-depth accumulation. This replaces per-page geometry instances,
+  geometry-stage layer routing, full-matrix vertex attributes and layered depth-attachment clearing.
+  It does not require reproducing Nanite, Unreal GPU Scene, or its geometry ownership model in Vintage Story.
+
+  The physical pool is resident integer image storage with tiles addressed through the page table.
+  Phase 7 fixes its atlas/array organization, finite depth encoding, clear value, comparison direction
+  and resource limits together. R32UI atomic min/max with a documented ordered depth encoding is the
+  baseline; do not assume floating-point atomics or preserve D32F attachment semantics.
+  Renderability differs from residency and sampling eligibility. A shader may update only an admitted
+  replacement tile belonging to the correct view/assignment. Cached or retained stale tiles must not
+  be modified merely because they are resident. Atomics do not certify page completeness, replace
+  material cutout rejection, or remove resource ordering before sampling.
+
+  Local reference: UE 5.8.0, changelist 55116800, C:/Program Files/Epic Games/UE_5.8/Engine.
+  Evidence anchors relative to that directory:
+    Shaders/Private/VirtualShadowMaps/VirtualShadowMapBuildPerPageDrawCommands.usf:
+      WriteCmd / OutputCommandInstanceListsCs produce paired instance/view records.
+    Shaders/Private/ShadowDepthVertexShader.usf:
+      TransformShadowVSM fetches PackedNaniteViews; ScaleBiasClipToPhysicalSmPage writes clip distances.
+    Shaders/Private/ShadowDepthPixelShader.usf:
+      virtual pixel -> page-table lookup -> physical texel -> InterlockedMax.
+    Shaders/Private/VirtualShadowMaps/VirtualShadowMapPageAccessCommon.ush:
+      FPageInfo contains ViewId and a static-page flag rather than a projection matrix.
+    Source/Runtime/Renderer/Private/ShadowDepthRendering.cpp:
+      SetStateForShadowDepth disables conventional depth writes for VSM.
+  These are source findings, not VGE performance or complete OpenGL compatibility evidence. Separate
+  static/dynamic caches and Nanite rasterization are not implicitly added as required features.
+
+Approved temporal reuse amendment
+  Decision: bounded reuse of previously complete shadow depths is required from the first integrated
+  surface implementation, not an optional later optimization. Temporarily missing or lingering shadows
+  after scene changes are an accepted approximation within the configured policy. This does not certify
+  those depths as current, permit partial replacement pages, or authorize obsolete native geometry references.
+
+  Keep three distinct states: current, permitted stale, and unavailable. Scene edits, retessellation,
+  caster motion and light motion invalidate currentness but need not immediately discard a retained depth
+  image. Eligibility for stale use is a separate bounded decision, not an exception to revision checking.
+  Stable projection-space addressing is independent of mesh allocation: resolve every replacement draw
+  through the chunk's current native ranges; retain depth storage and its own metadata for stale sampling.
+  No per-vertex page ownership, native mesh-pool mutation or reverse pool registry is introduced.
+
+  Preserve the rendered projection, depth convention, receiving coverage, source lifetime and physical
+  assignment with each retained result. Sample stale depth using its matching rendered projection, never
+  by interpreting it through a newer light matrix. Keep direct illumination on the current light snapshot;
+  any lag in shadow position is an explicit approximation. Cover current receiver/filter/bias requests
+  in that retained projection. New receivers outside its recorded coverage cannot use it, and current
+  candidate associations cannot enlarge old depth coverage. Cube faces, levels and filter taps must use
+  compatible projection metadata; do not combine incompatible old/new projections in one lookup.
+
+  Persist finite stale-age and light-motion tolerances with validated bounds, requested/effective values
+  and a strict zero-reuse setting for diagnosis. Set concrete defaults and the translation/angular error
+  metric in Phase 7, then calibrate in Phase 11; no arbitrary value is approved by this amendment.
+  Record rendered age and the first invalidation time. Repeated edits, motion, scheduler deferral or reuse
+  cannot restart the stale deadline. Candidate motion coverage is not a stale-depth motion tolerance.
+  Apply the policy to moving/carried point lights and both celestial sources from the outset.
+
+  Lifetime/identity loss, reassigned or destroyed storage, incompatible resource/shader interpretation,
+  out-of-coverage receivers, expired age or exceeded motion tolerance prohibit reuse. Incomplete or
+  unresolved current inputs prohibit fresh certification; they do not by themselves erase an otherwise
+  eligible retained result. Unknown temporal eligibility fails closed. One light/consumer may remain
+  shadowed only when all of its current demand has current or permitted stale coverage; do not expose
+  page-shaped missing coverage. No stale result means the existing unshadowed-light fallback applies.
+
+  Retain old complete depth while replacement work is pending. Never clear or overwrite storage still
+  serving that result: use bounded replacement storage and switch publication only after complete draws,
+  or explicitly withdraw the result before destructive reuse. Charge retained/replacement depths,
+  projection records and in-flight retirement to the existing configurable budgets. Memory pressure can
+  force withdrawal; it cannot authorize over-budget retention. Preserve stable priorities and hysteresis,
+  with bounded refresh waiting so continuous edits or motion cannot indefinitely postpone updates.
+
+  Implementation sequencing: Phase 5 checkpoints the current draft; Phase 6 investigates clipping history
+  and support requirements; Phase 7 refactors foundations and adds temporal storage/sampling.
+  Phase 8 completes native atomic rendering. Phase 9 integrates
+  scheduling/readiness, Phase 10 migrates surface consumers, Phase 11 qualifies them, Phase 12 implements
+  fog last, and Phase 13 closes qualification and cleanup. Earlier receipts retain their original scope;
+  they do not establish acceptance of the replacement architecture.
 
 Execution and evidence rules
   Complete each related implementation batch before its full verification and review cycle; use an
@@ -49,8 +137,14 @@ Execution and evidence rules
   Follow repository method/class documentation, visibility regions and steady-state source layout.
   Keep composition roots thin, geometry ownership native and dependencies directional. Do not add
   temporary forwarding facades or production compatibility shims to bridge unfinished phases.
-  Phases 2–6 qualify foundations through fixtures and controlled integration; production consumers
-  switch coherently in Phase 7. This is not permission to ship a partially covered shadow path.
+  Phase 5 is an explicit checkpoint exception: completion means the existing draft is committed with
+  truthful inventory/status, not that the former feature contract passed. Do not expand that checkpoint
+  into implementation repair or a feature-completion test/audit cycle. Phase 6 is analysis only: review
+  its evidence, reasoning and affected-system inventory without requiring runtime implementation proof.
+  Phases 7 onward retain the full implementation verification, second-review and independent
+  completion-audit gates.
+  Phases 2–4 and 7–9 qualify foundations through fixtures and controlled integration; production consumers
+  switch coherently in Phase 10. This is not permission to ship a partially covered shadow path.
 
 Assumptions, tuning hypotheses and decision gates
   Concrete API names, shader layouts, quality-profile ceilings and safe native publication seams
@@ -64,9 +158,10 @@ Assumptions, tuning hypotheses and decision gates
   conservative reference/fallback wherever freshness or shadow-opacity equivalence is unproven.
   Hardware-specific CPU/GPU limits, minimum useful shadow-ready duty cycle and visual quality targets
   need an explicit acceptance profile. Establish the measurement protocol in Phase 1 and settle
-  measured values in Phase 8; do not treat the tentative 2 ms target as an achieved hard ceiling.
+  measured values in Phase 11; do not treat the tentative 2 ms target as an achieved hard ceiling.
   Point near-plane, bias, depth range and extreme directional spans require qualification. Existing
-  represented depth-clamp support may be evaluated; custom clipping remains excluded.
+  represented depth-clamp support may be evaluated. Phase 6 re-evaluates the custom-clipping exclusion;
+  analysis alone does not enable support or change the runtime contract.
 
   Proposed initial values from the source, to be validated and calibrated rather than hard-coded:
   | Control | Initial hypothesis |
@@ -79,37 +174,36 @@ Assumptions, tuning hypotheses and decision gates
   | Candidate movement coverage | Directional spherical cap: 1-degree radius; point-source box: 2-metre half extents |
   | Refresh guard | Start replacement in the outer quarter of covered angular distance or box extent |
   | Selection/recovery | 20% challenger margin; 0.5-second hold while valid; eight complete current frames for recovery |
-  | Page/filter tuning | D32F, 128 by 128, no mip chain, gutters or multisampling; manual 3-by-3 PCF |
+  | Page/filter tuning | R32UI atomic depth; 128 by 128 virtual pages; no physical mip chain, gutters or multisampling; manual 3-by-3 PCF |
 
   Optional direct layer output, indirect counts, shader draw parameters, bindless sampling, hierarchies,
-  atlas-copy storage, larger filters/contact hardening and temporal stale-depth approximations are
+  physical-pool compaction by copying and larger filters/contact hardening are
   not required implementation work in this plan. Do not add them as substitutes for qualifying the
   baseline. Any scope change or required-feature deferral needs explicit reconciliation and approval;
   an unresolved requirement is not a completed task.
 
-Proposal coverage map
-  The phase tasks below are the execution contract; this map supplies source traceability.
+Proposal and approved-amendment coverage map
+  The phase tasks below are the execution contract. Phases 1–4 retain historical evidence; this map
+  identifies current architecture ownership rather than extending those earlier completion claims.
 
   | Source contract | Owning phases and evidence |
   | --- | --- |
-  | Purpose/scope; shared ownership; OpenGL and clipping constraints | 1, 4–7, 10: interface review, baseline GPU checks, final audit |
-  | Light identity; independent celestial sources; attenuation convention | 2, 4, 7: publication, projection and consumer checks |
-  | Dynamic depth validity; moving-light primary workload | 3–8: separate generations, repeated-motion checks and runtime measurements |
-  | World publication, dimensions, loaded envelope and unknown cells | 2, 3, 5, 8: lifecycle evidence, conservative reference and streaming acceptance |
-  | Slab traversal, full motion intervals, boundaries and bounded continuation | 3: exhaustive box-reference comparisons and pause/resume witnesses |
-  | Empty/traversability interpretation and pruning dependencies | 2, 3, 8: metadata proof, bounds-only fallback and edit qualification |
-  | Configurable budgets, reservations, priorities, hysteresis and reconfiguration | 1, 4, 6, 8: configuration/state checks and measured calibration |
-  | Detailed demand without mandatory coarse coverage | 4, 6, 7: projection/filter requests and complete reduced-detail coverage |
-  | Pre-shading readiness, overload and no stale-depth fading | 6–8: frame-order integration, failure injection and visual acceptance |
-  | Receivers, offscreen casters and all transparent layers | 5–8: scene adapters, demand and surface integration |
-  | Native geometry ownership and pass/atlas authority | 2, 5, 10: narrow publication, borrowed-range checks and cleanup audit |
-  | Non-terrain change publication | 2, 5, 6: stable snapshots, entry/deformation/disappearance and exhaustion checks |
-  | GPU handoff, bounded expansion, range instancing and complete page admission | 5, 6: command/readiness checks and aggregate work counters |
-  | Receiving-coverage-aware page reuse, including depth | 4–7, 9: containment, replacement and new surface/fog receiver witnesses |
-  | Layer routing, static sampler banks, selective clear and material compatibility | 4, 5, 7: optional capabilities disabled, real raster/filter checks |
-  | Resource lifetime and one-provider migration | 4, 5, 7, 10: retirement, state preservation and consumer audit |
-  | Full volumetric fog integration last | 9: volume demand/readiness, surface preservation and history qualification |
-  | Qualification, diagnostics, package and user acceptance | 1, 3–10: separately identified evidence and final closure |
+  | Shared scope, GL 4.5 and clipping decision | 1–4 history; 6A historical rationale; 6B support analysis; 7–8 implementation/baseline; 13 final audit |
+  | Stable light/world/geometry identity and loaded domain | 2–3 retained; 7 interface regression; 8 lifecycle; 11 runtime |
+  | Conservative chunk traversal, motion intervals and pruning proof | 3 retained; 7 handoff; 8/11 edit and streaming checks |
+  | Existing draft checkpoint and provenance | 5: scoped commit identity and truthful unverified inventory |
+  | Projections, atomic physical pool, page addressing and sampling | 7: storage, encoding, lookup and lifecycle GPU checks |
+  | Compact metadata and baseline shader resource access | 7: stage/resource/indexing checks; 8 native shader integration |
+  | Bounded temporal reuse and safe replacement | 7–9: age/motion/coverage/lifetime; 10–11 consistent sampling and acceptance |
+  | Native geometry ownership, preparation and offscreen/material-compatible casters | 7 preservation; 8 actual integration; 13 cleanup |
+  | Geometry/view commands, renderable-page masks and atomic depths | 7 contracts; 8 raster/failures; 9 aggregate admission |
+  | Configurable budgets, priorities, reservations, hysteresis and overload | 7 settings; 9 scheduling; 11 measured calibration |
+  | Current receiver demand, depth/filter coverage and transparent layers | 9–10: pre-shading readiness and all-consumer checks |
+  | Independent sun/moon and carried/moving lights | 2 retained; 7–11 projections, consumers and measured evidence |
+  | One-provider migration and source attenuation | 10 coherent native/VSM switch; 13 cleanup |
+  | Runtime performance, artifacts, diagnostics, package and user acceptance | 8–11 distinct evidence; 13 closure |
+  | Full volumetric fog integration last | 12: volume coverage, temporal history and surface preservation |
+  | Linked documents, retained evidence and temporary cleanup | 7 reconciliation; 10–13 maintained docs and final audit |
 
 Phase 1: Establish implementation contracts and qualification conditions
   Outcome: implementation boundaries and attributable acceptance conditions are defined before
@@ -185,7 +279,7 @@ Phase 2: Publish stable lights and native world inputs
   | --- | --- | --- |
   | Stable light collection | Proposal light identity; contracts same-frame coordinates and native/authored radius | HeldLightSources/HeldLightHooks, NativeShadowLightSources, VgeLightsUniformBuffer/VgeLightsRenderer; actual source lifetime and collector IL checks |
   | Native world publication | Proposal world/cache, spatial ownership and geometry sections; contracts integer coordinates, unknown data, native retirement | NativeShadowWorldAdapter/NativeShadowWorldHooks, ShadowWorldPublication/GpuBuffers; native dictionary/range fixtures, mutation races, GPU metadata and capacity checks |
-  | Bounded dependencies | Proposal non-terrain change publication and receiving coverage; contracts generations/failure | ShadowSceneChanges/ShadowReceivingCoverage; pending/lost-history, bounds and epoch checks; actual non-terrain adapters remain Phase 5 |
+  | Bounded dependencies | Proposal non-terrain change publication and receiving coverage; contracts generations/failure | ShadowSceneChanges/ShadowReceivingCoverage; pending/lost-history, bounds and epoch checks; actual non-terrain adapters remain Phase 8 |
   | Input policy | Contracts finite input/range/change/probe limits and existing configuration owner | VirtualShadows.Inputs, ConfigModSystem sanitization and VirtualShadowModSystem reload; settings, publication withdrawal and retained pending-history checks |
   Verification, 2026-11-09: delegated canonical Debug build passed with 20 warnings / 0 errors.
   The focused CPU selection passed 59/59. After strengthening movement, change-history and loaded-envelope
@@ -225,14 +319,14 @@ Phase 2: Publish stable lights and native world inputs
     ☑ Publish the complete loaded-chunk envelope including offscreen chunks. Keep missing/pending cells
       distinct from proven empty cells; retain the explicit outside-envelope world-data limitation.
   ☑ Implement bounded publication primitives for non-terrain scene changes and receiving-coverage
-    dependencies. Phase 5 connects actual caster adapters; do not certify that integration here.
+    dependencies. Phase 8 connects actual caster adapters; do not certify that integration here.
     ☑ Carry prior/current conservative bounds, relevant revisions and pending-change state. Lost or
       unknown change coverage must force broader invalidation, never silent reuse.
   ☑ Delegate focused unit and engine-boundary integration checks for identity replacement, hand/source
     changes, dimensions, origin shifts, streaming/edit/upload races, unknown data and reused native ranges.
   ☑ Completion: verified native publication seams supply consistent bounded inputs without a second pool
     classification system; source and lifecycle evidence distinguish implemented terrain publication
-    from the non-terrain adapter integration still required in Phase 5.
+    from the non-terrain adapter integration still required in Phase 8.
 
 Phase 3: Generate and reuse conservative GPU chunk occlusion candidates
   Depends on Phase 2.
@@ -310,6 +404,9 @@ Phase 3: Generate and reuse conservative GPU chunk occlusion candidates
     operation. Association reuse never certifies old depth under a changed projection.
 
 Phase 4: Implement projections, physical pages and shared sampling
+  Historical completion: checked tasks and receipts below describe the former D32F/layered design.
+  Phase 7 supersedes affected storage/addressing/sampling code. These receipts do not qualify atomic
+  rendering or temporal reuse; retain valid invariant cases and reverify changed boundaries.
   Depends on Phases 1–3.
   Outcome: both light types can allocate, address, validate and sample depth pages using controlled GPU
   fixtures; the engine caster-rendering path is intentionally not yet integrated.
@@ -360,7 +457,7 @@ Phase 4: Implement projections, physical pages and shared sampling
       array/layer/generation; reject lookup/probe/allocation exhaustion instead of aliasing entries.
     ☑ Validate depth storage plus metadata/temporary resources against configured memory, layer/texture
       limits and the planned binding layouts of every participating shader. Account for array submission
-      groups; Phase 7 rechecks sampler availability against the completed consumer integrations.
+      groups; Phase 10 rechecks sampler availability against the completed consumer integrations.
     ☑ Evict invalid/unreferenced entries before required coverage; never overwrite in-flight pages.
       Retain storage until GPU use completes without blocking for timing or completion readback.
     ☑ Implement disable/world leave/context loss/source or dimension removal/shader replacement and
@@ -383,62 +480,206 @@ Phase 4: Implement projections, physical pages and shared sampling
       capabilities disabled. Keep synthetic depth fixtures distinct from actual caster-rendering evidence.
   ☑ Completion: baseline storage/sampling and coverage-aware validity pass their scoped checks; no optional
     capability is needed, and remaining actual geometry/near-source qualification is explicitly owned by
-    Phase 5 rather than claimed from synthetic pages.
+    Phase 8 rather than claimed from synthetic pages.
 
-Phase 5: Render complete pages from native scene geometry
-  Depends on Phases 2–4.
-  Outcome: selected terrain and non-terrain geometry can produce complete depth pages through the
-  OpenGL 4.5 baseline without per-page CPU selection readback or mesh ownership changes.
+Phase 5: Commit the existing implementation draft
+  Depends on the recorded work from Phases 1–4. This is a repository checkpoint, not renderer completion.
+  Scope: VSM-related modified and untracked source/tests already present at the design pause, plus the
+  revised plan. No code is committed by this document revision. No Phase 5 build/test success is claimed.
 
-  ☐ Implement shadow scene adapters over current native geometry publications.
-    ☐ Traverse poolsByRenderPass[renderPass][atlas] once per bounded work batch for compatible groups;
-      use native pool IDs and chunk ranges. Preserve engine culling draw arrays, statistics and LOD rules.
-    ☐ Support ordinary indexed and shader-storage terrain layouts using borrowed buffers and shadow-specific
-      vertex inputs; do not mutate native VAOs, copy meshes or treat the liquid adapter as universal.
-    ☐ Include eligible receiver geometry for self-shadowing and all required offscreen casters. Preserve
-      cutouts, UV/atlas sampling, warping, displacement, foliage, moving chunks and geometry detail selection.
-    ☐ Prepare entity animation once per frame, including offscreen casters; reuse current preparation for
-      demand and shadow passes. Preserve object instancing rather than repurposing it as terrain page instances.
-  ☐ Connect actual non-terrain adapters to the Phase 2 change publication contract.
-    ☐ Report creation/disappearance, prior/current bounds, motion, animation/deformation and shadow-relevant
-      material/eligibility changes even with unchanged native range or object transform.
-    ☐ Invalidate page depths intersecting the changed light-to-receiver regions, including newly entering
-      casters absent from previous draw lists. Apply changes since each cached publication before reuse.
-    ☐ Bound retained changes; invalidate conservatively before discarding unapplied changes and keep affected
-      pages uncertified while processing is unfinished. Restore validity only from complete current draws.
-  ☐ Implement GPU candidate-to-range/page expansion and complete page admission.
-    ☐ Intersect candidate chunk boxes with page coverage, resolve eligible current ranges and deduplicate
-      page/range identity plus generations using bounded insertion and prefix-sum compaction.
-    ☐ Require complete associations and all current terrain/non-terrain inputs before admission. Bound input
-      visits, expansion, temporary pairs, any counting/emission repeat, total groups/slots and page instances.
-    ☐ Use one terrain command slot per compatible range/destination array, with selected pages as instances.
-      Eight instances still incur eight geometry repetitions; account for tessellation and material costs.
-    ☐ Initialize every submitted indirect slot, including inactive ones. The CPU knows bounded intervals
-      from supplied geometry/groups; no GPU candidate or draw-count readback is needed on the baseline.
-  ☐ Implement baseline integer instance-attribute metadata transport and geometry-shader layer output.
-    ☐ Carry page metadata unchanged through vertex/tessellation stages, following final deformation. Emit
-      each selected triangle once per page instance while preserving winding, positions and material outputs.
-    ☐ Respect vertex-input limits and existing entity instancing semantics; do not depend on shader-visible
-      draw/base-instance parameters or direct vertex/TES layer output.
-    ☐ Express shader-storage, indirect-command and vertex-fetch visibility plus resource/pass lifetimes.
-  ☐ Implement selective page clear using layered full-page geometry, depth writes and an always-passing
-    depth test. Preserve the attachment on pass entry; never clear all cached layers with a pass clear.
-    ☐ Clear only admitted replacement layers, then draw all required geometry before publishing depths and
-      receiving coverage. Overflow/incomplete selection must not clear or publish a partially built page.
-  ☐ Delegate real GPU raster and engine-adapter checks with optional features disabled: ordinary/SSBO and
-    tessellated geometry, cutouts/deformation, offscreen entities, source-near crossings, array groups,
-    untouched cached layers, stale ranges, caster entry/removal/pose changes and forced capacity failures.
-  ☐ Completion: complete actual scene depth pages are demonstrated on the baseline, geometry/state ownership
-    is preserved and all failure paths withhold invalid results. Measurements include repeated geometry,
-    inactive command slots, preparation and clear work; no production surface completeness claim yet.
+  ☐ Refresh the working-tree inventory and identify the exact checkpoint files, including untracked
+    sources/tests. Preserve unrelated user changes; do not include them implicitly.
+  ☐ Record the partial native-input/preparation, settings, expansion and routing work, its unverified
+    status and superseded full-matrix/per-page-layer assumptions in the checkpoint description.
+  ☐ Commit the scoped existing work and plan without adding functionality, repairing unfinished rendering,
+    enabling shadows or refactoring it here. Record known unverified/broken state honestly.
+  ☐ Record the commit identity and verify the intended files were captured with unrelated work preserved.
+  ☐ Completion: the existing draft has a traceable commit boundary. This does not complete the former
+    Phase 5 feature contract; remaining implementation and qualification belong to Phases 7–8.
 
-Phase 6: Integrate current-frame demand, arbitration and readiness
-  Depends on Phases 2–5.
+Phase 6: Investigate clipping exclusions and evaluate support across affected systems
+  Depends on the Phase 5 checkpoint. Analysis and documentation only; no clipping implementation,
+  pipeline-state change, shader-compiler change or runtime enablement is claimed by completing this phase.
+  Outcome: evidence explains the existing exclusion as far as the available history permits, and a
+  concrete cross-system support assessment informs the design used by Phase 7.
+
+  Phase 6A: Investigate why clipping was excluded
+  ☐ Trace the original decision through repository documentation, source comments, relevant Git history,
+    shader/pipeline migrations and available decision records. Identify when and where clipping was
+    rejected, omitted or removed; distinguish explicit decisions from incidental missing implementation.
+    ☐ Examine both the pipeline-state system and shader compiler/build tool. Locate present rejection,
+      omission and validation boundaries and their callers; do not infer historical rationale solely
+      from the fact that an API or shader feature is currently unsupported.
+    ☐ Distinguish custom shader clip distances from normal homogeneous frustum clipping, depth clamp,
+      scissor rectangles and fragment rejection. Identify exactly which mechanism each restriction covers.
+    ☐ Classify supported explanations: architectural invariants, engine state ownership, compiler/backend
+      limitations, cross-stage interface rules, portability, measured performance or intentionally deferred
+      scope. Cite file/line or commit evidence; label hypotheses and unrecoverable rationale explicitly.
+  ☐ Record the findings and evidence in the linked implementation contracts/design documentation without
+    presenting a new proposal as existing behavior. Identify which original reasons still apply and which
+    require further checking; carry unresolved constraints into 6B rather than assuming they disappeared.
+  ☐ Completion: the exclusion's history and current enforcement are traced, with evidence and uncertainty
+    separated. No claim that clipping is feasible, required or approved follows from this investigation alone.
+
+  Phase 6B: Re-evaluate the requirements for clipping support
+    Depends on 6A. Analyze the complete affected path rather than adding a field to pipeline state in isolation.
+  ☐ Map the work needed from shader source through build artifacts to runtime pipeline execution.
+    ☐ Shader build tool/compiler: source parsing and mutation, generated/native shader inputs, GLSL and
+      SPIR-V routes where applicable, built-in declaration/reflection, stage linking, validation, cache keys,
+      artifact serialization/versioning, incremental rebuilds and packaged shader compatibility.
+    ☐ Shader stages: clip-distance declaration/count, producer/consumer matching through vertex,
+      tessellation and geometry stages where used, final-position/deformation ordering, output limits and
+      behavior for shader variants that do not write clip distances. Avoid assuming all paths use one stage.
+    ☐ Pipeline/RHI/backend: immutable state representation, equality/hash/cache identity, command recording,
+      capability validation, clip-distance enable/disable state, native-engine state restoration and context
+      lifecycle. Identify every affected owning API and prevent hidden global-state changes.
+    ☐ Integration/tooling: shader catalogs/bindings, native material variants, diagnostics, serialization,
+      existing tests, headless GPU qualification and deployment/package checks. List concrete files/modules
+      and dependencies; separate required changes from systems verified to need no change.
+  ☐ Evaluate GL 4.5 feasibility and the original constraints against Unreal's four-plane uncached-page
+    rectangle. Separate write correctness from raster-work reduction; page-table renderability checks
+    remain required with clipping, especially for sparse holes and protected retained pages.
+    ☐ Compare support costs, batching implications and expected work bounds with applicable non-custom-clip
+      alternatives. Do not claim measured performance from source inspection or equate scissor/depth clamp
+      with shader clip distances. Any necessary build/test probe is delegated and scoped to an uncertainty.
+  ☐ Produce a concrete recommendation and implementation/verification dependency map, including risks,
+    unresolved questions and estimated scope. Present the findings for the design discussion and record
+    the resulting decision; analyzing support does not itself authorize changing the exclusion.
+    ☐ Reconcile the selected design into Phase 7 tasks and affected contracts before dependent code work.
+      If clipping support is selected, assign its compiler/build-tool, pipeline/RHI and integration changes
+      together with their required checks; if not, record the selected raster restriction and its limits.
+  ☐ Completion: the cross-system support analysis is reviewed against 6A evidence, the recommendation and
+    unresolved issues are explicit, and the downstream task map is concrete. Any unresolved design choice
+    remains a prerequisite for dependent Phase 7 implementation, not a runtime feature claimed complete.
+
+Phase 7: Refactor existing foundations for atomic VSM rendering and temporal reuse
+  Depends on Phase 6 analysis and the resolved support/raster-region decision, the Phase 5 checkpoint,
+  and retained Phase 1–4 foundations.
+  Outcome: one coherent replacement for storage, sampling and existing draft interfaces is qualified
+  through controlled fixtures. Actual native material-compatible rendering is Phase 8.
+
+  Refactoring inventory (paths relative to VanillaGraphicsExpanded unless marked Tests)
+  | Existing system / draft | Required disposition here | Later owner |
+  | --- | --- | --- |
+  | Rendering/Shadows/Lights and World; native world upload/revision integration | Retain identities and revision ownership; adapt consumers without weakening stale-range rejection | 8 actual casters; 9 current-frame input |
+  | Rendering/Shadows/Candidates, candidates.csh and ShadowCandidatePool.CanConsume | Retain traversal/motion coverage; adapt consumption to geometry/view work and renderable-page selection | 8 execution; 9 scheduling |
+  | DirectionalShadowProjection, PointShadowProjection, ShadowPageKey and ShadowRasterProjection | Retain world/light mathematics; replace page-local raster assumptions with view/face/mip records, virtual coordinates and agreed atomic depth convention | 8 native projection |
+  | ShadowPagePool and Allocation partial; ShadowPageRequest/Operation/Shader; IShadowPageBindings; pages.csh; ShadowPageSettings | Replace D32F layers, layer-derived addresses, clear/binding and generated-publication assumptions; retain applicable bounded allocation/generations/retirement; add temporal replacement | 8 draw completion; 9 admission |
+  | ShadowReceivingCoverage and ShadowSceneChanges | Preserve current certification/change tracking; add separate stale eligibility, rendered projection/coverage, age/motion and hard withdrawal rules | 8 change application; 9 readiness |
+  | ShadowSampler, ShadowSampleRequest/Shader, IShadowSamplingBindings, sample.csh and includes/shadows/sampling.glsl | Replace float depth-array fetch/layer addressing with integer pool lookup/decode; preserve filter and receiving-coverage invariants | 10 surfaces; 12 fog |
+  | ShadowSettings, ShadowPageSettings and draft ShadowDrawSettings | Migrate layer/per-page-instance settings to explicit pool/view/command/raster bounds; add validated temporal controls/defaults and strict mode; migrate all consumers together | 9 scheduler; 11 calibration |
+  | NativeShadowTerrainFields/Adapter/Batch/Group/Detail; NativeShadowWorldAdapter.TryCaptureDrawEligibility | Retain native traversal/current-range logic; remove per-page-instancing coupling without a new pool registry | 8 finish native support |
+  | NativeShadowTerrainGeometry.WithPages | Remove full-matrix attribute transport; retain borrowing/lifetime responsibility and adapt draw inputs to compact selectors | 8 supported native layouts |
+  | NativeShadowEntityPreparation and NativeShadowEntityHooks | Preserve applicable preparation/change draft; adapt interfaces for geometry/view selection and object instancing | 8 actual integration |
+  | NativeShadowDrawRanges; ShadowDrawRange/Interval/Page; IShadowExpansionBindings; ShadowExpansionShader; expand.csh | Replace range/page-instance packing/expansion with geometry/view records and renderable-page gating; remove obsolete catalog/binding declarations together | 8 complete command generation/execution |
+  | ShadowLayerStages | Remove physical-layer routing and matrix varyings; replace applicable shader-generation boundaries for virtual-coordinate atomic rendering, without an alternate legacy renderer | 8 material shader integration |
+  | Existing Phase 4 projection/pool/sampling fixtures; draft Tests: ShadowDrawSettingsTests, NativeShadowTerrainAdapterTests, NativeShadowEntityPreparationTests, ShadowLayerStagesTests | Retain ownership/coverage cases; rewrite representation-dependent assertions, remove superseded routing tests and add atomic/temporal fixtures; old receipts keep their scope | 8 native raster; 11 regression |
+  | RHI image/buffer bindings, shader catalog and pass/resource lifetimes | Reuse existing owners; add only demonstrated missing baseline capabilities through owning APIs, including graphics image atomics and raster pass setup | 8 native draws; 10 consumer bindings |
+
+  ☐ Reconcile the source proposal, implementation contracts and qualification protocol with both approved
+    amendments before dependent code changes. Update diagrams, APIs, failure tables, configuration,
+    evidence expectations and prospective phase references; preserve labelled historical receipts.
+    ☐ Implement the agreed Phase 6B support/raster-region design across its affected owners. If clipping is
+      selected, migrate the shader compiler/build tool, pipeline state, RHI/backend and shader integration
+      coherently, including artifact/cache compatibility and native-state restoration. Otherwise implement
+      the agreed alternative. Do not restore per-page layer draws as a substitute for the architecture.
+    ☐ Specify compact draw/object/view selection and separate projection-data access on baseline GL 4.5.
+      Respect vertex/tessellation limits and object instancing; do not assume geometry SSBO access,
+      optional draw parameters, or the presence of Unreal's vertex-factory machinery.
+  ☐ Refactor projections and physical storage to resident R32UI tiles with explicit page-table physical
+    addresses, assignment generations and separate sampled versus writable replacement mappings.
+    ☐ Define view/face/mip identity, world-origin handling, finite depth encoding, comparison direction,
+      clear value, near/source-plane behavior and precision together; migrate bias and sampling coherently.
+      Reject invalid numerical inputs/addresses before atomics.
+    ☐ Replace old layers-per-page capacity assumptions with bounded pool dimensions/banks and effective
+      hardware limits. Charge integer storage, tables, view records, replacement generations and retirement.
+      Preserve collision/overflow rejection, source/world withdrawal and safe reconfiguration.
+    ☐ Provide selective integer-page clear and image-write-to-image-read/texture-fetch ordering through RHI.
+      Validate graphics image bindings and raster framebuffer/viewport setup without direct GL bypass.
+  ☐ Refactor shared lookup/filtering to decode atomic depths and translate every virtual filter tap.
+    Preserve cube-face boundaries, levels, receiver depth, bias and coverage; no averaging of depths.
+    ☐ Verify integer fetch, empty/clear values, seams, multiple banks, assignment reuse and independent
+      source/projection identities using the new representation and supported binding limits.
+  ☐ Implement bounded temporal retention: current, permitted-stale and unavailable states; matching
+    rendered projections/coverage; finite persisted age/motion controls; explicit hard-invalid withdrawal.
+    ☐ Repeated edits/motion/reuse cannot reset expiry. Current receiver/filter demand must fit retained
+      coverage in its rendered projection; current illumination and retained shadow projection stay distinct.
+    ☐ Keep sampled old tiles intact during replacement. Publish depth, projection and coverage together
+      only after complete ordered writes. Insufficient replacement space permits only eligible retention
+      or explicit withdrawal within budget, never obsolete native geometry references or partial success.
+  ☐ Refactor existing draft interfaces and settings according to the inventory. Migrate callers and
+    blocking dependencies together; remove superseded routing, matrix attributes, per-page command formats
+    and fixtures without compatibility shims or a second maintained renderer.
+    ☐ Preserve current native range/group/preparation logic. Completing absent material/layout/entity
+      integration belongs to Phase 8 rather than this foundation fixture boundary.
+  ☐ Delegate canonical build and focused CPU/GPU verification on the coherent batch: baseline limits,
+    compact metadata access, virtual/physical addressing, contended atomic nearest-depth writes, selective
+    clears, filtering/coverage, temporal expiry/replacement, retirement and retained input invariants.
+    ☐ Verify optional extensions disabled and obsolete assets/bindings/callers removed. Synthetic atomic
+      depth witnesses do not establish actual caster coverage, live appearance or performance.
+    ☐ If clipping support was selected, execute the Phase 6B compiler/build, cross-stage, pipeline-state,
+      capability and native-state regression matrix; verify unaffected shader variants and packaged/cache
+      compatibility. Otherwise qualify the chosen restriction within its stated limits.
+  ☐ Completion: one refactored foundation passes its scoped checks, linked docs/settings agree, obsolete
+    implementations are removed, and second review plus independent completion audit pass.
+
+Phase 8: Complete native geometry rendering into the atomic virtual shadow pool
+  Depends on Phase 7 and retained native publication/candidate contracts from Phases 2–3.
+  Outcome: complete native-scene replacement depth pages use virtual-coordinate rasterization and atomic
+  writes, without per-page CPU selection readback or native geometry ownership changes.
+
+  ☐ Finish native scene adapters from the checkpoint drafts using the refactored interfaces.
+    ☐ Traverse poolsByRenderPass[renderPass][atlas] once per bounded batch; resolve current chunk ranges,
+      preserve native culling arrays/statistics, detail eligibility and storage lifetime. No pool registry,
+      copied meshes, per-page pool scan or mesh-pool classification hooks.
+    ☐ Complete ordinary indexed and shader-storage terrain inputs and moving-chunk transforms; include
+      receivers/offscreen casters and material/atlas inputs needed for actual draws.
+    ☐ Finish entity/non-terrain drawing and once-per-frame offscreen preparation; preserve object instancing,
+      skinning, animation, material changes and creation/disappearance/change publication.
+  ☐ Implement bounded GPU candidate-to-geometry/view selection and initialized indirect commands.
+    ☐ Intersect chunk partition boxes with relevant view/page demand, resolve eligible current ranges and
+      deduplicate geometry/view work. A draw instance may affect multiple physical tiles; do not rebuild
+      one-instance-per-page execution. Keep object and view selection explicit.
+    ☐ Require complete candidates/scene inputs for fresh admission and bound probes, input visits, pairs,
+      commands and counting/emission repeats. CPU supplies group/command intervals without selection readback.
+    ☐ Admit complete replacement pages and freeze writable assignments before clearing/drawing. Charge
+      vertex/tessellation work, virtual raster area and conservative overdraw estimates; late pixel rejection
+      alone is not a work bound. Never truncate required casters and publish success.
+  ☐ Implement material-compatible virtual-coordinate shaders using compact selectors and separate view
+    projections, after final deformation in ordinary/tessellated/skinned paths.
+    ☐ Preserve cutouts, UV/atlas sampling, warping, displacement, foliage, winding and source-near crossings.
+      Apply material rejection before atomics; helper/invalid fragments cannot update shadow storage.
+    ☐ Translate virtual texel/page coordinates into physical destinations. Check view/source identity,
+      writable assignment and renderable-page status before atomic accumulation; protect cached,
+      unrequested and retained stale tiles, including sparse holes inside a bounding rectangle.
+    ☐ Apply the Phase 6B raster-region design implemented in Phase 7 and preserve framebuffer/viewport state.
+      Do not introduce
+      custom clip distances, physical-layer routing or optional hardware capabilities implicitly.
+  ☐ Integrate selective integer clear, required native draws and complete replacement publication.
+    ☐ Apply geometry/pose/material changes before classifying currentness; evaluate retained stale depths
+      separately. Recheck native storage before submission and reject obsolete ranges.
+    ☐ Order clear, atomics, publication and image/texture reads through RHI barriers and safe lifetimes.
+      Per-texel atomicity does not provide whole-page completion or authorize resource retirement.
+    ☐ Handle overflow, source change, failed selection and cancellation without modifying retained sampled
+      tiles or publishing partial depth; preserve illumination when no result is eligible.
+  ☐ Delegate native-adapter and actual GPU raster checks: ordinary/SSBO/tessellated/skinned geometry,
+    material rejection, moving/offscreen casters, near crossings, multiple views/banks, page boundaries,
+    competing writers, sparse renderable masks, untouched cached tiles and forced capacity failures.
+    ☐ Include retessellation relocation, preparation, scene entry/removal, temporal expiry, delayed
+      replacement and memory pressure. Retain baseline capability and shader identity receipts.
+  ☐ Completion: native-scene atomic depths and temporal replacement pass scoped checks; ownership and
+    failure behavior are verified, docs reconciled, and second review/independent completion audit pass.
+    Production demand/readiness and measured live performance remain Phases 9–11.
+
+Phase 9: Integrate current-frame demand, arbitration and readiness
+  Depends on Phases 2–4 and 7–8; Phase 5 records the checkpoint only.
   Outcome: one bounded current-frame shadow update produces coherent per-light surface readiness before
-  shading. Controlled integration proves the gate before production consumer migration in Phase 7.
+  shading. Controlled integration proves the gate before production consumer migration in Phase 10.
 
   ☐ Integrate scene preparation, current light capture, surface-demand prepass, candidate/page work and
     readiness publication before the earliest participating surface draw, preserving downstream draw order.
+    ☐ Freeze compact view/projection records and renderable replacement-page mappings, then order integer
+      clear, virtual raster/atomic writes, completion and sampling visibility before publishing readiness.
     ☐ Place the gate after VgeLightsRenderer's current capture; do not rely on the late opaque 8.5-to-9.0
       receiver/direct-light interval for earlier forward surfaces.
     ☐ Generate current opaque/cutout, entity/foliage, water and all contributing transparent-layer requests.
@@ -448,7 +689,9 @@ Phase 6: Integrate current-frame demand, arbitration and readiness
       are allowed only with complete coverage and charged extra demand. Feedback history only prioritizes.
   ☐ Implement persisted settings and the scheduler against actual resource and work counters.
     ☐ Enforce aggregate input/traversal/expansion/group/slot/instance/draw/retry limits across the entire
-      batch, not a full allowance per group or array. Include demand and entity preparation costs.
+      batch, not a full allowance per group or pool bank. Include demand and entity preparation costs.
+      Charge geometry/view expansion, virtual raster footprint, tessellation/overdraw estimates, atomic
+      workload, page clearing and retained/replacement memory; pixel rejection is not free work.
     ☐ Use directional/local reservations with borrowing and safe reclamation; retain independent sun/moon
       opportunities. Apply carried-source preference, visible contribution/cost, bounded waiting age,
       stable-ID ties, selection margins and valid-state hold times from the quality profile.
@@ -456,32 +699,48 @@ Phase 6: Integrate current-frame demand, arbitration and readiness
       minimum acceptable detail cannot fit. Bound retries; larger coarse pages may still be too expensive.
     ☐ Use nonblocking timing feedback for later cost estimates, never as proof of completeness or an exact
       frame-time ceiling. Keep all temporary generations, coverage metadata and change processing charged.
+    ☐ Schedule refresh of retained stale results within finite age/motion limits; use stable priorities,
+      bounded waiting and hysteresis without resetting deadlines on repeated edits or light motion.
+      Account for concurrent old/new projection coverage, replacement storage and failed refresh attempts.
+      Under overload retain only eligible covered results, then reduce detail or withdraw the light.
   ☐ Reduce page validity/coverage to per-light readiness before any participating surface consumer.
-    ☐ Reject unfinished demand, request overflow, unresolved geometry and invalidation work. Verify new
-      receiver containment even for unchanged light/scene/page identity; replace depths when required.
-    ☐ Retain illumination for unavailable lights. Never sample partial, stale or reassigned depths or
-      silently switch to page-shaped local fallbacks. Keep sun/moon readiness independent.
-    ☐ Implement sustained complete-coverage recovery and detail hysteresis. Fade only while current depths
-      remain supplied and budgeted; unexpected loss goes unshadowed immediately, without stale-depth fading.
+    ☐ Reject unfinished demand and request overflow. Unresolved geometry/invalidation work cannot certify
+      current results; separately check whether retained results cover all current demand under Phase 7.
+      Verify receiver containment in the selected rendered projection, even when page identity is unchanged.
+    ☐ Publish current, permitted-stale or unavailable status with the chosen sampling metadata. Retain
+      illumination for unavailable lights. Never sample partial, hard-invalid, expired or reassigned depths
+      or silently switch to page-shaped local fallbacks. Keep sun/moon readiness independent.
+    ☐ Implement sustained complete-coverage recovery and detail hysteresis. Any transition must remain
+      within temporal eligibility and budgets; fade cannot extend expiry or authorize missing coverage.
+      Hard loss of eligibility goes unshadowed before shading.
   ☐ Add counters/debug views for page requests/residency/validity, receiving coverage, candidate age and
     covered motion, unfinished traversal, overflow causes, source identity, selected detail, readiness,
-    withdrawal/recovery, missing samples and baseline command/geometry cost.
+    withdrawal/recovery, missing samples and baseline command/geometry cost. Separate current and stale
+    duty cycles, rendered age, stale duration, motion error, refresh waiting and expiry/withdrawal reasons.
+    ☐ Expose virtual raster footprint, geometry/view repetitions, candidate/page rejection, writable versus
+      retained tiles, atomic workload and contention proxies where measurable. Distinguish measured timings
+      from conservative admission estimates; atomic completion does not establish page completeness.
   ☐ Delegate combined integration/failure checks for fresh visibility, transparent layers, motion within
     candidate coverage with depth invalidation, shared pages gaining receivers, overload, fair/stable
-    recovery, memory shrink/format reset and in-flight work. Verify no CPU completion wait is introduced.
+    recovery, memory shrink/format reset and in-flight work. Include sustained edits/motion, expiry during
+    overload and insufficient replacement memory. Verify no CPU completion wait is introduced.
   ☐ Completion: current-frame readiness precedes every intended consumer, complete-light fallback and
     bounded work are verified, diagnostics explain failures and no partial prototype is enabled in
     production ahead of the coherent surface migration.
 
-Phase 7: Migrate all participating surface lighting coherently
-  Depends on Phase 6.
+Phase 10: Migrate all participating surface lighting coherently
+  Depends on Phase 9.
   Outcome: surface consumers use the shared virtual shadow system for simultaneous celestial and local
   lights, with one provider per light/consumer and complete current demand/readiness.
 
   ☐ Integrate shared shadow lookup and the same current light/readiness snapshot into deferred direct
     lighting, forward surfaces, entities/foliage, water/liquids and other participating transparent paths.
-    ☐ Revalidate static sampler-bank capacity and supported configurations against each completed consumer's
-      actual bindings; reject unsupported capacity rather than introducing a hidden optional extension.
+    ☐ Use the published rendered projection for permitted stale shadow lookup while direct illumination
+      uses the current light. All surface paths must agree on temporal eligibility, coverage and expiry;
+      never substitute current projection matrices for retained depth metadata.
+    ☐ Use the refactored integer-pool depth decode and virtual PCF lookup everywhere; remove D32F/layer
+      assumptions. Revalidate integer sampler/image/view-resource capacities against every completed
+      consumer's bindings without introducing a hidden optional extension.
     ☐ Update AtmosphereLighting publication, direct-light evaluation/intensity bounds and all forward
       consumers to retain independent solar and lunar contributions. Preserve calibration and storage units.
     ☐ Attenuate each light's direct term only; preserve ambient/emissive terms and unshadowed illumination
@@ -499,40 +758,53 @@ Phase 7: Migrate all participating surface lighting coherently
     ☐ Run canonical shader/build/package verification on the coherent migrated batch and reconcile package
       assets with the tested shaders/binary. Do not equate this evidence with live appearance/performance.
   ☐ Update permanent rendering/configuration documentation and source-to-consumer ownership records.
-  ☐ Completion: every required surface path uses current consistent shadows with one provider; native
-    migration, disabled behavior and resource restoration are verified. Runtime qualification remains
-    explicitly open until Phase 8.
+  ☐ Completion: every required surface path uses consistent current or permitted stale shadows with one
+    provider; native migration, disabled behavior and resource restoration are verified. Runtime
+    qualification remains explicitly open until Phase 11.
 
-Phase 8: Qualify surface correctness, performance and visual behavior
-  Depends on Phase 7.
+Phase 11: Qualify surface correctness, performance and visual behavior
+  Depends on Phase 10.
   Outcome: the basic surface system meets agreed hardware-specific performance/quality conditions before
   full fog integration. A cheap frame caused by routinely withdrawing shadows cannot satisfy this gate.
 
   ☐ Delegate the complete relevant correctness/regression batch, retaining valid earlier scoped evidence.
     ☐ Cover baseline OpenGL 4.5 with optional paths disabled, representative capability limits, lifecycle
       and exhaustion, edits opening passages, streaming gaps, invalidating casters and coverage growth.
+    ☐ Qualify atomic nearest-depth determinism, encoding/bias, page addressing, material rejection before
+      writes, resource barriers and cached/stale tile preservation. Adopting Unreal's architecture alone
+      establishes neither a speedup nor visual equivalence.
     ☐ Resolve any remaining near-source/depth-precision/material-opacity questions using actual geometry
       and image evidence; keep unproven connectivity pruning disabled with the bounds-only path operational.
+    ☐ Verify policy compliance separately from fresh-depth correctness: missing/lingering shadows within
+      allowed reuse are measured artifacts, while exceeded bounds, wrong projections and obsolete native
+      range access are failures. Exercise continuous retessellation and rapidly carried/rotating lights.
   ☐ Collect attributable CPU/GPU p50/p95/p99 receipts under the Phase 1 combined dynamic workloads.
     ☐ Separate demand, publication, candidate maintenance, command generation, selective clear, depth and
-      sampling cost. Record memory/retirement, false positives, repeated geometry, inactive slots and ready
-      duty cycle; include initial fill, sustained motion, editing, streaming and recovery.
+      sampling cost. Measure virtual raster area, sparse-page rejection, geometry/view repetitions, atomic
+      workload/contention and the chosen raster-region restriction under dense and sparse demand.
+      Record memory/retirement, false positives, inactive slots and ready duty cycle; report current and
+      permitted-stale availability separately, age/error distributions and
+      refresh starvation/expiry. Include initial fill, sustained motion, editing, streaming and recovery.
     ☐ Record hardware, capabilities, scene/configuration, executable/shader identity, sampling conditions
       and observed variability. Static cache-hit scenes are supplemental, not moving-light acceptance.
     ☐ Calibrate and document shipping profiles, finite limits and accepted quality/performance envelopes.
       If the baseline cannot meet them, keep this gate open and review changes within the proposal's
-      constraints; do not silently add extensions, stale depths or caster-distance limits.
+      constraints; do not silently add extensions, relax approved temporal bounds or add caster-distance limits.
   ☐ Obtain user-run visual acceptance for simultaneous sun/moon, carried/moving lights, cutout/entity/
     foliage/water/transparent shadows, offscreen occluders, seams/contact bias, low angles, streaming
     edges, detail changes and whole-light withdrawal/recovery. Retain observations and limitations.
+    ☐ Calibrate finite stale-age and angular/translation tolerances against visible shadow lag, removed-wall
+      ghosting, newly placed occluders, replacement transitions and useful fresh-update frequency. Evaluate
+      fresh-update frequency alongside availability; availability alone does not establish acceptable visual
+      quality. Retain user acceptance of the measured temporal behavior.
   ☐ Reconcile permanent docs, calibrated settings, diagnostics and qualification receipts; perform second
     review and independent audit before recording surface acceptance.
   ☐ Completion: correctness receipts, measured envelopes with useful shadow availability and user visual
     acceptance support the surface workload. Any unresolved required result stays open; full fog rendering
     has not been claimed or substituted for surface qualification.
 
-Phase 9: Fully implement shadowed volumetric fog
-  Depends on Phase 8. This is the final rendering-feature implementation phase.
+Phase 12: Fully implement shadowed volumetric fog
+  Depends on Phase 11. This is the final rendering-feature implementation phase.
   Outcome: volume lighting consumes the same pages with its own coverage, budgeted work, readiness and
   history validity, while preserving the qualified surface behavior.
 
@@ -540,6 +812,8 @@ Phase 9: Fully implement shadowed volumetric fog
     and filter footprints to shared demand without imposing broad coarse coverage on every light.
     ☐ Define and implement the fog resolution/coverage profile, including any justified coarse demand;
       use the existing light projections, source identities and candidate completeness rules.
+    ☐ Use the shared integer-pool depth decode, virtual addressing, rendered projections and temporal
+      states; add no separate depth-attachment renderer or unbudgeted physical pool for fog.
     ☐ Schedule fog demand/page work before volume lighting, after giving surface coverage priority.
       Preserve current frame snapshots and charge volume-only work and metadata to shared budgets.
   ☐ Implement coverage-aware surface-page reuse and complete replacements for wider volume demand.
@@ -548,9 +822,12 @@ Phase 9: Fully implement shadowed volumetric fog
     ☐ If a replacement cannot fit safely, defer fog expansion while keeping the complete surface result.
       Fog-only work must not evict required surface pages or withdraw surface shadows.
   ☐ Publish independent per-light fog readiness and apply shadows to each light's volume contribution.
-    ☐ Missing fog coverage leaves that contribution unshadowed. Reject obsolete history on light/projection,
-      page validity and readiness changes rather than accumulating old shadowing.
-    ☐ Preserve simultaneous celestial/local behavior and the no-stale-depth policy under moving lights.
+    ☐ Missing fog coverage leaves that contribution unshadowed. Qualify fog use of the same bounded temporal
+      states and matching rendered projections, with separate volume coverage and readiness. Surface stale
+      eligibility alone cannot authorize fog samples outside the retained receiving region.
+    ☐ Reject obsolete fog history on projection, depth replacement, temporal eligibility or readiness changes;
+      history accumulation cannot extend stale expiry. Preserve simultaneous celestial/local behavior and
+      measure compounded shadow lag and fog-history artifacts under moving lights.
   ☐ Delegate GPU and integrated fog checks for volume coverage/filtering, shared-page depth differences,
     replacement exhaustion, surface preservation, history rejection, transitions and both light types.
   ☐ Measure the combined surface/fog workload with the same attribution and availability metrics; obtain
@@ -559,14 +836,17 @@ Phase 9: Fully implement shadowed volumetric fog
   ☐ Completion: full fog integration, independent readiness/history behavior, shared-budget contention
     and preserved surface results are verified and accepted; no further shadow feature is deferred to cleanup.
 
-Phase 10: Final qualification, review and document cleanup
-  Depends on Phase 9 and all preceding completion criteria.
+Phase 13: Final qualification, review and document cleanup
+  Depends on Phase 12 and all preceding completion criteria.
   Outcome: the complete proposal is reconciled to qualified package artifacts, required evidence and permanent
   documentation, with temporary implementation-support material removed safely.
 
-  ☐ Reconcile every row of the coverage map and every proposal requirement to implementation locations,
-    tests, package evidence and runtime/visual receipts; retain each evidence type's limits.
-    ☐ Keep required fog, moving-light, baseline capability, ownership and completeness work open if unmet.
+  ☐ Reconcile every coverage-map row, both approved amendments and every remaining proposal requirement
+    to implementation locations, tests, package evidence and runtime/visual receipts; retain each
+    evidence type's limits.
+    ☐ Keep required fog, moving-light, atomic-rendering, temporal-policy, baseline capability, ownership
+      and completeness work open if unmet. Verify no superseded layered-page renderer, full-matrix transport,
+      per-page geometry-instance path or legacy D32F storage survives as a compatibility shim.
       Any exceptional deferral needs explicit approved proposal reconciliation and rationale, not an
       unchecked runtime gap relabeled as finished work.
   ☐ Delegate final canonical build, relevant regression and package verification after the finished batch.

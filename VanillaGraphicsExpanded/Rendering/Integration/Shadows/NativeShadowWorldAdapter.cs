@@ -244,6 +244,44 @@ internal sealed class NativeShadowWorldAdapter : IDisposable
         }
     }
 
+    /// <summary>Freezes current hide/detail eligibility from chunk-owned ranges without consulting pool allocations.</summary>
+    internal bool TryCaptureDrawEligibility(ShadowWorldPublication captured, NativeShadowTerrainDetail detail,
+        int visitAllowance, out uint[] eligibility)
+    {
+        lock (gate)
+        {
+            eligibility = [];
+            if (disposed || mutations != 0 || !captured.Complete || !ReferenceEquals(captured, publication)
+                || captured.Generation != generation || visitAllowance < captured.Table.Length
+                || captured.Ranges.Length > visitAllowance - captured.Table.Length) return false;
+            var result = new uint[captured.Ranges.Length];
+            foreach (var entry in captured.Table)
+            {
+                if ((entry.Flags & 2) == 0) continue;
+                long index = unchecked((long)((ulong)entry.NativeLow | (ulong)entry.NativeHigh << 32));
+                if (!chunks.TryGetValue(index, out var chunk) || chunk.Disposed) return false;
+                var centers = NativeShadowChunkFields.Centers(chunk);
+                var edges = NativeShadowChunkFields.Edges(chunk);
+                if (centers is null || edges is null || centers.Length + (long)edges.Length != entry.RangeCount) return false;
+                int offset = checked((int)entry.RangeOffset);
+                // Array identity/ranges are rechecked under the same native mutation gate
+                // as submission. Eligibility is frame data and never a membership registry.
+                foreach (var locations in new[] { centers, edges })
+                    foreach (var location in locations)
+                    {
+                        var expected = captured.Ranges[offset];
+                        if (location is null || location.PoolId != expected.PoolId || location.IndicesStart != expected.IndexStart
+                            || location.IndicesEnd - location.IndicesStart != expected.IndexCount
+                            || location.VerticesStart != expected.VertexStart || location.VerticesEnd - location.VerticesStart != expected.VertexCount
+                            || location.LodLevel != expected.Detail) return false;
+                        result[offset++] = detail.Eligible(location) ? 1u : 0u;
+                    }
+            }
+            eligibility = result;
+            return true;
+        }
+    }
+
     /// <summary>Releases references and withdraws certificates without disposing native chunks or meshes.</summary>
     public void Dispose()
     {
