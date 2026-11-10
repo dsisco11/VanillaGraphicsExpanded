@@ -2,7 +2,7 @@
 
 This is the implementation design for the [shared virtual shadow map proposal](Rendering.VirtualShadowMaps.Proposal.md).
 It specifies interfaces and invariants. Native input publication and the bounded dependency primitives
-described below are implemented; shadow rendering, admission and sampling are **not implemented**.
+described below and GPU candidate traversal are implemented; shadow rendering, admission and sampling are **not implemented**.
 The [implementation plan](Rendering.VirtualShadowMaps.todo)
 controls delivery. Numerical profiles are provisional, not measured shipping defaults.
 The [qualification protocol](Rendering.VirtualShadowMaps.Qualification.md) defines the evidence needed
@@ -45,20 +45,81 @@ Native indices, lifetimes and revisions use low/high 32-bit words; coordinates r
 Native range descriptions are 32 bytes. CPU and GPU retain absolute chunk identity; bounded relative
 conversion rejects integer overflow. `ShadowWorldGpuBuffers` uploads only changed complete publications
 through RHI-owned SSBOs. Adapter owner identity scopes generations across reconnect/reconfiguration;
-invalid inputs withdraw the upload certificate. None of this enables GPU candidate selection yet.
+invalid inputs withdraw the upload certificate. Candidate traversal borrows this exact upload certificate.
 
 `ShadowSceneChanges` bounds non-terrain history, retains previous/current bounds and relevant revisions,
 and advances a broad invalidation epoch before dropping unknown or exhausted history. Pending changes
 prohibit certification. `ShadowReceivingCoverage` checks depth-inclusive bounds and applied dependency
 watermarks independently of page identity. Actual entity/moving-caster adapters are still unimplemented.
 
-The currently accepted JSON configuration is `VirtualShadows.Inputs`: `ChunkCapacity` (65536),
+The native input JSON configuration is `VirtualShadows.Inputs`: `ChunkCapacity` (65536),
 `RangeCapacity` (524288), `ChangeCapacity` (8192), and `ProbeLimit` (128). These are provisional finite
 input allowances, not the total shadow budget or shadow enablement. The existing `ConfigModSystem`
 materializes/sanitizes them; reload withdraws the frozen publication while preserving pending edits,
 failed uploads and queued tessellation stamps. Retained work drains when a smaller allowance is applied;
 new work cannot silently discard its history. A genuine native map reset or world exit ends that history.
-GPU resources are lazy. The remaining settings schema below is intended design, not accepted configuration.
+GPU resources are lazy. Candidate-specific settings are described below; the remaining settings schema
+is intended design, not accepted configuration.
+
+## GPU chunk occlusion candidates
+
+`ShadowCandidateRequest` anchors a receiver box and either a complete directional cap or point-source
+movement box. All candidate bounds use chunk-grid units; native world envelopes are converted from
+block units and must match in full. Integer domain origins preserve absolute XYZ/dimension identities.
+Relative extents beyond the supported arithmetic range are rejected, never shortened. Directional cap
+component extrema are analytic, including interior poles; a fixed-sign axis or up to six overlapping
+signed dominant-axis sectors supplies conservative slope bounds. Point requests do not impose another
+attenuation radius. Current demand remains responsible for using the lighting radius convention.
+
+`shadows/candidates.csh` executes the proposed whole-slab interval products and finite segment inequalities
+in double precision on the OpenGL 4.5 baseline. Closed boundary coverage includes both touching cells.
+The existing SPIR-V-only compute loader is not the runtime route for this shader: the narrow
+`ComputeShaderAsset.CreateBaselineFromAssets` boundary loads its self-contained GLSL source through
+RHI shader creation and the same generated binding contract. The canonical offline catalog still
+compiles and validates the shader. The existing `ShaderSourceCode` preprocessor applies generated fixed
+defines (including `VGE_SPIRV_BUILD`); unapplied structural/specialization options are rejected. No optional
+SPIR-V driver-ingestion capability is needed; other shader owners keep their existing loading policy.
+Arithmetic bounds expand outwards: local inputs are limited to 2^21 chunk units, domains to a 2^20
+index span, and the short arithmetic chains use an absolute 1e-7 plus relative 1e-11 allowance in chunk
+units. This intentionally admits boundary false positives. No mesh bounds, triangle inspection or
+CPU candidate enumeration participates in production selection.
+
+`ShadowCandidatePool` allocates a fixed number of headers, each owning a fixed span of 64-coordinate
+segments and a bounded hash table. The entire layout, including unused, building and retiring spans,
+counts against `AllocatedBytes`. Old and replacement associations occupy separate slots in this same
+allocation. Retirement withdraws the handle and polls an RHI fence before slot reuse. Allocation checks
+cached SSBO limits and the configured memory allowance; it never silently reduces the declared domain.
+Native world buffers are borrowed input allocations and remain charged to their input owner. A later
+shared scheduler must account both owners within the total shadow budget.
+
+The generated binding contract declares six SSBOs: persistent per-slot inputs, 128-byte headers,
+16-byte absolute coordinate entries, dedup storage, changed partitions and the current 64-byte native
+lookup. Selection stays on GPU. Headers distinguish clearing, traversal, dependency validation,
+complete spatial selection, capacity exhaustion and stale inputs; a complete spatial set with a nonzero
+unresolved count cannot certify drawable coverage. Slab/cell/probe/change allowances are separate.
+Hash clearing and partial collision probes are resumable work. Each batch permits at most one slice per
+slot, conservatively reserves its work against aggregate ceilings, and preserves cursors across batches.
+
+`BeginBatch` requires a contiguous, complete changed-partition interval and an exact current native
+upload. Before use, `Advance` checks source lifetime, world owner, domain/influence generations, motion,
+receiver containment and history epoch, then queues bounded GPU checks. Repeated intervals retain their
+change cursor. Changed partitions are checked against conservative covered regions; native publication
+changes trigger bounded lookup validation over the retained coordinates. Missing or pending cells remain
+unresolved. Cached empty/connectivity metadata never removes coordinates; connectivity pruning is disabled.
+The future frame coordinator supplies the contiguous interval before consumers and may not use an
+association whose slice was not admitted or whose current GPU certificate is incomplete.
+
+Candidate coverage ignores projection generation deliberately. A different light basis/position still
+invalidates depth separately. `NeedsRefresh` and the GPU header's refresh flag expose the configured guard
+for replacement scheduling; predictions never extend validity. Later admission/rendering integration owns
+light selection, replacement scheduling and depth publication. Shader replacement requires a fresh pool.
+
+The accepted `VirtualShadows.Candidates` controls are provisional: `MemoryMiB` 16, `HeaderCapacity` 32,
+`SegmentsPerAssociation` 64, `DedupCapacity` 8192, `ProbeLimit` 128 and `ChangeCapacity` 8192. Slice ceilings
+are 64 slabs, 4096 cells, 32768 probes and 256 changed partitions; corresponding whole-batch ceilings are
+1024, 65536, 524288 and 8192. `RefreshGuardFraction` defaults to 0.25. Invalid fields sanitize to finite
+defaults; incompatible aggregate memory/hardware layouts reject allocation. Pools freeze the policy at
+creation; live rendering reconfiguration and the total resource budget belong to the later coordinator.
 
 ## Ownership and source layout
 
@@ -255,7 +316,7 @@ explicitly owned remaining consumers.
 ## Persisted settings and effective policy
 
 The opt-in `VirtualShadows` object in [VgeConfig](../VanillaGraphicsExpanded/LumOn/VgeConfig.cs)
-currently exposes input-publication allowances. Extend it with the remaining schema below when rendering
+currently exposes input-publication and candidate allowances. Extend it with the remaining schema below when rendering
 policy is implemented. Its types live in `Rendering/Shadows/Configuration`, avoiding further
 growth of unrelated nested settings. [ConfigModSystem](../VanillaGraphicsExpanded/ModSystems/ConfigModSystem.cs)
 continues to load/sanitize, materialize missing defaults and apply ConfigLib paths; it remains the configuration

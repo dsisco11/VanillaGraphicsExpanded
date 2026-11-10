@@ -17,6 +17,10 @@ internal sealed class ShadowWorldGpuBuffers : IDisposable
     /// <summary>Reports actual owned payload allocation, including a minimum empty-range sentinel.</summary>
     internal long AllocatedBytes { get; private set; }
 
+    /// <summary>Checks the exact upload owner and generation before another GPU producer borrows the lookup.</summary>
+    internal bool Matches(ShadowWorldPublication publication) => publication.Complete && generation == publication.Generation
+        && owner == publication.Owner && table is { IsValid: true } && ranges is { IsValid: true };
+
     /// <summary>Replaces storage only for a changed publication; failed or partial inputs withdraw the certificate.</summary>
     internal bool Upload(ShadowWorldPublication publication)
     {

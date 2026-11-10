@@ -2,9 +2,9 @@ Shared virtual shadow maps
 ==========================
 
 Source proposal: [Rendering.VirtualShadowMaps.Proposal.md](Rendering.VirtualShadowMaps.Proposal.md)
-Status: Phases 1 and 2 complete. Shadows are not enabled.
-Authority: the audited proposal governs scope and behavior. The explicit complete-todo-phase 2 request
-authorizes Phase 2; later phases remain unchecked. The proposal's recommendations are the
+Status: Phases 1–3 complete. Shadows are not enabled.
+Authority: the audited proposal governs scope and behavior. The explicit complete-todo-phase 3 request
+authorizes Phase 3; later phases remain unchecked. The proposal's recommendations are the
 planned design, while its numerical starting values remain tuning hypotheses.
 
 Goal and governing contracts
@@ -239,37 +239,73 @@ Phase 3: Generate and reuse conservative GPU chunk occlusion candidates
   Outcome: GPU associations are conservatively complete, resumable and reusable across covered light
   movement independently of depth updates. No triangle/mesh-AABB inspection is used for terrain search.
 
-  ☐ Implement the proposal's chunk-grid slab sweep for directional caps and point-source boxes.
-    ☐ For directional coverage, choose fixed-sign bounded axial components, partition across covering
+  Controlling sources: proposal World publication and cache contract, Dynamic lighting and validity,
+  Chunk occlusion candidates (all subsections), and OpenGL 4.5 execution contract; implementation contracts
+  Publication interfaces, Generations/failure/lifetime and Persisted settings; qualification protocol
+  Evidence boundaries and Correctness and fault matrix. All tasks inherit the governing contracts above.
+  Task-to-document/evidence mapping:
+  | Task group | Source requirements | Implementation and verification |
+  | --- | --- | --- |
+  | Conservative sweep | Proposal directional/point slab bounds and boundary ownership; contracts fixed-grid coordinates | ShadowCandidateRequest analytic cap sectors and candidates.csh full slab intervals; independent exhaustive CPU box reference versus real GPU output |
+  | Storage and continuation | Proposal world/cache and pausing; contracts bounded publication and generations | ShadowCandidatePool/Header, fixed 64-coordinate segments and resumable dedup; pause, output/probe/slot exhaustion, aggregate allowances and retirement checks |
+  | Reuse and changes | Proposal motion reuse, loaded domain and classification; contracts unknown cells and lost history | Anchored coverage, GPU changed-partition checks and current world lookup; motion, influence/domain/history, interior missing cells and empty-to-filled checks; connectivity pruning disabled |
+  | Configuration and evidence | Contracts finite policy/effective bytes; qualification correctness and evidence routes | VirtualShadows.Candidates; canonical shader-enabled build and delegated CPU/GPU checks; no runtime/performance or visual acceptance claim |
+
+  Verification, 2026-11-09: delegated canonical Debug build passed with 20 warnings / 0 errors.
+  Focused CPU checks passed 52/52 and real GPU checks passed 11/11, both with no failures/skips.
+  GPU execution used NVIDIA RTX 4090, OpenGL 4.5.0 NVIDIA 610.88 and GLSL 4.50. The candidate
+  asset uses baseline GLSL compilation through the existing shader preprocessor and RHI owner;
+  optional SPIR-V driver ingestion is not required. Offline production/test catalogs validated
+  762/911 variants. Production/test-copy DLL and source/copied candidate shader hashes match.
+  Receipts: [build](../artifacts/virtual-shadow-maps/phase3/build-attempt5-20261109-183327-105.log),
+  [CPU](../artifacts/virtual-shadow-maps/phase3/phase3-cpu-attempt6.trx),
+  [GPU](../artifacts/virtual-shadow-maps/phase3/phase3-gpu-attempt6.trx),
+  [GPU command and provenance](../artifacts/virtual-shadow-maps/phase3/gpu-attempt6-20261109-184013-737.log).
+  Commands (repository root, MSBUILDDISABLENODEREUSE=1):
+    dotnet build -c Debug --tl:off -v:minimal VanillaGraphicsExpanded\VanillaGraphicsExpanded.csproj
+    dotnet test VanillaGraphicsExpanded.Tests\VanillaGraphicsExpanded.Tests.csproj -c Debug --settings VanillaGraphicsExpanded.Tests\UnitTests.runsettings --filter "FullyQualifiedName~Rendering.Shadows" --logger "trx;LogFileName=phase3-cpu-attempt6.trx" --results-directory artifacts\virtual-shadow-maps\phase3
+    dotnet test VanillaGraphicsExpanded.Tests\VanillaGraphicsExpanded.Tests.csproj -c Debug --settings VanillaGraphicsExpanded.Tests\AllTests.runsettings --filter "FullyQualifiedName~ShadowCandidateTraversalTests|FullyQualifiedName~ShadowWorldGpuBufferTests" --logger "trx;LogFileName=phase3-gpu-attempt6.trx" --results-directory artifacts\virtual-shadow-maps\phase3
+  Tested exhaustive reference comparisons had zero missing cells and zero extra cells; the GPU
+  receipt records slab/cell/probe visits, duplicates and allocated bytes per exercised case.
+  Resumed collision and multi-sector cases also completed without omitted or duplicate cells.
+  These bounded fixtures qualify candidate generation, reuse, invalidation and resource lifetime;
+  they do not establish live-game integration, shadow appearance, performance or package acceptance.
+  Connectivity pruning remains disabled; refresh demand is exposed for the later scheduler.
+
+  Completion review, 2026-11-09: primary second review, configured test review and independent
+  audit-stage-completion passed. No required Phase 3 findings remain; later phases stay unchecked.
+
+  ☑ Implement the proposal's chunk-grid slab sweep for directional caps and point-source boxes.
+    ☑ For directional coverage, choose fixed-sign bounded axial components, partition across covering
       signed dominant-axis sectors when necessary and conservatively bound the full cap interior.
-    ☐ Use the stated hMin/hMax and transverse slope interval products; enumerate every intersected slab
+    ☑ Use the stated hMin/hMax and transverse slope interval products; enumerate every intersected slab
       to the declared domain boundary, including low sun angles, rather than following a center ray.
-    ☐ For point lights, bound the receiver/source segment hull, solve each slab's linear u inequalities
+    ☑ For point lights, bound the receiver/source segment hull, solve each slab's linear u inequalities
       over [0,1], and use transverse endpoint extrema. Include receiver/source cells and overlap cases;
       do not extend paths infinitely beyond the source or drop eligible receivers using another radius.
-    ☐ Apply closed-boundary cell coverage, outward numerical bounds, negative coordinates, signed-axis
+    ☑ Apply closed-boundary cell coverage, outward numerical bounds, negative coordinates, signed-axis
       reflection and initial/final slab rules. Do not substitute corner rays or an arbitrary inward epsilon.
-  ☐ Implement bounded headers, segmented coordinate lists, deduplication and continuation storage.
-    ☐ Bound slab advances, cell visits and output separately; retain subset/slab/transverse cursor and
+  ☑ Implement bounded headers, segmented coordinate lists, deduplication and continuation storage.
+    ☑ Bound slab advances, cell visits and output separately; retain subset/slab/transverse cursor and
       input generation. Revalidate coverage/dependencies before resuming or publishing.
-    ☐ Publish only complete deduplicated results. Charge old and replacement generations to the same
+    ☑ Publish only complete deduplicated results. Charge old and replacement generations to the same
       memory budget; exhausted output remains incomplete rather than shortening the search horizon.
-    ☐ Refresh within the configured guard; retain valid associations during depth updates and expire
+    ☑ Refresh within the configured guard; retain valid associations during depth updates and expire
       them when motion/influence/domain coverage or relevant dependencies no longer hold.
-  ☐ Apply bounded GPU changed-partition checks to active covered regions and pruning dependencies.
-    ☐ Retain coordinates in bounds-only lists and evaluate current geometry/emptiness at consumption.
+  ☑ Apply bounded GPU changed-partition checks to active covered regions and pruning dependencies.
+    ☑ Retain coordinates in bounds-only lists and evaluate current geometry/emptiness at consumption.
       If empty coordinates are omitted, record emptiness dependencies and invalidate on change or lost proof.
-    ☐ Publish existing face-pair connectivity/freshness without another voxel scan. Do not call it an
+    ☑ Publish existing face-pair connectivity/freshness without another voxel scan. Do not call it an
       exact solid flag or straight-through hole test; stale/unavailable connectivity stays potentially open.
-    ☐ Qualify opacity equivalence and conservative path coverage before enabling connectivity pruning.
+    ☑ Qualify opacity equivalence and conservative path coverage before enabling connectivity pruning.
       Retain blocking chunks, handle source/receiver-inside cases and fall back to bounds-only selection
       wherever pruning is unproven. Opening passages must invalidate affected pruned associations.
-  ☐ Delegate deterministic CPU-reference and real GPU comparisons over bounded exhaustive chunk-box
+  ☑ Delegate deterministic CPU-reference and real GPU comparisons over bounded exhaustive chunk-box
     domains: cap interiors/sectors, near-horizontal directions, negative/boundary cases, point overlap,
     self-shadow cells, movement within/outside coverage, empty edits, streaming and pause/resume/overflow.
-    ☐ Require zero missing reference occluders; record false positives, visits, deduplication and storage
+    ☑ Require zero missing reference occluders; record false positives, visits, deduplication and storage
       costs separately. Reference enumeration is verification tooling, not a production CPU candidate path.
-  ☐ Completion: conservative GPU results and bounded failure/continuation behavior have attributable
+  ☑ Completion: conservative GPU results and bounded failure/continuation behavior have attributable
     receipts; pruning has either passed its proof gate or is explicitly disabled in favor of bounds-only
     operation. Association reuse never certifies old depth under a changed projection.
 
