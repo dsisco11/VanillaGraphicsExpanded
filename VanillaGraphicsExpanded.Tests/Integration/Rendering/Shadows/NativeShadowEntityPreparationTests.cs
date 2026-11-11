@@ -84,7 +84,7 @@ public sealed class NativeShadowEntityPreparationTests
         animation.Verify(manager => manager.OnClientFrame(It.IsAny<float>()), Times.Once);
     }
 
-    /// <summary>An offscreen entity without an animation manager still receives its current renderer preparation.</summary>
+    /// <summary>An offscreen entity without an animator still receives its current renderer preparation.</summary>
     [Fact]
     public void MissingAnimatorDoesNotPreventRendererPreparation()
     {
@@ -94,12 +94,13 @@ public sealed class NativeShadowEntityPreparationTests
         var renderer = CountingRenderer.Create(entity);
         preparation.Begin(new Dictionary<long, EntityRenderer> { [entity.EntityId] = renderer });
 
-        // Act: Request the same preparation performed before the native optional animation call.
+        // Act: Request renderer preparation while the entity has a manager with no active Animator.
         var animation = preparation.AnimationFor(entity, .02f);
         preparation.End(false);
 
-        // Assert: No animator is required to publish the prepared renderer snapshot.
-        Assert.Null(animation);
+        // Assert: The manager exists without an Animator, and renderer preparation still completes.
+        Assert.NotNull(animation);
+        Assert.Null(animation.Animator);
         Assert.Equal(1, renderer.BeforeRenderCalls);
         Assert.True(preparation.Complete);
         Assert.Same(renderer, Assert.Single(preparation.Renderers));
@@ -158,6 +159,9 @@ public sealed class NativeShadowEntityPreparationTests
         #region Public API
         /// <summary>Records the call that the installed engine normally gates by visible culling.</summary>
         public override void BeforeRender(float dt) => BeforeRenderCalls++;
+
+        /// <summary>Releases no resources because this uninitialized fixture never creates renderer-owned graphics objects.</summary>
+        public override void Dispose() { }
         #endregion
 
         #region Internal API

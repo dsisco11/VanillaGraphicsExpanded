@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Rendering.Spirv;
@@ -13,14 +14,22 @@ internal sealed record PackagedShaderInterface(
     string Configuration,
     PackagedStageInterface Interface)
 {
-    public const int CurrentVersion = 2;
+    public const int CurrentVersion = 3;
+    public const string CurrentExtractor = "spirv-cross-2.23.0;interface-v3";
 }
 
-/// <summary>Portable numeric declarations for one structural shader variant.</summary>
+/// <summary>Portable numeric declarations and built-in activity for one structural shader variant.</summary>
 internal sealed record PackagedStageInterface(
     ImmutableArray<PackagedInterfaceVariable> Inputs,
     ImmutableArray<PackagedInterfaceVariable> Outputs,
-    ImmutableArray<PackagedExecutionMode> ExecutionModes);
+    ImmutableArray<PackagedExecutionMode> ExecutionModes,
+    PackagedClipDistance ClipInput,
+    PackagedClipDistance ClipOutput);
+
+/// <summary>Separates compiler-proven activity from the declared array extent; zero denotes no declaration.</summary>
+internal sealed record PackagedClipDistance(
+    [property: JsonRequired] bool Active,
+    [property: JsonRequired] uint DeclaredExtent);
 
 /// <summary>A portable stage declaration, not proof of final linked activity or a driver address.</summary>
 internal sealed record PackagedInterfaceVariable(

@@ -10,11 +10,13 @@ namespace VanillaGraphicsExpanded.Rendering.Shadows.Candidates;
 internal sealed partial class ShadowCandidateShader : GpuComputeProgram, IShadowCandidateBindings
 {
     #region Public API
-    /// <summary>Loads the catalog-validated GLSL source through RHI without optional SPIR-V ingestion.</summary>
+    /// <summary>Loads matching packaged SPIR-V and compiler metadata through the existing asset owner.</summary>
     internal static ShadowCandidateShader Create(ICoreAPI api)
     {
         var layout = new GpuProgramLayout(); layout.RegisterContract(Contract.Stages[0].Bindings);
-        return new(ComputeShaderAsset.CreateBaselineFromAssets(api, new ShaderSettings(Contract), layout, "Shadows.Candidates"));
+        if (!ComputeShaderAsset.TryCreateFromAssets(api, new ShaderSettings(Contract), out var asset, out var diagnostic, "Shadows.Candidates", layout: layout))
+            throw new System.InvalidOperationException(diagnostic);
+        return new(asset!);
     }
     #endregion
     #region Private

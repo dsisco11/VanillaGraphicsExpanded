@@ -197,6 +197,10 @@
       }
     },
     "integer": {
+      "VSM_PAGE_MEMORY": { "code": "VirtualShadows.Pages.MemoryMiB", "clientSide": true, "name": "VirtualShadows/Pages/MemoryMiB", "ingui": "vanillagraphicsexpanded:config-shadow-page-memory", "comment": "vanillagraphicsexpanded:config-shadow-page-memory-tooltip", "default": 128, "weight": 30, "range": { "min": 1, "max": 4096, "step": 1 } },
+      "VSM_DRAW_MEMORY": { "code": "VirtualShadows.Drawing.MemoryMiB", "clientSide": true, "name": "VirtualShadows/Drawing/MemoryMiB", "ingui": "vanillagraphicsexpanded:config-shadow-draw-memory", "comment": "vanillagraphicsexpanded:config-shadow-draw-memory-tooltip", "default": 32, "weight": 30.1, "range": { "min": 1, "max": 4096, "step": 1 } },
+      "VSM_VIEW_CAPACITY": { "code": "VirtualShadows.Drawing.ViewCapacity", "clientSide": true, "name": "VirtualShadows/Drawing/ViewCapacity", "ingui": "vanillagraphicsexpanded:config-shadow-view-capacity", "comment": "vanillagraphicsexpanded:config-shadow-view-capacity-tooltip", "default": 128, "weight": 30.2, "range": { "min": 1, "max": 8192, "step": 1 } },
+      "VSM_RASTER_PIXELS": { "code": "VirtualShadows.Drawing.RasterPixels", "clientSide": true, "name": "VirtualShadows/Drawing/RasterPixels", "ingui": "vanillagraphicsexpanded:config-shadow-raster-pixels", "comment": "vanillagraphicsexpanded:config-shadow-raster-pixels-tooltip", "default": 16777216, "weight": 30.3, "range": { "min": 1, "max": 2147483647, "step": 65536 } },
       "CLOUD_QUALITY": { "code": "Clouds.Quality", "clientSide": true, "name": "Clouds/Quality", "ingui": "vanillagraphicsexpanded:config-cloud-quality", "comment": "vanillagraphicsexpanded:config-cloud-quality-tooltip", "default": 2, "range": { "min": 0, "max": 4, "step": 1 }, "weight": 0.05 },
       "CLOUD_LIGHTING_RAYS": { "code": "Clouds.LightingRaysPerUpdate", "clientSide": true, "name": "Clouds/LightingRaysPerUpdate", "ingui": "vanillagraphicsexpanded:config-cloud-lighting-rays", "comment": "vanillagraphicsexpanded:config-cloud-lighting-rays-tooltip", "default": 0, "range": { "min": 0, "max": 327680, "step": 2560 }, "weight": 0.55 },
       "CLOUD_TRACE_RESOLUTION": {
@@ -492,6 +496,10 @@
       }
     },
     "float": {
+      "VSM_RENDERED_AGE": { "code": "VirtualShadows.Temporal.MaxRenderedAgeSeconds", "clientSide": true, "name": "VirtualShadows/Temporal/MaxRenderedAgeSeconds", "ingui": "vanillagraphicsexpanded:config-shadow-rendered-age", "comment": "vanillagraphicsexpanded:config-shadow-rendered-age-tooltip", "default": 0.25, "weight": 30, "range": { "min": 0, "max": 10, "step": 0.01 } },
+      "VSM_STALE_AGE": { "code": "VirtualShadows.Temporal.MaxStaleAgeSeconds", "clientSide": true, "name": "VirtualShadows/Temporal/MaxStaleAgeSeconds", "ingui": "vanillagraphicsexpanded:config-shadow-stale-age", "comment": "vanillagraphicsexpanded:config-shadow-stale-age-tooltip", "default": 0.1, "weight": 30.1, "range": { "min": 0, "max": 10, "step": 0.01 } },
+      "VSM_POINT_MOTION": { "code": "VirtualShadows.Temporal.MaxPointTranslationMetres", "clientSide": true, "name": "VirtualShadows/Temporal/MaxPointTranslationMetres", "ingui": "vanillagraphicsexpanded:config-shadow-point-motion", "comment": "vanillagraphicsexpanded:config-shadow-point-motion-tooltip", "default": 0.15, "weight": 30.2, "range": { "min": 0, "max": 4, "step": 0.01 } },
+      "VSM_DIRECTION_MOTION": { "code": "VirtualShadows.Temporal.MaxDirectionalAngleDegrees", "clientSide": true, "name": "VirtualShadows/Temporal/MaxDirectionalAngleDegrees", "ingui": "vanillagraphicsexpanded:config-shadow-direction-motion", "comment": "vanillagraphicsexpanded:config-shadow-direction-motion-tooltip", "default": 0.25, "weight": 30.3, "range": { "min": 0, "max": 10, "step": 0.01 } },
       "POST_BLOOMSTRENGTH": {
         "code": "Postprocessing.BloomStrength",
         "clientSide": true,

@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 
 namespace VanillaGraphicsExpanded.Rendering.Shadows.Configuration;
 
-/// <summary>Bounds complete scene preparation and page drawing across all groups and destination arrays.</summary>
+/// <summary>Bounds complete scene preparation, geometry/view pairing and virtual raster work across all groups.</summary>
 [JsonObject(MemberSerialization.OptIn)]
 public sealed class ShadowDrawSettings
 {
@@ -11,12 +11,14 @@ public sealed class ShadowDrawSettings
     [JsonProperty] public int GroupVisits { get; set; } = 4096;
     [JsonProperty] public int RangeVisits { get; set; } = 65536;
     [JsonProperty] public int EntityVisits { get; set; } = 4096;
-    [JsonProperty] public int PageCapacity { get; set; } = 128;
+    [JsonProperty] public int ViewCapacity { get; set; } = 128;
     [JsonProperty] public int PairCapacity { get; set; } = 32768;
     [JsonProperty] public int ProbeLimit { get; set; } = 128;
     [JsonProperty] public int ExpansionVisits { get; set; } = 1048576;
     [JsonProperty] public int CommandSlots { get; set; } = 65536;
-    [JsonProperty] public int PageInstances { get; set; } = 32768;
+    [JsonProperty] public int ViewInstances { get; set; } = 32768;
+    /// <summary>Aggregate admitted virtual raster pixels, before conservative material/overdraw cost.</summary>
+    [JsonProperty] public int RasterPixels { get; set; } = 16777216;
     [JsonProperty] public int EstimatedTriangles { get; set; } = 8388608;
 
     #region Public API
@@ -27,13 +29,14 @@ public sealed class ShadowDrawSettings
         GroupVisits = Valid(GroupVisits, 65536, 4096);
         RangeVisits = Valid(RangeVisits, 1048576, 65536);
         EntityVisits = Valid(EntityVisits, 65536, 4096);
-        PageCapacity = Valid(PageCapacity, 8192, 128);
+        ViewCapacity = Valid(ViewCapacity, 8192, 128);
         PairCapacity = Valid(PairCapacity, 1048576, 32768);
         if ((PairCapacity & (PairCapacity - 1)) != 0) PairCapacity = 32768;
         ProbeLimit = Valid(ProbeLimit, 65536, 128);
         ExpansionVisits = Valid(ExpansionVisits, 16777216, 1048576);
         CommandSlots = Valid(CommandSlots, 1048576, 65536);
-        PageInstances = Valid(PageInstances, 1048576, 32768);
+        ViewInstances = Valid(ViewInstances, 1048576, 32768);
+        RasterPixels = Valid(RasterPixels, int.MaxValue, 16777216);
         EstimatedTriangles = Valid(EstimatedTriangles, int.MaxValue, 8388608);
     }
 

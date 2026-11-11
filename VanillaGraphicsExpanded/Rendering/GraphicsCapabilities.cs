@@ -146,9 +146,11 @@ public sealed record GraphicsCapabilities
     public long MaxShaderStorageBlockSize { get; init; }
     /// <summary>Number of atomic-counter-buffer binding points.</summary>
     public int MaxAtomicCounterBufferBindings { get; init; }
-    /// <summary>Number of image-unit binding points, distinct from sampler texture units.</summary>
     /// <summary>Limits active image uniforms in one compute executable.</summary>
     public int MaxComputeImageUniforms { get; init; }
+    /// <summary>Limits active image uniforms in one fragment executable.</summary>
+    public int MaxFragmentImageUniforms { get; init; }
+    /// <summary>Number of image-unit binding points, distinct from sampler texture units.</summary>
     public int MaxImageUnits { get; init; }
     /// <summary>Maximum combined image uniforms across shader stages.</summary>
     public int MaxCombinedImageUnits { get; init; }

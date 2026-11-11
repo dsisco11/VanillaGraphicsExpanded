@@ -14,10 +14,12 @@ internal sealed class GraphicsExecutableInterface
     internal IReadOnlyList<Variable> Outputs { get; }
     internal PrimitiveTopology? GeometryInput { get; }
     internal PrimitiveTopology? TessellationOutput { get; }
+    /// <summary>Gets the compiler-derived contiguous clip enable count for this executable generation.</summary>
+    internal int ClipDistanceCount { get; }
 
     #region Public API
     /// <summary>Projects linked numeric locations from the manager snapshot without repeating native reflection.</summary>
-    internal GraphicsExecutableInterface(GpuProgramMetadata metadata)
+    internal GraphicsExecutableInterface(GpuProgramMetadata metadata, int clipDistanceCount = 0)
     {
         if (!metadata.ExecutableAvailable || metadata.Resources.IsDefault)
             throw new InvalidOperationException("A complete linked interface snapshot is required.");
@@ -25,6 +27,7 @@ internal sealed class GraphicsExecutableInterface
         Outputs = ReadPublishedVariables(metadata, ProgramResourceKind.ProgramOutput);
         GeometryInput = metadata.GeometryInput;
         TessellationOutput = metadata.TessellationOutput;
+        ClipDistanceCount = clipDistanceCount;
     }
     #endregion
 

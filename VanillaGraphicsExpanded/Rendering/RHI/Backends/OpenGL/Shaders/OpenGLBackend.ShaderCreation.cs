@@ -62,7 +62,8 @@ internal sealed partial class OpenGLBackend
             if (!CompleteProgramLink(program, out string log, request.Description.Stages.Select(stage => stage.Stage).ToArray()))
                 return RejectShader(request, log);
             var metadata = RHIResourceManager.RequireProgramSnapshot(program);
-            var graphics = request.Description.Kind == ShaderKind.Graphics ? new GraphicsExecutableInterface(metadata) : null;
+            var graphics = request.Description.Kind == ShaderKind.Graphics
+                ? new GraphicsExecutableInterface(metadata, GraphicsClipDistances.Resolve(request.Description.Stages, NativeCapabilities.MaxClipDistances)) : null;
             var prepared = new GpuProgramInterface(program.ProgramId, [request.Description.Bindings], graphics, metadata);
             foreach (var stage in request.Stages)
             {

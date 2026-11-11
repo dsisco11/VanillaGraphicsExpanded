@@ -18,9 +18,9 @@ public sealed class ShadowDrawSettingsTests
         config.VirtualShadows.Drawing = new ShadowDrawSettings
         {
             MemoryMiB = 48, GroupVisits = 120, RangeVisits = 240, EntityVisits = 60,
-            PageCapacity = 96, PairCapacity = 512, ProbeLimit = 32,
-            ExpansionVisits = 2048, CommandSlots = 1024, PageInstances = 768,
-            EstimatedTriangles = 1_250_000
+            ViewCapacity = 96, PairCapacity = 512, ProbeLimit = 32,
+            ExpansionVisits = 2048, CommandSlots = 1024, ViewInstances = 768,
+            RasterPixels = 6_000_000, EstimatedTriangles = 1_250_000
         };
 
         // Act: Restore and sanitize through the configuration owner's normal contract.
@@ -33,12 +33,13 @@ public sealed class ShadowDrawSettingsTests
         Assert.Equal(120, effective.GroupVisits);
         Assert.Equal(240, effective.RangeVisits);
         Assert.Equal(60, effective.EntityVisits);
-        Assert.Equal(96, effective.PageCapacity);
+        Assert.Equal(96, effective.ViewCapacity);
         Assert.Equal(512, effective.PairCapacity);
         Assert.Equal(32, effective.ProbeLimit);
         Assert.Equal(2048, effective.ExpansionVisits);
         Assert.Equal(1024, effective.CommandSlots);
-        Assert.Equal(768, effective.PageInstances);
+        Assert.Equal(768, effective.ViewInstances);
+        Assert.Equal(6_000_000, effective.RasterPixels);
         Assert.Equal(1_250_000, effective.EstimatedTriangles);
         restored.VirtualShadows.Drawing.CommandSlots = 8;
         Assert.Equal(1024, effective.CommandSlots);
@@ -52,8 +53,8 @@ public sealed class ShadowDrawSettingsTests
         var settings = new ShadowDrawSettings
         {
             MemoryMiB = 0, GroupVisits = -1, RangeVisits = 2_000_000, EntityVisits = 64,
-            PageCapacity = 9000, PairCapacity = 768, ProbeLimit = 0,
-            ExpansionVisits = 20_000_000, CommandSlots = 24, PageInstances = -2,
+            ViewCapacity = 9000, PairCapacity = 768, ProbeLimit = 0,
+            ExpansionVisits = 20_000_000, CommandSlots = 24, ViewInstances = -2, RasterPixels = 0,
             EstimatedTriangles = int.MaxValue
         };
 
@@ -66,12 +67,13 @@ public sealed class ShadowDrawSettingsTests
         Assert.Equal(4096, frozen.GroupVisits);
         Assert.Equal(65536, frozen.RangeVisits);
         Assert.Equal(64, frozen.EntityVisits);
-        Assert.Equal(128, frozen.PageCapacity);
+        Assert.Equal(128, frozen.ViewCapacity);
         Assert.Equal(32768, frozen.PairCapacity);
         Assert.Equal(128, frozen.ProbeLimit);
         Assert.Equal(1_048_576, frozen.ExpansionVisits);
         Assert.Equal(24, frozen.CommandSlots);
-        Assert.Equal(32768, frozen.PageInstances);
+        Assert.Equal(32768, frozen.ViewInstances);
+        Assert.Equal(16_777_216, frozen.RasterPixels);
         Assert.Equal(int.MaxValue, frozen.EstimatedTriangles);
     }
     #endregion

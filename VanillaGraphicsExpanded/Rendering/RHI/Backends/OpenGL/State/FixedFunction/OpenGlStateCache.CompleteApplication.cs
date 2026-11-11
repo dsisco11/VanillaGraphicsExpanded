@@ -28,7 +28,7 @@ internal sealed partial class OpenGlStateCache
         EnsureViewportLimits();
         // Skipped groups keep their actual cached values and knowledge, never the dormant declaration.
         ApplyPipelineDepthStencil(pipeline, dynamics, relevance);
-        ApplyPipelineRasterizer(pipeline, relevance.Rasterizer);
+        ApplyPipelineRasterizer(pipeline, relevance.Rasterizer, relevance.ClipDistanceCount);
         ApplyPipelineBlending(pipeline, relevance);
         ApplyPipelineSampling(pipeline.Sampling, relevance);
         ApplyPipelineAssembly(pipeline.Assembly, relevance.Assembly);

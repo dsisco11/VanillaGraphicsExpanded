@@ -138,6 +138,35 @@ public sealed class ShadowProjectionTests
         Assert.Equal(expectedDestinationDepth, destinationFace.Z, 12);
         Assert.NotEqual(sourceFace.Z, destinationFace.Z);
     }
+
+    /// <summary>Point virtual-view matrices map a noncentral face region to local clip coordinates with conventional depth.</summary>
+    [Fact]
+    public void PointRasterViewMatchesFaceProjectionForOffsetWorldOrigin()
+    {
+        // Arrange: select an off-center rectangle on +X and retain a translated light origin.
+        var origin = new Vector3d(7, -11, 13);
+        var point = new PointShadowProjection(Sun with { Kind = ShadowSourceKind.Entity }, 29, origin,
+            near: 0.25, far: 80, faceResolution: 64, pageSize: 8);
+        var region = new ShadowRasterRegion(16, 8, 16, 16);
+        var view = ShadowDrawView.Point(point, 0, region, new(18, 10, 12, 8), origin);
+        var direction = PointShadowProjection.Direction(0, u: -0.25, v: -0.5);
+        var world = origin + direction * 10;
+        var relative = world - view.Origin;
+
+        // Act: transform the origin-relative point using the immutable view matrix and independently project it by face.
+        var actual = Transform(view.Matrix, relative);
+        var face = point.Project(world, 0);
+        var expectedNdc = new Vector3d(2 * (face.X - region.X) / region.Width - 1,
+            2 * (face.Y - region.Y) / region.Height - 1, 2 * face.Z - 1);
+
+        // Assert: homogeneous output is divided before comparing NDC, and its W remains the point's forward distance.
+        Assert.Equal(expectedNdc.X, actual.X / actual.W, 6);
+        Assert.Equal(expectedNdc.Y, actual.Y / actual.W, 6);
+        Assert.Equal(expectedNdc.Z, actual.Z / actual.W, 6);
+        Assert.Equal(10, actual.W, 5);
+        Assert.Equal(0, actual.X / actual.W, 6);
+        Assert.Equal(0, actual.Y / actual.W, 6);
+    }
     #endregion
 
     #region Identity Validation and Page Clip Mapping
@@ -207,5 +236,14 @@ public sealed class ShadowProjectionTests
         Assert.Throws<ArgumentException>(() => projection.ProjectPage(world, key with { Projection = key.Projection + 1 }));
     }
     #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Applies the packed column-major view matrix without using the implementation's projection helper.</summary>
+    private static Vector4d Transform(System.Collections.Immutable.ImmutableArray<float> matrix, Vector3d point) => new(
+        matrix[0] * point.X + matrix[4] * point.Y + matrix[8] * point.Z + matrix[12],
+        matrix[1] * point.X + matrix[5] * point.Y + matrix[9] * point.Z + matrix[13],
+        matrix[2] * point.X + matrix[6] * point.Y + matrix[10] * point.Z + matrix[14],
+        matrix[3] * point.X + matrix[7] * point.Y + matrix[11] * point.Z + matrix[15]);
     #endregion
 }

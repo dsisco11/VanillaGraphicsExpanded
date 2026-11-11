@@ -3,38 +3,36 @@ using VanillaGraphicsExpanded.Numerics;
 
 namespace VanillaGraphicsExpanded.Rendering.Shadows.Projections;
 
-/// <summary>Builds homogeneous page projections for already-deformed positions relative to one frozen render origin.</summary>
+/// <summary>Builds homogeneous virtual-region projections for deformed positions relative to a frozen world origin.</summary>
 internal static class ShadowRasterProjection
 {
     #region Public API
-    /// <summary>Uses the same absolute light basis, page address and conventional depth as directional sampling.</summary>
-    internal static float[] Directional(DirectionalShadowProjection projection, ShadowPageKey page, Vector3d origin)
+    /// <summary>Projects a whole virtual region with world-consistent texel density and conventional depth.</summary>
+    internal static float[] Directional(DirectionalShadowProjection projection, int level, ShadowRasterRegion region, Vector3d origin)
     {
-        if (page.Source != projection.Source || page.Projection != projection.Generation)
-            throw new ArgumentException("Page and directional projection disagree.", nameof(page));
-        double width = projection.TexelWidth(page.FaceOrLevel) * projection.PageSize;
-        var x = projection.Right * (2 / width);
-        var y = projection.Up * (2 / width);
+        region.Validate();
+        double texel = projection.TexelWidth(level);
+        var x = projection.Right * (2 / (texel * region.Width));
+        var y = projection.Up * (2 / (texel * region.Height));
         var z = projection.Forward * (2 / (projection.Far - projection.Near));
         return Matrix(x, y, z, default,
-            Vector3d.Dot(origin, x) - (2.0 * page.X + 1),
-            Vector3d.Dot(origin, y) - (2.0 * page.Y + 1),
+            Vector3d.Dot(origin, x) - (2.0 * region.X / region.Width + 1),
+            Vector3d.Dot(origin, y) - (2.0 * region.Y / region.Height + 1),
             Vector3d.Dot(origin, z) - 2 * projection.Near / (projection.Far - projection.Near) - 1, 1);
     }
 
     /// <summary>Retains homogeneous W for near/source crossings instead of dividing positions before clipping.</summary>
-    internal static float[] Point(PointShadowProjection projection, ShadowPageKey page, Vector3d origin)
+    internal static float[] Point(PointShadowProjection projection, int face, ShadowRasterRegion region, Vector3d origin)
     {
-        if (page.Source != projection.Source || page.Projection != projection.Generation
-            || page.X < 0 || page.Y < 0 || page.X >= projection.FaceResolution / projection.PageSize
-            || page.Y >= projection.FaceResolution / projection.PageSize)
-            throw new ArgumentException("Page and point projection disagree.", nameof(page));
-        var forward = PointShadowProjection.Direction(page.FaceOrLevel, 0, 0);
-        var right = PointShadowProjection.Direction(page.FaceOrLevel, 1, 0) - forward;
-        var up = PointShadowProjection.Direction(page.FaceOrLevel, 0, 1) - forward;
-        double scale = (double)projection.FaceResolution / projection.PageSize;
-        var x = right * scale + forward * (scale - 2.0 * page.X - 1);
-        var y = up * scale + forward * (scale - 2.0 * page.Y - 1);
+        region.Validate();
+        if (!new ShadowRasterRegion(0, 0, projection.FaceResolution, projection.FaceResolution).Contains(region))
+            throw new ArgumentException("Virtual raster region exceeds its point face.", nameof(region));
+        var forward = PointShadowProjection.Direction(face, 0, 0);
+        var right = PointShadowProjection.Direction(face, 1, 0) - forward;
+        var up = PointShadowProjection.Direction(face, 0, 1) - forward;
+        double sx = (double)projection.FaceResolution / region.Width, sy = (double)projection.FaceResolution / region.Height;
+        var x = right * sx + forward * (sx - 2.0 * region.X / region.Width - 1);
+        var y = up * sy + forward * (sy - 2.0 * region.Y / region.Height - 1);
         var z = forward * ((projection.Far + projection.Near) / (projection.Far - projection.Near));
         var relative = origin - projection.Position;
         return Matrix(x, y, z, forward, Vector3d.Dot(relative, x), Vector3d.Dot(relative, y),

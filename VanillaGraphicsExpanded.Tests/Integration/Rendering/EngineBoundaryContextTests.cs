@@ -25,9 +25,12 @@ public sealed class EngineBoundaryContextTests(HeadlessGLFixture fixture) : Rend
         using var programs = new ComponentShaderPrograms();
         var sentinel = programs.Create<RasterDepthCopyShaderProgram>();
         var cache = OpenGlStateCache.Current;
+        bool originalClipDistance0 = GL.IsEnabled(EnableCap.ClipDistance0);
         cache.SetCapability(EnableCap.DepthTest, true);
+        cache.SetClipDistance(0, true);
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("ContextBoundary",
-            new PipelineStateCoverage(depth: DepthStateKnowledge.TestEnabled)), out var boundary));
+            new PipelineStateCoverage(depth: DepthStateKnowledge.TestEnabled,
+                rasterizer: RasterizerStateKnowledge.ClipDistances)), out var boundary));
         var observer = new CleanupObserver();
         boundary!.AddCleanup(EngineBoundaryCleanup.Shader, observer);
         var original = RenderContextRegistry.Current();
@@ -35,6 +38,7 @@ public sealed class EngineBoundaryContextTests(HeadlessGLFixture fixture) : Rend
         object registration = registrations[original.Handle]!;
         var replacement = new object();
         cache.SetCapability(EnableCap.DepthTest, false);
+        cache.SetClipDistance(0, false);
         GL.UseProgram(sentinel.ProgramId);
 #if DEBUG
         long calls = cache.FixedFunctionCalls;
@@ -66,6 +70,7 @@ public sealed class EngineBoundaryContextTests(HeadlessGLFixture fixture) : Rend
             Assert.Throws<EngineBoundaryRestoreException>(boundary.Dispose);
             Assert.Equal(0, observer.Calls);
             Assert.False(GL.IsEnabled(EnableCap.DepthTest));
+            Assert.False(GL.IsEnabled(EnableCap.ClipDistance0));
             Assert.Equal(sentinel.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
 #if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
@@ -78,6 +83,8 @@ public sealed class EngineBoundaryContextTests(HeadlessGLFixture fixture) : Rend
             lock (registrations) registrations[original.Handle] = registration;
             boundary.Dispose();
             Assert.True(GL.IsEnabled(EnableCap.DepthTest), $"Restoration depth={boundary.Snapshot.Depth.TestEnabled}; observer={observer.Calls}; original={original}; current={RenderContextRegistry.Current()}");
+            Assert.True(GL.IsEnabled(EnableCap.ClipDistance0));
+            cache.SetClipDistance(0, originalClipDistance0);
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
             cache.SetCapability(EnableCap.DepthTest, false);
         }

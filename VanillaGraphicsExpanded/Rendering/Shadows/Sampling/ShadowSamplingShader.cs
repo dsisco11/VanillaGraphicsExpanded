@@ -10,11 +10,13 @@ namespace VanillaGraphicsExpanded.Rendering.Shadows.Sampling;
 internal sealed partial class ShadowSamplingShader : GpuComputeProgram, IShadowSamplingBindings
 {
     #region Public API
-    /// <summary>Loads the same catalog-validated GLSL source used by the baseline shared sampler.</summary>
+    /// <summary>Loads matching packaged SPIR-V and compiler metadata through the existing asset owner.</summary>
     internal static ShadowSamplingShader Create(ICoreAPI api)
     {
         var layout = new GpuProgramLayout(); layout.RegisterContract(Contract.Stages[0].Bindings);
-        return new(ComputeShaderAsset.CreateBaselineFromAssets(api, new ShaderSettings(Contract), layout, "Shadows.Sampling"));
+        if (!ComputeShaderAsset.TryCreateFromAssets(api, new ShaderSettings(Contract), out var asset, out var diagnostic, "Shadows.Sampling", layout: layout))
+            throw new System.InvalidOperationException(diagnostic);
+        return new(asset!);
     }
     #endregion
     #region Private

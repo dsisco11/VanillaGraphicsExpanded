@@ -53,7 +53,7 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
         Assert.Equal(0, group.Atlas);
         Assert.Equal(7, group.PoolId);
         Assert.Equal(0x1a, group.TextureId);
-        Assert.Equal(0, group.Dimension);
+        Assert.Equal(3, group.Dimension);
         Assert.Equal((12d, 24d, 36d), (group.Origin.X, group.Origin.Y, group.Origin.Z));
         Assert.Equal(EnumChunkRenderPass.Liquid, liquidGroup.Pass);
         Assert.Null(liquidGroup.Geometry);
@@ -115,7 +115,7 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
         Assert.False(batch.IsCurrent);
     }
 
-    /// <summary>Range sorting builds one aggregate bounded command interval per current caster group and array.</summary>
+    /// <summary>Range sorting builds one bounded command interval per current caster group, independent of depth banks.</summary>
     [Fact]
     public void DrawCommandsAggregateAcrossNativeGroupsAndArrays()
     {
@@ -128,19 +128,17 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
             new ShadowDrawSettings { GroupVisits = 256 });
         var world = World([Range(17, 0, 3), Range(5, 0, 3)]);
 
-        // Act: Resolve complete current chunk ranges into two destination arrays.
-        var draws = NativeShadowDrawRanges.Create(batch, world, new uint[] { 1, 0 }, 2, 3, new ShadowDrawSettings());
+        // Act: Resolve complete current chunk ranges against the native groups without physical-bank expansion.
+        var draws = NativeShadowDrawRanges.Create(batch, world, new uint[] { 1, 0 }, 3, new ShadowDrawSettings());
 
-        // Assert: Commands follow captured native group order and each destination receives its own bounded interval.
-        Assert.Equal(4, draws.CommandCount);
-        Assert.Equal(new ShadowDrawInterval(0, 0, 0, 1), draws.Intervals[0]);
-        Assert.Equal(new ShadowDrawInterval(0, 1, 1, 1), draws.Intervals[1]);
-        Assert.Equal(new ShadowDrawInterval(1, 0, 2, 1), draws.Intervals[2]);
-        Assert.Equal(new ShadowDrawInterval(1, 1, 3, 1), draws.Intervals[3]);
+        // Assert: Commands follow captured native group order and each caster group gets one bounded interval.
+        Assert.Equal(2, draws.CommandCount);
+        Assert.Equal(new ShadowDrawInterval(0, 0, 1), draws.Intervals[0]);
+        Assert.Equal(new ShadowDrawInterval(1, 1, 1), draws.Intervals[1]);
         Assert.Equal((0u, 0u, 3u), (draws.Ranges[0].Group, draws.Ranges[0].Command, draws.Ranges[0].TriangleCost));
-        Assert.Equal((1u, 2u, 0u), (draws.Ranges[1].Group, draws.Ranges[1].Command, draws.Ranges[1].Eligible));
+        Assert.Equal((1u, 1u, 0u), (draws.Ranges[1].Group, draws.Ranges[1].Command, draws.Ranges[1].Eligible));
         Assert.Throws<InvalidOperationException>(() => NativeShadowDrawRanges.Create(batch, world,
-            new uint[] { 1, 0 }, 2, 3, new ShadowDrawSettings { CommandSlots = 3 }));
+            new uint[] { 1, 0 }, 3, new ShadowDrawSettings { CommandSlots = 1 }));
     }
 
     /// <summary>Unknown or repeated native pool identities cannot turn a missing range into complete draw coverage.</summary>
@@ -156,12 +154,12 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
 
         // Act and assert: Unknown ranges reject, and putting the same native pool under two categories is ambiguous.
         Assert.Throws<InvalidOperationException>(() => NativeShadowDrawRanges.Create(batch, unknown,
-            new uint[] { 1 }, 1, 1, new ShadowDrawSettings()));
+            new uint[] { 1 }, 1, new ShadowDrawSettings()));
         using var duplicate = NativeShadowTerrainAdapter.Capture(Renderer(
             (EnumChunkRenderPass.Opaque, storage.Pool), (EnumChunkRenderPass.TopSoil, storage.Pool)),
             new ShadowDrawSettings { GroupVisits = 256 });
         Assert.Throws<InvalidOperationException>(() => NativeShadowDrawRanges.Create(duplicate,
-            World([Range(21, 0, 3)]), new uint[] { 1 }, 1, 1, new ShadowDrawSettings()));
+            World([Range(21, 0, 3)]), new uint[] { 1 }, 1, new ShadowDrawSettings()));
     }
 
     /// <summary>A native index interval outside its captured pool allocation prevents command publication.</summary>
@@ -176,12 +174,12 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
 
         // Act and assert: The malformed current range never produces a command slot.
         Assert.Throws<InvalidOperationException>(() => NativeShadowDrawRanges.Create(batch,
-            World([Range(31, 2, 3)]), new uint[] { 1 }, 1, 1, new ShadowDrawSettings()));
+            World([Range(31, 2, 3)]), new uint[] { 1 }, 1, new ShadowDrawSettings()));
     }
 
-    /// <summary>Page metadata is an independent instanced input and adapter disposal leaves native VAO ownership intact.</summary>
+    /// <summary>Compact object/view pairs are an independent instanced input and leave native VAO ownership intact.</summary>
     [Fact]
-    public void PageInstancesExtendBorrowedInputsWithoutMutatingNativeVertexArray()
+    public void ViewInstancesExtendBorrowedInputsWithoutMutatingNativeVertexArray()
     {
         // Arrange: Capture an ordinary terrain pool with its original vertex attributes and element buffer.
         EnsureContextValid();
@@ -199,21 +197,21 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
         int nativeElements = storage.Mesh.vboIdIndex;
         int nativePosition = storage.Mesh.xyzVboId;
 
-        // Act: Append the GPU-selected page reference at instance rate to a separate RHI packet.
-        var pages = group.Geometry!.WithPages(new(new GpuBufferRef(pageReferences), 0, sizeof(uint)));
+        // Act: Append the compact object/view pair at instance rate to a separate RHI packet.
+        var views = group.Geometry!.WithViews(new(new GpuBufferRef(pageReferences), 0, 80));
 
-        // Assert: Four matrix columns and one integer destination use a single instance-rate record.
-        Assert.Equal(9, pages.Layout.Attributes.Length);
-        var pageAttribute = Assert.Single(System.Linq.Enumerable.Where(pages.Layout.Attributes, value => value.Location == 14));
-        Assert.Equal((4, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 10, 80, 1, 64),
-            (pageAttribute.Components, pageAttribute.Storage, pageAttribute.Interpretation, pageAttribute.Binding,
-                pageAttribute.Stride, pageAttribute.Divisor, pageAttribute.Offset));
-        Assert.Equal(5, pages.Streams.Length);
-        var pageStream = Assert.Single(System.Linq.Enumerable.Where(pages.Streams, value => value.Binding == 10));
-        Assert.Equal((nint)80, pageStream.Range.Length);
-        Assert.Equal(80, pageStream.Stride);
-        Assert.Equal(1, pageStream.Divisor);
-        Assert.Equal(3, pages.Indices!.Value.Range.Length / sizeof(uint));
+        // Assert: One two-word integer selector uses one compact eight-byte instance record.
+        Assert.Equal(5, views.Layout.Attributes.Count);
+        var viewAttribute = Assert.Single(System.Linq.Enumerable.Where(views.Layout.Attributes, value => value.Location == 10));
+        Assert.Equal((2, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 10, 8, 1, 0),
+            (viewAttribute.Components, viewAttribute.Storage, viewAttribute.Interpretation, viewAttribute.Binding,
+                viewAttribute.Stride, viewAttribute.Divisor, viewAttribute.Offset));
+        Assert.Equal(5, views.Streams.Length);
+        var viewStream = Assert.Single(System.Linq.Enumerable.Where(views.Streams, value => value.Binding == 10));
+        Assert.Equal((nint)80, viewStream.Range.Length);
+        Assert.Equal(8, viewStream.Stride);
+        Assert.Equal(1, viewStream.Divisor);
+        Assert.Equal(3, views.Indices!.Value.Range.Length / sizeof(uint));
         Assert.True(batch.IsCurrent);
 
         // Dispose the page adapter and confirm the game still owns its realized array and source buffers.
@@ -265,6 +263,11 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
         }).RequireResource();
 
         #region Public API
+        /// <summary>Exposes the fixture's engine-shaped pool and mesh to the adapter while fixture storage owns their native buffers.</summary>
+        internal MeshDataPool Pool { get; private set; } = null!;
+        /// <summary>Retains the native mesh identity whose VAO and streams remain owned by this fixture.</summary>
+        internal VAO Mesh { get; private set; } = null!;
+
         /// <summary>Releases fixture allocations only after the borrowed group has been disposed.</summary>
         public void Dispose()
         {

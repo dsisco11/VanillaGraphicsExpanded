@@ -14,11 +14,11 @@ internal sealed record NativeShadowDrawRanges(ImmutableArray<ShadowDrawRange> Ra
     #region Public API
     /// <summary>Sorts range descriptions by native pool ID, then consumes each authoritative group without a reverse category map.</summary>
     internal static NativeShadowDrawRanges Create(NativeShadowTerrainBatch batch, ShadowWorldPublication world,
-        ReadOnlySpan<uint> eligibility, int arrays, int tessellationAmplification, ShadowDrawSettings settings)
+        ReadOnlySpan<uint> eligibility, int tessellationAmplification, ShadowDrawSettings settings)
     {
         var policy = settings.Freeze();
         if (!batch.IsCurrent || !world.Complete || eligibility.Length != world.Ranges.Length
-            || arrays is < 1 or > 4 || tessellationAmplification < 1 || world.Ranges.Length > policy.RangeVisits)
+            || tessellationAmplification < 1 || world.Ranges.Length > policy.RangeVisits)
             throw new InvalidOperationException("Draw input publication or aggregate range allowance is unavailable.");
         // Sort references, not meshes or category membership. Native table order remains
         // the submission authority; the sorted range list exists only for this batch.
@@ -33,7 +33,7 @@ internal sealed record NativeShadowDrawRanges(ImmutableArray<ShadowDrawRange> Ra
             int first = LowerBound(world, order, group.PoolId), end = first;
             while (end < order.Length && world.Ranges[order[end]].PoolId == group.PoolId) end++;
             int count = end - first;
-            if (group.Casts && count > (policy.CommandSlots - commands) / arrays)
+            if (group.Casts && count > policy.CommandSlots - commands)
                 throw new InvalidOperationException("Aggregate terrain command allowance exhausted.");
             for (int cursor = first; cursor < end; cursor++)
             {
@@ -49,12 +49,11 @@ internal sealed record NativeShadowDrawRanges(ImmutableArray<ShadowDrawRange> Ra
                 uint cost = checked((uint)(range.IndexCount / 3) * (uint)tessellationAmplification);
                 output[index] = new((uint)groupIndex, (uint)(commands + cursor - first),
                     group.Casts ? eligibility[index] : 0, cost, (uint)range.IndexStart, (uint)range.IndexCount,
-                    0, range.RevisionLow, range.RevisionHigh, (uint)range.VertexStart, (uint)range.VertexCount, (uint)count);
+                    0, range.RevisionLow, range.RevisionHigh, (uint)range.VertexStart, (uint)range.VertexCount);
             }
             if (!group.Casts) continue;
-            for (int array = 0; array < arrays; array++)
-                intervals.Add(new(groupIndex, array, checked(commands + array * count), count));
-            commands = checked(commands + count * arrays);
+            intervals.Add(new(groupIndex, commands, count));
+            commands = checked(commands + count);
         }
         if (resolved.Any(value => !value)) throw new InvalidOperationException("A chunk range has no current native table group.");
         return new(ImmutableArray.Create(output), intervals.ToImmutable(), commands);

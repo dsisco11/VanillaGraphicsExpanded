@@ -20,7 +20,7 @@ internal static class PackagedInterfaceValidation
             throw Failure(path, "missing, malformed or stale binary association");
         var metadata = manifest!.Binaries[path].Interface;
         if (metadata == null || metadata.Version != PackagedShaderInterface.CurrentVersion ||
-            string.IsNullOrWhiteSpace(metadata.Extractor) || metadata.Stage != selection.Stage.Kind ||
+            metadata.Extractor != PackagedShaderInterface.CurrentExtractor || metadata.Stage != selection.Stage.Kind ||
             metadata.EntryPoint != selection.Stage.EntryPoint || metadata.StructuralKey != selection.Key ||
             metadata.Configuration is not ("Debug" or "Release") || metadata.Interface == null)
             throw Failure(path, "missing or incompatible interface schema/identity");
@@ -29,11 +29,20 @@ internal static class PackagedInterfaceValidation
         if (candidate.Inputs.IsDefault || candidate.Outputs.IsDefault || candidate.ExecutionModes.IsDefault)
             throw Failure(path, "malformed interface declarations");
         ValidateVariables(path, candidate);
+        ValidateClipDistance(path, candidate.ClipInput);
+        ValidateClipDistance(path, candidate.ClipOutput);
         return candidate;
     }
     #endregion
 
     #region Private
+    /// <summary>Requires explicit compiler activity facts and bounded declared extents.</summary>
+    private static void ValidateClipDistance(string path, PackagedClipDistance? value)
+    {
+        if (value == null || value.DeclaredExtent > int.MaxValue || value.Active && value.DeclaredExtent == 0)
+            throw Failure(path, "missing or malformed clip-distance facts");
+    }
+
     /// <summary>Rejects malformed numeric shapes before they can weaken linked interface validation.</summary>
     private static void ValidateVariables(string path, PackagedStageInterface candidate)
     {

@@ -15,5 +15,8 @@ internal interface IShadowPageBindings
     /// <summary>GPU result and monotonic assignment counter; no production readback is required.</summary>
     [ShaderBinding("PageResults", ShaderBindingKind.StorageBlock, 2, ShaderStageKind.Compute)]
     GpuShaderStorageBuffer? Results { set; }
+    /// <summary>Frozen per-batch writable assignment tokens, separate from sampled residency.</summary>
+    [ShaderBinding("WritableAssignments", ShaderBindingKind.StorageBlock, 3, ShaderStageKind.Compute)]
+    GpuShaderStorageBuffer? Writable { set; }
     #endregion
 }

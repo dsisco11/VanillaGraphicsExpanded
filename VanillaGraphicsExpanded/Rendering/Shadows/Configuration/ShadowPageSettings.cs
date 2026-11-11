@@ -9,8 +9,12 @@ public sealed class ShadowPageSettings
 {
     [JsonProperty] public int MemoryMiB { get; set; } = 128;
     [JsonProperty] public int PageSize { get; set; } = 128;
-    [JsonProperty] public int LayersPerArray { get; set; } = 256;
-    [JsonProperty] public int ArrayCapacity { get; set; } = 4;
+    /// <summary>Requested horizontal tile count in each integer bank.</summary>
+    [JsonProperty] public int TileColumns { get; set; } = 16;
+    /// <summary>Requested vertical tile count in each integer bank.</summary>
+    [JsonProperty] public int TileRows { get; set; } = 16;
+    /// <summary>Requested resident bank ceiling within the statically bound image/sampler interface.</summary>
+    [JsonProperty] public int BankCapacity { get; set; } = 4;
     [JsonProperty] public int ProbeLimit { get; set; } = 128;
     [JsonProperty] public int OperationsPerBatch { get; set; } = 256;
     [JsonProperty] public double PointNear { get; set; } = 0.05;
@@ -24,7 +28,8 @@ public sealed class ShadowPageSettings
     {
         MemoryMiB = Valid(MemoryMiB, 4096, 128); PageSize = Valid(PageSize, 1024, 128);
         if ((PageSize & (PageSize - 1)) != 0) PageSize = 128;
-        LayersPerArray = Valid(LayersPerArray, 2048, 256); ArrayCapacity = Valid(ArrayCapacity, 4, 4);
+        TileColumns = Valid(TileColumns, 128, 16); TileRows = Valid(TileRows, 128, 16);
+        BankCapacity = Valid(BankCapacity, 4, 4);
         ProbeLimit = Valid(ProbeLimit, 8192, 128); OperationsPerBatch = Valid(OperationsPerBatch, 65536, 256);
         if (!double.IsFinite(PointNear) || PointNear <= 0 || PointNear > 1) PointNear = 0.05;
         DepthBiasTexels = Bias(DepthBiasTexels, 0.5); NormalBiasTexels = Bias(NormalBiasTexels, 0.5);

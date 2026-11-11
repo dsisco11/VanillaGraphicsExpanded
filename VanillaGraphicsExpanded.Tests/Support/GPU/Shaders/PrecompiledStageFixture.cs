@@ -15,7 +15,10 @@ internal static class PrecompiledStageFixture
     /// <summary>Freezes one selected module and completes its native stage through the integration boundary.</summary>
     internal static GpuShaderModule Load(ShaderStageSelection selection, ShaderAssetReader read)
     {
-        var input = ShaderExecutableInputs.CreateStage(selection, read(selection.BinaryPath));
+        var binary = read(selection.BinaryPath);
+        var manifest = ShaderBinaryDigest.Parse(read(ShaderBinaryDigest.FileName));
+        var stageInterface = PackagedInterfaceValidation.Resolve(manifest, selection, binary);
+        var input = ShaderExecutableInputs.CreateStage(selection, binary, stageInterface);
         return VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CompileExternalStage(input).RequireResource();
     }
     /// <summary>Maps legacy test-native signatures to supplied semantic stage inputs.</summary>

@@ -23,6 +23,8 @@ internal sealed class GraphicsStateRelevance
     internal bool SampleMaskWords { get; }
     internal BlendStateKnowledge GlobalBlend { get; }
     internal PipelineValues<BlendStateKnowledge> Blending { get; }
+    /// <summary>Gets the immutable executable's compiler-derived clip enable count.</summary>
+    internal int ClipDistanceCount { get; }
 
     #region Public API
     /// <summary>Derives without native queries; absent emitted-primitive metadata takes the conservative path.</summary>
@@ -44,6 +46,7 @@ internal sealed class GraphicsStateRelevance
     internal GraphicsStateRelevance(RHIGraphicsPipelineDescription description, GraphicsCapabilities caps,
         GraphicsExecutableInterface? executable)
     {
+        ClipDistanceCount = executable?.ClipDistanceCount ?? 0;
         var depth = description.DepthStencil;
         Depth = DepthStateKnowledge.DepthRange;
         if (description.Targets.HasDepth)

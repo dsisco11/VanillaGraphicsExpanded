@@ -22,7 +22,7 @@ internal sealed partial class OpenGlStateCache
 
     #region Private
     /// <summary>Establishes only raster groups that can affect the prepared emitted primitive families.</summary>
-    private void ApplyPipelineRasterizer(RHIGraphicsPipelineDescription pipeline, RasterizerStateKnowledge relevant)
+    private void ApplyPipelineRasterizer(RHIGraphicsPipelineDescription pipeline, RasterizerStateKnowledge relevant, int clipDistanceCount)
     {
         var value = pipeline.Rasterizer;
         if (relevant.HasFlag(RasterizerStateKnowledge.CullEnabled)) SetCapability(EnableCap.CullFace, value.Cull);
@@ -40,16 +40,16 @@ internal sealed partial class OpenGlStateCache
         if (relevant.HasFlag(RasterizerStateKnowledge.LineWidth)) SetLineWidth(value.LineWidth);
         if (relevant.HasFlag(RasterizerStateKnowledge.PointSize)) SetPointSize(value.PointSize);
         if (relevant.HasFlag(RasterizerStateKnowledge.ProvokingVertex)) SetProvokingVertex(OpenGLRasterizerValues.ProvokingVertex(value.ProvokingVertex));
-        ApplyConfigurableRaster(value, relevant);
+        ApplyConfigurableRaster(value, relevant, clipDistanceCount);
     }
 
     /// <summary>Shares configurable native setters between explicit helpers and relevance-aware complete draws.</summary>
-    private void ApplyConfigurableRaster(RasterizerDesc value, RasterizerStateKnowledge relevant)
+    private void ApplyConfigurableRaster(RasterizerDesc value, RasterizerStateKnowledge relevant, int clipDistanceCount = 0)
     {
         var caps = GpuSupport.Graphics;
-        // Custom shader clipping is unsupported; never inherit the engine's enabled distances.
+        // Establish every supported enable so a non-clipping generation also clears previous state.
         if (relevant.HasFlag(RasterizerStateKnowledge.ClipDistances))
-            for (int i = 0; i < caps.MaxClipDistances; i++) SetClipDistance(i, false);
+            for (int i = 0; i < caps.MaxClipDistances; i++) SetClipDistance(i, i < clipDistanceCount);
         if (relevant.HasFlag(RasterizerStateKnowledge.ClipControl)) SetClipControl(OpenGLRasterizerValues.ClipOrigin(value.ClipOrigin), OpenGLRasterizerValues.ClipDepth(value.ClipDepth));
         if (relevant.HasFlag(RasterizerStateKnowledge.PointSpriteOrigin)) SetPointSpriteOrigin(OpenGLRasterizerValues.ToNativePointSpriteOrigin(value.PointSpriteOrigin));
         if (relevant.HasFlag(RasterizerStateKnowledge.LineSmooth)) SetLineSmooth(value.LineSmooth);

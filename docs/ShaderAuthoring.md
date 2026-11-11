@@ -243,6 +243,18 @@ out of runtime assets. Linked activity and driver resource addresses remain runt
 do not use binary rewriting, extra metadata manifests or filename-pairing rules to repair
 contract or packaging errors.
 
+Per-stage interface schema 3 also records compiler-reflected clip-distance input/output activity
+and literal array extent for the selected entry point. Activity and size are separate facts:
+an unused declaration does not enable clipping. Unsupported or unresolved extents fail the build.
+The extractor identity and exact binary digest invalidate older metadata through the existing
+cache/publication path. Packaged graphics stages carry these facts into immutable RHI inputs;
+missing metadata is an error, including when installing a cached driver executable.
+
+The final vertex-producing stage (VS, TES or GS) determines enabled clip distances. Active inputs
+must match the preceding producer and fit device limits. Generated stages must write every enabled
+element after final deformation on every emitted path; reflection of activity is not proof of
+complete-path assignment. There is no authored pipeline clip mask or runtime reflection per draw.
+
 ### Incremental builds
 
 Normal builds reuse validated source, variant, compiler and interface records. Shader edits

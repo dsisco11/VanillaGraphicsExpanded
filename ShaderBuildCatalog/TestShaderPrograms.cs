@@ -16,6 +16,64 @@ internal static partial class TestShaderPrograms
         foreach (string name in new[] { "complete-state", "rasterizer", "first-person" })
             programs.Add(new("tests/" + name, [Fixture(name, "vsh", ShaderStageKind.Vertex), Fixture(name, "fsh", ShaderStageKind.Fragment)], 1));
         programs.Add(new("tests/deletion", [Fixture("deletion", "vsh", ShaderStageKind.Vertex), Fixture("complete-state", "fsh", ShaderStageKind.Fragment)], 1));
+        var clipping = new GpuBindingContract();
+        clipping.FragmentOutputLocations.Add("result", 0);
+        programs.Add(new("tests/clip-distance-vertex", [
+            new("tests/clip-distance-vertex2.vsh", "tests/clip-distance-vertex2.vsh", ShaderStageKind.Vertex, new()),
+            new("tests/clip-distance.fsh", "tests/clip-distance.fsh", ShaderStageKind.Fragment, clipping)], 1));
+        programs.Add(new("tests/clip-distance-tessellation", [
+            new("tests/clip-distance-tess3.vsh", "tests/clip-distance-tess3.vsh", ShaderStageKind.Vertex, new()),
+            new("tests/clip-distance-tess.tesc", "tests/clip-distance-tess.tesc", ShaderStageKind.TessellationControl, new()),
+            new("tests/clip-distance-tess.tese", "tests/clip-distance-tess.tese", ShaderStageKind.TessellationEvaluation, new()),
+            new("tests/clip-distance.fsh", "tests/clip-distance.fsh", ShaderStageKind.Fragment, clipping)], 1));
+        programs.Add(new("tests/clip-distance-tessellation-geometry", [
+            new("tests/clip-distance-tess3.vsh", "tests/clip-distance-tess3.vsh", ShaderStageKind.Vertex, new()),
+            new("tests/clip-distance-tess.tesc", "tests/clip-distance-tess.tesc", ShaderStageKind.TessellationControl, new()),
+            new("tests/clip-distance-tess.tese", "tests/clip-distance-tess.tese", ShaderStageKind.TessellationEvaluation, new()),
+            new("tests/clip-distance-tess-geometry3.geom", "tests/clip-distance-tess-geometry3.geom", ShaderStageKind.Geometry, new()),
+            new("tests/clip-distance.fsh", "tests/clip-distance.fsh", ShaderStageKind.Fragment, clipping)], 1));
+        programs.Add(new("tests/clip-distance-mismatched-tessellation", [
+            new("tests/clip-distance-vertex2.vsh", "tests/clip-distance-vertex2.vsh", ShaderStageKind.Vertex, new()),
+            new("tests/clip-distance-tess.tesc", "tests/clip-distance-tess.tesc", ShaderStageKind.TessellationControl, new()),
+            new("tests/clip-distance-tess.tese", "tests/clip-distance-tess.tese", ShaderStageKind.TessellationEvaluation, new()),
+            new("tests/clip-distance.fsh", "tests/clip-distance.fsh", ShaderStageKind.Fragment, clipping)], 1));
+        programs.Add(new("tests/clip-distance-geometry", [
+            new("tests/clip-distance-geometry4.vsh", "tests/clip-distance-geometry4.vsh", ShaderStageKind.Vertex, new()),
+            new("tests/clip-distance-geometry.geom", "tests/clip-distance-geometry.geom", ShaderStageKind.Geometry, new()),
+            new("tests/clip-distance.fsh", "tests/clip-distance.fsh", ShaderStageKind.Fragment, clipping)], 1));
+        programs.Add(new("tests/clip-distance-geometry-inactive", [
+            new("tests/clip-distance-geometry4.vsh", "tests/clip-distance-geometry4.vsh", ShaderStageKind.Vertex, new()),
+            new("tests/clip-distance-geometry-inactive.geom", "tests/clip-distance-geometry-inactive.geom", ShaderStageKind.Geometry, new()),
+            new("tests/clip-distance.fsh", "tests/clip-distance.fsh", ShaderStageKind.Fragment, clipping)], 1));
+        programs.Add(new("tests/clip-distance-inactive", [
+            new("tests/clip-distance-inactive.vsh", "tests/clip-distance-inactive.vsh", ShaderStageKind.Vertex, new()),
+            new("tests/clip-distance.fsh", "tests/clip-distance.fsh", ShaderStageKind.Fragment, clipping)], 1));
+        var atomicWriter = new GpuBindingContract();
+        atomicWriter.RegisterShaderStorageBlockBinding("ShadowWriteEntries", 0);
+        atomicWriter.RegisterShaderStorageBlockBinding("ShadowWritableAssignments", 1);
+        atomicWriter.RegisterUniformBlockBinding("ShadowAtomicWriterInputs", 28);
+        atomicWriter.VaryingLocations.Add("atomicDepth", 0);
+        foreach (int unit in Enumerable.Range(0, 4))
+            atomicWriter.RegisterImageUnit("shadowBank" + unit, unit);
+        var atomicWriterVertex = new GpuBindingContract();
+        atomicWriterVertex.VaryingLocations.Add("atomicDepth", 0);
+        programs.Add(new("tests/shadow-atomic-writer", [
+            new("tests/shadow-atomic-writer.vsh", "tests/shadow-atomic-writer.vsh", ShaderStageKind.Vertex, atomicWriterVertex),
+            new("tests/shadow-atomic-writer.fsh", "tests/shadow-atomic-writer.fsh", ShaderStageKind.Fragment, atomicWriter)], 1));
+        var virtualShadowVertex = new GpuBindingContract();
+        virtualShadowVertex.RegisterSamplerUnit("shadowViews", 0);
+        virtualShadowVertex.VaryingLocations.Add("vge_shadowObject", 0);
+        virtualShadowVertex.VaryingLocations.Add("vge_shadowView", 1);
+        var virtualShadow = new GpuBindingContract();
+        virtualShadow.RegisterSamplerUnit("shadowViews", 0);
+        virtualShadow.VaryingLocations.Add("vge_shadowView", 1);
+        virtualShadow.RegisterShaderStorageBlockBinding("ShadowWriteEntries", 0);
+        virtualShadow.RegisterShaderStorageBlockBinding("ShadowWritableAssignments", 1);
+        foreach (int unit in Enumerable.Range(0, 4))
+            virtualShadow.RegisterImageUnit("shadowBank" + unit, unit);
+        programs.Add(new("tests/shadow-virtual", [
+            new("tests/shadow-virtual.vsh", "tests/shadow-virtual.vsh", ShaderStageKind.Vertex, virtualShadowVertex),
+            new("tests/shadow-virtual.fsh", "tests/shadow-virtual.fsh", ShaderStageKind.Fragment, virtualShadow)], 1));
         programs.Add(new("tests/temporal-debug", [Fixture("temporal-debug", "csh", ShaderStageKind.Compute)], 1));
         var surfaceWorkCollector = new GpuBindingContract();
         surfaceWorkCollector.RegisterShaderStorageBlockBinding("DiagnosticCounters", 4);

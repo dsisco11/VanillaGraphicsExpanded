@@ -40,8 +40,7 @@ internal sealed class TerrainShaderTestFixture : IDisposable
     /// <summary>Owns a precompiled reusable fixture alongside runtime-generated test stages.</summary>
     internal int Load(ShaderType type, string path)
     {
-        byte[] binary = TestAssetSnapshot.Built.Copy("shaders/" + path + ".spv");
-        var module = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), binary)).RequireResource();
+        var module = BuiltShaderFixture.LoadFixture(path, type);
         stages.Add(module!.ShaderId, (module, string.Empty));
         return module.ShaderId;
     }

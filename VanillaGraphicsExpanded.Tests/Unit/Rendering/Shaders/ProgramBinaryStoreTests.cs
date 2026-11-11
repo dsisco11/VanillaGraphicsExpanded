@@ -137,6 +137,7 @@ public sealed class ProgramBinaryStoreTests : IDisposable
         if (failure == "missing") Assert.Throws<FileNotFoundException>(prepare);
         else Assert.Throws<InvalidDataException>(prepare);
     }
+
     /// <summary>Removes any in-memory cache directory owned by this test class.</summary>
     public void Dispose()
     {
@@ -150,7 +151,7 @@ public sealed class ProgramBinaryStoreTests : IDisposable
     /// <summary>Creates coherent interface metadata for the synthetic cache identity fixture.</summary>
     private static ShaderBinaryDigest.Entry Entry(ShaderStageSelection stage, byte[] binary) =>
         new(binary.Length, Convert.ToHexString(SHA256.HashData(binary)),
-            new(PackagedShaderInterface.CurrentVersion, "test-compiler", stage.Stage.Kind, stage.Stage.EntryPoint,
-                stage.Key, "Release", new([], [], [])));
+            new(PackagedShaderInterface.CurrentVersion, PackagedShaderInterface.CurrentExtractor, stage.Stage.Kind, stage.Stage.EntryPoint,
+                stage.Key, "Release", new([], [], [], new(false, 0), new(false, 0))));
     #endregion
 }

@@ -64,8 +64,11 @@ Manager guard checks and context lifetime remain independent of suppression and 
 OpenGL 4.5 admission makes independent blending, clip control, sample shading, fixed-index restart,
 core DSA and multi-bind baseline. Limits and actual profile distinctions still apply. Optional features
 beyond that baseline require explicit support; there is no older-context fallback or retry after failure.
-User clip-distance enables are disabled for managed draws and restored to their engine values; authored
-custom clipping is unsupported. Modern line/polygon smoothing and programmable point origin remain
+Managed draws derive clip-distance enables from the packaged compiler metadata of the final VS/TES/GS
+producer. Active stage inputs and device limits are checked during executable preparation; prepared
+state retains the exact shader generation. Clipping-to-none disables prior enables, and engine boundaries
+restore native enables through the existing state cache. There is no authored custom-clipping mask.
+Modern line/polygon smoothing and programmable point origin remain
 profile-aware native state, separate from excluded legacy point smoothing/stipple.
 
 ## Engine integration

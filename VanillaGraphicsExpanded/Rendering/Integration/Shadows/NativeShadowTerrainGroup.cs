@@ -32,17 +32,20 @@ internal sealed class NativeShadowTerrainGroup : IDisposable
             ?? throw new NotSupportedException("Native pool has no supported realized terrain storage.");
         PoolId = NativeShadowTerrainFields.Id(pool); Pass = pass; Atlas = atlas; TextureId = textureId;
         Casts = NativeShadowTerrainAdapter.Casts(pass);
-        Dimension = pool.dimensionId;
-        Origin = new(pool.poolOrigin.X, pool.poolOrigin.Y, pool.poolOrigin.Z);
+        Dimension = NativeShadowTerrainFields.Dimension(pool);
+        var origin = NativeShadowTerrainFields.Origin(pool)
+            ?? throw new NotSupportedException("Native pool has no spatial origin.");
+        Origin = new(origin.X, origin.Y, origin.Z);
         vertices = pool.VerticesPoolSize; indices = pool.IndicesPoolSize;
         if (Casts) Geometry = new(mesh, vertices, indices);
     }
 
     /// <summary>Rejects changed native ownership and structural state before a borrowed submission.</summary>
     internal bool IsCurrent => (!Casts || Geometry is { IsPrepared: true }) && ReferenceEquals(NativeShadowTerrainFields.Mesh(pool), mesh)
-        && NativeShadowTerrainFields.Id(pool) == PoolId && pool.dimensionId == Dimension
+        && NativeShadowTerrainFields.Id(pool) == PoolId && NativeShadowTerrainFields.Dimension(pool) == Dimension
         && pool.VerticesPoolSize == vertices && pool.IndicesPoolSize == indices
-        && pool.poolOrigin.X == Origin.X && pool.poolOrigin.Y == Origin.Y && pool.poolOrigin.Z == Origin.Z;
+        && NativeShadowTerrainFields.Origin(pool) is { } origin
+        && origin.X == Origin.X && origin.Y == Origin.Y && origin.Z == Origin.Z;
 
     /// <summary>Ends this batch's borrow without retiring any engine allocation.</summary>
     public void Dispose() { Geometry?.Dispose(); }

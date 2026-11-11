@@ -14,8 +14,13 @@ internal static class ShaderResourcePreparation
         if (!binding.Active) return;
         if (texture.IsEmpty) { Require(binding, false); return; }
         var metadata = texture.RequireMetadata();
+        // Buffer textures have a tracked backing association rather than mip images.
+        // RequireMetadata already validates that association and its storage lifetime.
+        var format = metadata.Target == TextureDimension.Buffer
+            ? metadata.Buffer?.Format ?? throw new InvalidOperationException("Texture buffer association is unavailable.")
+            : SelectImage(metadata, 0).Format;
         if (GpuPreparedBindings.CompatibleTextureTarget(binding.Type) != (int)metadata.Target ||
-            !ShaderResourceFormatCompatibility.MatchesSampler(binding.Type, SelectImage(metadata, 0).Format))
+            !ShaderResourceFormatCompatibility.MatchesSampler(binding.Type, format))
             throw new InvalidOperationException($"Incompatible texture target for {binding.Contract.Name}.");
     }
     /// <summary>Checks image view bounds before any resource in the input set is published.</summary>

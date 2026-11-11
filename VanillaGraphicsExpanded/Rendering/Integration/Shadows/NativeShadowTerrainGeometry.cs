@@ -7,7 +7,7 @@ using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.Rendering.Integration.Shadows;
 
-/// <summary>Borrows ordinary terrain storage into a separate page-instanced vertex input.</summary>
+/// <summary>Borrows ordinary terrain storage into a private compact object/view vertex input.</summary>
 internal sealed class NativeShadowTerrainGeometry : IDisposable
 {
     private readonly EngineGeometryInputs native;
@@ -36,20 +36,16 @@ internal sealed class NativeShadowTerrainGeometry : IDisposable
         }, vertices, indices, invalidated: lifetime.Dispose);
     }
 
-    /// <summary>Adds GPU-generated page metadata to a private vertex input; base-instance addresses this stream.</summary>
-    internal RHIGeometryInputs WithPages(RHIBufferRange pageReferences)
+    /// <summary>Adds compact object/view indices to a private input; native mesh-pool streams remain unchanged.</summary>
+    internal RHIGeometryInputs WithViews(RHIBufferRange viewReferences)
     {
         if (!IsPrepared) throw new InvalidOperationException("Terrain storage was withdrawn.");
         // A distinct packet deliberately omits the imported VAO certificate: the RHI
         // realizes its own VAO, while this borrow expires with the original certificate.
         RHIVertexAttribute[] attributes = [
-            new(10, 4, VertexComponentFormat.Float, VertexInterpretation.Floating, 10, 0, 80, 1),
-            new(11, 4, VertexComponentFormat.Float, VertexInterpretation.Floating, 10, 16, 80, 1),
-            new(12, 4, VertexComponentFormat.Float, VertexInterpretation.Floating, 10, 32, 80, 1),
-            new(13, 4, VertexComponentFormat.Float, VertexInterpretation.Floating, 10, 48, 80, 1),
-            new(14, 4, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 10, 64, 80, 1)];
+            new(10, 2, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 10, 0, 8, 1)];
         var layout = new RHIVertexLayout(native.Inputs.Layout.Attributes.Concat(attributes));
-        var streams = native.Inputs.Streams.Append(new RHIVertexStream(10, pageReferences, 80, 1));
+        var streams = native.Inputs.Streams.Append(new RHIVertexStream(10, viewReferences, 8, 1));
         return new(layout, streams, native.Inputs.Indices, 0, lifetime);
     }
 

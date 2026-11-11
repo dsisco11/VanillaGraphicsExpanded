@@ -165,6 +165,8 @@ public static partial class GpuSupport
             MaxShaderStorageBlockSize = maxShaderStorageBlockSize,
             MaxAtomicCounterBufferBindings = maxAtomicCounterBufferBindings,
             MaxComputeImageUniforms = maxComputeImageUniforms,
+            MaxFragmentImageUniforms = capabilities.SupportsArbShaderImageLoadStore
+                ? SafeGetInt((GetPName)All.MaxFragmentImageUniforms) : 0,
             MaxImageUnits = maxImageUnits,
             MaxCombinedImageUnits = maxCombinedImageUnits,
             MaxColorAttachments = maxColorAttachments,

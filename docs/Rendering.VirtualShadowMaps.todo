@@ -2,10 +2,11 @@ Shared virtual shadow maps
 ==========================
 
 Source proposal: [Rendering.VirtualShadowMaps.Proposal.md](Rendering.VirtualShadowMaps.Proposal.md)
-Status: Phases 1–4 have receipts for their original contracts; affected foundations are reopened in
-Phase 7. Phase 5's draft checkpoint is committed; its implementation remains unverified and shadows
-remain disabled. Phase 6's history investigation and support assessment are complete. Phase 7 and all
-later implementation work remain open; the recorded baseline-ingestion question gates its dependent claim.
+Status: Phases 1–4 retain receipts for their original contracts. Phase 5's committed draft checkpoint
+has been refactored and qualified within Phase 7's controlled foundation scope. Phase 6's history
+investigation and support assessment and Phase 7 are complete. Shadows remain disabled; Phase 8 and
+all later implementation work remain open. The baseline uses the system's established OpenGL 4.5 plus
+GL_ARB_gl_spirv requirement; shader ingestion is not a new VSM platform decision.
 Authority: the user's approved Unreal-style atomic rendering and bounded temporal reuse decisions below
 supersede conflicting portions of the earlier proposal and plan. Unaffected proposal requirements remain
 binding. Phase 7 reconciles the proposal, implementation contracts and qualification protocol before
@@ -23,14 +24,15 @@ Goal and governing contracts
   Preserve native poolsByRenderPass[renderPass][atlas] authority and existing geometry ownership.
   No parallel mesh-pool registry, reverse classification map, per-page pool scan, copied terrain
   meshes, duplicate voxel connectivity analysis, or collection of pool-membership hooks.
-  OpenGL 4.5 is the complete baseline. Use compact draw/view identifiers, separate projection records,
+  OpenGL 4.5 plus GL_ARB_gl_spirv is the established system baseline (core SPIR-V support also satisfies
+  ingestion). Use compact draw/view identifiers, separate projection records,
   virtual-coordinate rasterization, page-table translation and atomic integer texture depth writes.
   Keep bounded initialized indirect intervals without requiring optional shader draw parameters,
   GPU draw-count buffers, bindless access or positive vertex/TES/geometry-stage SSBO limits.
   The approved Phase 6B direction derives clip-distance usage from compiled SPIR-V and packages it in
   existing per-stage shader metadata. Production shaders remain precompiled SPIR-V; no new runtime GLSL
-  compilation or parallel metadata system. Current runtime exclusion stays in effect until Phase 7
-  implements and qualifies the support; Phase 8 integrates it with actual native rendering.
+  compilation or parallel metadata system. Phase 7 implements and qualifies this support through
+  controlled fixtures; Phase 8 integrates it with actual native shadow rendering.
   Keep surface demand and readiness ahead of every participating surface consumer. Include all
   contributing transparent layers, filter footprints and receiver-position bias. Previous-frame
   feedback may prioritize work but cannot certify current coverage. One light/consumer has one
@@ -514,7 +516,7 @@ Phase 6: Investigate clipping exclusions and evaluate support across affected sy
   concrete cross-system support assessment informs the design used by Phase 7.
 
   Phase 6A: Investigate why clipping was excluded
-    Evidence: [custom clipping decision record and current boundary](Rendering.VirtualShadowMaps.Contracts.md#custom-clipping-exclusion-decision-record-and-current-boundary).
+    Evidence: [custom clipping decision record and current boundary](Rendering.VirtualShadowMaps.Contracts.md#custom-clipping-decision-history-and-current-boundary).
     Traceability: history/removal tasks -> decision-history revisions; present-boundary tasks -> linked
     pipeline/state/build source owners; mechanism/rationale tasks -> distinctions and evidence classification;
     unresolved support constraints -> the record's reassessment questions and Phase 6B below.
@@ -587,6 +589,20 @@ Phase 7: Refactor existing foundations for atomic VSM rendering and temporal reu
   Outcome: one coherent replacement for storage, sampling and existing draft interfaces is qualified
   through controlled fixtures. Actual native material-compatible rendering is Phase 8.
 
+  Completed 2026-11-10 after the review/fix loop and independent completion audit found no unresolved
+  issues. The user authorized primary-agent test review when the configured reviewer was unavailable;
+  the independent completion audit was separate. Actual OpenGL 4.5 plus GL_ARB_gl_spirv checks ran on
+  RTX 4090/NVIDIA 610.88; optional-feature masking proves branch independence, not other-driver coverage.
+  Evidence (paths relative to this document; complete commands, identities and logs accompany receipts):
+    [Strict Debug build: zero warnings/errors](../artifacts/virtual-shadow-maps/phase7/strict-debug-build-20261111T022724Z.json).
+    [Focused CPU/GPU checks: 245/245, zero skips](../artifacts/virtual-shadow-maps/phase7/vge-focused-tests-20261111T022747Z.json).
+    [Shader build contracts: 156/156, zero skips](../artifacts/virtual-shadow-maps/phase7/build-contract-20261111T022825Z.json).
+    [Canonical Release package](../artifacts/virtual-shadow-maps/phase7/release-cake-package-20261111T023209Z.json) and
+    [exact ZIP identity: 1,141 files, 765 SPIR-V binaries](../artifacts/virtual-shadow-maps/phase7/package-identity-20261111T023603Z/summary.json).
+  Capture identities precede only final documentation/status edits. Release dependency warnings remain
+  recorded in its log. These receipts do not establish actual native caster coverage, live appearance,
+  performance or fog; Phases 8 onward remain open. No commit was made for this completion.
+
   Refactoring inventory (paths relative to VanillaGraphicsExpanded unless marked Tests)
   | Existing system / draft | Required disposition here | Later owner |
   | --- | --- | --- |
@@ -605,66 +621,66 @@ Phase 7: Refactor existing foundations for atomic VSM rendering and temporal reu
   | Existing Phase 4 projection/pool/sampling fixtures; draft Tests: ShadowDrawSettingsTests, NativeShadowTerrainAdapterTests, NativeShadowEntityPreparationTests, ShadowLayerStagesTests | Retain ownership/coverage cases; rewrite representation-dependent assertions, remove superseded routing tests and add atomic/temporal fixtures; old receipts keep their scope | 8 native raster; 11 regression |
   | RHI image/buffer bindings, shader catalog and pass/resource lifetimes | Reuse existing owners; add only demonstrated missing baseline capabilities through owning APIs, including graphics image atomics and raster pass setup | 8 native draws; 10 consumer bindings |
 
-  ☐ Reconcile the source proposal, implementation contracts and qualification protocol with both approved
+  ☑ Reconcile the source proposal, implementation contracts and qualification protocol with both approved
     amendments before dependent code changes. Update diagrams, APIs, failure tables, configuration,
     evidence expectations and prospective phase references; preserve labelled historical receipts.
-    ☐ Implement compiler-derived clipping across existing shader metadata, pipeline state and RHI owners
+    ☑ Implement compiler-derived clipping across existing shader metadata, pipeline state and RHI owners
       as one coherent batch. Follow the Phase 6B assessment's work/verification map; no authored enable
       mask, parallel manifest, handwritten instruction parser or runtime GLSL compilation is introduced.
-      ☐ Extend per-stage built-in activity/extent metadata, schema/extractor identity and cache validation.
+      ☑ Extend per-stage built-in activity/extent metadata, schema/extractor identity and cache validation.
         Preserve exact binary/entry-point/selection association on all build, reload and driver-cache routes.
         Qualify inactive declarations, missing facts and unsupported extents; do not infer usage from size alone.
-      ☐ Carry validated facts through ShaderExecutableInputs and immutable RHI shader inputs; derive final
+      ☑ Carry validated facts through ShaderExecutableInputs and immutable RHI shader inputs; derive final
         VS/TES/GS producer enables during preparation. Preserve stage matching, limit validation, complete
         writes and generation identity; no per-draw reflection or independently authored pipeline mask.
-      ☐ Apply derived enables through existing state-cache setters and coverage, including clipping-to-none,
+      ☑ Apply derived enables through existing state-cache setters and coverage, including clipping-to-none,
         successful/failed engine restoration, recorded commands, shader retirement and context replacement.
-      ☐ Reconcile native source generation with precompiled shader variants through existing build/catalog
+      ☑ Reconcile native source generation with precompiled shader variants through existing build/catalog
         owners. Generate clip outputs after final deformation, handle built-in arrays/blocks explicitly and
         avoid adding a geometry stage solely for clipping. Establish supported variant inventory and build
         provenance before Phase 8; missing material variants cannot trigger runtime GLSL compilation.
-      ☐ Resolve the existing SPIR-V driver-ingestion requirement against the stated minimum-context/extension
-        contract before claiming baseline qualification. Preserve the user's precompiled route; do not silently
-        relax OpenGL requirements or use GLSL fixtures as proof of the packaged production path.
-    ☐ Specify compact draw/object/view selection and separate projection-data access on baseline GL 4.5.
+      ☑ Qualify packaged shader loading against the established OpenGL 4.5 plus GL_ARB_gl_spirv baseline.
+        Preserve the precompiled route; do not add another loading path or use GLSL fixtures as proof of
+        packaged production loading. Optional VSM acceleration features remain unnecessary.
+    ☑ Specify compact draw/object/view selection and separate projection-data access on baseline GL 4.5.
       Respect vertex/tessellation limits and object instancing; do not assume geometry SSBO access,
       optional draw parameters, or the presence of Unreal's vertex-factory machinery.
-  ☐ Refactor projections and physical storage to resident R32UI tiles with explicit page-table physical
+  ☑ Refactor projections and physical storage to resident R32UI tiles with explicit page-table physical
     addresses, assignment generations and separate sampled versus writable replacement mappings.
-    ☐ Define view/face/mip identity, world-origin handling, finite depth encoding, comparison direction,
+    ☑ Define view/face/mip identity, world-origin handling, finite depth encoding, comparison direction,
       clear value, near/source-plane behavior and precision together; migrate bias and sampling coherently.
       Reject invalid numerical inputs/addresses before atomics.
-    ☐ Replace old layers-per-page capacity assumptions with bounded pool dimensions/banks and effective
+    ☑ Replace old layers-per-page capacity assumptions with bounded pool dimensions/banks and effective
       hardware limits. Charge integer storage, tables, view records, replacement generations and retirement.
       Preserve collision/overflow rejection, source/world withdrawal and safe reconfiguration.
-    ☐ Provide selective integer-page clear and image-write-to-image-read/texture-fetch ordering through RHI.
+    ☑ Provide selective integer-page clear and image-write-to-image-read/texture-fetch ordering through RHI.
       Validate graphics image bindings and raster framebuffer/viewport setup without direct GL bypass.
-  ☐ Refactor shared lookup/filtering to decode atomic depths and translate every virtual filter tap.
+  ☑ Refactor shared lookup/filtering to decode atomic depths and translate every virtual filter tap.
     Preserve cube-face boundaries, levels, receiver depth, bias and coverage; no averaging of depths.
-    ☐ Verify integer fetch, empty/clear values, seams, multiple banks, assignment reuse and independent
+    ☑ Verify integer fetch, empty/clear values, seams, multiple banks, assignment reuse and independent
       source/projection identities using the new representation and supported binding limits.
-  ☐ Implement bounded temporal retention: current, permitted-stale and unavailable states; matching
+  ☑ Implement bounded temporal retention: current, permitted-stale and unavailable states; matching
     rendered projections/coverage; finite persisted age/motion controls; explicit hard-invalid withdrawal.
-    ☐ Repeated edits/motion/reuse cannot reset expiry. Current receiver/filter demand must fit retained
+    ☑ Repeated edits/motion/reuse cannot reset expiry. Current receiver/filter demand must fit retained
       coverage in its rendered projection; current illumination and retained shadow projection stay distinct.
-    ☐ Keep sampled old tiles intact during replacement. Publish depth, projection and coverage together
+    ☑ Keep sampled old tiles intact during replacement. Publish depth, projection and coverage together
       only after complete ordered writes. Insufficient replacement space permits only eligible retention
       or explicit withdrawal within budget, never obsolete native geometry references or partial success.
-  ☐ Refactor existing draft interfaces and settings according to the inventory. Migrate callers and
+  ☑ Refactor existing draft interfaces and settings according to the inventory. Migrate callers and
     blocking dependencies together; remove superseded routing, matrix attributes, per-page command formats
     and fixtures without compatibility shims or a second maintained renderer.
-    ☐ Preserve current native range/group/preparation logic. Completing absent material/layout/entity
+    ☑ Preserve current native range/group/preparation logic. Completing absent material/layout/entity
       integration belongs to Phase 8 rather than this foundation fixture boundary.
-  ☐ Delegate canonical build and focused CPU/GPU verification on the coherent batch: baseline limits,
+  ☑ Delegate canonical build and focused CPU/GPU verification on the coherent batch: baseline limits,
     compact metadata access, virtual/physical addressing, contended atomic nearest-depth writes, selective
     clears, filtering/coverage, temporal expiry/replacement, retirement and retained input invariants.
-    ☐ Verify optional extensions disabled and obsolete assets/bindings/callers removed. Synthetic atomic
+    ☑ Verify optional extensions disabled and obsolete assets/bindings/callers removed. Synthetic atomic
       depth witnesses do not establish actual caster coverage, live appearance or performance.
-    ☐ Execute the Phase 6B compiler/build, cross-stage, pipeline-state, capability and native-state regression
+    ☑ Execute the Phase 6B compiler/build, cross-stage, pipeline-state, capability and native-state regression
       matrix; verify unaffected shader variants and packaged/cache compatibility. Include clipped atomic
       image witnesses, protected tiles, view-boundary numerics and production SPIR-V loading. The offline
       reflection probe is feasibility evidence, not a substitute for these checks.
-  ☐ Completion: one refactored foundation passes its scoped checks, linked docs/settings agree, obsolete
+  ☑ Completion: one refactored foundation passes its scoped checks, linked docs/settings agree, obsolete
     implementations are removed, and second review plus independent completion audit pass.
 
 Phase 8: Complete native geometry rendering into the atomic virtual shadow pool

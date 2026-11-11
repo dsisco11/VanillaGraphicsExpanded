@@ -4,7 +4,7 @@ namespace ShaderBuildTool.Spirv;
 /// <summary>Packages compiler declarations without restricting ordinary numeric specialization values.</summary>
 internal static class ShaderInterfaceExtraction
 {
-    internal const string ExtractorIdentity = "spirv-cross-2.23.0;interface-v2";
+    internal const string ExtractorIdentity = PackagedShaderInterface.CurrentExtractor;
     #region Public API
     /// <summary>Associates declarations with the exact stage, structural selection and configuration.</summary>
     internal static PackagedShaderInterface Extract(byte[] binary, ShaderStageSelection selection)

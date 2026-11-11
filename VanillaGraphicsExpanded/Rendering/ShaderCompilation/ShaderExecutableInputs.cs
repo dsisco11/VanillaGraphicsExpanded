@@ -3,6 +3,7 @@ using System.Linq;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering.Spirv;
 
 namespace VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 
@@ -13,16 +14,17 @@ internal static class ShaderExecutableInputs
     /// <summary>Freezes captured stage payloads and retains cache decisions above the native creation boundary.</summary>
     internal static RHIShaderDescription Create(ShaderLoadPlan plan, PreparedProgramBinary inputs, RHIShaderBinary? binary = null)
     {
-        var stages = plan.Stages.Select(selection => CreateStage(selection, inputs.Read(selection.BinaryPath))).ToArray();
+        var stages = plan.Stages.Select(selection => CreateStage(selection, inputs.Read(selection.BinaryPath), inputs.Interface(selection))).ToArray();
         var bindings = GpuBindingContract.Merge(plan.Stages.Select(selection => selection.Stage.Bindings));
         bool compute = stages.Length == 1 && stages[0].Stage == ShaderStage.Compute;
         return new(compute ? ShaderKind.Compute : ShaderKind.Graphics, stages, bindings, binary,
             retrievableBinary: inputs.Key is not null, label: plan.Settings.Contract.Identity);
     }
     /// <summary>Copies one explicitly selected module and preserves typed specialization values without touching native state.</summary>
-    internal static RHIShaderStageDescription CreateStage(ShaderStageSelection selection, ReadOnlySpan<byte> bytes)
+    internal static RHIShaderStageDescription CreateStage(ShaderStageSelection selection, ReadOnlySpan<byte> bytes,
+        PackagedStageInterface stageInterface)
         => new(Stage(selection.Stage.Kind), bytes, selection.Stage.EntryPoint,
-            selection.Specializations.Select(value => Specialization(value.Id, value.Value)));
+            selection.Specializations.Select(value => Specialization(value.Id, value.Value)), stageInterface);
     #endregion
 
     #region Private

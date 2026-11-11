@@ -44,8 +44,14 @@ internal static class BuiltShaderFixture
     /// <summary>Loads a fixed test stage with source-authored numeric locations and retains its native owner.</summary>
     public static GpuShaderModule LoadFixture(string path, ShaderType type)
     {
-        byte[] binary = TestAssetSnapshot.Built.Copy("shaders/" + path + ".spv");
-        return VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), binary)).RequireResource();
+        var stage = Fixtures.Programs.Values.SelectMany(program => program.Stages)
+            .FirstOrDefault(candidate => candidate.Identity == path)
+            ?? throw new ArgumentException("Fixture stage is not declared in the test shader catalog: " + path, nameof(path));
+        if (!PrecompiledStageFixture.Matches(stage.Kind, type)) throw new ArgumentException("Stage kind mismatch: " + path, nameof(type));
+        var owner = Fixtures.Programs.Values.OrderBy(program => program.Identity, StringComparer.Ordinal)
+            .First(program => program.Stages.Any(candidate => candidate.Identity == path));
+        var selection = new ShaderLoadPlan(new ShaderSettings(owner)).Stages.Single(candidate => candidate.Stage.Identity == path);
+        return PrecompiledStageFixture.Load(selection, asset => TestAssetSnapshot.Built.Copy("shaders/" + asset));
     }
     #endregion
     #endregion

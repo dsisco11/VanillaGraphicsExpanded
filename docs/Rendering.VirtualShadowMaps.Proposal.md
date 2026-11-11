@@ -36,14 +36,14 @@ The following requirements are established:
 - The engine's pass-and-atlas table remains the authority for mesh-pool categories.
   Do not introduce a parallel pool registry, reverse classification map, or a collection
   of hooks that reconstructs relationships the engine already maintains.
-- Custom shader clipping is currently unavailable in the pipeline-state system. The approved
+- Custom shader clipping follows the approved
   [compiler-derived support direction](Rendering.VirtualShadowMaps.Contracts.md#compiler-derived-clipping-support-assessment)
-  reflects clip-distance usage from compiled SPIR-V into existing shader metadata. The implementation
-  plan owns the required build, pipeline and integration changes; production shaders remain precompiled.
-  This decision does not permit bypassing state ownership or claim runtime support already exists.
-- OpenGL 4.5 is the required baseline. A complete rendering path must work without
-  optional extensions or OpenGL 4.6 features. Additional capabilities may optimize it,
-  but cannot be required for baseline correctness or hidden in performance assumptions.
+  by reflecting clip-distance usage from compiled SPIR-V into existing shader metadata. The build and
+  pipeline foundations implement this support through existing state owners; production shaders remain
+  precompiled. Actual native shadow-rendering integration remains work for the implementation plan.
+- The established system baseline is OpenGL 4.5 plus `GL_ARB_gl_spirv` for precompiled shaders,
+  or core SPIR-V ingestion support. VSM adds no shader-loading requirement. Optional draw parameters,
+  indirect counts and bindless access may optimize rendering but are unnecessary for correctness.
 
 ## Recommended architecture and completion decisions
 
@@ -53,10 +53,10 @@ to implementation design and qualification after approval.
 
 | Concern | Recommendation |
 | --- | --- |
-| Physical pages | Resident D32F depth-array layers; initial tuning size 128 by 128, no mip chain or stored gutter |
+| Physical pages | Resident R32UI tiles with explicit physical addresses; initial tuning size 128 by 128, no mip chain or stored gutter |
 | Directional projection | Independent orthographic clipmap levels for sun and moon; adjacent levels double world-space texel width |
 | Point projection | Six perspective faces with virtual page addressing and explicit face-edge sampling |
-| Baseline routing | OpenGL 4.5 geometry-shader layer output, instance-attribute metadata, bounded indirect command intervals |
+| Baseline routing | Compact object/view selectors, separate projection records, virtual rasterization and atomic integer depth writes |
 | Receiver coverage | A current-frame surface-demand prepass before any participating surface shading |
 | Terrain search | Conservative DDA-style slab sweep over fixed chunk partitions and covered light motion |
 | World boundary | Engine-published loaded-chunk envelope per dimension, with unresolved interior gaps |
@@ -96,11 +96,11 @@ source/lifetime, projection generation, face/level, and virtual XY coordinates.
 Page identity alone does not establish usable receiving coverage; that is recorded separately
 under [page coverage and reuse](#page-coverage-and-reuse).
 
-Use conventional projected depth and explicit comparisons in the shared sampler. Point
+Use conventional projected depth encoded as ordered nonnegative float bits in R32UI, atomic minimum, and explicit comparisons in the shared sampler. Point
 near-plane distance, bias, and depth range are explicit quality tunables. Near-source geometry
 and extreme directional depth spans require validation; clipping cannot silently substitute
 for candidate completeness. Existing represented depth-clamp support may be evaluated for
-near-plane crossings, without adding custom clipping. Finite-precision shadows still have
+near-plane crossings independently of the four custom rectangle planes. Finite-precision shadows still have
 contact/bias limitations that visual acceptance must assess.
 
 ### Current-frame demand and shading order
@@ -172,9 +172,9 @@ authored radius. Do not invent a different shadow-only illumination range.
 ### Sampling, allocation, and lifecycle contract
 
 Use bounded GPU page tables and free/retirement queues. Physical assignments are
-`(array, layer, generation)`; lookup/probe exhaustion is failure, not aliasing. Allocate
+`(bank, tile X, tile Y, assignment generation)`; lookup/probe exhaustion is failure, not aliasing. Allocate
 demanded pages, evict invalid/unreferenced entries before current required coverage, and
-never overwrite a layer still referenced by scheduled GPU work.
+never overwrite a tile still referenced by scheduled GPU work.
 
 Start with 3-by-3 manual PCF using point-fetched depth and explicit comparisons. Resolve
 every tap through virtual addressing and validity. Across point-face edges, map tap direction
@@ -183,8 +183,8 @@ directional levels, use world-consistent lookup and request all participating sa
 Never average depth pages into a fallback level. Bias uses a shared texel/depth convention
 with bounded slope/normal adjustments and material-aware culling.
 
-Generate a bounded dispatch over statically named depth-array samplers. Point fetches avoid
-implicit-derivative requirements in divergent selection. The supported array count is limited
+Generate a bounded dispatch over statically named integer tile-bank samplers. Point fetches avoid
+implicit-derivative requirements in divergent selection. The supported bank count is limited
 by slots available in every participating shader as well as memory/hardware limits. Optional
 bindless access is not required. Larger filters/contact-hardening are later quality modes
 only if their coverage and work fit the same contracts; they are not baseline dependencies.
@@ -649,7 +649,7 @@ tuning values, not measured suitable defaults:
 | Recovery | Eight consecutive frames of complete current coverage before restoring a withdrawn light's shadows |
 
 Profiles must supply finite ceilings for input visits, traversal slabs/cells, association
-segments, requests, groups, submitted command slots, page instances, tessellation work
+segments, requests, groups, submitted command slots, geometry/view instances, tessellation work
 estimates, and retry attempts. Validate against hardware capacities and integer limits.
 Allocation failure reduces usable capacity and reports it; configuration cannot promise
 unsupported resources. Driver overhead means tracked bytes are not an exact process VRAM cap.
@@ -729,11 +729,12 @@ invalidate another light's complete shadows.
 | Complete current coverage at reduced requested detail | Use the reduced-detail result |
 | Required coverage remains incomplete after bounded detail reduction | Disable surface shadow attenuation for that light; retain its illumination |
 | Previously rendered data is still valid for the current light and scene | Reuse it as part of the complete result |
-| Allocated data is stale, partially rendered, or belongs to a reused page assignment | Treat it as unavailable |
+| Previously complete data passes the bounded temporal policy and covers current requests in its rendered projection | Reuse as explicitly stale |
+| Partially rendered data, expired retention or a reused physical assignment | Treat as unavailable |
 
 Reduced detail is a change to the requested coverage/resolution, not permission to reuse
 arbitrary old depths or average depth values into a fallback map. A lower-resolution
-alternative is usable only if it is current, compatible with the light projection, and
+alternative is usable only if it is current or permitted stale, uses its matching rendered projection, and
 covers all required sample footprints. The policy does not mandate a second broad coarse
 map or render a coarse level before every fine update.
 
@@ -749,7 +750,7 @@ not an unrecorded exception to this one.
 Page completeness and light readiness are separate. A page becomes valid for its recorded
 receiving coverage only after its own complete update, as defined under
 [page coverage and reuse](#page-coverage-and-reuse). A light becomes ready when all requests
-for its selected surface coverage resolve to current data covering those requests.
+for its selected surface coverage resolve to current or permitted stale data covering those requests in compatible rendered projections.
 Request-list overflow or unfinished demand generation
 cannot be mistaken for an empty request list and therefore a ready light.
 
@@ -767,25 +768,41 @@ does not establish a useful current result for continuously moving lights. Compl
 individual pages may still be retained for reuse only while they remain valid.
 
 As a defensive sampling rule, an unexpected invalid lookup returns unshadowed visibility
-and records a demand/validity failure, rather than reading stale or uninitialized storage.
+and records a demand/validity failure, rather than reading ineligible stale or uninitialized storage.
 That guard does not replace the normal completeness gate or establish acceptable visual
 behavior. Record per-light misses and show the validity overlay specified in qualification.
 Fog has its own readiness scope; incomplete fog-only coverage must not withdraw complete
 surface shadows.
 
-### Stable recovery without stale-depth fading
+### Bounded temporal reuse and stable recovery
 
-Use hysteresis for selecting lights, changing requested detail, and restoring shadowing
-after overload. In particular, a light that has lost coverage should demonstrate sustained
-ability to complete its current requests before shadowing is restored. The configuration
-section gives initial margins and recovery history for tuning. Hysteresis may delay enabling
-shadows; it cannot keep invalid depths usable after light motion or geometry changes.
+Previously complete depths may remain usable after geometry edits or light motion under a configured,
+finite temporal policy. Keep current, permitted stale and unavailable states distinct. This approximation
+accepts temporarily missing or lingering shadows; it never certifies stale depths as current or allows
+partial replacement pages. It applies to carried/moving point lights and both celestial sources from
+initial surface integration.
 
-A fade-in is possible while complete current shadow data is available. A planned fade-out
-is possible only while current data continues to be supplied, with that work still charged
-to the budget. If current coverage is unexpectedly lost, this policy switches immediately
-to unshadowed illumination. It does not promise a smooth fade using obsolete depths.
-Any temporal approximation would need separate approval of its quality and validity rules.
+Retain the rendered projection, receiving coverage, source lifetime and physical assignment with the
+result. Sample through that rendered projection while direct illumination uses the current light snapshot.
+Current receiver/filter/bias requests must fit the retained coverage. Candidate motion bounds cannot extend
+old rendered coverage. Faces, levels and filter taps must use compatible projection metadata.
+
+Record rendered time and the first invalidation time. Repeated edits, motion, reuse or scheduling deferral
+cannot restart expiry. Configurable finite age, translation and angular tolerances bound reuse; zero reuse
+provides strict diagnosis. Defaults are provisional and require dynamic-workload qualification. Identity
+loss, incompatible interpretation, reassigned/destroyed storage, uncovered receivers, expired age or excess
+motion prohibit reuse. Unknown eligibility fails closed. Incomplete current inputs prevent fresh completion
+but do not erase an otherwise eligible retained image.
+
+Keep old sampled tiles intact while replacement is pending. Charge both generations, projection records
+and retirement to the same configurable budget. Publish a replacement's depth, projection and coverage
+together only after all required writes. If replacement storage cannot fit, retain only eligible complete
+coverage or explicitly withdraw it before destructive reuse. Never retain obsolete native geometry ranges.
+
+Hysteresis governs selection and recovery; it cannot extend temporal bounds. Bound refresh waiting under
+continuous motion and edits. A light remains shadowed only if all current demand has current or permitted
+stale coverage. Seek affordable detail before withdrawing that light's shadow attenuation. Surface and fog
+readiness remain separate, with fog unable to displace required surface coverage.
 
 ## Receivers, casters, and fog
 
@@ -965,7 +982,7 @@ caster selection must be complete for the entire enclosure before certifying it.
 metadata and containment checks count against the existing storage and work budgets.
 
 A cached page can satisfy a request only when the request lies within this recorded coverage
-and all depth dependencies are current. Candidate associations for a new receiving region
+and depth dependencies are current or the separate bounded temporal policy permits stale use. Candidate associations for a new receiving region
 establish possible occluders but do not extend the coverage of already-rendered depths.
 Demand outside the recorded coverage requires a complete replacement rendered for the union
 of currently required regions sharing that page. Publish the replacement depths and coverage
@@ -991,40 +1008,24 @@ separate public setting.
 | Candidate maintenance | Spatial-search steps and association output, separately from depth-update frequency |
 | Page expansion | Candidate entries visited, page/range intersection checks, duplicate suppression, and temporary output |
 | Indirect submission | Total submitted command slots, including inactive entries, and total compatible groups across destination arrays |
-| Drawing | Geometry/page repetitions, tessellation amplification, baseline geometry-shader work, and estimated raster/material cost |
-| Page replacement | Selected-layer clear work and all metadata needed to publish complete results |
+| Drawing | Geometry/view repetitions, tessellation amplification, bounded virtual raster area, and estimated raster/material cost |
+| Page replacement | Selective integer-tile clear work and all metadata needed to publish complete results |
 
 These limits bound identifiable work and storage, not exact GPU milliseconds. Timing
 feedback can adjust estimates without making this frame wait for GPU results. Historical
 estimates may guide scheduling, but cannot prove candidate completeness or page validity.
 
-#### Reuse one terrain command across selected pages
+#### Reuse geometry across pages in one view
 
-For terrain ranges with compatible drawing state, the recommended command organization
-is one slot per current geometry range and destination array. The GPU supplies a list
-of admitted pages needing that range. The command's instance count is the list length;
-its base-instance field addresses the corresponding page-metadata inputs. Each instance
-uses its own page projection and layer. Zero selected pages produces a zero-instance command.
+The selected pair is a current geometry/object instance and a virtual view or bounded raster region.
+One pair rasterizes the geometry once for all admitted pages it overlaps in that region. Commands
+reference compact object/view selectors and separate projection records, with explicit preservation of
+object instancing. A pair is not expanded into one instance per physical page or bank.
 
-For example, one range needed by eight pages in the same array can use one command with
-eight page instances. This reduces commands, not the eight repetitions of geometry work.
-Different arrays, incompatible shader/material state, or distinct geometry detail ranges
-still require separate slots. Existing entity/object instancing cannot be repurposed
-without a compatible instance-addressing contract; this recommendation initially concerns
-the terrain command organization.
-
-The existing [indirect command layout](../VanillaGraphicsExpanded/Rendering/GpuIndirectBuffer.cs)
-contains instance count and base instance, and the
-[vertex-input description](../VanillaGraphicsExpanded/Rendering/RHI/Descriptions/RHIVertexAttribute.cs)
-supports instance addressing. The mechanism follows
-[OpenGL base-instance addressing](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_base_instance.txt).
-This establishes API support, not a completed engine geometry adapter or measured speedup.
-
-The CPU can know the number and offsets of submitted command slots from the bounded
-geometry input and destination-array set, without reading GPU page selections. The GPU
-chooses each slot's instance count and metadata offset within supplied storage. Every
-submitted slot is initialized, including inactive ones. Command and instance-reference
-capacities are separate: fewer command slots do not make the page lists unbounded.
+Compatible native pass/atlas/material/layout groups remain CPU-owned submission boundaries. The GPU
+fills bounded initialized indirect intervals, including zero-instance commands. Pair lists, command
+slots, region splits and repeated geometry all count against the whole-batch allowance. GPU selection
+stays on the GPU; the CPU does not read per-page choices to issue submissions.
 
 #### Bound the whole batch rather than each group independently
 
@@ -1064,15 +1065,15 @@ select bounded input and submission groups
 expand page requests in stable priority order within the selection allowance
 establish the union of required receiving regions for each replacement page
 admit only pages with complete coverage and sufficient remaining resources
-build range commands and page-instance lists from admitted pages
-clear admitted replacement layers, draw all required geometry, then publish depths and coverage
+build range commands and geometry/view lists from admitted pages
+clear admitted replacement tiles, draw all required geometry, then publish depths and coverage
 ```
 
 If expansion stops or any output overflows, that page has not demonstrated completeness.
 Exclude it from clear/draw/publication, or abandon its temporary result before rendering.
 Do not use a truncated candidate list or a partially filled draw list as a valid shadow.
-An older page may remain usable only if it independently still represents the current
-light and scene and covers the requested receiving regions under
+An older page may remain usable only if it independently remains current or passes the bounded temporal
+policy and covers the requested receiving regions in its rendered projection under
 [page coverage and reuse](#page-coverage-and-reuse); retaining its allocation is not enough.
 
 Under sustained pressure, reduce requested detail and then apply the established light
@@ -1080,7 +1081,7 @@ priorities. Lower detail often reduces page count, but does not necessarily redu
 geometry intersecting each larger page. A page that still cannot fit requires the chosen
 missing-page/light fallback, not an endlessly retried same-frame expansion. Reconsidering
 requests must itself have bounded work. The proposed missing-page policy withdraws the
-affected light's surface shadows if complete current coverage remains unavailable;
+affected light's surface shadows if complete current or permitted stale coverage remains unavailable;
 it is a review recommendation whose visual behavior requires acceptance.
 
 Candidate maintenance can be resumed across bounded work slices while its covered light
@@ -1098,212 +1099,91 @@ does not imply one submission for the entire scene or eliminate CPU submission c
 The engine's ordinary indexed and shader-storage terrain layouts require their own
 correct geometry binding and shadow shader support.
 
-The page-routing candidates below address the projection and destination for each selected
-draw. The preferred direction preserves compatible drawing groups without requiring a
-CPU submission for every page. No existing general shadow-page routing path was
-identified in the inspected shaders; indirect support is only part of the required work.
+The virtual raster architecture below supplies projection and destination selection while preserving
+compatible drawing groups. It does not require a CPU submission for every physical page. Existing
+indirect support is only part of the required native shader and command integration.
 
-## Page routing within existing pipeline constraints
+## Virtual rasterization and atomic physical storage
 
-### Selected route and alternatives
+The approved architecture follows Unreal's ordinary-mesh virtual shadow path: select geometry/view
+work on the GPU, rasterize in virtual coordinates, and translate surviving fragments through the page
+table into resident integer tiles. Physical allocation does not assign triangles to arbitrary texture
+locations. Connected surface points retain their light-projection relationship; the page table translates
+virtual pages independently of mesh allocation and retessellation.
 
-The pipeline-state system deliberately excludes custom shader clipping. The tiled-atlas
-route that remaps each draw into a tile and uses custom clip distances to contain it is
-therefore excluded. The existing
-[rasterizer description](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/RasterizerDesc.cs)
-and [pipeline application](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/FixedFunction/OpenGlStateCache.PipelineRasterizer.cs)
-are constraints to preserve, not gaps this proposal should extend or bypass.
-
-The recommended candidate is to render and retain each physical page in a separate
-depth-texture-array layer. Its projection uses the normal hardware clip volume and the
-full page-sized viewport; the layer isolates its depth writes from other pages. This
-does not require custom clip planes or moving projected geometry into an atlas tile.
-It can serve both directional and point-light pages. This is a source-supported design
-recommendation, not an approved storage format or runtime-qualified rendering path.
-
-| Approach | Tradeoff |
-| --- | --- |
-| One page per texture-array layer | Many pages can share a compatible draw batch and viewport without custom clipping; capacity per array is limited by available layers, and routing requires shader layer output |
-| Render a batch into array layers, then copy completed pages into an atlas | Separates rasterization from resident storage and permits layer reuse; adds depth-copy work, ordering, and a GPU-driven destination-selection question |
-| Viewport/scissor arrays | Hardware rectangles can delimit atlas pages without custom clip planes, but the viewport count bounds a batch and the current dynamic-state API exposes only one rectangle; support cannot be assumed |
-| Separate CPU submission per page | Straightforward page-specific state, but submission count grows with page demand; not the recommended baseline for moving lights |
-
-The existing RHI supports the necessary attachment representation and shader-stage types:
-
-| Inspected contract | Finding |
-| --- | --- |
-| [Attachment resolution](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Passes/OpenGLAttachmentIdentity.cs) and [framebuffer creation](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Passes/OpenGLBackend.FramebufferCreation.cs) | A whole array attachment reaches the native layered-texture attachment operation |
-| [Pass validation](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Passes/OpenGLBackend.PassTargetValidation.cs) | A depth-only pass can supply its depth attachment without color attachments |
-| [Shader creation](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Shaders/OpenGLBackend.ShaderCreation.cs) | Vertex, tessellation, geometry, and fragment stages are represented |
-| [Capabilities](../VanillaGraphicsExpanded/Rendering/RHI/RHICapabilities.cs) | Array-layer, texture-size, and framebuffer limits are available for allocation validation |
-
-No layer-selection shader path or dedicated layer-output capability was identified in
-the inspected VGE sources. OpenGL 4.5 provides layer output from a geometry shader;
-direct output from vertex or tessellation-evaluation shaders is not guaranteed by that
-baseline. The latter is an optional optimization through functionality such as
-[`GL_ARB_shader_viewport_layer_array`](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_shader_viewport_layer_array.txt).
-The extension explicitly adds those stage outputs to the OpenGL 4.5 contract.
-
-For the layered design, the proposed baseline therefore uses a geometry shader that
-passes each already-selected triangle through and assigns its layer. It follows vertex
-processing for ordinary geometry and tessellation evaluation for displaced terrain.
-It emits that triangle once, retaining its positions, winding, UVs, and required material
-outputs; it does not duplicate every triangle across all pages or point-light faces.
-GPU command selection determines the required page draws first. The same baseline
-layer-routing mechanism must support selective page-clear geometry.
-
-The optional direct-output path removes this routing stage where supported, preserving
-the same page selection and shadow behavior. Capability selection and shader-language
-declarations must be explicit for each shadow variant. The existing terrain tessellation
-source generator declares GLSL 4.00; current sources do not become layer-aware merely
-because a device supports the extension.
-
-Geometry-stage work is part of the baseline performance target, not a rarely used
-fallback that can be excluded from measurements. This is a functional design supported
-by the API, not evidence of acceptable moving-light performance. If its measured cost
-is unacceptable, page routing must be reconsidered within OpenGL 4.5 and the prohibition
-on custom clipping rather than silently requiring an extension.
-
-### OpenGL 4.5 execution contract
-
-| Responsibility | Proposed baseline | Optional optimization |
-| --- | --- | --- |
-| Candidate generation and command production | Compute shaders and shader-storage buffers | No additional extension required for these mechanisms |
-| Selecting the destination layer | Geometry-shader `gl_Layer` output | Vertex/tessellation-evaluation layer output when supported |
-| Identifying per-draw page metadata | Integer instance attribute selected using the indirect command's base-instance field | Shader-visible draw/base-instance parameters when supported |
-| Submitting generated geometry | Multi-draw indirect over bounded, initialized command intervals | GPU count buffers when supported |
-| Sampling multiple depth arrays | Bounded, statically addressed sampler accesses with valid filtering behavior | Bindless access only if separately supported and justified |
-
-Shader-visible draw parameters, indirect count buffers, and direct layer output are
-independent capabilities. None follows merely from the presence of another. The bounded
-interval sizes and number of array/material groups contribute work even when many entries
-draw nothing; scheduling must account for that cost on the baseline path.
-
-Direct resident arrays avoid a transfer after every page update. The intermediate-array
-alternative remains possible, but the existing
-[texture-copy path](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Textures/OpenGLBackend.TextureTransfers.cs)
-takes host-supplied source and destination regions. It is not an indirect copy-list
-consumer. A GPU-driven transfer into an atlas would need a separately designed path
-and measured cost; it is not automatically supplied by layered rendering.
-
-### Configurable capacity across depth arrays
-
-One layer stores one physical page, not one light, chunk, or entire point-light face.
-Pages from all lights continue to share the allocator and its directional/local
-reservations. An array's hardware layer limit is a per-resource limit, not a fixed
-shadow-light count or the user-facing memory setting.
-
-For square pages with one depth level and no multisampling, nominal depth storage is:
-
-```text
-bytesPerPage = storedPageWidth * storedPageWidth * depthBytesPerTexel
-pageCapacity = floor(depthStorageBudget / bytesPerPage)
-physicalPage = (array identifier, layer index, assignment generation)
+```mermaid
+flowchart LR
+    Native["Current native geometry ranges"] --> Select["GPU geometry/view selection"]
+    Candidates["Conservative chunk candidates"] --> Select
+    Views["Separate projection records"] --> Raster["Virtual-coordinate rasterization"]
+    Select --> Raster
+    Raster --> Guard["Material and writable-page checks"]
+    Guard --> Atomic["Atomic nearest depth in R32UI tiles"]
+    Atomic --> Publish["Publish complete depth, projection and coverage"]
+    Publish --> Sample["Per-tap virtual lookup and comparison"]
 ```
 
-The selected baseline has no stored borders. The depth-storage allowance
-must leave budget for page tables, associations, commands, and other shadow resources;
-driver allocation overhead also prevents this formula from being an exact VRAM receipt.
-Allocation must satisfy the applicable hardware limits as well as the budget.
+### Compact selection and projection access
 
-For illustration only, 128-by-128 pages at four bytes per texel use 64 KiB each. A
-64 MiB depth allowance holds 1,024 such pages; 256 MiB holds 4,096. If an array supports
-2,048 layers, the latter needs at least two arrays. These values are not selected defaults
-or measurements of the user's hardware. Uniform physical page dimensions do not require
-uniform world-space resolution; the light projection determines the area each page covers.
+A compact integer instance attribute identifies the object and view; base-instance addresses the
+selected pair list. Projection matrices live in a separate bounded record buffer accessed through
+texture-buffer fetches, without requiring positive vertex/TES/geometry shader-storage block limits.
+Object instancing stays explicit: pair generation selects both the original object and its view,
+without replacing native geometry ownership or assigning per-vertex page mappings. The private RHI
+vertex-input realization borrows native streams and adds this compact selector; native VAOs and pooled
+vertex data remain unchanged. No matrix columns are appended to mesh-pool vertices.
 
-Additional arrays add a bounded submission grouping alongside existing geometry/material
-groups. Compute routes commands into those known groups; the CPU need not read back
-which individual layers were selected. Multiple arrays also consume sampling resources.
-Receiver pixels can select different arrays, so ordinary sampler-array indexing cannot
-be assumed legal for an arbitrary per-pixel array identifier. A bounded set of statically
-addressed sampler accesses is the proposed baseline, using explicit point fetches and comparisons;
-optional bindless access must not become an unstated requirement. See the
-[GLSL sampler indexing rules, section 4.1.7](https://registry.khronos.org/OpenGL/specs/gl/GLSLangSpec.4.60.pdf).
+A geometry/view pair can affect several virtual pages. Deduplicate that pair within each compatible
+material/geometry submission group. Physical banks are destinations selected per fragment, not a reason
+to repeat geometry once for every bank or page. If a virtual view must be split to satisfy raster limits,
+retain the explicit region mapping and charge repeated geometry. All command slots are bounded and
+initialized; CPU submission does not read back GPU selections. Optional draw parameters, GPU count
+buffers and bindless access are unnecessary.
 
-The supported array count and configuration range must account for sampler availability
-in every participating receiver path and for submission cost. Larger configured budgets
-cannot bypass those limits. Use the static dispatch and manual per-tap addressing contract
-above, validating each consumer's available slots before accepting a configured capacity.
+### Raster bounds and shader generation
 
-### Per-draw page selection
+Use four fixed clip-distance outputs for the uncached-page rectangle, evaluated after final deformation
+and projection. The shader build reflects activity and literal array extent from compiled SPIR-V into
+existing per-stage metadata; executable preparation derives enables from the final vertex-producing
+stage. The existing state cache applies and restores them. Do not add a geometry stage solely to clip.
+Built-in arrays/blocks must be handled separately from generic material-varying copying.
 
-Each generated draw needs a metadata reference identifying its page, light projection,
-and physical destination. GPU-generated metadata and commands must remain paired through
-compaction and batching. The metadata describes this shadow work, not mesh-pool membership.
+A rectangle may include sparse holes and retained tiles. Every fragment must separately check view,
+assignment generation and writable replacement-page status, then apply material rejection before the
+atomic write. Residency alone never permits writes. Reject nonfinite depth, invalid addresses and helper
+invocations. Viewport/framebuffer limits bound virtual raster area; oversized views require complete,
+explicitly accounted region splitting, never silent clipping of demanded coverage.
 
-As an optional optimization, shader draw parameters provide a draw index or base-instance value
-that can select metadata. A draw index is local to its multi-draw submission and needs
-the corresponding batch offset. Count-buffer support and shader draw-parameter support
-are separate capabilities; neither implies the other.
+Native material variants must be generated and precompiled through the existing shader build/catalog
+owners. Preserve deformation, displacement, skinning, UVs, cutout opacity, winding and existing object
+instancing. Unsupported or missing variants fail visibly. Runtime GLSL compilation is not a fallback.
+The established OpenGL 4.5 plus GL_ARB_gl_spirv requirement applies unchanged.
 
-The proposed OpenGL 4.5 route uses a small integer input with per-instance addressing.
-The indirect command's base-instance field selects the metadata index
-from that input stream. `gl_InstanceID` alone does not include this offset. The existing
-[vertex-attribute description](../VanillaGraphicsExpanded/Rendering/RHI/Descriptions/RHIVertexAttribute.cs)
-supports instance divisors. Integration would still need a shadow-specific vertex-input
-binding over borrowed engine buffers, preserving the engine's own vertex-array configuration
-and buffer lifetimes. It must not copy meshes or introduce another pool registry. If
-compute writes this input stream, a vertex-fetch barrier is required as well as the
-command and shader-storage barriers described above.
+### Integer tiles, clearing and sampling
 
-These options follow [shader draw parameters](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_shader_draw_parameters.txt)
-and [base-instance attribute addressing](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_base_instance.txt).
-The baseline transport must fit the available vertex inputs and preserve existing
-instancing semantics for each caster path. Each scene adapter must implement and qualify
-that transport; optional shader draw parameters cannot substitute for the baseline contract.
+Use resident R32UI tile banks with explicit `(bank, tile X, tile Y, assignment generation)` page-table
+addresses. Pool dimensions, bank count, view records, replacement allocations and retired storage all
+count against validated configurable budgets and actual resource/binding limits. Physical pages have
+no mip chain or stored gutter. The initial page extent remains a tuning hypothesis of 128 texels.
 
-### Projection and material compatibility
+Encode finite conventional projected depth in [0,1] with ordered nonnegative IEEE-754 float bits and
+use unsigned atomic minimum. Canonicalize zero; the clear value is the encoding of 1.0. Decode with the
+inverse bit conversion and compare reference depth explicitly. This preserves the existing conventional
+projection/bias convention without requiring floating-point atomics. Near/source-plane intersections
+remain homogeneous until clipping; the positive point near distance and directional depth bounds remain
+explicit. Do not claim geometry behind a clipped source plane is covered without raster qualification.
 
-With layered rendering, each draw uses its page's projection directly and selects a
-destination layer. All vertices of a primitive must agree on that layer, and the last
-active geometry-processing stage must supply the required routing output. Layer routing
-must support both untessellated and tessellated terrain; attaching a layered texture alone
-does not establish this behavior.
+A bounded compute clear writes only admitted writable replacement tiles. Retained sampled tiles stay
+untouched. Resource ordering covers clear-to-atomic writes and atomic-to-image/texture reads through
+existing RHI barriers. Atomicity chooses the nearest individual texel value; only successful completion
+of every required draw can publish a complete page and its receiving coverage.
 
-The final emitted position must preserve material deformation and the selected light's
-depth convention. The installed `chunkshadowmap.vsh` has ordinary and shader-storage
-terrain variants, applies vertex/global warping, and supplies UVs for the cutout fragment
-shader. VGE's [terrain evaluation stage](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/tessellation/terrain.tesh)
-also changes shadow positions for displacement. Tessellated shadows must project that
-displaced geometry correctly and carry the page identifier unchanged through the
-stages. Existing [stage-interface generation](../VanillaGraphicsExpanded/PBR/Tessellation/TerrainTessellationStages.cs)
-is not a complete page-routing adapter. The shadow variants must preserve geometry decoding,
-cutout behavior, deformation, and detail selection rather than substitute a position-only shader.
-
-### Selective clearing and sampling
-
-Only pages scheduled for replacement should be cleared. The existing
-[pass clear](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Passes/OpenGLRenderPassOperations.cs)
-uses `ClearBuffer`; for a layered attachment this clears all layers, including cached
-pages. That behavior is specified in
-[OpenGL section 9.8](https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf).
-
-The proposed selective mechanism preserves the attachment on pass entry and draws a
-full-page primitive into each layer scheduled for replacement. The clear pipeline enables
-depth writes with an always-passing depth test and writes the chosen empty-depth value.
-GPU-generated layer selections can feed this draw through the same routing mechanism;
-no custom clipping or per-layer CPU readback is needed. Existing
-[depth-state descriptions](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/DepthStencilDesc.cs)
-represent the required test and write controls. This remains unimplemented and its cost
-must be included in the update budget.
-
-All selected-layer clears must precede their caster draws, including any defined border
-storage. A page being replaced is not valid merely because its storage still exists.
-Publication for sampling follows all required drawing and any transfer into resident
-storage; normal render-pass and resource-lifetime boundaries must be preserved.
-
-Physical storage locations need not be neighboring virtual pages or even belong to
-the same light. Filtering must resolve samples through virtual addressing, or use a
-separately specified valid-border scheme. Ordinary filtering across unrelated atlas tiles
-is incorrect if atlas storage is selected; array layers also do not supply neighboring
-virtual-page samples automatically. The selected 3-by-3 manual filter resolves neighbors
-through page/face addressing, without stored gutters. Its required neighbors participate in
-readiness; a missing tap follows the same defensive invalid-lookup rule as a missing center.
-
-Intermediate layered rendering would additionally need bounded batches and transfer
-accounting. The initial page dimensions are a proposed tuning choice, not a performance
-advantage established by source inspection.
+Sampling resolves each filter tap through virtual addressing and the selected rendered projection,
+then point-fetches and decodes its integer depth. Use statically addressed bank samplers rather than
+assuming arbitrary sampler-array indexing. Cube edges require adjacent-face reprojection and reference
+depth; clipmap levels require world-consistent requests. Compare each tap before averaging visibility.
+No averaging of stored depth constructs a coarse fallback. Replacement failure preserves only a separately
+eligible retained result; otherwise the light's shadows are unavailable.
 
 ## Other integration findings
 
@@ -1344,7 +1224,7 @@ qualification obligations are:
   Exercise empty-to-nonempty changes for both retained coordinates and pruned lists, plus
   delayed or exhausted non-terrain change publication.
 - **OpenGL 4.5:** run with optional draw-parameter, indirect-count, and vertex/TES layer-output
-  paths disabled. Verify metadata transport, geometry routing, selective clear, barriers,
+  paths disabled. Verify metadata transport, compact view access, clipped atomic writes, selective integer clears, barriers,
   static sampler dispatch, and capability-limited configurations on the baseline path.
 - **Demand and sampling:** validate pre-shading readiness for opaque, cutout, water, and all
   contributing transparent layers. Exercise virtual-page, clipmap, and cube-face seams,
@@ -1372,8 +1252,9 @@ misses increment a per-light diagnostic and appear in a validity overlay.
 The main risks are conservative candidate volume at low celestial angles, baseline geometry
 routing and repeated depth work, extra surface-demand draws, whole-light withdrawal from
 small coverage gaps, and native publication/geometry lifetime integration. Measure them
-explicitly; optional extensions, stale depths, custom clipping, and hidden distance cutoffs
-are not escape routes from the established requirements.
+explicitly. Optional acceleration and hidden distance cutoffs cannot replace baseline qualification.
+Compiler-derived rectangle clipping and bounded temporal retention must satisfy their explicit
+correctness, age, motion and coverage contracts; they do not excuse incomplete caster selection.
 
 Exact API names, shader layouts, tuned defaults, and implementation task order follow proposal
 approval. The recommended loaded-world boundary, complete-light fallback, and starting

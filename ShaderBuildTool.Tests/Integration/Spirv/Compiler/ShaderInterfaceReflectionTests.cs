@@ -79,6 +79,78 @@ public sealed class ShaderInterfaceReflectionTests
         Assert.Equal(3u, Assert.Single(result.Inputs).VectorSize);
     }
 
+    /// <summary>Selected-entry-point clip activity stays distinct from a declared array extent.</summary>
+    [Fact]
+    public async Task ClipDistanceActivityAndExtentAreReflectedSeparately()
+    {
+        // Arrange: one output is written, while the input declaration remains implicit and inactive.
+        var active = await Compile("""
+            #version 450 core
+            layout(location=0) in vec3 position;
+            out gl_PerVertex { vec4 gl_Position; float gl_ClipDistance[4]; };
+            void main(){gl_Position=vec4(position,1);gl_ClipDistance[0]=1.0;gl_ClipDistance[1]=1.0;gl_ClipDistance[2]=1.0;gl_ClipDistance[3]=1.0;}
+            """, ShaderStageKind.Vertex, "vertex");
+        var unused = await Compile("""
+            #version 450 core
+            layout(location=0) in vec3 position;
+            out gl_PerVertex { vec4 gl_Position; float gl_ClipDistance[4]; };
+            void main(){gl_Position=vec4(position,1);}
+            """, ShaderStageKind.Vertex, "vertex");
+
+        // Act: reflection was performed on each optimized compiler output by Compile.
+
+        // Assert: declaration shape alone never upgrades an inactive built-in to active.
+        Assert.True(active.ClipOutput.Active);
+        Assert.Equal(4u, active.ClipOutput.DeclaredExtent);
+        Assert.False(active.ClipInput.Active);
+        Assert.Equal(0u, active.ClipInput.DeclaredExtent);
+        Assert.False(unused.ClipOutput.Active);
+        Assert.Equal(4u, unused.ClipOutput.DeclaredExtent);
+    }
+
+    /// <summary>Compiler reflection reports active clip inputs separately from outputs in tessellation-control stages.</summary>
+    [Fact]
+    public async Task ActiveTessellationControlClipInputRetainsPlaneExtent()
+    {
+        // Arrange: a tessellation-control stage reads and forwards the per-vertex clip array.
+        var result = await Compile("""
+            #version 450 core
+            layout(vertices=3) out;
+            in gl_PerVertex { vec4 gl_Position; float gl_ClipDistance[4]; } gl_in[];
+            out gl_PerVertex { vec4 gl_Position; float gl_ClipDistance[4]; } gl_out[];
+            void main() {
+              gl_out[gl_InvocationID].gl_Position = gl_in[gl_InvocationID].gl_Position;
+              for (int plane=0; plane<4; ++plane) gl_out[gl_InvocationID].gl_ClipDistance[plane] = gl_in[gl_InvocationID].gl_ClipDistance[plane];
+              if (gl_InvocationID == 0) { gl_TessLevelInner[0]=1.0; gl_TessLevelInner[1]=1.0; gl_TessLevelOuter[0]=1.0; gl_TessLevelOuter[1]=1.0; gl_TessLevelOuter[2]=1.0; gl_TessLevelOuter[3]=1.0; }
+            }
+        """, ShaderStageKind.TessellationControl, "tesscontrol");
+
+        // Act: reflect the optimized binary selected for this stage.
+
+        // Assert: active per-vertex input and output each retain the declared clipping extent.
+        Assert.True(result.ClipInput.Active);
+        Assert.Equal(4u, result.ClipInput.DeclaredExtent);
+        Assert.True(result.ClipOutput.Active);
+        Assert.Equal(4u, result.ClipOutput.DeclaredExtent);
+    }
+
+    /// <summary>The compiler reflects the selected specialization-backed clip declaration as its concrete literal extent.</summary>
+    [Fact]
+    public async Task SpecializedClipDistanceExtentIsCompilerResolved()
+    {
+        // Arrange: compile a clip array written with a specialization constant in its source declaration.
+        var result = await Compile("""
+            #version 450 core
+            layout(constant_id=7) const int ClipCount=4;
+            out gl_PerVertex { vec4 gl_Position; float gl_ClipDistance[ClipCount]; };
+            void main(){gl_Position=vec4(0,0,0,1);for(int plane=0;plane<ClipCount;++plane)gl_ClipDistance[plane]=1.0;}
+            """, ShaderStageKind.Vertex, "vertex", "vulkan1.3");
+
+        // Assert: compiler-owned reflection resolves the selected built-in interface to its concrete four-plane shape.
+        Assert.True(result.ClipOutput.Active);
+        Assert.Equal(4u, result.ClipOutput.DeclaredExtent);
+    }
+
     /// <summary>ID execution modes preserve binary-local IDs rather than claiming resolved dimensions.</summary>
     [Fact]
     public async Task SpecializationWorkgroupDimensionsAreTaggedAsIds()

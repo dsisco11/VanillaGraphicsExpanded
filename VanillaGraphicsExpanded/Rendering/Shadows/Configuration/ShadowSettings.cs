@@ -14,6 +14,8 @@ public sealed class ShadowSettings
     [JsonProperty] public ShadowPageSettings Pages { get; set; } = new();
     /// <summary>Configurable whole-batch scene preparation, selection and drawing allowances.</summary>
     [JsonProperty] public ShadowDrawSettings Drawing { get; set; } = new();
+    /// <summary>Configurable age and source-motion limits for complete retained depths.</summary>
+    [JsonProperty] public ShadowTemporalSettings Temporal { get; set; } = new();
 
     #region Public API
     /// <summary>Materializes finite input and candidate policies under the existing configuration owner.</summary>
@@ -27,6 +29,8 @@ public sealed class ShadowSettings
         Pages.Sanitize();
         Drawing ??= new();
         Drawing.Sanitize();
+        Temporal ??= new();
+        Temporal.Sanitize();
     }
     #endregion
 }

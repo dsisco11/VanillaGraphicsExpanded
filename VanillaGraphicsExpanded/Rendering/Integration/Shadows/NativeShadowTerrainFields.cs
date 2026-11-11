@@ -18,4 +18,8 @@ internal static class NativeShadowTerrainFields
         AccessTools.FieldRefAccess<MeshDataPool, MeshRef>("modelRef");
     internal static readonly AccessTools.FieldRef<MeshDataPool, int> Id =
         AccessTools.FieldRefAccess<MeshDataPool, int>("poolId");
+    internal static readonly AccessTools.FieldRef<MeshDataPool, int> Dimension =
+        AccessTools.FieldRefAccess<MeshDataPool, int>("dimensionId");
+    internal static readonly AccessTools.FieldRef<MeshDataPool, Vintagestory.API.MathTools.Vec3i> Origin =
+        AccessTools.FieldRefAccess<MeshDataPool, Vintagestory.API.MathTools.Vec3i>("poolOrigin");
 }

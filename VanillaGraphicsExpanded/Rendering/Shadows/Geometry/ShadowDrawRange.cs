@@ -6,4 +6,4 @@ namespace VanillaGraphicsExpanded.Rendering.Shadows.Geometry;
 [StructLayout(LayoutKind.Sequential, Pack = 4)]
 internal readonly record struct ShadowDrawRange(uint Group, uint Command, uint Eligible, uint TriangleCost,
     uint IndexStart, uint IndexCount, int BaseVertex, uint RevisionLow, uint RevisionHigh,
-    uint VertexStart, uint VertexCount, uint CommandsPerArray);
+    uint VertexStart, uint VertexCount);

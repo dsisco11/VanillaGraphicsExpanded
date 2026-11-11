@@ -30,26 +30,32 @@ internal sealed partial class ShadowPagePool
     private static void Validate(ShadowPageSettings settings, int availableSamplerSlots)
     {
         var caps = GpuSupport.Graphics;
-        long count = checked(settings.LayersPerArray * (long)settings.ArrayCapacity);
-        long metadata = count * 256 + 352;
+        long count = checked((settings.TileColumns * settings.TileRows) * (long)settings.BankCapacity);
+        long metadata = count * 528 + 608;
         long total = metadata + count * settings.PageSize * settings.PageSize * 4;
         if (caps.ApiVersion is null || caps.ApiVersion < new Version(4, 5) || availableSamplerSlots < 4
             || caps.MaxTextureImageUnits < 4 || caps.MaxComputeTextureImageUnits < 4 || caps.MaxCombinedTextureImageUnits < 4
-            || caps.MaxFragmentShaderStorageBlocks < 1 || caps.MaxComputeShaderStorageBlocks < 3 || caps.MaxShaderStorageBufferBindings < 3
-            || settings.PageSize > caps.MaxTextureSize || settings.LayersPerArray > caps.MaxArrayTextureLayers
+            || caps.MaxFragmentShaderStorageBlocks < 2 || caps.MaxComputeShaderStorageBlocks < 4 || caps.MaxShaderStorageBufferBindings < 4
+            || checked(settings.PageSize * settings.TileColumns) > caps.MaxTextureSize
+            || checked(settings.PageSize * settings.TileRows) > caps.MaxTextureSize
+            || caps.MaxComputeImageUniforms < 4 || caps.MaxFragmentImageUniforms < 4
+            || caps.MaxImageUnits < 4 || caps.MaxCombinedImageUnits < 4
             || count > 8192 || metadata > caps.MaxShaderStorageBlockSize || total > settings.MemoryMiB * 1048576L)
             throw new InvalidOperationException("Page layout exceeds memory, planned consumer bindings or GL 4.5 limits.");
     }
-    /// <summary>Allocates one metadata layout and starts depth growth at one resident array.</summary>
+    /// <summary>Allocates one metadata layout and starts depth growth at one resident bank.</summary>
     private void Initialize(ShadowPageSettings settings)
     {
-        Validate(settings, availableSamplerSlots); policy = settings; targetArrays = settings.ArrayCapacity;
+        Validate(settings, availableSamplerSlots); policy = settings; targetBanks = settings.BankCapacity;
         long id = Interlocked.Increment(ref incarnation);
         if (id <= 0 || id > uint.MaxValue) throw new InvalidOperationException("Page owner generations exhausted.");
         shader = ShadowPageShader.Create(api); executable = shader.Shader;
-        commands = Buffer(320, "Commands"); Entries = Buffer(checked(Capacity * 256), "Entries"); Results = Buffer(32, "Results");
+        clearShader = ShadowTileClearShader.Create(api); clearExecutable = clearShader.Shader;
+        commands = Buffer(576, "Commands"); Entries = Buffer(checked(Capacity * 512), "Entries"); Results = Buffer(32, "Results");
+        WritableAssignments = Buffer(checked(Capacity * 16), "Writable");
         resourcesAlive = true;
-        Entries.UploadSubData<uint>(new uint[Capacity * 64], 0);
+        Entries.UploadSubData<uint>(new uint[Capacity * 128], 0);
+        WritableAssignments.UploadSubData<uint>(new uint[Capacity * 4], 0);
         Results.UploadSubData<uint>([0, 0, 0, 0, 0, (uint)id, 0, 0], 0);
         withdrawn = false;
         if (!Grow()) throw new InvalidOperationException("Initial shadow depth storage could not be allocated.");
@@ -61,8 +67,8 @@ internal sealed partial class ShadowPagePool
     /// <summary>Releases only owned resources; no engine geometry is retained by page storage.</summary>
     private void ReleaseResources()
     {
-        foreach (var array in arrays) array.Dispose(); arrays.Clear();
-        commands?.Dispose(); Entries?.Dispose(); Results?.Dispose(); shader?.Dispose();
+        foreach (var array in banks) array.Dispose(); banks.Clear();
+        commands?.Dispose(); Entries?.Dispose(); Results?.Dispose(); WritableAssignments?.Dispose(); clearShader?.Dispose(); shader?.Dispose();
         resourcesAlive = false;
     }
     #endregion

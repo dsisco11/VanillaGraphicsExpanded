@@ -3,12 +3,15 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using VanillaGraphicsExpanded.Rendering.Spirv;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Owns frozen source or binary stage inputs, an entry point and typed specialization values.</summary>
 public sealed class RHIShaderStageDescription
 {
+    /// <summary>Gets exact-binary compiler facts supplied by validated packaged preparation.</summary>
+    internal PackagedStageInterface? Interface { get; }
     #region Public API
     /// <summary>Gets the executable stage.</summary>
     public ShaderStage Stage { get; }
@@ -46,6 +49,17 @@ public sealed class RHIShaderStageDescription
         Specializations = (specializations ?? []).OrderBy(value => value.Id).ToImmutableArray();
         if (Specializations.Select(value => value.Id).Distinct().Count() != Specializations.Length)
             throw new ArgumentException("Specialization identifiers must be unique.", nameof(specializations));
+    }
+    #endregion
+
+    #region Internal API
+    /// <summary>Retains validated compiler facts alongside the copied binary and selected specialization values.</summary>
+    internal RHIShaderStageDescription(ShaderStage stage, ReadOnlySpan<byte> binary, string entryPoint,
+        IEnumerable<RHIShaderSpecialization> specializations, PackagedStageInterface stageInterface)
+        : this(stage, binary, entryPoint, specializations)
+    {
+        ArgumentNullException.ThrowIfNull(stageInterface);
+        Interface = stageInterface;
     }
     #endregion
 }

@@ -9,12 +9,12 @@ controls delivery. Numerical profiles are provisional, not measured shipping def
 The [qualification protocol](Rendering.VirtualShadowMaps.Qualification.md) defines the evidence needed
 before performance, completeness or appearance can be claimed.
 
-## Custom clipping exclusion: decision record and current boundary
+## Custom clipping: decision history and current boundary
 
-Custom shader clip distances remain unsupported. This is an explicit scope decision, not evidence that
-OpenGL 4.5 or the shader compiler cannot implement them. The investigation below records repository
-history and current source behavior as inspected on 2026-11-10; it neither enables clipping nor approves
-a replacement design. The [pipeline contract](Rendering.AuthoritativePipelineState.md) and
+Custom shader clip distances now derive their enables from compiler metadata through existing pipeline
+owners. The earlier exclusion was an explicit scope decision, not evidence that OpenGL 4.5 or the
+shader compiler could not implement them. The decision history below preserves that rationale;
+the current implementation is described separately. The [pipeline contract](Rendering.AuthoritativePipelineState.md) and
 [engine state ownership contract](Rendering.EngineStateSwitching.md) continue to govern execution.
 
 ### Decision history
@@ -43,26 +43,24 @@ depending on historical class locations.
 | Boundary | Current behavior and source |
 | --- | --- |
 | Authored pipeline | [RasterizerDesc](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/RasterizerDesc.cs) has no custom clip mask. [PipelineFixedFunctionValidation.ValidateRaster](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/PipelineFixedFunctionValidation.cs) validates the native clip-limit representation, not a supported authored plane selection. |
-| Managed draw application | [GraphicsStateRelevance.RasterGroups](../VanillaGraphicsExpanded/Rendering/Pipeline/GraphicsStateRelevance.cs) includes clip-distance state for relevant rasterization. [CompleteApplication](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/FixedFunction/OpenGlStateCache.CompleteApplication.cs) calls `ApplyPipelineRasterizer`; [ApplyConfigurableRaster](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/FixedFunction/OpenGlStateCache.PipelineRasterizer.cs) calls `SetClipDistance(i, false)` for every supported index when that state is relevant. Shader output alone therefore does not enable custom clipping. |
+| Managed draw application | [GraphicsStateRelevance](../VanillaGraphicsExpanded/Rendering/Pipeline/GraphicsStateRelevance.cs) retains the executable's derived clip count. [CompleteApplication](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/FixedFunction/OpenGlStateCache.CompleteApplication.cs) passes it to `ApplyPipelineRasterizer`, which sets every supported clip enable through the state cache. Clipping-to-none therefore disables previously enabled distances. |
 | Engine boundary | [BoundaryRasterizer](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/Boundaries/OpenGlStateCache.BoundaryRasterizer.cs) captures/restores individual enables. [ExternalCapabilities](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/Observation/OpenGlStateCache.ExternalCapabilities.cs) tracks native changes; [RasterParameters](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/FixedFunction/OpenGlStateCache.RasterParameters.cs) retains the guarded per-index setter and knowledge bits. These mechanisms preserve engine state; they are not an authored VGE clipping API. |
-| Compilation and metadata production | [ShaderVariantBuild.RunAsync](../ShaderBuildTool/Spirv/ShaderVariantBuild.cs) selects work through [ShaderVariantProcessor](../ShaderBuildTool/Spirv/Processing/ShaderVariantProcessor.cs). That owner invokes [ShaderCompilerProcess](../ShaderBuildTool/Spirv/ShaderCompilerProcess.cs), then obtains matching interface metadata through [ShaderInterfaceCache](../ShaderBuildTool/Spirv/Records/ShaderInterfaceCache.cs) and [ShaderInterfaceExtraction](../ShaderBuildTool/Spirv/ShaderInterfaceExtraction.cs), including cache reuse. [ShaderInterfaceReflection.Read](../ShaderBuildTool/Spirv/ShaderInterfaceReflection.cs) extracts numeric stage inputs/outputs and execution modes, with no clip-distance built-in extraction or activity analysis. |
-| Packaging and runtime preparation | [PackagedShaderInterface](../VanillaGraphicsExpanded/Rendering/Spirv/PackagedShaderInterface.cs) has no clipping facts. [PreparedProgramBinary](../VanillaGraphicsExpanded/Rendering/ProgramBinaries/PreparedProgramBinary.cs) calls [PackagedInterfaceValidation.Resolve](../VanillaGraphicsExpanded/Rendering/Spirv/PackagedInterfaceValidation.cs) for exact binary/schema/selection association. [GpuProgram.CompileSpirv](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.Spirv.cs) and [GraphicsInterfaceValidation](../VanillaGraphicsExpanded/Rendering/Pipeline/GraphicsInterfaceValidation.cs) validate numeric declarations against linked interfaces; [GraphicsExecutableInterface](../VanillaGraphicsExpanded/Rendering/Spirv/GraphicsExecutableInterface.cs) carries no clip-distance evidence for prepared enablement. |
+| Compilation and metadata production | [ShaderInterfaceReflection](../ShaderBuildTool/Spirv/ShaderInterfaceReflection.cs) uses SPIRV-Cross built-in resource/type/activity queries for each selected entry point. Existing [ShaderInterfaceCache](../ShaderBuildTool/Spirv/Records/ShaderInterfaceCache.cs) and [ShaderInterfaceExtraction](../ShaderBuildTool/Spirv/ShaderInterfaceExtraction.cs) retain build ownership and exact binary association. |
+| Packaging and runtime preparation | [PackagedShaderInterface](../VanillaGraphicsExpanded/Rendering/Spirv/PackagedShaderInterface.cs) includes separate input/output activity and extent facts. [PackagedInterfaceValidation](../VanillaGraphicsExpanded/Rendering/Spirv/PackagedInterfaceValidation.cs) checks schema/extractor/selection and exact binary association. [GraphicsClipDistances](../VanillaGraphicsExpanded/Rendering/Spirv/GraphicsClipDistances.cs) validates linkage and device limits, then records final VS/TES/GS enablement in the executable interface, including driver-cache installations. |
 
-No clip-specific source rejection was found in the inspected shader build tool/model/catalogue, source
-mutator, SPIR-V metadata or shader preparation code. This is an omission of supported metadata and
-enablement, not a demonstrated compiler diagnostic for every source that writes `gl_ClipDistance`.
-Generic rejection remains: reflection rejects unsupported execution modes, user interface blocks without
-member handling, missing numeric locations, unsupported scalar types and unresolved array extents;
-runtime preparation rejects invalid metadata associations and incompatible numeric interfaces.
-No compilation probe was run to qualify a custom-clipping shader through the current complete path.
+Reflection rejects unresolved clip extents, malformed built-in shapes and combined active clip/cull
+interfaces without a supported combined-limit contract. Generic rejection remains for unsupported
+execution modes, user interface blocks without member handling, missing numeric locations and
+unsupported numeric shapes. Runtime preparation rejects absent clipping facts rather than silently
+treating them as inactive. The retained source-only RHI route does not acquire custom clipping support.
 The [incremental build contract](ShaderBuild.Incremental.md) still governs metadata/cache/publication
-identity; restoring clipping would not permit bypassing that owner.
+identity; clipping support does not bypass that owner.
 
 ### Mechanisms that must not be conflated
 
 | Mechanism | Meaning and relationship to the exclusion |
 | --- | --- |
-| Custom shader clip distances | Shader-written `gl_ClipDistance[]` values define additional clipping half-spaces, with corresponding native enables. This is the excluded feature. Correct output evidence must account for the final vertex-producing stage and its declared/written distances. |
+| Custom shader clip distances | Shader-written `gl_ClipDistance[]` values define additional clipping half-spaces, with compiler-derived native enables. Correct output evidence must account for the final vertex-producing stage and its declared/written distances. |
 | Homogeneous frustum clipping | Normal clipping of projected `gl_Position` against the view volume remains part of rasterization. Disabling user clip-distance enables does not disable it. |
 | Clip control | `RasterizerDesc.ClipOrigin` and `ClipDepth` select coordinate conventions. They do not supply additional planes and remain supported. |
 | Depth clamp | `RasterizerDesc.DepthClamp` controls depth clamping in place of near/far depth clipping. It is separately applied by `ApplyPipelineRasterizer`; it does not supply a custom page rectangle. |
@@ -78,8 +76,8 @@ The evidence separates the reasons for removal from constraints any support reas
 - **Interface/architectural constraints — documented historical requirements, still relevant.** The
   proposed correction required compiler-derived facts associated with exact optimized binaries, correct
   final-stage/specialization interpretation, no guessed output coverage and no handwritten replacement
-  parser. Current metadata deliberately lacks those facts. Whether today's tools can provide a narrower
-  sufficient contract remains unverified; general numeric interface reflection does not answer it.
+  parser. The new built-in metadata supplies activity/extent facts separately from numeric interface
+  reflection; complete-path output and native execution remain verification obligations.
 - **Engine state ownership — enduring implementation constraint.** Managed draws must not inherit the
   engine's enabled distances, and boundaries must preserve the engine's state through existing owners.
   Preservation was retained when support was removed; it is not evidence that ownership makes support
@@ -92,15 +90,14 @@ The evidence separates the reasons for removal from constraints any support reas
   do not measure a clipping-versus-no-clipping VSM workload. No GPU/frame-time benefit, regression or
   suitability for carried lights is inferred from this source investigation.
 
-The reassessment below records the subsequently approved metadata direction and its remaining
-implementation requirements. The existing runtime exclusion remains in force until that work is
-implemented and qualified.
+The reassessment below records the subsequently approved metadata direction and its qualification
+requirements. Historical offline probe receipts establish only their named boundaries.
 
 ## Compiler-derived clipping support assessment
 
 **Decision, 2026-11-10:** the user approved reflecting clip-distance usage from compiled SPIR-V and
 packaging the result in the existing shader metadata. Production shaders remain precompiled SPIR-V.
-This selects the metadata ownership approach; it does not claim that runtime clipping is implemented.
+This selects the metadata ownership approach; the decision alone was not runtime qualification.
 The existing per-stage interface payload inside `spirv-digests.json` is the appropriate location, beside
 other compiler-derived interface facts. Clip distances are built-ins, not ordinary uniform locations or
 resource bindings. Do not introduce a second manifest, authored enable mask, runtime GLSL compilation,
@@ -114,6 +111,14 @@ contiguous enable set from the final vertex-producing stage (geometry, otherwise
 otherwise vertex). A proven inactive output enables no distances; unavailable or incompatible metadata
 must not be interpreted as proven inactivity. Preserve exact binary, entry-point, structural-selection,
 configuration and extractor association through preparation, including driver-program-cache loads.
+
+The replacement payload uses interface schema 3 and extractor identity
+`spirv-cross-2.23.0;interface-v3`. Each stage records separate clip input and output facts:
+an activity Boolean and declared literal extent, with zero extent meaning no declaration.
+Missing facts are invalid metadata, not inactive outputs. An active array must have a positive
+supported literal extent. Compiler extraction rejects unresolved or malformed array shapes;
+an inactive declaration retains its shape without enabling clipping. Existing interface-cache
+identity and complete-generation publication own invalidation and deployment of this payload.
 
 For the initial VSM shaders, recommend four literal-sized outputs, all written after final material
 deformation and projection. Plane values vary with the view's uncached-page rectangle; the array size
@@ -238,14 +243,12 @@ scissor and clipping only on matched workloads. Use the canonical build, strict 
 package and native acceptance routes in the [qualification protocol](Rendering.VirtualShadowMaps.Qualification.md).
 The offline probe does not replace any of those production checks.
 
-One pre-existing compatibility question remains separate from clipping: the packaged route in
-`ShaderExecutableInputs` supplies SPIR-V, and `OpenGLBackend.ShaderCreation.BeginShaderCandidate` requires
-`SupportsArbGlSpirv` when installing those stages. An `opengl4.5` offline compiler target does not remove
-that driver requirement. The user's precompiled-SPIR-V direction remains controlling; this assessment
-does not authorize a GLSL fallback or silently revise the stated OpenGL baseline. Resolve and document
-the minimum-context/extension contract before claiming a complete baseline path. Historical GLSL fixture
-receipts demonstrate those fixture routes only. This question blocks the dependent baseline claim,
-not the decision to extend existing shader metadata.
+The system's established baseline is OpenGL 4.5 plus `GL_ARB_gl_spirv`, or core SPIR-V ingestion support.
+The user reaffirmed this existing requirement on 2026-11-10. The packaged route in `ShaderExecutableInputs`
+supplies SPIR-V, and `OpenGLBackend.ShaderCreation.BeginShaderCandidate` already requires
+`SupportsArbGlSpirv` when installing those stages. Clipping adds no new shader-loading route or platform
+requirement. Earlier VSM wording describing unextended 4.5 was incorrect. Production qualification uses
+packaged SPIR-V; historical GLSL fixture receipts demonstrate only their exercised fixture routes.
 
 Other remaining proofs are active input propagation/linking, supported specialization behavior,
 complete-path writes, exact native-material variant coverage, clipping numerics at view/face boundaries,
@@ -318,12 +321,10 @@ attenuation radius. Current demand remains responsible for using the lighting ra
 
 `shadows/candidates.csh` executes the proposed whole-slab interval products and finite segment inequalities
 in double precision on the OpenGL 4.5 baseline. Closed boundary coverage includes both touching cells.
-The existing SPIR-V-only compute loader is not the runtime route for this shader: the narrow
-`ComputeShaderAsset.CreateBaselineFromAssets` boundary loads its self-contained GLSL source through
-RHI shader creation and the same generated binding contract. The canonical offline catalog still
-compiles and validates the shader. The existing `ShaderSourceCode` preprocessor applies generated fixed
-defines (including `VGE_SPIRV_BUILD`); unapplied structural/specialization options are rejected. No optional
-SPIR-V driver-ingestion capability is needed; other shader owners keep their existing loading policy.
+The existing packaged-SPIR-V compute loader owns this shader together with page allocation, tile clear
+and sampling. The canonical offline catalog compiles its generated contracts and packages matching
+interface metadata. Shadow owners use `ComputeShaderAsset.TryCreateFromAssets`, including the normal
+reload and cache path. There is no shadow-specific runtime GLSL factory or fallback.
 Arithmetic bounds expand outwards: local inputs are limited to 2^21 chunk units, domains to a 2^20
 index span, and the short arithmetic chains use an absolute 1e-7 plus relative 1e-11 allowance in chunk
 units. This intentionally admits boundary false positives. No mesh bounds, triangle inspection or
@@ -368,6 +369,32 @@ creation; live rendering reconfiguration and the total resource budget belong to
 
 ## Projections, physical pages and sampling
 
+### Replacement storage contract
+
+The approved replacement uses R32UI two-dimensional tile banks. `TileColumns` and `TileRows`
+(initially 16 each), `BankCapacity` (initially four) and `PageSize` (initially 128) define the
+requested layout. Validate each full bank dimension against texture limits and all metadata,
+resident, replacement and retiring bytes against the existing memory allowance. Named integer
+sampler/image bindings bound the supported bank count; it is not a hard-coded memory budget.
+
+Page-table words 17, 18 and 19 hold explicit bank, tile X and tile Y respectively. Assignment
+generations still identify ownership. Sampling reads those fields rather than treating a hash-table
+slot as a texture-array layer. Writable replacement and sampled completed entries remain distinct.
+Each physical tile is uniquely owned within the bounded allocator; a retired tile cannot be reused
+until its scheduled GPU users finish. A whole-bank clear cannot initialize individual replacements.
+
+Store finite conventional depth in [0,1] as unsigned IEEE-754 float bits, canonicalizing negative
+zero to positive zero. Unsigned atomic minimum selects the nearest depth; `0x3f800000` (1.0) is
+empty/clear depth. Fetch integer texels and decode before explicit comparison. Reject nonfinite,
+out-of-range and invalid-address writes before atomics. The encoding introduces no quantization
+beyond the existing float depth representation and requires no floating-point atomic extension.
+
+Selective compute clearing and graphics atomic writes use the existing RHI image bindings and
+barriers. Only admitted replacement assignments are writable; resident completed or retained tiles
+are protected even inside a view's raster rectangle. Complete publication still requires all
+geometry, material rejection, depth-inclusive coverage and source/assignment checks. Atomicity
+does not certify that drawing completed.
+
 `DirectionalShadowProjection` owns one sun or moon basis, a depth interval fitted to all eight
 represented-domain corners and levels whose world texel widths double. Page keys use absolute light-space
 XY; snapping the camera's clipmap center changes selected pages without changing matching mappings.
@@ -387,21 +414,20 @@ bounded texel-scaled depth adjustment, including slope. Each adjustment is cappe
 The planned material convention preserves native winding/back-face culling where appropriate and retains
 two-sided/cutout material behavior; front-face culling is not a substitute for receiver bias. Actual material
 rasterization, near-source crossings and depth-clamp evaluation remain scene-adapter qualification work.
-No custom clipping is introduced.
+Four compiler-derived clip outputs restrict each view's uncached rectangle after final deformation.
+The final VS or TES owns these outputs; no geometry stage is added solely for clipping.
 
-`ShadowPagePool` owns D32F two-dimensional array layers with one level, nearest sampling and no gutters or
-multisampling. It allocates metadata once and grows one resident array per request. The planned shared
-binding layout reserves four statically named array samplers; actual fragment/compute limits and supplied
-consumer slot availability are checked before allocation. The final lighting integrations must recheck
-their real binding availability. Array groups are explicit: slot / layers-per-array selects the group,
-slot modulo layers-per-array selects its layer.
+`ShadowPagePool` allocates metadata once and grows one resident integer bank per request, with one
+level, nearest sampling and no gutters or multisampling. The shared binding layout reserves four
+statically named integer samplers/images. Actual fragment/compute limits and supplied consumer slots
+are checked before allocation; lighting integrations must recheck their real binding availability.
 
-The GPU table has fixed 256-byte slots. State distinguishes free, building, ready and retired assignments;
+The GPU table has fixed 512-byte slots plus a separate 16-byte writable token per slot. State distinguishes free, building, ready and retired assignments;
 these bounded slot sets also serve as the free and retirement queues. Full source/projection/face/page
 identity is checked after bounded hash probing. Exhaustion reports failure; no hash-only equality or
 CPU selection readback exists. A pool incarnation plus monotonic assignment counter prevents reuse of
 old completion tokens; counter exhaustion rejects allocation. Unreferenced entries can be withdrawn
-before required entries, but their layers remain unavailable until the submitted batch fence signals.
+before required entries, but their tiles remain unavailable until the submitted batch fence signals.
 All page users submit inside `BeginBatch`/`SealBatch`; fence polling never waits for GPU completion.
 
 Rendered coverage occupies a separate depth-inclusive enclosure with world/scene epoch/sequence stamps.
@@ -416,7 +442,7 @@ One fixed enclosure and bounded probes keep metadata and containment work finite
 owner must supply complete current requirements before eviction/allocation and a truthful draw-completion
 certificate; controlled synthetic pages do not establish that future geometry integration.
 
-`SetArrayTarget` withdraws excess groups and exposes their bytes until fences allow disposal. `Withdraw`
+`SetBankTarget` withdraws excess banks and exposes their bytes until fences allow disposal. `Withdraw`
 handles disable/world leave; source/dimension retirement is a GPU operation. `Reconfigure` withdraws and
 drains the old layout before allocating its replacement, preventing two full pools. The existing client
 rendering lifetime's publication callback withdraws the pool synchronously on shader reload; context
@@ -429,18 +455,101 @@ coverage/dependency lookup, then performs point-fetched comparisons through stat
 Cube-edge taps reconstruct the ray and evaluate conventional depth in the destination face on the biased
 receiver's radial shell. Directional levels use the same world receiver with their own texel width; there
 is no depth averaging or implicit fallback level. The same tap resolver is available to demand producers.
-The compute entry returns all nine page addresses plus visibility and a diagnosed invalid-tap mask.
+The compute entry returns all nine page addresses plus visibility, a diagnosed invalid-tap mask and a
+separate permitted-stale tap mask. A query is current only when every tap is current; permitted stale
+requires every tap to be eligible and at least one retained tap.
 Any invalid tap returns unshadowed visibility for the query. Production per-light readiness, diagnostic
 aggregation and overlays remain owned by the later frame/consumer integration.
 
 Accepted `VirtualShadows.Pages` controls are provisional: `MemoryMiB` 128, `PageSize` 128,
-`LayersPerArray` 256, `ArrayCapacity` 4, `ProbeLimit` 128 and `OperationsPerBatch` 256. Projection/bias
+`TileColumns` 16, `TileRows` 16, `BankCapacity` 4, `ProbeLimit` 128 and `OperationsPerBatch` 256. Projection/bias
 controls are `PointNear` 0.05, `DepthBiasTexels` 0.5, `NormalBiasTexels` 0.5 and `SlopeBiasTexels` 1.
 The four-bank ceiling is the implemented shader interface, not a hard-coded shadow-memory budget.
 The pool validates depth plus metadata/command/result storage against its allowance, integer and hardware
 limits; `AllocatedBytes` includes resident retirement storage. `ShadowSampler` separately reports its
-672-byte query/output allocation. Candidate, input, sampler and future command storage remain charged to
+800-byte query/output allocation. Candidate, input, sampler and future command storage remain charged to
 their owners and must all fit the eventual total budget. Driver overhead is outside these nominal counts.
+
+### Retained projection and temporal eligibility
+
+Each completed entry retains its canonical rendered projection, depth-inclusive coverage, rendered
+timestamp and first invalidation timestamp. `Invalidate` marks a completed key; repeated invalidation
+can shorten its deadline but cannot restart it. A dependency mismatch without a known invalidation
+timestamp is unavailable. Source/world withdrawal, invalid ownership and resource retirement remain
+hard failures, independent of temporal policy.
+
+`ShadowSampleRequest` is constructed in the retained projection using the current receiver and filter
+footprint. `WithTemporal` separately supplies the current light projection and clock. All demanded
+coverage must fit the rendered certificate. Both age limits and motion tolerance must pass: point
+motion uses Euclidean distance in metres; directional motion uses angular separation in degrees.
+Current illumination is never reconstructed from the retained shadow projection.
+
+`VirtualShadows.Temporal` persists `MaxRenderedAgeSeconds` 0.25, `MaxStaleAgeSeconds` 0.1,
+`MaxPointTranslationMetres` 0.15 and `MaxDirectionalAngleDegrees` 0.25. These are initial engineering
+defaults, not measured quality thresholds. Ages accept [0,10] seconds, point displacement [0,4] metres
+and direction [0,10] degrees; all must be finite, and stale age cannot exceed rendered age. Zero for
+either age limit selects strict current-only sampling. Runtime qualification must calibrate defaults
+against carried-light and celestial motion workloads.
+
+Replacement follows allocation, selective clear, frozen writable mapping, complete drawing, ordered
+image visibility and publication. Publication requires the exact assignment and current batch token,
+projection and coverage; a generated completion command cannot allocate or freeze a batch. Old sampled
+tiles never enter the writable mapping. Insufficient replacement space leaves only independently
+eligible retained depth or unavailable shadows.
+
+### Compact views and bounded raster targets
+
+`NativeShadowTerrainGeometry.WithViews` borrows native geometry through a private VAO and adds one
+integer two-component selector at location 10, with an eight-byte instanced stride. Its components
+identify the object and view; object instancing must be expanded by the native adapter without losing
+its original instance identity. It does not modify native mesh-pool storage or attach page matrices.
+
+`ShadowDrawView` describes one directional level or point face and a virtual texel rectangle, with a
+contained uncached rectangle and an explicit world origin. Absolute virtual texels use 64-bit host
+coordinates; packing splits them into a signed 32-bit page origin and a nonnegative within-page texel
+offset. The complete region must fit the page-key range. Fragment addressing adds only small local
+texels before resolving the absolute page, so a large valid world origin cannot overflow a 32-bit
+absolute texel. Its sixteen RGBA32UI texels contain the projection, rectangles, source/view identity,
+page origin and batch limits. `ShadowViewBuffer` freezes these records
+for texture-buffer access and validates actual vertex/TES limits. A shared R8 attachment supplies the
+existing RHI's raster-pass target; shadow depth remains in R32UI images. Each pass uses an origin-zero
+viewport of the selected region. Records and attachment bytes stay charged until the batch fence
+completes. No native framebuffer calls bypass RHI ownership.
+
+Drawing controls include `ViewCapacity` 128, `ViewInstances` 32768 and aggregate `RasterPixels`
+16777216. Regions exceeding viewport/texture or memory limits are rejected and require explicit
+budgeted splitting. The eventual admission owner must charge every in-flight batch, command and
+repeated geometry workload as well as these resources.
+
+### Shader generation and variant provenance
+
+`ShadowVirtualStages` replaces the layer-routing generator. Compact selection is inserted before
+terrain material varyings are propagated. Final projection and the four clip writes are inserted
+after VS or TES deformation has been assembled; built-in arrays are not copied as material varyings.
+The final material body is called from a generated wrapper so its early returns cannot bypass final
+clip writes. Fragment material discard occurs before page authorization and atomic depth. Existing
+clip/cull declarations or redeclared final `gl_PerVertex` output blocks are diagnosed rather than
+guessed or duplicated. A geometry-producing material requires its own complete-emission variant.
+
+Offline roots place `#pragma vge_shadow_interface` before imports of the shared view/writing helpers.
+The existing source preprocessor replaces that declaration site after dependency expansion. Shared
+helper observations, source bytes, generator/tool identity, structural selection, compiler options,
+binary digest and schema/extractor facts remain part of ordinary build provenance and publication.
+Missing packaged material variants fail visibly; no runtime GLSL fallback is authorized.
+
+| Structural family | Required final producer and material behavior | Integration boundary |
+| --- | --- | --- |
+| Ordinary terrain | VS with native warp and cutout behavior | Borrow ordinary native inputs; select packaged terrain variant |
+| Displaced ordinary terrain | VS/TCS/TES, final clipping after TES displacement | Generate material interfaces before built-ins; retain native tessellation policy |
+| Shader-storage terrain, with/without displacement | Existing native layout with VS or TES final output | Preserve native addressing and supported material declarations; added projection access remains a texture buffer |
+| Static and instanced objects | Final VS with original object/instance transform and opacity behavior | Preserve original instance identity while expanding object/view work |
+| Animated objects | Final deformed VS, or explicitly supported final stage | Preserve pose/material revisions and offscreen preparation |
+
+This is the native variant inventory required for adapter integration, not a claim that those native
+production packages are already complete. The current packaged `tests/shadow-virtual` fixture exercises
+the shared generated VS/fragment boundary and real view storage; separate clipping fixtures exercise
+stage precedence. Native source generation/linkage fixtures do not establish complete material coverage,
+and synthetic raster evidence does not qualify installed-game shadows.
 
 ## Ownership and source layout
 
@@ -503,7 +612,7 @@ Every operation returns a completion state with a reason; an empty result and un
 | Surface/volume demand | Consumer, frame/light snapshot, receiving world regions including depth, filter and bias footprints, requested detail | Current complete requests before the first participating consumer. All contributing transparent layers count. History can prioritize only. Late categories supply conservative early bounds. |
 | Candidate build/resume | Receiver coverage, light key, full covered motion/influence, world domain, pruning dependencies, work allowance, continuation cursor | Header plus coordinate spans, unresolved cells and completion. GPU traversal, deduplication and publication; CPU never reads selections to decide geometry draws. |
 | Scene change publication | Sequence, source lifetime, prior/current conservative bounds, geometry/pose/material/eligibility revisions; creation/removal flags | Existing scene adapters report all relevant changes, including new casters absent from previous draws. Bounds include deformation. Apply every change since cached publication. |
-| Page lookup | Source/lifetime, projection generation, level/face and virtual XY; request receiving region | Mapping to array/layer/assignment generation plus separately certified coverage and dependencies. Bounded probes; collision exhaustion cannot alias or silently drop entries. |
+| Page lookup | Source/lifetime, projection generation, level/face and virtual XY; request receiving region | Mapping to bank/tile XY/assignment generation plus separately certified coverage and dependencies. Bounded probes; collision exhaustion cannot alias or silently drop entries. |
 | Page admission | Complete candidates, current terrain/non-terrain inputs, union of currently required receiving regions, remaining aggregate limits | Admit only complete updates before clearing. Count every preparation/expansion pass and repeated geometry cost. Unfinished selection produces no publishable page. |
 | Readiness publication | Complete current demand and valid covering page results for one light/consumer/frame | All surface paths share one result for that interval; sun and moon independent. Fog has separate readiness and cannot displace an admitted surface result. |
 | Shared sampling | Same light/readiness snapshot, world receiving position and bounded bias/filter parameters | Visibility in [0,1] attenuates only that light's direct term. Explicit virtual lookup for each tap; unexpected failure returns 1 and records a per-light failure. This guard does not satisfy the readiness contract. |
@@ -548,7 +657,7 @@ GPU packing may use smaller epochs only with proof that no retained work can col
 | World/domain | Availability, domain or chunk lifetime changes | Recheck swept regions and unknown cells before candidate/page certification |
 | Geometry/scene change | Range/storage, pose, material, eligibility or relevant world content changes | Invalidate intersecting cached depths, even at unchanged transform/range |
 | Candidate | Complete replacement association is published | Old/new lists have distinct lifetimes; motion inside certified bounds may reuse current candidates despite depth invalidation |
-| Physical assignment | Layer reassigned, storage recreated or replaced | Old page references never address a new owner's depth |
+| Physical assignment | Tile reassigned, storage recreated or replaced | Old page references never address a new owner's depth |
 | Coverage | Complete replacement depths and their certified receiving regions publish together | Metadata-only growth cannot authorize additional receivers |
 | Readiness | Consumer's certified result/detail/availability changes | Shared consumer snapshot and fog history reject obsolete results |
 
@@ -561,12 +670,13 @@ unless both freshness and shadow-opacity equivalence are proven.
 | State/reason | Required behavior |
 | --- | --- |
 | Unknown source identity | Illumination continues; no cached shadows, diagnostic identifies missing source integration |
-| Unknown/pending chunk or geometry | Keep unresolved coverage; affected page is not complete, affected surface light unready |
+| Unknown/pending chunk or geometry | Keep unresolved coverage; no fresh certificate. A previously complete result remains usable only if its separate temporal/coverage eligibility is known; otherwise the affected light is unready |
 | Pending traversal, deduplication or invalidation | Retain bounded continuation only under valid dependencies; never certify unfinished output |
-| Stale source/projection/range/assignment | Reject completion and lookup, withdraw affected publications; retire storage safely |
+| Stale source lifetime, range or assignment | Reject completion and lookup, withdraw affected publications; retire storage safely |
+| Changed projection or scene dependencies | Current certification fails; separately evaluate complete retained depths against recorded invalidation, rendered projection, current coverage and temporal limits |
 | Capacity/probe/command/request overflow | No truncation-as-success; bounded detail retries, then stable light withdrawal while illumination continues |
 | Unsupported hardware/consumer capacity | Report requested/effective capacities and reason; reduce supported capacity or leave shadows unavailable, without enabling optional features implicitly |
-| Lost change history or unknown change bounds | Mark all potentially affected pages invalid before dropping history; broad invalidation may use an epoch without an unbounded immediate scan |
+| Lost change history or unknown change bounds | Invalidate potentially affected current certificates before dropping history. Retention requires a known first invalidation time and all other eligibility facts; unknown eligibility withdraws. Broad invalidation may use an epoch without an unbounded immediate scan |
 | Disabled/context lost/world left | Withdraw first, stop admitting work, retire owned resources; native buffers stay native-owned |
 | Unexpected sampler miss | Return unshadowed visibility and record light/page/coverage reason; investigate demand/readiness defect rather than accept page-shaped fallback |
 
@@ -586,9 +696,9 @@ freeze current source and scene publications; apply relevant changes
 generate complete current demand for each light and consumer
 resume or replace candidates only within their covered motion and dependencies
 admit complete page replacements within aggregate storage and work limits
-clear selected replacement layers; render all required current geometry
+clear selected replacement integer tiles; freeze writable tokens; render all required geometry/view work
 publish depths with receiving coverage and dependency versions
-reduce current coverage to per-light consumer readiness before shading
+reduce current or explicitly eligible retained coverage to per-light consumer readiness before shading
 retire superseded storage only after its scheduled GPU users finish
 ```
 
@@ -601,30 +711,31 @@ must establish safe submission/retirement ordering rather than attempt to extend
 
 ## Rendering and admission contract
 
-The complete baseline uses OpenGL 4.5 compute, bounded initialized indirect intervals, integer instance
-attributes addressed by base-instance, and geometry-shader layer output after final deformation.
-`gl_InstanceID` does not include base-instance. Preserve object instancing separately. Optional draw
-parameters, GPU count buffers, direct vertex/TES layer output, bindless access and SPIR-V ingestion must
-not be required for the baseline; existing GLSL compilation remains the portability route.
+The established baseline uses OpenGL 4.5 plus SPIR-V ingestion, compute selection, bounded initialized
+indirect intervals and compact integer object/view selectors addressed by base-instance. Projection
+records are separate texture-buffer data so positive vertex/TES/geometry SSBO limits are unnecessary.
+A selected geometry/view pair can cover multiple physical pages. Object instancing remains explicit;
+physical banks do not multiply geometry commands. Optional draw parameters, GPU counts and bindless
+access remain unnecessary. Native material-compatible variants are precompiled through existing owners.
 
-Resident pages are D32F array layers, initially 128 by 128, no mip chain, gutters or multisampling.
-Depth storage is one part of the total budget. Static named sampler dispatch must fit every actual
-consumer's available texture units and shader-stage limits. Validate planned bindings at storage design
-and actual bindings during consumer integration. No arbitrary dynamic sampler-array indexing assumption.
-One page is neither a chunk nor a complete light face.
+The replacement storage contract above defines R32UI tiles and ordered atomic depth. Four compiler-derived
+clip distances restrict the uncached rectangle after final deformation, while exact fragment page/assignment
+checks and material rejection authorize each write. All virtual raster dimensions fit effective viewport
+and framebuffer limits or require explicitly mapped, bounded region splits charged to geometry work.
 
-Conventional projected depth is compared explicitly. Projection providers own matching near/far and
-bias conventions. Start with manual 3-by-3 point-fetched PCF; resolve each tap through page/face/level
-mapping. Cube-edge taps use the adjacent face's reference depth; clipmap transitions use consistent
-world positions and demand all taps. Near-source geometry, depth spans and bias require actual raster
-qualification. Existing `DepthClamp` may be evaluated; custom clipping remains excluded.
+Admission includes aggregate candidate visits, pair deduplication, inactive command slots, counting/emission
+passes, view records, tessellation amplification, repeated region geometry, virtual raster area and conservative
+overdraw estimates. Allocate and selectively clear admitted replacements before freezing writable assignment
+and batch tokens. Completed sampled tiles never enter that mapping. Once frozen, allocation/cancellation
+cannot change its interpretation within the batch. Replacement publication removes write authorization;
+lookup residency never grants it. Integer clears, atomics and publication use ordered RHI barriers.
 
-Admission counts totals across groups and arrays, including inactive command slots, page/range duplicate
-visits, repeat counting/emission passes, tessellation amplification and page-instance geometry repetitions.
-One terrain range/array command can have multiple page instances; it does not remove repeated drawing.
-Initialize every submitted slot. Preserve the layered attachment on pass entry and selectively clear
-admitted layers with full-page geometry, depth writes and an always-passing depth test. A pass clear
-would destroy unrelated cached layers. Never clear a page whose complete replacement was not admitted.
+Manual 3-by-3 PCF resolves every tap in the selected rendered projection, fetches and decodes integer
+texels, and averages comparison results. Point-face seams reproject reference depth; directional levels
+retain world-space consistency. Near-source behavior, depth precision, clipping numerics and material
+compatibility require actual raster evidence. Retained depth requires temporal and receiving-coverage
+eligibility independently of currentness; no partial depth or incompatible old/new projection mixture
+can establish readiness.
 
 The frame gate follows current light capture and precedes the earliest affected surface shading.
 Demand includes opaque/cutout, entity/foliage, water and every contributing transparent layer, using
@@ -637,11 +748,11 @@ explicitly owned remaining consumers.
 ## Persisted settings and effective policy
 
 The opt-in `VirtualShadows` object in [VgeConfig](../VanillaGraphicsExpanded/LumOn/VgeConfig.cs)
-currently exposes input-publication, candidate and physical-page allowances. Extend it with the remaining schema below when rendering
+currently exposes input-publication, candidate, physical-page, drawing and temporal allowances. Extend it with the remaining schema below when rendering
 policy is implemented. Its types live in `Rendering/Shadows/Configuration`, avoiding further
 growth of unrelated nested settings. [ConfigModSystem](../VanillaGraphicsExpanded/ModSystems/ConfigModSystem.cs)
 continues to load/sanitize, materialize missing defaults and apply ConfigLib paths; it remains the configuration
-owner. Add public ConfigLib mappings in the existing asset. Its event handler must not become a second
+owner. The existing ConfigLib asset exposes page/drawing memory, view/raster limits and temporal controls. Its event handler must not become a second
 writer racing ConfigLib saves. [LiveConfigReload](../VanillaGraphicsExpanded/ModSystems/LiveConfigReload.cs)
 delivers sanitized settings; the shadow owner converts them to immutable requested/effective policies
 at a scheduling boundary. Cache enablement until its determining inputs change.
@@ -662,15 +773,15 @@ shader indices additionally fit their signed/unsigned packing and hardware limit
 | `PointCoverageHalfExtentMetres` | Three positive floats; (2,2,2) | Anchored source box; all intermediate positions must lie inside |
 | `RefreshGuardFraction` | Float (0,1); 0.25 | Begin replacement at normalized distance 0.75 for default; expiration still invalidates |
 | `ChallengerMargin` | Nonnegative float; 0.2 | Challenger exceeds incumbent score by this fraction |
-| `MinimumHoldSeconds` | Nonnegative float; 0.5 | Hold applies only while valid; cannot retain stale depth |
+| `MinimumHoldSeconds` | Nonnegative float; 0.5 | Hold applies only while current or independently eligible for bounded temporal reuse; it cannot extend reuse deadlines |
 | `RecoveryCompleteFrames` | Positive integer; 8 | Consecutive complete current frames before restoring shadows |
 | `Advanced` | Optional validated overrides | Work ceilings, detail/projection/bias controls and supported page sizes; omitted fields inherit the selected profile |
 
 A quality profile contains finite positive integer ceilings for input chunk/range visits, pool groups,
 changed-region checks, slab advances, cell visits, association segments/entries, dedup probes, demand
 requests, coverage regions/containment checks, page/range intersection tests, temporary pairs, command
-slots, page instances, estimated post-tessellation primitives, clears, resident lookup entries and retries.
-All ceilings are **per whole frame batch**, including every array/group/retry; storage capacities are
+slots, geometry/view instances, estimated post-tessellation primitives, clears, resident lookup entries and retries.
+All ceilings are **per whole frame batch**, including every bank/group/retry; storage capacities are
 also bounded over retained generations. Paused cursors and change backlogs count against storage.
 Optional advanced overrides use the same checks; unbounded work is not an accepted setting and overflow never means success.
 
@@ -685,7 +796,7 @@ Projection/detail fields include desired and minimum acceptable world/screen tex
 refinement count, directional level count/ranges, point near distance, depth range policy, constant/slope/
 normal bias and maxima in documented texel/depth units. They must produce finite invertible mappings,
 positive near distance, far greater than near and filter/bias footprints covered by demand. There is no
-independent directional caster horizon. Physical format is initially D32F and PCF width fixed at three;
+independent directional caster horizon. Physical format is R32UI with ordered conventional float-depth encoding and PCF width fixed at three;
 unsupported format/filter requests are rejected rather than treated as implemented quality modes.
 
 Effective capacity reports requested bytes, allocated live bytes, scratch, building replacements,
@@ -708,7 +819,7 @@ required capability facts prevent certification; do not create a second probing 
 Priority uses visible direct contribution and cost, carried-source preference, bounded waiting age and
 stable-key tie breaks. Reserve opportunities for both contributing celestial lights. Seek affordable
 complete coverage before refinement; bounded retries then light withdrawal if even minimum detail cannot
-fit. Nonblocking timing updates later estimates. Recovery or fades require complete current depths;
+fit. Nonblocking timing updates later estimates. Recovery or fades require complete current or independently eligible retained depths;
 unexpected coverage loss switches immediately to unshadowed illumination.
 
 ## Native boundary evidence and remaining verification

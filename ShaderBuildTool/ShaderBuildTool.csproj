@@ -24,6 +24,7 @@
     <Compile Include="..\VanillaGraphicsExpanded\SourceCodeMutator\GlslSchema.cs" Link="SourceCodeMutator\GlslSchema.cs" />
     <Compile Include="..\VanillaGraphicsExpanded\SourceCodeMutator\GlInterface*.cs;..\VanillaGraphicsExpanded\SourceCodeMutator\GlStageIoNode.cs;..\VanillaGraphicsExpanded\SourceCodeMutator\GlLayoutNode.cs" Link="SourceCodeMutator\%(Filename)%(Extension)" />
     <Compile Include="..\VanillaGraphicsExpanded\PBR\PbrTerrainColorPatches.cs" Link="TestFixtures\PbrTerrainColorPatches.cs" />
+    <Compile Include="..\VanillaGraphicsExpanded\Rendering\Shadows\Geometry\ShadowVirtualStages.cs" Link="Spirv\ShadowVirtualStages.cs" />
     <Compile Include="..\VanillaGraphicsExpanded\SourceCodeMutator\ShaderSyntaxTreePreprocessor.cs" Link="SourceCodeMutator\ShaderSyntaxTreePreprocessor.cs" />
     <Compile Include="..\VanillaGraphicsExpanded\SourceCodeMutator\LineDirectiveInjector.cs" Link="SourceCodeMutator\LineDirectiveInjector.cs" />
     <Compile Include="..\VanillaGraphicsExpanded\SourceCodeMutator\SourceCodeImportsProcessor.cs" Link="SourceCodeMutator\SourceCodeImportsProcessor.cs" />

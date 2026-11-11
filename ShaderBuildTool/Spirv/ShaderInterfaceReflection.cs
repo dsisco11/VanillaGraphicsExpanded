@@ -34,11 +34,17 @@ internal sealed unsafe class ShaderInterfaceReflection : IDisposable
         catch { Dispose(); throw; }
     }
 
-    /// <summary>Extracts numeric declarations while leaving final linked activity to the driver.</summary>
+    /// <summary>Extracts numeric declarations and selected-entry-point built-in activity.</summary>
     internal PackagedStageInterface Read()
     {
         Resources* resources = null;
         Check(api.CompilerCreateShaderResources(compiler, ref resources));
+        api.CompilerUpdateActiveBuiltins(compiler);
+        if ((api.CompilerHasActiveBuiltin(compiler, BuiltIn.ClipDistance, StorageClass.Input) != 0 ||
+             api.CompilerHasActiveBuiltin(compiler, BuiltIn.ClipDistance, StorageClass.Output) != 0) &&
+            (api.CompilerHasActiveBuiltin(compiler, BuiltIn.CullDistance, StorageClass.Input) != 0 ||
+             api.CompilerHasActiveBuiltin(compiler, BuiltIn.CullDistance, StorageClass.Output) != 0))
+            throw new InvalidDataException("Combined clip/cull distance interfaces are not supported.");
         ExecutionMode* modes = null; nuint modeCount = 0;
         Check(api.CompilerGetExecutionModes(compiler, ref modes, ref modeCount));
         var execution = ImmutableArray.CreateBuilder<PackagedExecutionMode>();
@@ -54,7 +60,9 @@ internal sealed unsafe class ShaderInterfaceReflection : IDisposable
                 modes[i] == ExecutionMode.LocalSizeId));
         }
         return new(Variables(resources, ResourceType.StageInput),
-            Variables(resources, ResourceType.StageOutput), execution.ToImmutable());
+            Variables(resources, ResourceType.StageOutput), execution.ToImmutable(),
+            ClipDistance(resources, BuiltinResourceType.StageInput, StorageClass.Input),
+            ClipDistance(resources, BuiltinResourceType.StageOutput, StorageClass.Output));
     }
 
     /// <summary>Releases all reflection objects through their owning compiler context.</summary>
@@ -66,6 +74,34 @@ internal sealed unsafe class ShaderInterfaceReflection : IDisposable
     #endregion
 
     #region Private
+    /// <summary>Reads the built-in value type without confusing per-vertex interface arrays with plane count.</summary>
+    private PackagedClipDistance ClipDistance(Resources* resources, BuiltinResourceType kind, StorageClass storage)
+    {
+        bool active = api.CompilerHasActiveBuiltin(compiler, BuiltIn.ClipDistance, storage) != 0;
+        ReflectedBuiltinResource* variables = null; nuint count = 0;
+        Check(api.ResourcesGetBuiltinResourceListForType(resources, kind, ref variables, ref count));
+        uint extent = 0;
+        bool found = false;
+        for (nuint i = 0; i < count; i++)
+        {
+            if (variables[i].Builtin != BuiltIn.ClipDistance) continue;
+            if (found) throw new InvalidDataException("Duplicate clip-distance built-in declaration.");
+            found = true;
+            var type = api.CompilerGetTypeHandle(compiler, variables[i].ValueTypeId);
+            // Compiler-owned ValueTypeId is the built-in member type, even inside gl_PerVertex.
+            if (api.TypeGetBasetype(type) != Basetype.FP32 || api.TypeGetVectorSize(type) != 1 ||
+                api.TypeGetColumns(type) != 1 || api.TypeGetNumArrayDimensions(type) != 1 ||
+                api.TypeArrayDimensionIsLiteral(type, 0) == 0)
+                throw new InvalidDataException("Clip distance requires a resolved literal float array.");
+            extent = api.TypeGetArrayDimension(type, 0);
+            if (extent == 0 || extent > int.MaxValue)
+                throw new InvalidDataException("Clip-distance extent is outside the supported range.");
+        }
+        if (active && !found)
+            throw new InvalidDataException("Active clip distance has no reflected declaration.");
+        return new(active, extent);
+    }
+
     /// <summary>Bounds metadata to execution modes whose operands are available through compiler reflection.</summary>
     private static int ArgumentCount(ExecutionMode mode) => mode switch
     {

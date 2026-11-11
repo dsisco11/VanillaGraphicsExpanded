@@ -67,8 +67,16 @@ internal sealed class ShaderSourcePreprocessor
         if (relative is "tests/terrain-capture-opaque.fsh" or "tests/terrain-capture-topsoil.fsh")
             VanillaGraphicsExpanded.PBR.PbrTerrainColorPatches.ApplyFragment(output,
                 relative.EndsWith("opaque.fsh", StringComparison.Ordinal) ? "chunkopaque.fsh" : "chunktopsoil.fsh");
+        // Structural fixtures share the production generator and imported kernels. The
+        // existing dependency snapshot therefore fingerprints all source and helper inputs.
+        string generated = output.ToText();
+        if (relative == "tests/shadow-virtual.vsh")
+            generated = VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowVirtualStages.FinalProducer(
+                VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowVirtualStages.SelectViews(generated), "vge_shadowPosition", "");
+        else if (relative == "tests/shadow-virtual.fsh")
+            generated = VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowVirtualStages.Fragment(generated, "", "");
         if (result.DependencyGraph is null) throw new InvalidDataException("Successful preprocessing omitted dependency graph.");
-        var expanded = new ShaderExpandedSource(id.Path, root, SourceCodeImportsProcessor.StripNonAscii(output.ToText()),
+        var expanded = new ShaderExpandedSource(id.Path, root, SourceCodeImportsProcessor.StripNonAscii(generated),
             ShaderDependencySnapshot.Capture(result.DependencyGraph, result.ProcessedResources),
             inputs.Values.OrderBy(input => input.Resource, StringComparer.Ordinal).ToImmutableArray());
         ShaderExpandedSource.Validate(expanded);

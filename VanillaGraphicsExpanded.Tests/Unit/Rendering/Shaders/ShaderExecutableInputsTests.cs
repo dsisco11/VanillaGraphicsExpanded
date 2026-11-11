@@ -17,7 +17,8 @@ public sealed class ShaderExecutableInputsTests
         var assets = new SlicedShaderAssets(path => { requests.Add(path); return new byte[20]; });
         var selected = Select("tests/render_infrastructure", ShaderStageKind.Fragment);
         // Act and Assert: The malformed binary is rejected after reading only the selected slice.
-        var error = Assert.Throws<ArgumentException>(() => ShaderExecutableInputs.CreateStage(selected, assets.Read(selected.BinaryPath)));
+        var metadata = new VanillaGraphicsExpanded.Rendering.Spirv.PackagedStageInterface([], [], [], new(false, 0), new(false, 0));
+        var error = Assert.Throws<ArgumentException>(() => ShaderExecutableInputs.CreateStage(selected, assets.Read(selected.BinaryPath), metadata));
         Assert.Contains("Invalid SPIR-V binary header", error.Message);
         Assert.Equal(new[] { "tests/render_infrastructure.fsh.spv" }, requests);
         assets.AssertUnchanged();
