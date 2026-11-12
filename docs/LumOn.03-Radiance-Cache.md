@@ -10,7 +10,7 @@
 ## 1. Overview
 
 The radiance cache stores incoming light at each probe. LumOn uses an **Octahedral Radiance Map**
-approach matching UE5 Lumen's Screen Space Radiance Cache design. Each probe stores radiance in
+approach for screen-space radiance caching. Each probe stores radiance in
 64 world-space directions (8×8 octahedral map) with per-texel hit distances for temporal stability.
 
 ### 1.1 Why Octahedral Maps?
@@ -25,7 +25,6 @@ approach matching UE5 Lumen's Screen Space Radiance Cache design. Each probe sto
 
 - **Temporal stability**: World-space directions remain valid across camera rotations
 - **Hit distance**: Per-texel depth enables leak prevention and disocclusion detection
-- **Matches Lumen**: Proven approach from UE5's SIGGRAPH 2022 presentation
 - **Higher angular resolution**: 64 directions vs 4-9 for SH L1/L2
 - **Simpler accumulation**: Direct radiance storage, no SH rotation needed
 

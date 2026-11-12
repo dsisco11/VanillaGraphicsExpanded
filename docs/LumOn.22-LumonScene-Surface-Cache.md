@@ -1,4 +1,4 @@
-# LumonScene Surface Cache (Lumen-style Cards) + Virtual Paged Atlases
+# LumonScene Surface Cache Cards + Virtual Paged Atlases
 
 > **Document**: LumOn.22-LumonScene-Surface-Cache.md  
 > **Status**: Draft (proposal)  
@@ -7,13 +7,13 @@
 > - Ray tracing background: [LumOn.04-Ray-Tracing.md](LumOn.04-Ray-Tracing.md)
 > - Clipmap topology + addressing: [LumOn.17-Clipmap-Topology-and-Addressing.md](LumOn.17-Clipmap-Topology-and-Addressing.md)
 > - Probe update scheduling (concepts we’ll reuse): [LumOn.19-Update-Pipeline-and-Scheduling.md](LumOn.19-Update-Pipeline-and-Scheduling.md)
-> - Lumen alignment context (surface cache is the “missing half”): [LumOn.08-Pipeline-Alignment-with-Lumen.md](LumOn.08-Pipeline-Alignment-with-Lumen.md)
+> - Screen-space pipeline context: [LumOn.08-Screen-Space-Pipeline.md](LumOn.08-Screen-Space-Pipeline.md)
 
 ---
 
 ## 1. Goal
 
-Design an advanced **LumonScene** system inspired by UE5 Lumen’s “card / surface cache”:
+Design an advanced **LumonScene** system using surface-cache cards:
 
 - Accumulate **world-space irradiance** onto surface texels over time (temporal amortization).
 - Plan for a **Near** and **Far** surface-cache field (near = higher resolution, far = lower resolution).
@@ -28,11 +28,11 @@ Design an advanced **LumonScene** system inspired by UE5 Lumen’s “card / sur
 Non-goals (for now):
 
 - Multi-bounce GI (payload is 0-bounce irradiance accumulation).
-- Perfect Lumen feature parity (software RT, HWRT, SDFs, etc.).
+- A complete ray-tracing system with software tracing, hardware tracing and signed distance fields.
 
 ---
 
-## 2. What “Lumen-card-style” means (in our terms)
+## 2. Surface-cache card design
 
 Instead of storing GI in a *volume* (probes), we store it on **surfaces**:
 

@@ -551,7 +551,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// Pass 1: Build probe anchors from G-buffer depth and normals.
     /// Output: ProbeAnchor textures with world-space positions and normals.
     ///
-    /// Output is in WORLD-SPACE (matching UE5 Lumen's design) for temporal stability:
+    /// Output is in WORLD-SPACE for temporal stability:
     /// - World-space directions remain valid across camera rotations
     /// - Radiance stored per world-space direction can be directly blended
     ///

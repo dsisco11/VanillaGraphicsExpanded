@@ -204,9 +204,8 @@ selected values for each emitted vertex. Do not add a geometry stage merely to o
 
 ### Raster restriction, batching and work bounds
 
-The local UE 5.8 reference `ShadowDepthVertexShader.usf::ScaleBiasClipToPhysicalSmPage` constructs four
-homogeneous distances around `UncachedPageRectBounds`. `ShadowDepthPixelShader.usf` separately checks
-`bThisLODValidForRendering` before its atomic write. The VSM recommendation follows that separation:
+Use four homogeneous clip distances around the uncached-page rectangle and a separate
+per-fragment renderability check before atomic writes. These mechanisms have distinct responsibilities:
 rectangle clipping limits raster work; exact page assignment/renderability and material rejection
 authorize writes. A rectangle can contain cached or retained tiles and sparse holes.
 

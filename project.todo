@@ -113,10 +113,10 @@ New Features:
     ☐ Asset mapping rules should support specifying compound textures (overlay textures, etc) which use the canonical "++0~" combiner syntax. (eg. "game:block/clay/brick/four/soldier/cream1++0~game:block/clay/brick/four/soldier/black1")
       - Maybe we should just allow overlay assets to specify their material/normal/depth textures which are then combined with the base asset's textures when used as a composite texture?
 
-LumOn → Lumen Alignment Work (Screen-Space Pipeline):
+LumOn Screen-Space Pipeline Improvements:
 
   Reference:
-  - docs/LumOn.08-Pipeline-Alignment-with-Lumen.md (Section 6 target pipeline)
+  - docs/LumOn.08-Screen-Space-Pipeline.md (Section 6 target pipeline)
 
   Dependency order notes:
   - Pass 0 (HZB) modifies the tracer, so if we do it, do it before adding confidence + temporal/filter tuning.
@@ -135,7 +135,7 @@ LumOn → Lumen Alignment Work (Screen-Space Pipeline):
 
 ☐ Phase 14 - Screen-Space Parity/Polish (Remaining Discrepancies):
   Depends on: Phase 9 (confidence), Phase 10 (temporal uses confidence), Phase 11 (probe-space filter).
-  Exit artifacts: Screen-space GI is more Lumen-like in stability/robustness (exposure-stable, fewer edge holes, fewer temporal fireflies), with tests/diagnostics.
+  Exit artifacts: Screen-space GI has improved stability/robustness (exposure-stable, fewer edge holes, fewer temporal fireflies), with tests/diagnostics.
   ☐ Reprojection inputs (motion vectors / camera motion):
     - Determine whether VS exposes motion vectors or equivalent per-pixel velocity
     - ✔ (Task) Plumb `lumon_velocity` output into the screen-probe temporal path (atlas) for velocity-based reprojection / disocclusion rejection. @done(26-01-27 00:30)

@@ -5,7 +5,7 @@
 > **Dependencies**:
 >
 > - G-buffer contract: [LumOn.01-Core-Architecture.md](LumOn.01-Core-Architecture.md) (GBufferManager integration)
-> - LumOn final combine stage: [LumOn.08-Pipeline-Alignment-with-Lumen.md](LumOn.08-Pipeline-Alignment-with-Lumen.md) (Pass 6: Combine)
+> - LumOn final combine stage: [LumOn.08-Screen-Space-Pipeline.md](LumOn.08-Screen-Space-Pipeline.md) (Pass 6: Combine)
 > - Runtime sources:
 >   - `GBufferManager` (Primary FBO attachments 4–5)
 >   - `VanillaShaderPatches` (vanilla shader outputs patched to MRT)
@@ -38,7 +38,7 @@ In this repo, vanilla world shaders have been patched so they primarily output *
 
 - World-space GI / probe systems (belongs to later phases)
 - Replacing LumOn itself (LumOn remains indirect)
-- Perfect parity with UE5 Lumen (Phase 16 is about direct lighting contract)
+- Global illumination features beyond the direct-lighting contract
 
 ---
 

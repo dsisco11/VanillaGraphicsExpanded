@@ -7,7 +7,7 @@ has been refactored and qualified within Phase 7's controlled foundation scope. 
 investigation and support assessment and Phase 7 are complete. Shadows remain disabled; Phase 8 and
 all later implementation work remain open. The baseline uses the system's established OpenGL 4.5 plus
 GL_ARB_gl_spirv requirement; shader ingestion is not a new VSM platform decision.
-Authority: the user's approved Unreal-style atomic rendering and bounded temporal reuse decisions below
+Authority: the user's approved atomic rendering and bounded temporal reuse decisions below
 supersede conflicting portions of the earlier proposal and plan. Unaffected proposal requirements remain
 binding. Phase 7 reconciles the proposal, implementation contracts and qualification protocol before
 dependent code changes. Numerical starting values remain tuning hypotheses, not measured guarantees.
@@ -45,11 +45,11 @@ Goal and governing contracts
   Outside-envelope terrain is an explicit client world-data limitation, not guaranteed shadow coverage.
 
 Approved atomic rendering architecture
-  Follow the inspected Unreal 5.8 ordinary-mesh VSM architecture: GPU-selected geometry/view work,
+  Use the approved ordinary-mesh virtual shadow architecture: GPU-selected geometry/view work,
   compact identifiers into separate projection records, virtual-coordinate rasterization, per-fragment
   physical-page lookup and atomic nearest-depth accumulation. This replaces per-page geometry instances,
   geometry-stage layer routing, full-matrix vertex attributes and layered depth-attachment clearing.
-  It does not require reproducing Nanite, Unreal GPU Scene, or its geometry ownership model in Vintage Story.
+  Preserve the game's existing geometry ownership and scene-publication boundaries.
 
   The physical pool is resident integer image storage with tiles addressed through the page table.
   Phase 7 fixes its atlas/array organization, finite depth encoding, clear value, comparison direction
@@ -60,20 +60,8 @@ Approved atomic rendering architecture
   be modified merely because they are resident. Atomics do not certify page completeness, replace
   material cutout rejection, or remove resource ordering before sampling.
 
-  Local reference: UE 5.8.0, changelist 55116800, C:/Program Files/Epic Games/UE_5.8/Engine.
-  Evidence anchors relative to that directory:
-    Shaders/Private/VirtualShadowMaps/VirtualShadowMapBuildPerPageDrawCommands.usf:
-      WriteCmd / OutputCommandInstanceListsCs produce paired instance/view records.
-    Shaders/Private/ShadowDepthVertexShader.usf:
-      TransformShadowVSM fetches PackedNaniteViews; ScaleBiasClipToPhysicalSmPage writes clip distances.
-    Shaders/Private/ShadowDepthPixelShader.usf:
-      virtual pixel -> page-table lookup -> physical texel -> InterlockedMax.
-    Shaders/Private/VirtualShadowMaps/VirtualShadowMapPageAccessCommon.ush:
-      FPageInfo contains ViewId and a static-page flag rather than a projection matrix.
-    Source/Runtime/Renderer/Private/ShadowDepthRendering.cpp:
-      SetStateForShadowDepth disables conventional depth writes for VSM.
-  These are source findings, not VGE performance or complete OpenGL compatibility evidence. Separate
-  static/dynamic caches and Nanite rasterization are not implicitly added as required features.
+  The architecture does not establish measured VGE performance or complete OpenGL compatibility.
+  Separate static/dynamic caches and alternative geometry rasterizers are outside the required scope.
 
 Approved temporal reuse amendment
   Decision: bounded reuse of previously complete shadow depths is required from the first integrated
@@ -567,7 +555,7 @@ Phase 6: Investigate clipping exclusions and evaluate support across affected sy
     ☑ Integration/tooling: shader catalogs/bindings, native material variants, diagnostics, serialization,
       existing tests, headless GPU qualification and deployment/package checks. List concrete files/modules
       and dependencies; separate required changes from systems verified to need no change.
-  ☑ Evaluate GL 4.5 feasibility and the original constraints against Unreal's four-plane uncached-page
+  ☑ Evaluate GL 4.5 feasibility and the original constraints against the four-plane uncached-page
     rectangle. Separate write correctness from raster-work reduction; page-table renderability checks
     remain required with clipping, especially for sparse holes and protected retained pages.
     ☑ Compare support costs, batching implications and expected work bounds with applicable non-custom-clip
@@ -644,7 +632,7 @@ Phase 7: Refactor existing foundations for atomic VSM rendering and temporal reu
         packaged production loading. Optional VSM acceleration features remain unnecessary.
     ☑ Specify compact draw/object/view selection and separate projection-data access on baseline GL 4.5.
       Respect vertex/tessellation limits and object instancing; do not assume geometry SSBO access,
-      optional draw parameters, or the presence of Unreal's vertex-factory machinery.
+      optional draw parameters, or an additional vertex-factory abstraction.
   ☑ Refactor projections and physical storage to resident R32UI tiles with explicit page-table physical
     addresses, assignment generations and separate sampled versus writable replacement mappings.
     ☑ Define view/face/mip identity, world-origin handling, finite depth encoding, comparison direction,
@@ -832,7 +820,7 @@ Phase 11: Qualify surface correctness, performance and visual behavior
     ☐ Cover baseline OpenGL 4.5 with optional paths disabled, representative capability limits, lifecycle
       and exhaustion, edits opening passages, streaming gaps, invalidating casters and coverage growth.
     ☐ Qualify atomic nearest-depth determinism, encoding/bias, page addressing, material rejection before
-      writes, resource barriers and cached/stale tile preservation. Adopting Unreal's architecture alone
+      writes, resource barriers and cached/stale tile preservation. Adopting the atomic rendering architecture alone
       establishes neither a speedup nor visual equivalence.
     ☐ Resolve any remaining near-source/depth-precision/material-opacity questions using actual geometry
       and image evidence; keep unproven connectivity pruning disabled with the bounds-only path operational.

@@ -82,15 +82,12 @@ Two RGBA16F textures store probe anchor data:
 
 ### 3.2 Why World-Space?
 
-LumOn stores probe positions and normals in **world-space**, matching UE5 Lumen's
-Screen Space Radiance Cache design. This provides critical benefits for temporal stability:
+LumOn stores probe positions and normals in **world-space** for temporal stability:
 
 - **Temporal coherence**: World-space directions remain valid across camera rotations.
   View-space directions would require re-tracing or SH rotation when the camera turns.
 - **Simpler temporal accumulation**: Radiance stored per world-space direction can be
   directly blended without coordinate transforms.
-- **Matches Lumen**: UE5's SIGGRAPH 2022 presentation confirms screen-space probes
-  store radiance in world-space directions for exactly these reasons.
 
 > **Note**: Vintage Story's G-buffer stores positions in view-space and normals in world-space.
 > The probe anchor pass transforms view-space positions to world-space using `inverseViewMatrix`.

@@ -699,12 +699,6 @@ shadowing for a light whose current surface coverage cannot be completed. A perm
 rendered coarse map is not assumed. This remains a recommendation for discussion;
 invalid or outdated pages cannot silently be sampled as valid.
 
-For technical context, Epic's virtual shadow map implementation uses resolution levels
-and describes coarse pages for consumers such as volumetric fog and forward-rendered
-translucency. It also documents the rendering cost of broad coarse coverage. These are
-reference examples, not a requirement to reproduce Unreal's implementation:
-[Epic Games: Virtual Shadow Maps](https://dev.epicgames.com/documentation/en-us/unreal-engine/virtual-shadow-maps-in-unreal-engine).
-
 ## Proposed missing-page and overload behavior
 
 ### Prefer complete surface coverage for each shadowed light
@@ -1105,7 +1099,7 @@ indirect support is only part of the required native shader and command integrat
 
 ## Virtual rasterization and atomic physical storage
 
-The approved architecture follows Unreal's ordinary-mesh virtual shadow path: select geometry/view
+The approved ordinary-mesh virtual shadow architecture is: select geometry/view
 work on the GPU, rasterize in virtual coordinates, and translate surviving fragments through the page
 table into resident integer tiles. Physical allocation does not assign triangles to arbitrary texture
 locations. Connected surface points retain their light-projection relationship; the page table translates

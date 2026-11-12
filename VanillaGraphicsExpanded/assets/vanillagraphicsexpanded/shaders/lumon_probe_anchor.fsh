@@ -12,7 +12,7 @@ layout(location = 1) out vec4 outNormal;    // normalWS.xyz, reserved
 // Each pixel in the probe grid corresponds to a screen-space probe.
 // Probes sample the center of their cell to determine anchor position.
 //
-// Output is in WORLD-SPACE (matching UE5 Lumen's design) for temporal stability:
+// Output is in WORLD-SPACE for temporal stability:
 // - World-space directions remain valid across camera rotations
 // - Radiance stored per world-space direction can be directly blended
 // - No SH rotation or coordinate transforms needed in temporal pass

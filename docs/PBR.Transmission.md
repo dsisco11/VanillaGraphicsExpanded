@@ -8,7 +8,7 @@ Any thin dielectric material can opt into colored backlighting with `"transmissi
 
 Transmission uses solar irradiance, sky visibility and actual shadow-map visibility. It does not inherit the ordinary diffuse shadow floor. It contributes neither specular reflection nor emission. Point lights and indirect lighting retain their current behavior.
 
-This is a thin-surface approximation inspired by foliage shading, not an exact Unreal shader port. It adds no thickness tracing, screen-space blur, new geometry, colored cast shadows or multiple scattering through leaf layers. Existing shadow-map bias and resolution still affect apparent leaf self-shadowing.
+This is a thin-surface approximation for foliage shading. It adds no thickness tracing, screen-space blur, new geometry, colored cast shadows or multiple scattering through leaf layers. Existing shadow-map bias and resolution still affect apparent leaf self-shadowing.
 
 ## Surface energy partition
 

@@ -7,7 +7,7 @@
 // - Screen-probe atlas uses LUMON_OCTAHEDRAL_SIZE (8) in lumon_octahedral.glsl.
 // - World-probe atlas is intentionally separate and may be higher resolution.
 
-// Default: higher-res than screen probes (UE5 Lumen-like for world probes).
+// Default: higher-res than screen probes for world-probe sampling.
 #ifndef VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE
 	#define VGE_LUMON_WORLDPROBE_OCTAHEDRAL_SIZE 16
 #endif

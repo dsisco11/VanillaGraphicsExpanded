@@ -11,7 +11,7 @@ LumOn - Phase 10 - Product Importance Sampling (PIS) for Direction Updates (Impl
   - docs/LumOn.04-Ray-Tracing.md (baseline “batch slicing” update logic)
   - docs/LumOn.05-Temporal.md (temporal blending constraints; must match traced-texel selection)
   - docs/LumOn.06-Gather-Upsample.md (cosine-weighted hemisphere integration)
-  - docs/LumOn.08-Pipeline-Alignment-with-Lumen.md (stage alignment; confidence signals)
+  - docs/LumOn.08-Screen-Space-Pipeline.md (stage alignment; confidence signals)
   - docs/LumOn_Flowchart.mmd (high-level PIS placement)
   - docs/LumOn.10-Product-Importance-Sampling.md (design + algorithm choices)
   - docs/WorldProbes.KnownSimplificationsAndRisks.md (world-probe direction sampling issues; optional extension)

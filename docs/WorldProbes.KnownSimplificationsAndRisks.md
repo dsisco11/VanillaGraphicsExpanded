@@ -561,14 +561,14 @@ world-probes do not reliably act as a fallback when screen traces fail.
   so the blend can remain screen-dominated even when screen-space tracing is unreliable for that pixel/probe.
 - **Hard to tune globally**: changing `VGE_LUMON_SKY_MISS_WEIGHT` trades “black indirect” vs “sky leaking”, and the
   balance shifts with camera framing/disocclusion.
-- **Diverges from hierarchical GI designs (e.g., Lumen)**: screen-trace failure is typically treated as “unknown” and
+- **Diverges from hierarchical GI designs**: screen-trace failure is typically treated as “unknown” and
   followed by a world-space fallback before using sky/environment on final miss.
 
 **Options to address**
 
 - **Option A (cheap)**: Make screen-probe miss radiance less “sky-like” (e.g., ambient-only tint, lower `VGE_LUMON_SKY_MISS_WEIGHT`, or no sun lobe) to reduce sky leaking.
 - **Option B (better)**: Store and use miss diagnostics (miss ratio, screen-exit ratio, avg hit distance) to down-weight `screenConfidence` so world probes take over when screen-space is unreliable.
-- **Option C (Lumen-like)**: On screen miss, perform a secondary world-space query (hardware RT, distance fields, or a proxy scene) and only fall back to sky/environment when that also misses. **(Implemented for probe-atlas trace via world-probe fallback)**
+- **Option C (world-space fallback)**: On screen miss, perform a secondary world-space query (hardware RT, distance fields, or a proxy scene) and only fall back to sky/environment when that also misses. **(Implemented for probe-atlas trace via world-probe fallback)**
 
 **Notes**
 

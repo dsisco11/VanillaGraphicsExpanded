@@ -351,7 +351,6 @@ SampleSurfaceCache(hitPos, hitNormal):
 
 ## 9. References
 
-- **Lumen (UE5)**: [Unreal Engine 5 Lumen Technical Details](https://docs.unrealengine.com/5.0/en-US/lumen-global-illumination-and-reflections-in-unreal-engine/)
 - **DDGI**: [Dynamic Diffuse Global Illumination](https://morgan3d.github.io/articles/2019-04-01-ddgi/)
 - **Sparse Voxel Octrees**: [Efficient Sparse Voxel Octrees](https://research.nvidia.com/publication/efficient-sparse-voxel-octrees)
 - **Surface Cache**: [Far Cry 5 GI](https://www.gdcvault.com/play/1025458/Global-Illumination-in-Far-Cry)

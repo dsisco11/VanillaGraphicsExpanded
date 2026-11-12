@@ -1,21 +1,20 @@
-# LumOn Pipeline Alignment with UE5 Lumen (Screen-Space Focus)
+# LumOn Screen-Space Pipeline
 
-> **Document**: LumOn.08-Pipeline-Alignment-with-Lumen.md  
+> **Document**: LumOn.08-Screen-Space-Pipeline.md\
 > **Status**: Draft  
 > **Dependencies**:
 >
 > - Current pipeline + goals: [LumOn.01-Core-Architecture.md](LumOn.01-Core-Architecture.md) through [LumOn.06-Gather-Upsample.md](LumOn.06-Gather-Upsample.md)
-> - Comparison baseline: [LumOn.07-LumOn-vs-Lumen.md](LumOn.07-LumOn-vs-Lumen.md)
 > - Runtime pipeline source: `LumOnRenderer` (Pass 1–6 orchestration)
 
 ---
 
 ## 1. Goal
 
-Explain what needs to change in the **current LumOn render stages** to more closely match the _screen-space portion_ of UE5 Lumen’s approach.
+Describe improvements to the **current LumOn render stages** for stable and efficient screen-space probe gathering.
 
-- This intentionally ignores the biggest missing Lumen systems (world-space fallback tracing + Surface Cache), except where those constraints shape what is realistic.
-- The focus is: **are we already “stage-equivalent” to Lumen SPG, or are there missing shader stages / missing data products?**
+- World-space fallback tracing and the surface cache are outside this screen-space design, except where they constrain its interfaces.
+- Identify missing shader stages and data products needed for stable probe gathering.
 
 ---
 
@@ -68,7 +67,7 @@ Two strategies:
 
 ---
 
-## 3. “How close is this to Lumen SPG?” (screen-space only)
+## 3. Screen-space capabilities and gaps
 
 ### 3.1 What is already aligned
 
@@ -87,14 +86,14 @@ The key differences are:
 
 1. **We don’t have a dedicated probe-space filter/denoise stage** (separate from temporal).
 2. **We don’t produce or propagate a robust confidence signal**, so later stages can collapse to near-zero weights and produce black.
-3. **Our final gather is doing too much work per pixel** (4 probes × 16/64 directional taps + edge stopping + leak logic), while Lumen pushes more stability into probe-space reuse/filters.
+3. **Our final gather is doing too much work per pixel** (4 probes × 16/64 directional taps + edge stopping + leak logic), which could be reduced by probe-space reuse and filtering.
 4. **Our tracing is a simple depth-buffer marcher without hierarchical depth (HZB) acceleration**, which affects both performance and hit robustness.
 
 ---
 
-## 4. Additional “Lumen-like” screen-space stages to add
+## 4. Additional screen-space stages to add
 
-These are the stages Lumen-style SPG pipelines usually include (in some form) that LumOn currently lacks or only partially implements.
+The following screen-space probe-gathering stages are missing or only partially implemented in this design.
 
 ### 4.1 Probe placement jitter (blue-noise / subpixel)
 
@@ -111,7 +110,7 @@ These are the stages Lumen-style SPG pipelines usually include (in some form) th
 
 ### 4.2 Probe-space spatial filtering (edge-stopped)
 
-**Why**: Lumen doesn’t depend on the _pixel gather_ to fix noisy/unstable probe radiance. It filters in probe space.
+**Why**: Filtering noisy or unstable radiance in probe space reduces reliance on the pixel gather.
 
 **What to implement**:
 
@@ -125,7 +124,7 @@ These are the stages Lumen-style SPG pipelines usually include (in some form) th
 
 ### 4.3 Explicit confidence / validity textures
 
-**Why**: Lumen-style pipelines propagate confidence and use it in:
+**Why**: Propagate confidence and use it in:
 
 - temporal blend weight
 - spatial filter weight
@@ -166,9 +165,9 @@ These are the stages Lumen-style SPG pipelines usually include (in some form) th
 
 **Cost / risk**: moderate-high; multiple mip passes and additional sampling logic.
 
-### 4.5 Split “integration” from “gather” (optional but very Lumen-like)
+### 4.5 Split “integration” from “gather” (optional)
 
-Right now, octahedral gather integrates directional data per pixel. Lumen-style pipelines often prefer a representation that makes the final gather cheaper.
+Right now, octahedral gather integrates directional data per pixel. A preintegrated representation can make the final gather cheaper.
 
 Two options:
 
@@ -205,9 +204,9 @@ These are still feasible within the existing renderer orchestration, but they ch
 
 ---
 
-## 6. Recommended target pipeline (Lumen-like screen-space)
+## 6. Recommended screen-space target pipeline
 
-A realistic “Lumen-ish” screen-space target for LumOn in this repo (still without world fallback) would look like:
+A screen-space target for LumOn in this repo (still without world fallback) would look like:
 
 0. (New) Depth pyramid / HZB (optional, recommended)
 1. Probe Anchor (with jitter)
@@ -224,7 +223,7 @@ A realistic “Lumen-ish” screen-space target for LumOn in this repo (still wi
 
 Your recent diagnostics strongly suggest the black cutoff is a symptom of “not enough trustworthy radiance/confidence reaching the gather”.
 
-Even if we tune gather weights, a Lumen-like pipeline avoids this by:
+Even if we tune gather weights, the proposed pipeline addresses this by:
 
 - ensuring probe radiance is stable before gather,
 - using confidence-weighted blending and filters,

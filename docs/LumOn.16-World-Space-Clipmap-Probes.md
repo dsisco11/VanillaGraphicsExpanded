@@ -5,7 +5,7 @@
 > **Dependencies**:
 >
 > - Core pipeline context: [LumOn.01-Core-Architecture.md](LumOn.01-Core-Architecture.md)
-> - Screen-space alignment: [LumOn.08-Pipeline-Alignment-with-Lumen.md](LumOn.08-Pipeline-Alignment-with-Lumen.md)
+> - Screen-space alignment: [LumOn.08-Screen-Space-Pipeline.md](LumOn.08-Screen-Space-Pipeline.md)
 > - Direct lighting contract: [LumOn.09-PBR-Direct-Lighting-Pass.md](LumOn.09-PBR-Direct-Lighting-Pass.md)
 
 ---
@@ -38,8 +38,8 @@ This persistence is **in-memory only** (frame-to-frame); world probes are **neve
 
 ### 1.3 Non-goals (Phase 18)
 
-- Full Lumen surface cache replacement
-- Perfect parity with UE5 world probes
+- A complete surface-cache renderer
+- Full feature coverage beyond the specified world-probe design
 - Dynamic mesh capture beyond existing G-buffer and scene data
 - Cross-session persistence of world probe payloads (no disk cache)
 - Final implementation details (this is architecture only)

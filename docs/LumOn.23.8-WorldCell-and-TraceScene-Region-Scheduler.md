@@ -30,7 +30,7 @@ This document proposes a general `WorldCell` abstraction plus a dedicated `Trace
 
 ## Non-goals (initial)
 - Rewriting LumonScene surface-cache scheduling to fully use `WorldCell` in the first iteration.
-- Perfect Lumen parity (this is about scheduling and robustness, not algorithmic GI parity).
+- Global illumination algorithm changes beyond scheduling and robustness.
 
 ---
 

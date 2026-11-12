@@ -7,7 +7,7 @@
 > - Phase 18 overview: [LumOn.16-World-Space-Clipmap-Probes.md](LumOn.16-World-Space-Clipmap-Probes.md)
 > - Clipmap topology: [LumOn.17-Clipmap-Topology-and-Addressing.md](LumOn.17-Clipmap-Topology-and-Addressing.md)
 > - Probe layout: [LumOn.18-Probe-Data-Layout-and-Packing.md](LumOn.18-Probe-Data-Layout-and-Packing.md)
-> - Phase 15 composite: [LumOn.08-Pipeline-Alignment-with-Lumen.md](LumOn.08-Pipeline-Alignment-with-Lumen.md) (Pass 6: Combine)
+> - Phase 15 composite: [LumOn.08-Screen-Space-Pipeline.md](LumOn.08-Screen-Space-Pipeline.md) (Pass 6: Combine)
 
 ---
 

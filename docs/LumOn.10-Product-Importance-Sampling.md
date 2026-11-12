@@ -10,7 +10,7 @@
 > - Screen probe tracing pass: [LumOn.04-Ray-Tracing.md](LumOn.04-Ray-Tracing.md)
 > - Temporal accumulation: [LumOn.05-Temporal.md](LumOn.05-Temporal.md)
 > - Gather/integration: [LumOn.06-Gather-Upsample.md](LumOn.06-Gather-Upsample.md)
-> - Lumen alignment: [LumOn.08-Pipeline-Alignment-with-Lumen.md](LumOn.08-Pipeline-Alignment-with-Lumen.md)
+> - Screen-space pipeline: [LumOn.08-Screen-Space-Pipeline.md](LumOn.08-Screen-Space-Pipeline.md)
 > - High-level PIS placement: [LumOn_Flowchart.mmd](LumOn_Flowchart.mmd)
 > - World-probe direction slicing pain point: [WorldProbes.KnownSimplificationsAndRisks.md](WorldProbes.KnownSimplificationsAndRisks.md)
 

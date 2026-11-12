@@ -4,14 +4,13 @@
 // LumOn Octahedral Mapping Utilities
 // ═══════════════════════════════════════════════════════════════════════════
 // Functions for encoding/decoding directions to octahedral UV coordinates.
-// Used for the Screen Space Radiance Cache (matching UE5 Lumen's design).
+// Used for the Screen Space Radiance Cache for stable world-space sampling.
 //
 // Octahedral mapping provides a more uniform distribution of directions
 // compared to spherical coordinates, with better bilinear filtering properties.
 //
 // References:
 // - "A Survey of Efficient Representations for Independent Unit Vectors" (Cigolle et al. 2014)
-// - UE5 Lumen SIGGRAPH 2022 presentation
 // ═══════════════════════════════════════════════════════════════════════════
 
 // ═══════════════════════════════════════════════════════════════════════════
