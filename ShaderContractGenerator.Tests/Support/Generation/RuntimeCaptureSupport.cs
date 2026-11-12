@@ -13,11 +13,11 @@ internal static class RuntimeCaptureSupport
         }
         public class GpuTexture { public static implicit operator GpuTextureRef(GpuTexture value) => new(value); }
         public readonly record struct GpuTextureRef(object Resource);
-        public readonly record struct GpuBufferRef(object Resource);
+        public readonly record struct GpuBufferRef(object? Resource) { public bool IsEmpty => Resource is null; }
         public class GpuUniformBuffer { public static implicit operator GpuBufferRef(GpuUniformBuffer value) => new(value); }
         public class GpuShaderStorageBuffer { public static implicit operator GpuBufferRef(GpuShaderStorageBuffer value) => new(value); }
         public class GpuAtomicCounterBuffer { public static implicit operator GpuBufferRef(GpuAtomicCounterBuffer value) => new(value); }
-        public readonly record struct GpuStorageBufferBinding(GpuShaderStorageBuffer Buffer, int OffsetBytes = 0, int SizeBytes = 0);
+        public readonly record struct GpuStorageBufferBinding(GpuBufferRef Buffer, int OffsetBytes = 0, int SizeBytes = 0);
         public class CpuUniformBuffer
         {
             private RHI.RHIUniformSnapshot snapshot = new(0);

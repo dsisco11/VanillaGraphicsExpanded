@@ -38,6 +38,7 @@ internal sealed class ShaderSourcePreprocessor
         string path = Path.GetFullPath(Path.Combine(root, domain, "shaders", relative));
         relative = Path.GetRelativePath(Path.Combine(root, domain, "shaders"), path).Replace('\\', '/');
         var sources = new Dictionary<ResourceId, SyntaxTree>();
+
         var (raw, rootInput) = ShaderInputObservation.Read(id.Path, path);
         var inputs = new Dictionary<string, ShaderInputObservation>(StringComparer.Ordinal) { [id.Path] = rootInput };
         var parsed = SyntaxTree.Parse(raw, GlslSchema.Instance);
@@ -45,6 +46,7 @@ internal sealed class ShaderSourcePreprocessor
         var resolver = new FileSystemSyntaxTreeResourceResolver(root, domain, (resourceId, file, text, tree) =>
         {
             sources[resourceId] = tree;
+
         }, observation =>
         {
             if (inputs.TryGetValue(observation.Resource, out var previous) && previous != observation)
@@ -70,16 +72,39 @@ internal sealed class ShaderSourcePreprocessor
         // Structural fixtures share the production generator and imported kernels. The
         // existing dependency snapshot therefore fingerprints all source and helper inputs.
         string generated = output.ToText();
+
         if (relative == "tests/shadow-virtual.vsh")
             generated = VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowVirtualStages.FinalProducer(
-                VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowVirtualStages.SelectViews(generated), "vge_shadowPosition", "");
+                VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowVirtualStages.SelectViews(generated), "vge_shadowPosition");
         else if (relative == "tests/shadow-virtual.fsh")
-            generated = VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowVirtualStages.Fragment(generated, "", "");
+            generated = VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowVirtualStages.Fragment(generated);
+        else if (relative == "shadows/terrain.vsh")
+            generated = VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowTerrainStages.Vertex(generated);
+        else if (relative == "shadows/terrain-adaptive.vsh")
+            generated = VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowTerrainStages.Vertex(generated, displaced: true);
+        else if (relative == "shadows/terrain.fsh")
+            generated = VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowTerrainStages.Fragment(generated);
+        else if (relative == "shadows/entity.fsh")
+            generated = VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowTerrainStages.Fragment(generated);
         if (result.DependencyGraph is null) throw new InvalidDataException("Successful preprocessing omitted dependency graph.");
         var expanded = new ShaderExpandedSource(id.Path, root, SourceCodeImportsProcessor.StripNonAscii(generated),
             ShaderDependencySnapshot.Capture(result.DependencyGraph, result.ProcessedResources),
             inputs.Values.OrderBy(input => input.Resource, StringComparer.Ordinal).ToImmutableArray());
         ShaderExpandedSource.Validate(expanded);
+        if (relative is "shadows/entity.vsh" or "shadows/static.vsh")
+            expanded = expanded with { Text = VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowVirtualStages.FinalProducer(
+                VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowVirtualStages.SelectViews(expanded.Text), "vge_shadowPosition") };
+        if (relative is "shadows/terrain-adaptive.tcsh" or "shadows/terrain-adaptive.tesh")
+        {
+            var vertex = Expand("shadows/terrain-adaptive.vsh");
+            // Both owned declarations and shared displacement bodies remain ordinary
+            // observed dependencies under the authored asset root.
+            var stages = VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowTerrainStages.Subdivision(vertex.Text,
+                new(expanded.Text, expanded.Text));
+            string stage = relative.EndsWith(".tcsh", StringComparison.Ordinal) ? stages.Control :
+                VanillaGraphicsExpanded.Rendering.Shadows.Geometry.ShadowTerrainStages.Evaluation(stages.Evaluation);
+            expanded = expanded.Derive(stage, vertex);
+        }
         return expanded;
     }
     #endregion

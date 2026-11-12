@@ -8,6 +8,8 @@ namespace VanillaGraphicsExpanded.Rendering.Integration.Shadows;
 /// <summary>Reads the native category table and storage owners without recording reverse pool membership.</summary>
 internal static class NativeShadowTerrainFields
 {
+    internal static readonly AccessTools.FieldRef<ChunkRenderer, ClientPlatformAbstract> Platform =
+        AccessTools.FieldRefAccess<ChunkRenderer, ClientPlatformAbstract>("platform");
     internal static readonly AccessTools.FieldRef<ChunkRenderer, MeshDataPoolManager[][]> Table =
         AccessTools.FieldRefAccess<ChunkRenderer, MeshDataPoolManager[][]>("poolsByRenderPass");
     internal static readonly AccessTools.FieldRef<ChunkRenderer, int[]> Textures =

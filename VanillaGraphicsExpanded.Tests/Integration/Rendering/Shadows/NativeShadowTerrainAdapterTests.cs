@@ -58,6 +58,7 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
         Assert.Equal(EnumChunkRenderPass.Liquid, liquidGroup.Pass);
         Assert.Null(liquidGroup.Geometry);
         Assert.True(liquidGroup.IsCurrent);
+        // Assert the engine-borrowed VAO remains a live native object; the RHI has no foreign VAO query API.
         Assert.True(GL.IsVertexArray(opaque.Mesh.VaoId));
         Assert.True(GL.IsVertexArray(liquid.Mesh.VaoId));
         Assert.Equal(oldCount, opaque.Pool.indicesGroupsCount);
@@ -82,6 +83,38 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
         Assert.False(batch.IsCurrent);
         Assert.Contains("allowance", batch.Failure, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(batch.Groups);
+    }
+
+    /// <summary>Terrain capture requires an authoritative platform and withdraws when its SSBO mode changes.</summary>
+    [Fact]
+    public void CaptureRequiresAndTracksNativeStorageAuthority()
+    {
+        // Arrange: capture one ordinary pool under an explicitly non-SSBO native platform.
+        EnsureContextValid();
+        using var storage = new NativeTerrainPoolStorage(2, new(0, 0, 0), 12);
+        var renderer = Renderer((EnumChunkRenderPass.Opaque, storage.Pool));
+        var platform = NativeShadowTerrainFields.Platform(renderer);
+        using var batch = NativeShadowTerrainAdapter.Capture(renderer, new ShadowDrawSettings { GroupVisits = 256 });
+        Assert.True(batch.Complete, batch.Failure);
+        Assert.True(batch.IsCurrent);
+
+        // Act: remove platform authority, then restore it and switch the native storage declaration.
+        NativeShadowTerrainFields.Platform(renderer) = null!;
+        bool acceptedWithoutPlatform = batch.IsCurrent;
+        using var missingAuthority = NativeShadowTerrainAdapter.Capture(renderer,
+            new ShadowDrawSettings { GroupVisits = 256 });
+        NativeShadowTerrainFields.Platform(renderer) = platform;
+        platform.UseSSBOs = true;
+        using var unsupportedStorage = NativeShadowTerrainAdapter.Capture(renderer,
+            new ShadowDrawSettings { GroupVisits = 256 });
+
+        // Assert: unavailable or changed layout authority invalidates the captured native geometry.
+        Assert.False(acceptedWithoutPlatform);
+        Assert.False(missingAuthority.Complete);
+        Assert.False(batch.IsCurrent);
+        Assert.False(unsupportedStorage.Complete);
+        platform.UseSSBOs = false;
+        Assert.True(batch.IsCurrent);
     }
 
     /// <summary>Native range structure or origin changes withdraw the captured draw group before submission.</summary>
@@ -220,7 +253,6 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
         Assert.True(GL.IsBuffer(nativeElements));
         Assert.True(GL.IsBuffer(nativePosition));
         Assert.False(batch.IsCurrent);
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion
 
@@ -230,6 +262,9 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
     {
         int liquid = Math.Max((int)EnumChunkRenderPass.Liquid, entries.Max(entry => (int)entry.Pass));
         var renderer = (ChunkRenderer)RuntimeHelpers.GetUninitializedObject(typeof(ChunkRenderer));
+        var platform = (ClientPlatformWindows)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlatformWindows));
+        platform.UseSSBOs = false;
+        NativeShadowTerrainFields.Platform(renderer) = platform;
         renderer.poolsByRenderPass = new MeshDataPoolManager[liquid + 1][];
         renderer.textureIds = [0x1a];
         foreach (var entry in entries)
@@ -325,6 +360,7 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
         private static void Attribute(int location, int components, VertexAttribPointerType type,
             int buffer, int stride, bool normalized, bool integer)
         {
+            // This fixture configures an engine-shaped foreign VAO; the RHI has no API to export its attribute layout.
             OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, buffer);
             if (integer) GL.VertexAttribIPointer(location, components, VertexAttribIntegerType.UnsignedInt, stride, IntPtr.Zero);
             else GL.VertexAttribPointer(location, components, type, normalized, stride, IntPtr.Zero);

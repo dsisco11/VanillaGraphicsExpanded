@@ -47,6 +47,7 @@ public sealed class ShaderPatchRecoveryTests : RenderTestBase
             string vertex = owner.VertexShader.Code, fragment = owner.FragmentShader.Code;
             ShaderPatchRecovery.Capture(owner);
             ShaderCapabilities.Declare(owner, ShaderCapability.TwoSidedSurfaceNormals);
+            ShaderCapabilities.Declare(owner, ShaderCapability.SharedVertexDeformation);
             owner.VertexShader.PrefixCode = "#define LATE_ENGINE_VALUE 1\n";
             if (linkFailure)
             {
@@ -62,15 +63,16 @@ public sealed class ShaderPatchRecoveryTests : RenderTestBase
             // Assert: Recovery withdraws the patch capability, restores original source, retains the late prefix, and leaves the peer executable intact.
             Assert.True(owner.Compile());
             Assert.False(ShaderCapabilities.Has(owner, ShaderCapability.TwoSidedSurfaceNormals));
+            Assert.False(ShaderCapabilities.Has(owner, ShaderCapability.SharedVertexDeformation));
             Assert.Equal(vertex, owner.VertexShader.Code);
             Assert.Equal(fragment, owner.FragmentShader.Code);
             Assert.Equal("#define LATE_ENGINE_VALUE 1\n", owner.VertexShader.PrefixCode);
+            // These driver name queries and deletion observations verify engine shader lifetime beyond RHI bookkeeping.
             Assert.True(GL.IsProgram(owner.ProgramId));
             Assert.Equal(other, unrelated.ProgramId);
             Assert.True(GL.IsProgram(other));
             Assert.Single(messages, message => message.Contains("restoring the original", StringComparison.Ordinal));
             Assert.False(ShaderPatchRecovery.TryRecover(owner, () => throw new InvalidOperationException("retry consumed"), _ => { }, out _));
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {

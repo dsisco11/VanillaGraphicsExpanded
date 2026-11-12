@@ -180,9 +180,9 @@ public sealed class RuntimeSubmissionTests
                 {
                     var texture = new VanillaGraphicsExpanded.Rendering.GpuTextureRef(new object());
                     var buffer = new VanillaGraphicsExpanded.Rendering.GpuShaderStorageBuffer();
-                    var shader = new Shader { Image = new(texture, 2, true, 0), Work = new(buffer, 16, 32) };
+                    var shader = new Shader { Image = new(texture, 2, true, 0), Work = new(new VanillaGraphicsExpanded.Rendering.GpuBufferRef(buffer), 16, 32) };
                     var first = shader.CaptureBindings();
-                    shader.Image = new(texture, 3, false, 4); shader.Work = new(buffer, 48, 64);
+                    shader.Image = new(texture, 3, false, 4); shader.Work = new(new VanillaGraphicsExpanded.Rendering.GpuBufferRef(buffer), 48, 64);
                     var second = shader.CaptureBindings();
                     return first.Images[0].View.Level + ":" + first.Images[0].View.Layered + ":" + first.Buffers[0].Offset + ":" + first.Buffers[0].Length
                         + ":" + second.Images[0].View.Layer + ":" + second.Buffers[0].Offset;
@@ -190,6 +190,30 @@ public sealed class RuntimeSubmissionTests
             }
             """;
         Assert.Equal("2:True:16:32:4:48", GeneratorFixture.Generate(source, supportSource: RuntimeCaptureSupport.Source).Run());
+    }
+
+    /// <summary>An absent borrowed storage reference remains an empty whole-buffer selection rather than a stale owner.</summary>
+    [Fact]
+    public void EmptyBorrowedStorageReferenceProducesNoNativeBufferIdentity()
+    {
+        string source = """
+            internal interface IInputs
+            {
+                [ShaderBinding("work", ShaderBindingKind.StorageBlock, 2, ShaderStageKind.Vertex, Required = false)]
+                VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding Work { get; set; }
+            }
+            """ + Header + """
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var binding = new Shader().CaptureBindings().Buffers[0];
+                    return binding.Buffer.IsEmpty + ":" + binding.Whole + ":" + binding.Offset + ":" + binding.Length;
+                }
+            }
+            """;
+        Assert.Equal("True:True:0:0", GeneratorFixture.Generate(source, supportSource: RuntimeCaptureSupport.Source).Run());
     }
 
     /// <summary>An inherited authored capture owns its implementation; reabstraction restores concrete generated capture.</summary>

@@ -30,6 +30,14 @@ internal static class TerrainDisplacementRuntime
     }
 
     #region Draw policy
+    /// <summary>Captures the same camera metric and configuration consumed by native displacement draws.</summary>
+    internal static TerrainSubdivisionInputs CaptureInputs()
+    {
+        var settings = ConfigModSystem.Config.MaterialAtlas.TerrainSubdivision;
+        return new(frameSerial, TerrainTessellationPrograms.Complete, settings.TargetEdgePixels,
+            (float)settings.MaximumLevel, settings.FadeStartMetres, settings.FadeEndMetres, Math.Max(1, focalPixels));
+    }
+
     /// <summary>Applies displacement only to the render categories selected by the engine.</summary>
     internal static bool IsEligiblePass(EnumChunkRenderPass pass)
         => pass is EnumChunkRenderPass.Opaque or EnumChunkRenderPass.TopSoil;

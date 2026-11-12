@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shadows.Configuration;
 using VanillaGraphicsExpanded.Rendering.Shadows.Pages;
@@ -13,6 +14,9 @@ internal sealed class ShadowViewBuffer : IDisposable
     private readonly GpuTexture rasterTarget;
     private readonly (int Width, int Height)[] regions;
     private readonly long allocatedBytes;
+    private readonly ImmutableArray<ShadowDrawView> views;
+    private readonly ShadowPagePool pages;
+    private readonly long pageBatch;
     private GpuFence? completion;
     private bool disposed, sealedBatch;
     internal GpuBufferTexture Texture { get; }
@@ -46,6 +50,7 @@ internal sealed class ShadowViewBuffer : IDisposable
             view.Pack(words.AsSpan(i * 64, 64), pool.Capacity, pool.ProbeLimit, pool.ResidentBanks, pool.Batch);
         }
         Count = views.Count;
+        this.views = ImmutableArray.CreateRange(views); pages = pool; pageBatch = pool.Batch;
         // A single R8 attachment provides a valid raster pass while the shadow depth
         // lives exclusively in integer images. It is charged with the immutable records.
         allocatedBytes = checked(Count * 256L + width * (long)height);
@@ -67,6 +72,11 @@ internal sealed class ShadowViewBuffer : IDisposable
         }
         catch { Texture?.Dispose(); records.Dispose(); throw; }
     }
+
+    /// <summary>Requires the exact immutable view and page interval used when these GPU records were packed.</summary>
+    internal bool Matches(int index, ShadowDrawView view, ShadowPagePool pool) => !disposed && !sealedBatch &&
+        ReferenceEquals(pages, pool) && pool.CanSubmit && pool.Batch == pageBatch &&
+        (uint)index < (uint)views.Length && ReferenceEquals(views[index], view);
 
     /// <summary>Describes an origin-zero raster area for one view without exposing or binding native framebuffer state.</summary>
     internal RHIRenderPassDescription DescribePass(int view)

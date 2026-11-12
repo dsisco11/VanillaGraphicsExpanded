@@ -297,7 +297,9 @@ invalid inputs withdraw the upload certificate. Candidate traversal borrows this
 `ShadowSceneChanges` bounds non-terrain history, retains previous/current bounds and relevant revisions,
 and advances a broad invalidation epoch before dropping unknown or exhausted history. Pending changes
 prohibit certification. `ShadowReceivingCoverage` checks depth-inclusive bounds and applied dependency
-watermarks independently of page identity. Actual entity/moving-caster adapters are still unimplemented.
+watermarks independently of page identity. Native entity preparation advances the broad change epoch
+when deformed bounds are unknown; terrain drawing retains the native moving-chunk transform and
+rechecks it before submission. Production frame scheduling remains a separate integration boundary.
 
 The native input JSON configuration is `VirtualShadows.Inputs`: `ChunkCapacity` (65536),
 `RangeCapacity` (524288), `ChangeCapacity` (8192), and `ProbeLimit` (128). These are provisional finite
@@ -305,8 +307,8 @@ input allowances, not the total shadow budget or shadow enablement. The existing
 materializes/sanitizes them; reload withdraws the frozen publication while preserving pending edits,
 failed uploads and queued tessellation stamps. Retained work drains when a smaller allowance is applied;
 new work cannot silently discard its history. A genuine native map reset or world exit ends that history.
-GPU resources are lazy. Candidate-specific settings are described below; the remaining settings schema
-is intended design, not accepted configuration.
+GPU resources are lazy. Candidate, page, temporal and drawing settings are described in their respective
+sections below; their finite defaults remain tuning hypotheses rather than measured performance guarantees.
 
 ## GPU chunk occlusion candidates
 
@@ -410,9 +412,9 @@ is a positive configurable value (initially 0.05 metres); the far distance is su
 influence, preserving the lighting radius convention. Directional depth includes configurable padding
 around represented caster coverage. Bias shifts the receiver along its unit normal and subtracts a
 bounded texel-scaled depth adjustment, including slope. Each adjustment is capped at four texels.
-The planned material convention preserves native winding/back-face culling where appropriate and retains
-two-sided/cutout material behavior; front-face culling is not a substitute for receiver bias. Actual material
-rasterization, near-source crossings and depth-clamp evaluation remain scene-adapter qualification work.
+Native shadow variants retain two-sided/cutout material behavior; front-face culling is not a substitute
+for receiver bias. Packaged raster fixtures exercise material rejection and near-source crossings.
+Installed-game appearance and workload qualification remain separate from those headless checks.
 Four compiler-derived clip outputs restrict each view's uncached rectangle after final deformation.
 The final VS or TES owns these outputs; no geometry stage is added solely for clipping.
 
@@ -439,7 +441,8 @@ replacement publication. Enclosing multiple regions requires complete caster sel
 retirement while the old certificate continues to cover its original region. Stale cancellation tokens fail.
 One fixed enclosure and bounded probes keep metadata and containment work finite. The actual admission
 owner must supply complete current requirements before eviction/allocation and a truthful draw-completion
-certificate; controlled synthetic pages do not establish that future geometry integration.
+certificate. Native submission supplies the complete-drawing boundary; the production demand coordinator
+must still establish current consumer requirements before invoking it.
 
 `SetBankTarget` withdraws excess banks and exposes their bytes until fences allow disposal. `Withdraw`
 handles disable/world leave; source/dimension retirement is a GPU operation. `Reconfigure` withdraws and
@@ -466,7 +469,7 @@ controls are `PointNear` 0.05, `DepthBiasTexels` 0.5, `NormalBiasTexels` 0.5 and
 The four-bank ceiling is the implemented shader interface, not a hard-coded shadow-memory budget.
 The pool validates depth plus metadata/command/result storage against its allowance, integer and hardware
 limits; `AllocatedBytes` includes resident retirement storage. `ShadowSampler` separately reports its
-800-byte query/output allocation. Candidate, input, sampler and future command storage remain charged to
+800-byte query/output allocation. Candidate, input, sampler and command storage remain charged to
 their owners and must all fit the eventual total budget. Driver overhead is outside these nominal counts.
 
 ### Retained projection and temporal eligibility
@@ -490,7 +493,7 @@ and direction [0,10] degrees; all must be finite, and stale age cannot exceed re
 either age limit selects strict current-only sampling. Runtime qualification must calibrate defaults
 against carried-light and celestial motion workloads.
 
-Replacement follows allocation, selective clear, frozen writable mapping, complete drawing, ordered
+Replacement follows allocation, frozen writable mapping, selective clear, complete drawing, ordered
 image visibility and publication. Publication requires the exact assignment and current batch token,
 projection and coverage; a generated completion command cannot allocate or freeze a batch. Old sampled
 tiles never enter the writable mapping. Insufficient replacement space leaves only independently
@@ -527,28 +530,34 @@ terrain material varyings are propagated. Final projection and the four clip wri
 after VS or TES deformation has been assembled; built-in arrays are not copied as material varyings.
 The final material body is called from a generated wrapper so its early returns cannot bypass final
 clip writes. Fragment material discard occurs before page authorization and atomic depth. Existing
-clip/cull declarations or redeclared final `gl_PerVertex` output blocks are diagnosed rather than
-guessed or duplicated. A geometry-producing material requires its own complete-emission variant.
+clip declarations other than the explicit four-plane output, cull declarations and redeclared final
+`gl_PerVertex` output blocks are diagnosed rather than guessed or duplicated. A geometry-producing
+material requires its own complete-emission variant.
 
-Offline roots place `#pragma vge_shadow_interface` before imports of the shared view/writing helpers.
-The existing source preprocessor replaces that declaration site after dependency expansion. Shared
-helper observations, source bytes, generator/tool identity, structural selection, compiler options,
+Offline roots import ordinary GLSL interface declarations before their shared view/writing helpers.
+Those declarations own clipping outputs, selectors and resources; generation only wraps the material
+entry point. Shared helper observations, source bytes, generator/tool identity, structural selection, compiler options,
 binary digest and schema/extractor facts remain part of ordinary build provenance and publication.
 Missing packaged material variants fail visibly; no runtime GLSL fallback is authorized.
 
+The deformation kernel receives an explicit input structure. Owned material bindings construct it
+from VGE-named fields; the installed-game patch constructs it from native uniforms at that integration
+boundary. Adaptive terrain authors its outputs directly, with native tessellation symbol translation
+confined to the existing generator adapter.
+
 | Structural family | Required final producer and material behavior | Integration boundary |
 | --- | --- | --- |
-| Ordinary terrain | VS with native warp and cutout behavior | Borrow ordinary native inputs; select packaged terrain variant |
+| Ordinary terrain | VS with shared authored deformation and native cutout semantics | Borrow ordinary native inputs; select packaged terrain variant |
 | Displaced ordinary terrain | VS/TCS/TES, final clipping after TES displacement | Generate material interfaces before built-ins; retain native tessellation policy |
 | Shader-storage terrain, with/without displacement | Existing native layout with VS or TES final output | Preserve native addressing and supported material declarations; added projection access remains a texture buffer |
 | Static and instanced objects | Final VS with original object/instance transform and opacity behavior | Preserve original instance identity while expanding object/view work |
 | Animated objects | Final deformed VS, or explicitly supported final stage | Preserve pose/material revisions and offscreen preparation |
 
-This is the native variant inventory required for adapter integration, not a claim that those native
-production packages are already complete. The current packaged `tests/shadow-virtual` fixture exercises
-the shared generated VS/fragment boundary and real view storage; separate clipping fixtures exercise
-stage precedence. Native source generation/linkage fixtures do not establish complete material coverage,
-and synthetic raster evidence does not qualify installed-game shadows.
+These families use authored packaged material executables and borrowed native input adapters.
+Source dependencies remain inside the mod asset root. The shared authored deformation kernel
+defines the conservative selection envelope and the matching visible-surface motion. Material raster fixtures complement the shared
+`tests/shadow-virtual` view/fragment fixture and clipping-stage precedence checks. Source/linkage and
+headless raster evidence do not qualify installed-game appearance or measured performance.
 
 ## Ownership and source layout
 
@@ -695,7 +704,7 @@ freeze current source and scene publications; apply relevant changes
 generate complete current demand for each light and consumer
 resume or replace candidates only within their covered motion and dependencies
 admit complete page replacements within aggregate storage and work limits
-clear selected replacement integer tiles; freeze writable tokens; render all required geometry/view work
+freeze writable tokens; clear selected replacement integer tiles; render all required geometry/view work
 publish depths with receiving coverage and dependency versions
 reduce current or explicitly eligible retained coverage to per-light consumer readiness before shading
 retire superseded storage only after its scheduled GPU users finish
@@ -724,10 +733,49 @@ and framebuffer limits or require explicitly mapped, bounded region splits charg
 
 Admission includes aggregate candidate visits, pair deduplication, inactive command slots, counting/emission
 passes, view records, tessellation amplification, repeated region geometry, virtual raster area and conservative
-overdraw estimates. Allocate and selectively clear admitted replacements before freezing writable assignment
-and batch tokens. Completed sampled tiles never enter that mapping. Once frozen, allocation/cancellation
+overdraw estimates. Allocate admitted replacements and freeze their assignment and batch tokens before
+selectively clearing and drawing them. An uncleared replacement remains forbidden to fragment writes even
+when its assignment is frozen. Completed sampled tiles never enter that mapping. Once frozen, allocation/cancellation
 cannot change its interpretation within the batch. Replacement publication removes write authorization;
 lookup residency never grants it. Integer clears, atomics and publication use ordered RHI barriers.
+
+`NativeShadowScene` composes a bounded terrain capture and the native entity
+preparation publication. Terrain capture traverses the existing render-pass/atlas
+table and retains its native ranges, detail eligibility and storage borrows.
+Entity capture uses the existing preparation traversal, retaining body palettes,
+third-person held-item attachments and dropped-item materials. Unknown renderer
+families withdraw complete-scene admission until their owners provide an adapter.
+Static object inputs preserve original instance streams; selectors use a separate
+binding and do not rebase those streams. Object commands are restricted to the
+source's semantic dimension.
+
+GPU selection uses unique native command indices to deduplicate geometry/view
+pairs directly. It initializes all command slots, including inactive slots, and
+rejects the whole selection on a work-limit failure. The scene certificate binds
+the exact terrain and object arrays to the world publication. Native storage,
+membership, pose, material and candidate dependencies are rechecked before and
+after drawing. The world owner retains its mutation gate across submission;
+callers retain prepared draws and borrowed inputs until their GPU users retire.
+Only a complete replacement batch publishes fresh sampled depth. Failure retires
+pending replacements without modifying retained sampled tiles.
+
+Authored shadow sources decode the native mesh ABI without importing or extracting
+installed game shader bodies. `VertexDeformationPatches` redirects supported visible
+material deformation entry points to the same authored kernel used by shadow stages.
+The shared model changes foliage, liquid, world-warp and perception motion together;
+it is not a claim of numerical equivalence to the game's original deformation.
+Skinning and object/instance placement precede material deformation, which precedes
+virtual projection. Static-item suppression and quarter-strength motion retain their
+visible material semantics. Shader compilation and packaging use owned asset inputs.
+Successful surface patching declares SharedVertexDeformation through the existing
+capability owner; native-source recovery withdraws that declaration. Frame-gate
+integration must require the capability before certifying fresh matching shadows.
+
+Native terrain selection expands fixed chunk partition bounds by a conservative
+deformation envelope derived from the shared kernel, including the active displacement bound. Moving chunks and
+objects without proven spatial bounds use conservative complete-view selection.
+Admission charges tessellation amplification and triangle-by-view raster area
+before clears or draws; fragment rejection does not reduce that charge.
 
 Manual 3-by-3 PCF resolves every tap in the selected rendered projection, fetches and decodes integer
 texels, and averages comparison results. Point-face seams reproject reference depth; directional levels
@@ -740,6 +788,10 @@ The frame gate follows current light capture and precedes the earliest affected 
 Demand includes opaque/cutout, entity/foliage, water and every contributing transparent layer, using
 current deformation and alpha rules. Transparent demand must not hide later layers through depth writes.
 Prepare offscreen casters as needed, advance animation once, and charge preparation to the shadow budget.
+The current dropped-item adapter supplements offscreen pose advancement at native
+preparation; visible dropped items still advance in their native drawing owner.
+Frame-gate integration and removal of native shadow draws must preserve a current
+visible-item pose before VSM capture, without adding a second advancement.
 The existing late opaque receiver resolve is insufficient. Consumers migrate coherently to one selected
 shadow provider; no second native attenuation or hidden coarse fallback. Native work can remain only for
 explicitly owned remaining consumers.
@@ -836,18 +888,26 @@ rendering or performance proof. Recheck supported assembly identity on upgrade.
 | --- | --- | --- |
 | Bootstrap/load/replacement | Adapter bootstraps under `ClientWorldMap.chunksLock`; notifications observe actual native dictionary writes in `loadChunkMT` and `OverloadChunkMT` | Required proof: bounded source fixtures and installed-IL interception checks; later live streaming qualification measures availability/cost and retained full envelopes |
 | Unload/moving chunk removal | `HandleChunkUnload` dictionary removal and native chunk center/edge range retirement withdraw publications; world exit detaches the owner | Required proof: executed native retirement and adapter replacement checks; actual moving-chunk draw preparation remains owned by the scene adapter |
-| Mesh upload/replacement | Pre-read tessellation stamps survive native `MergeIfEqual`; per-part required/uploaded revisions reject late obsolete replacements | Required proof: native merge/upload and revision-order fixtures; actual ordinary/SSBO geometry drawing and GPU storage borrowing still require terrain-adapter qualification |
+| Mesh upload/replacement | Pre-read tessellation stamps survive native `MergeIfEqual`; per-part required/uploaded revisions reject late obsolete replacements; terrain scenes retain those publications through complete submission | Native merge/upload and revision-order fixtures establish publication behavior; packaged ordinary/SSBO raster checks establish borrowed drawing, not live streaming performance |
 | Geometry binding/category | Existing [TerrainPassDrawHook](../VanillaGraphicsExpanded/HarmonyPatches/TerrainPassDrawHook.cs) follows native table selection; [EngineGeometryInputs](../VanillaGraphicsExpanded/Rendering/Integration/OpenGL/EngineGeometryInputs.cs) withdraws borrowed inputs on structural mutation | World publication task owns revisions/lifetime; actual terrain adapter task owns ordinary/SSBO layouts, detail/cutout/displacement and shadow-specific inputs; do not treat liquid culling ranges as general input |
 | Frame gate | Native render loop orders Before, ShadowFar/Near and then Opaque/OIT. [VgeLightsRenderer](../VanillaGraphicsExpanded/Rendering/VgeLightsRenderer.cs) captures at Opaque -10000; [receiver resolve](../VanillaGraphicsExpanded/PBR/SceneColor/SceneColorParticleCapture.cs) is 8.5 and [direct lighting](../VanillaGraphicsExpanded/PBR/DirectLightingRenderer.cs) is 9 | Light publication task preserves capture consistency; demand/readiness integration task proves position before every participating surface and audits actual registered draw order |
-| Entity preparation | `SystemRenderEntities.OnBeforeRender` gates `BeforeRender`; existing held collector resolves after current animation | Entity adapter task proves offscreen preparation and once-only advancement, including custom renderers; light publication task retains identity before held associations are cleared |
+| Entity preparation | `SystemRenderEntities.OnBeforeRender` remains the enumeration/animation owner; the adapter supplements offscreen preparation and checks retained membership directly | Exact native shape/player/item adapters require current poses and materials; unsupported renderer families reject complete admission. Frame-gate integration must preserve visible dropped-item pose preparation when replacing native shadow drawing |
 | Empty/connectivity | Adapter retains cached Empty/connectivity and the native freshness claim separately from proven-fresh flags | Proven-fresh flags remain clear; candidate selection must keep the bounds-only path unless synchronized freshness and shadow-opacity equivalence are established |
 
-The implemented world boundary is described above. The plan retains its executed verification and
-completion review separately from these source receipts. No later renderer may treat metadata publication
-as proof that native draw preparation, shadow materials or GPU command generation are already implemented.
+The implemented world and drawing boundaries are described above. The plan retains executed verification
+and completion review separately from these source receipts. Native metadata publication alone does not
+certify drawing: selection and complete-scene submission require their own current input checks.
 The additional [publication/merge IL](../artifacts/virtual-shadow-maps/publication-boundaries-inspection.txt),
 [dictionary writers](../artifacts/virtual-shadow-maps/native-dictionary-writers.txt),
 [tessellation ordering](../artifacts/virtual-shadow-maps/tessellation-order-inspection.txt) and
 [upload ordering](../artifacts/virtual-shadow-maps/upload-order-inspection.txt) receipts retain the inspected
 native source boundaries. Hook installation rejects an unqualified engine module identity instead of
 assuming a changed binary preserves these private contracts.
+
+Native shape, player and dropped-item pose capture additionally qualifies
+`G:/Vintagestory/Mods/VSEssentials.dll`, MVID
+`0d8db7e9-fd74-4129-bbe8-1ff82baf23fc`, SHA-256
+`A28565C5C9181F8CC84B98A2B7457AB824B8ECB7763714448DA1F7C245AECD6E`.
+Capture scopes restore mutable native model and player smoothing/shadow-pass state.
+Assembly qualification establishes the private-method contract; executed adapter
+fixtures and packaged GPU raster tests provide separate behavior evidence.

@@ -24,7 +24,7 @@ namespace VanillaGraphicsExpanded.PBR.Materials;
 /// Builds per-block-atlas GPU data textures that store base PBR material parameters per texel.
 /// Sampled by patched vanilla chunk shaders using the same atlas UVs as <c>terrainTex</c>.
 /// </summary>
-internal sealed class MaterialAtlasSystem : IDisposable
+internal sealed partial class MaterialAtlasSystem : IDisposable
 {
     public static MaterialAtlasSystem Instance { get; } = new();
 

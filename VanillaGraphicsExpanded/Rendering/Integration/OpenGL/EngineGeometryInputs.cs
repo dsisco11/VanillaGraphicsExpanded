@@ -23,9 +23,9 @@ internal sealed class EngineGeometryInputs : IDisposable
 
     /// <summary>Captures native identity from the engine owner and certifies only externally supplied configuration.</summary>
     internal EngineGeometryInputs(VAO mesh, RHIVertexLayout layout, IReadOnlyDictionary<int, int> streams,
-        int vertices, int indices, int instances = 1, Action? invalidated = null)
+        int vertices, int indices, int instances = 1, Action? invalidated = null, int? indexBuffer = null)
     {
-        if (mesh.Disposed || !mesh.Initialized || mesh.VaoId <= 0 || mesh.vboIdIndex <= 0
+        if (mesh.Disposed || !mesh.Initialized || mesh.VaoId <= 0 || (indexBuffer ?? mesh.vboIdIndex) <= 0
             || vertices <= 0 || indices <= 0 || instances <= 0)
             throw new ArgumentException("Engine geometry has no complete realized storage.", nameof(mesh));
         RHICommandContext.RequirePreparationAdmission();
@@ -40,13 +40,13 @@ internal sealed class EngineGeometryInputs : IDisposable
                 var first = group.First();
                 if (!streams.TryGetValue(first.Binding, out int name) || name <= 0)
                     throw new ArgumentException("Engine geometry is missing a declared stream.", nameof(streams));
-                var buffer = new BufferRecipient(name);
+                var buffer = new EngineBufferReference(name);
                 recipients.Add(buffer);
                 long count = first.Divisor == 0 ? vertices : (instances - 1L) / first.Divisor + 1;
                 nint bytes = checked((nint)(count * first.Stride));
                 vertexStreams.Add(new(first.Binding, new(new GpuBufferRef(buffer), 0, bytes), first.Stride, first.Divisor));
             }
-            var elements = new BufferRecipient(mesh.vboIdIndex);
+            var elements = new EngineBufferReference(indexBuffer ?? mesh.vboIdIndex);
             recipients.Add(elements);
             var indexStream = new RHIIndexStream(new(new GpuBufferRef(elements), 0, checked((nint)indices * sizeof(uint))));
             // The manager validates supplied geometry without scanning the engine VAO. The packet
@@ -82,37 +82,6 @@ internal sealed class EngineGeometryInputs : IDisposable
         withdrawn = true;
         invalidated?.Invoke();
     }
-    /// <summary>Receives canonical buffer facts for one engine-owned allocation.</summary>
-    private sealed class BufferRecipient : GpuResource<GpuBufferMetadata>
-    {
-        private static readonly GpuBufferMetadataReader reader = new();
-        private nint id;
-
-        #region Public API
-        /// <inheritdoc />
-        public override nint ResourceId { get => id; protected set => id = value; }
-        /// <summary>Leaves native labels under the external owner's authority.</summary>
-        public override void SetDebugName(string? name) { }
-        #endregion
-
-        #region Internal API
-        /// <summary>Reuses available canonical facts or acquires missing external storage once.</summary>
-        internal BufferRecipient(int name)
-        {
-            SetCreationIdentity(name, CaptureCreationContext(GpuResourceKind.Buffer));
-            try { RHIResourceManager.AcquireWrapperMetadata(this, reader); }
-            catch { Dispose(); throw; }
-        }
-        #endregion
-
-        #region Protected API
-        /// <inheritdoc />
-        protected override GpuResourceKind ResourceKind => GpuResourceKind.Buffer;
-        /// <inheritdoc />
-        protected override bool OwnsResource => false;
-        #endregion
-    }
-
     /// <summary>Receives empty-schema VAO metadata from a source-proven realized engine allocation.</summary>
     private sealed class ArrayRecipient : GpuResource<GpuVertexArrayMetadata>
     {

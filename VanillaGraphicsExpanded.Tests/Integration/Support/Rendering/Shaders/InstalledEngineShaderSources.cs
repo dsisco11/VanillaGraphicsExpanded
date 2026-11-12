@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.Integration.Support.Rendering.Shaders;
 internal static class InstalledEngineShaderSources
 {
     #region Internal API
-    /// <summary>Applies imports before expansion and material patches after expansion as the engine does.</summary>
+    /// <summary>Expands engine inputs before patch preprocessing and material replacement, matching the installed load path.</summary>
     internal static string Build(string name, int shadow, int oit, int ssao, int ssbo, int depth, Action<ShaderCapability>? declare = null)
     {
         string game = Environment.GetEnvironmentVariable("VINTAGE_STORY")!;
@@ -19,20 +19,26 @@ internal static class InstalledEngineShaderSources
         // Representative alternate variants deliberately rename an incidental engine local.
         if (ssao > 0 && !name.StartsWith("chunkopaque", StringComparison.Ordinal) && !name.StartsWith("chunktopsoil", StringComparison.Ordinal))
             original = original.Replace("murkiness", "renamedWaterDensity");
-        var tree = SyntaxTree.Parse(original, GlslSchema.Instance);
-        VanillaShaderPatches.TryApplyPreProcessing(null, tree, name);
-        if (name is "standard.fsh" or "entityanimated.fsh" or "instanced.fsh" or "chunktransparent.fsh")
-            Assert.Contains($"#define VGE_PBR_FORWARD_LUMON {(VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.LumOn.Enabled ? 1 : 0)}", tree.ToText());
         var included = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         string Expand(string source, string directory) => Regex.Replace(source, "(?m)^\\s*(?:#include\\s+([^\\r\\n]+)|@import\\s+\"([^\"]+)\"[^\\r\\n]*)", match =>
         {
-            string path = match.Groups[1].Success
-                ? Path.Combine(game, "assets/game/shaderincludes", match.Groups[1].Value.Trim())
-                : Path.Combine(directory, match.Groups[2].Value);
+            string import = match.Groups[1].Success ? match.Groups[1].Value.Trim() : match.Groups[2].Value;
+            const string ownedPrefix = "vanillagraphicsexpanded:shaders/";
+            string path = import.StartsWith(ownedPrefix, StringComparison.Ordinal)
+                ? Path.Combine(AppContext.BaseDirectory, "assets", "vanillagraphicsexpanded", "shaders",
+                    import[ownedPrefix.Length..].Replace('/', Path.DirectorySeparatorChar))
+                : match.Groups[1].Success
+                    ? Path.Combine(game, "assets/game/shaderincludes", import)
+                    : Path.Combine(directory, import);
             path = Path.GetFullPath(path);
             return included.Add(path) ? Expand(TestAssetSnapshot.ReadSourceText(path), Path.GetDirectoryName(path)!) : "";
         });
-        tree = SyntaxTree.Parse(Expand(tree.ToText(), Path.Combine(AppContext.BaseDirectory, "assets/shaders")), GlslSchema.Instance);
+        string directory = Path.Combine(AppContext.BaseDirectory, "assets/shaders");
+        var tree = SyntaxTree.Parse(Expand(original, directory), GlslSchema.Instance);
+        VanillaShaderPatches.TryApplyPreProcessing(null, tree, name);
+        if (name is "standard.fsh" or "entityanimated.fsh" or "instanced.fsh" or "chunktransparent.fsh")
+            Assert.Contains($"#define VGE_PBR_FORWARD_LUMON {(VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.LumOn.Enabled ? 1 : 0)}", tree.ToText());
+        tree = SyntaxTree.Parse(Expand(tree.ToText(), directory), GlslSchema.Instance);
         if (name is "sky.vsh" or "sky.fsh")
         {
             // The engine still compiles its sky assets, but replacement output must not modify them.

@@ -23,6 +23,7 @@ internal sealed partial class ShadowPagePool : IDisposable
     private long epoch, completed, shrinkEpoch;
     private int targetBanks, operations;
     private bool batchOpen, withdrawn, disposed, resourcesAlive, writesFrozen;
+    private bool completionReserved;
     private ShadowPageSettings? replacement;
     private readonly (nint Handle, long Generation) context;
 
@@ -52,8 +53,12 @@ internal sealed partial class ShadowPagePool : IDisposable
     internal bool IsAvailable => !disposed && !withdrawn;
     /// <summary>Sampling and draws must be submitted before this interval's retirement fence.</summary>
     internal bool CanSubmit => IsAvailable && batchOpen;
+    /// <summary>True only before this submission interval has admitted or frozen replacement writes.</summary>
+    internal bool CanPrepareReplacements => CanSubmit && !writesFrozen && !completionReserved;
+    /// <summary>Reports the reserved whole-batch finalization obligation without observing GPU allocation results.</summary>
+    internal bool ReplacementsPending => CanSubmit && completionReserved;
     /// <summary>Remaining command capacity must cover all completion publications before replacement tiles are cleared.</summary>
-    internal int OperationsRemaining => CanSubmit ? policy.OperationsPerBatch - operations : 0;
+    internal int OperationsRemaining => CanSubmit ? policy.OperationsPerBatch - operations - (completionReserved ? 1 : 0) : 0;
     private long MetadataBytes => checked(Capacity * 528L + 576L + 32L);
     private long BankBytes => checked(policy.PageSize * (long)policy.PageSize * 4 * (policy.TileColumns * policy.TileRows));
 
@@ -70,19 +75,21 @@ internal sealed partial class ShadowPagePool : IDisposable
     {
         ObjectDisposedException.ThrowIf(disposed, this); Poll();
         if (withdrawn || batchOpen || fences.Count >= 8 || epoch == long.MaxValue) return false;
-        epoch++; operations = 0; writesFrozen = false; batchOpen = true; return true;
+        epoch++; operations = 0; writesFrozen = false; completionReserved = false; batchOpen = true; return true;
     }
     /// <summary>Queues one fixed operation; results remain on GPU for admission/drawing and test-only inspection.</summary>
     internal bool Execute(ShadowPageRequest request)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        if (!batchOpen || withdrawn || operations >= policy.OperationsPerBatch) return false;
+        if (!CanSubmit || OperationsRemaining == 0) return false;
         if (request.Projection is { } projection && projection.PageSize != PageSize)
             throw new ArgumentException("Rendered projection and physical tile sizes disagree.", nameof(request));
         if (writesFrozen && request.Operation is ShadowPageOperation.Allocate or ShadowPageOperation.CancelReplacement) return false;
-        if (request.Operation == ShadowPageOperation.FreezeWrites)
-            throw new ArgumentException("Use FreezeWritableAssignments to freeze GPU rendering inputs.", nameof(request));
-        uint[] packed = request.Pack(); operations++;
+        if (request.Operation is ShadowPageOperation.FreezeWrites or ShadowPageOperation.FinishReplacements)
+            throw new ArgumentException("Use the typed batch freeze/completion operations.", nameof(request));
+        uint[] packed = request.Pack();
+        if (request.Operation == ShadowPageOperation.Allocate && !ReserveCompletion()) return false;
+        operations++;
         Dispatch(packed); return true;
     }
     /// <summary>Consumes a GPU-produced completion request without reading its assignment or admission result on the CPU.</summary>
@@ -96,7 +103,21 @@ internal sealed partial class ShadowPagePool : IDisposable
         Dispatch(null, request);
         return true;
     }
-    /// <summary>Freezes cleared replacement tokens before rendering; subsequent allocation waits for the next batch.</summary>
+    /// <summary>Admits replacement storage only when the GPU has certified complete bounded geometry selection.</summary>
+    internal bool AllocateSelected(ShadowPageRequest request, RHIBufferRange certificate)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (!CanSubmit || writesFrozen || OperationsRemaining == 0) return false;
+        if (request.Operation != ShadowPageOperation.Allocate || request.Projection is not { } projection ||
+            projection.PageSize != PageSize || certificate.Length != 12 || certificate.Offset < 0 || certificate.Offset % 4 != 0)
+            throw new ArgumentException("Selected allocation requires a projected allocation and aligned GPU success/epoch words.");
+        uint[] packed = request.Pack();
+        if (!ReserveCompletion()) return false;
+        operations++;
+        Dispatch(packed, certificate: certificate);
+        return true;
+    }
+    /// <summary>Freezes replacement tokens before rendering; uncleared tiles remain forbidden by the fragment guard.</summary>
     internal bool FreezeWritableAssignments()
     {
         if (!CanSubmit || writesFrozen || OperationsRemaining == 0) return false;
@@ -109,6 +130,7 @@ internal sealed partial class ShadowPagePool : IDisposable
     internal void SealBatch()
     {
         if (!batchOpen) throw new InvalidOperationException("No open shadow page batch.");
+        if (completionReserved) FinishReplacements(false);
         fences.Enqueue((epoch, RHICommandContext.Current.InsertFence())); batchOpen = false;
     }
     /// <summary>Returns resident storage for a resident bank; ownership remains with this pool.</summary>
@@ -157,6 +179,9 @@ internal sealed partial class ShadowPagePool : IDisposable
         // A newer disable/world-leave/reload supersedes any queued attempt to recreate storage.
         replacement = null;
         if (disposed || withdrawn) return;
+        // Withdrawal clears the entire table below. Do not invoke a completion
+        // executable which may itself be the reason this pool was withdrawn.
+        completionReserved = false;
         if (batchOpen) SealBatch();
         // A clear is ordered after prior consumers and prevents any later key lookup from certifying old pages.
         Entries.UploadSubData<uint>(new uint[checked(Capacity * 128)], 0);
@@ -199,8 +224,16 @@ internal sealed partial class ShadowPagePool : IDisposable
     #endregion
 
     #region Private
+    /// <summary>Reserves cancellation before allocating so exhaustion cannot strand unfinished replacement tiles.</summary>
+    private bool ReserveCompletion()
+    {
+        if (completionReserved) return true;
+        if (OperationsRemaining < 2) return false;
+        completionReserved = true;
+        return true;
+    }
     /// <summary>Binds the generated shader contract and establishes storage visibility after each command.</summary>
-    private void Dispatch(uint[]? packed, RHIBufferRange? generated = null)
+    private void Dispatch(uint[]? packed, RHIBufferRange? generated = null, RHIBufferRange? certificate = null)
     {
         if (!shader.EnsureReady() || shader.Shader != executable)
         { Withdraw(); throw new InvalidOperationException("Page shader replacement requires pool reconfiguration."); }
@@ -211,16 +244,22 @@ internal sealed partial class ShadowPagePool : IDisposable
         prefix[10] = (uint)PageSize;
         prefix[12] = writesFrozen ? 1u : 0u;
         prefix[13] = generated.HasValue ? 1u : 0u;
+        prefix[15] = certificate.HasValue ? 1u : 0u;
         commands.UploadSubData<uint>(prefix, 0);
-        if (generated is { } source)
-            RHICommandContext.Current.CopyBuffer(source.Buffer, source.Offset, commands, 64, 512);
-        else commands.UploadSubData<uint>(packed!, 64);
+        if (!generated.HasValue) commands.UploadSubData<uint>(packed!, 64);
         var bindings = (IShadowPageBindings)shader; bindings.Commands = commands; bindings.Entries = Entries; bindings.Results = Results;
         bindings.Writable = WritableAssignments;
         var rhi = RHICommandContext.Current;
         using var boundary = rhi.EnterBoundary(new("Shadows.Pages", true, compute: [shader.Pipeline]));
         boundary.Run(() => {
-            rhi.Barrier(new(ResourceAccess.Image | ResourceAccess.ShaderStorage | ResourceAccess.TextureFetch));
+            rhi.Barrier(new(ResourceAccess.Image | ResourceAccess.ShaderStorage | ResourceAccess.TextureFetch | ResourceAccess.BufferUpdate));
+            if (generated is { } source)
+                rhi.CopyBuffer(source.Buffer, source.Offset, commands, 64, 512);
+            if (certificate is { } selected)
+            {
+                rhi.CopyBuffer(selected.Buffer, selected.Offset, commands, 56, 4);
+                rhi.CopyBuffer(selected.Buffer, selected.Offset + 4, commands, 64 + 126 * 4, 8);
+            }
             shader.Dispatch(1);
             rhi.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.BufferUpdate | ResourceAccess.TextureFetch));
         });

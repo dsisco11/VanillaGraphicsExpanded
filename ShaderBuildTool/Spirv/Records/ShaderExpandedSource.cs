@@ -7,6 +7,34 @@ namespace ShaderBuildTool.Spirv;
 internal sealed record ShaderExpandedSource(string Root, string AssetsRoot, string Text, ShaderDependencySnapshot Graph, ImmutableArray<ShaderInputObservation> Inputs)
 {
     #region Public API
+    /// <summary>Retains exact observed inputs and graph edges when a generated stage consumes another expanded stage's interface.</summary>
+    internal ShaderExpandedSource Derive(string text, ShaderExpandedSource dependency)
+    {
+        Validate(this); Validate(dependency);
+        if (AssetsRoot != dependency.AssetsRoot || Root == dependency.Root)
+            throw new InvalidDataException("Derived stage dependencies must share an asset tree and have distinct roots.");
+        var graph = Graph.Restore();
+        foreach (string resource in dependency.Graph.Resources) graph.AddResource(new ResourceId(resource));
+        foreach (var edge in dependency.Graph.Edges)
+            graph.AddDependency(new ResourceId(edge.Dependent), new ResourceId(edge.Dependency));
+        graph.AddDependency(new ResourceId(Root), new ResourceId(dependency.Root));
+        var observations = Inputs.ToDictionary(input => input.Resource, StringComparer.Ordinal);
+        foreach (var input in dependency.Inputs)
+        {
+            if (observations.TryGetValue(input.Resource, out var previous) && previous != input)
+                throw new IOException("Shader input changed while deriving a stage: " + input.Resource);
+            observations[input.Resource] = input;
+        }
+        var result = this with
+        {
+            Text = text,
+            Graph = ShaderDependencySnapshot.Capture(graph, graph.GetAllResources()),
+            Inputs = observations.Values.OrderBy(input => input.Resource, StringComparer.Ordinal).ToImmutableArray()
+        };
+        Validate(result);
+        return result;
+    }
+
     /// <summary>Rejects incomplete associations and uses the graph library to validate successful root provenance.</summary>
     internal static void Validate(ShaderExpandedSource source)
     {

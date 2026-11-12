@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Reflection;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -99,15 +98,17 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         Assert.Equal(5u, Result(pool)[0]);
         pool.SealBatch();
 
-        // Act: after the batch fence completes, cancel the frozen unfinished replacement.
-        GL.Finish(); pool.Poll();
+        // Act: after the batch fence, the unfinished replacement has already been canceled by SealBatch.
+        RHICommandContext.Current.WaitIdle(); pool.Poll();
         Assert.True(pool.BeginBatch());
         Assert.True(pool.Execute(Request(ShadowPageOperation.CancelReplacement, key, RequiredUnion, replacementAssignment)));
-        Assert.Equal(0u, Result(pool)[0]);
+        Assert.Equal(4u, Result(pool)[0]);
 
-        // The canceled tile is retired through this batch and cannot be reused until its completion fence signals.
+        // Assert: the stale token cannot cancel again; the prior small certificate remains available.
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key, Small)));
+        Assert.Equal(0u, Result(pool)[0]);
         pool.SealBatch();
-        GL.Finish(); pool.Poll();
+        RHICommandContext.Current.WaitIdle(); pool.Poll();
         Assert.True(pool.BeginBatch());
         foreach (var region in new[] { Small, Expanded, LateDepth })
         {
@@ -128,6 +129,51 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
             Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key, region)));
             Assert.Equal(0u, Result(pool)[0]);
         }
+        pool.SealBatch();
+    }
+
+    /// <summary>Tracks a directly published assignment through abort sealing and the next batch boundary.</summary>
+    [Fact]
+    public void CompletedLegacyPublicationSurvivesPendingBatchAbortAndNextBegin()
+    {
+        // Arrange: create one exact assignment through the legacy single-page publish path.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerBank: 2, banks: 1));
+        var key = Key(0, 0, projection: 33);
+        Assert.True(pool.BeginBatch());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, Small)));
+        var allocated = Result(pool);
+        Assert.Equal(0u, allocated[0]);
+        int slot = checked((int)allocated[1]);
+        long assignment = Assignment(allocated);
+        Assert.True(pool.ClearReplacement());
+        Assert.True(pool.FreezeWritableAssignments());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, key, Small, assignment, complete: true)));
+        Assert.Equal(0u, Result(pool)[0]);
+
+        // Act: map the same entry before sealing, after automatic cancellation, and after opening the next batch.
+        long allocationBatch = pool.Batch;
+        var beforeSeal = EntryLifecycle(pool, slot);
+        pool.SealBatch();
+        var afterSeal = EntryLifecycle(pool, slot);
+        Assert.True(pool.BeginBatch());
+        var afterBegin = EntryLifecycle(pool, slot);
+        foreach (var state in new[] { beforeSeal, afterSeal, afterBegin })
+            output.WriteLine($"state={state.State}, tokenLow={state.BatchLow}, tokenHigh={state.BatchHigh}, allocationBatch={allocationBatch}");
+
+        // Assert: batch cancellation preserves a completed page and its original allocation epoch.
+        Assert.Equal(2u, beforeSeal.State);
+        Assert.Equal(2u, afterSeal.State);
+        Assert.Equal(2u, afterBegin.State);
+        Assert.Equal((uint)allocationBatch, beforeSeal.BatchLow);
+        Assert.Equal((uint)(allocationBatch >> 32), beforeSeal.BatchHigh);
+        Assert.Equal(beforeSeal.BatchLow, afterSeal.BatchLow);
+        Assert.Equal(beforeSeal.BatchHigh, afterSeal.BatchHigh);
+        Assert.Equal(beforeSeal.BatchLow, afterBegin.BatchLow);
+        Assert.Equal(beforeSeal.BatchHigh, afterBegin.BatchHigh);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key, Small)));
+        Assert.Equal(0u, Result(pool)[0]);
         pool.SealBatch();
     }
 
@@ -283,6 +329,11 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         Assert.Equal(0u, original[0]);
         int originalSlot = checked((int)original[1]);
         long originalAssignment = Assignment(original);
+        Assert.True(pool.ClearReplacement());
+        Assert.True(pool.FreezeWritableAssignments());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, firstKey, Small,
+            originalAssignment, complete: true)));
+        Assert.Equal(0u, Result(pool)[0]);
         pool.SealBatch();
 
         // Act: retire the first assignment, then request a different page before this batch's fence can authorize reuse.
@@ -295,7 +346,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
 
         // Assert: retirement cannot be bypassed within the same submission interval despite the tile being idle.
         Assert.Equal(3u, premature[0]);
-        GL.Finish(); pool.Poll();
+        RHICommandContext.Current.WaitIdle(); pool.Poll();
 
         // Act: after fence completion, allocate the new key and try to certify it with the stale assignment.
         Assert.True(pool.BeginBatch());
@@ -362,7 +413,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
             ClientRenderingLifetime.BeginNativeReload();
             Assert.True(lifetime.Reloading);
             ClientRenderingLifetime.CompleteNativeReload();
-            GL.Finish(); pool.Poll();
+            RHICommandContext.Current.WaitIdle(); pool.Poll();
 
             // Assert: reload withdrawal supersedes replacement and leaves the pool empty and unavailable.
             Assert.False(lifetime.Reloading);
@@ -391,7 +442,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
 
         // Act: disable the feature before the replacement retirement fence is consumed.
         pool.Withdraw();
-        GL.Finish(); pool.Poll();
+        RHICommandContext.Current.WaitIdle(); pool.Poll();
 
         // Assert: the newer disable wins; polling cannot silently recreate the obsolete requested policy.
         Assert.False(pool.IsAvailable);
@@ -459,7 +510,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         pool.SetBankTarget(1);
         Assert.Equal(2, pool.ResidentBanks);
         Assert.True(pool.DrainingBytes > 0);
-        GL.Finish(); pool.Poll();
+        RHICommandContext.Current.WaitIdle(); pool.Poll();
         Assert.Equal(1, pool.ResidentBanks);
         Assert.Equal(0, pool.DrainingBytes);
         Assert.True(pool.AllocatedBytes < beforeShrink);
@@ -467,7 +518,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         // Act: withdraw and rebuild with a different format policy after all prior users have retired.
         pool.Reconfigure(Settings(pageSize: 16, tilesPerBank: 2, banks: 1));
         Assert.False(pool.IsAvailable);
-        GL.Finish(); pool.Poll();
+        RHICommandContext.Current.WaitIdle(); pool.Poll();
 
         // Assert: the replacement is a fresh usable pool with no surviving old publication.
         Assert.True(pool.IsAvailable);
@@ -518,6 +569,18 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
     {
         using var mapped = pool.Results.MapRange<uint>(0, 8, BufferMapAccess.Read);
         Assert.True(mapped.IsMapped); return mapped.Span.ToArray();
+    }
+    /// <summary>Reads state and the allocation-batch token from their exact fields in one bounded page-table slot.</summary>
+    private static (uint State, uint BatchLow, uint BatchHigh) EntryLifecycle(ShadowPagePool pool, int slot)
+    {
+        uint state;
+        using (var mapped = pool.Entries.MapRange<uint>(checked(slot * 512 + 20 * sizeof(uint)), 1, BufferMapAccess.Read))
+        {
+            Assert.True(mapped.IsMapped); state = mapped.Span[0];
+        }
+        using var batch = pool.Entries.MapRange<uint>(checked(slot * 512 + 112 * sizeof(uint)), 2, BufferMapAccess.Read);
+        Assert.True(batch.IsMapped);
+        return (state, batch.Span[0], batch.Span[1]);
     }
     /// <summary>Finds distinct serialized keys sharing a bounded linear-probe start bucket.</summary>
     private static (ShadowPageKey First, ShadowPageKey Second) CollidingKeys(int capacity)

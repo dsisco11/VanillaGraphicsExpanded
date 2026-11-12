@@ -43,6 +43,9 @@ internal sealed class ShadowProjectionSnapshot
         if (destination.Length < 98) throw new ArgumentException("Projection storage requires 98 words.", nameof(destination));
         words.AsSpan().CopyTo(destination[64..98]);
     }
+    /// <summary>Requires both identity and the exact frozen mapping before sharing raster or page coverage.</summary>
+    internal bool Matches(ShadowProjectionSnapshot other) => other is not null && Source == other.Source &&
+        Generation == other.Generation && FaceOrLevel == other.FaceOrLevel && words.AsSpan().SequenceEqual(other.words);
     #endregion
 
     #region Private

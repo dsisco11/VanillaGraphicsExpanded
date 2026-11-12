@@ -207,13 +207,13 @@ public sealed class GlImportNode : SyntaxNode, INamedNode
 }
 
 /// <summary>
-/// A GLSL uniform declaration: uniform type name [array]? ;
-/// Pattern: "uniform" + type + identifier + optional[size] + ";"
+/// A GLSL uniform declaration with an optional array extent and initializer expression.
 /// Example: uniform mat4 modelViewMatrix;
 /// Example: uniform vec4 lights[16];
 /// </summary>
 public sealed class GlUniformNode : GlInterfaceDeclarationNode
 {
+    /// <summary>Creates a typed view of a parsed uniform declaration.</summary>
     internal GlUniformNode(CreationContext context)
         : base(context) { }
 
@@ -225,6 +225,12 @@ public sealed class GlUniformNode : GlInterfaceDeclarationNode
 
     /// <summary>The type name as text.</summary>
     public string TypeName => TypeNode.Text;
+
+    /// <summary>Gets the authored initializer expression nodes, excluding the assignment and terminator.</summary>
+    public IEnumerable<SyntaxNode> InitializerNodes => Children
+        .SkipWhile(static node => node is not SyntaxToken { Text: "=" })
+        .Skip(1)
+        .TakeWhile(static node => node is not SyntaxToken { Text: ";" });
 
     /// <summary>The uniform name token.</summary>
     public SyntaxToken NameNode => GetTypedChild<SyntaxToken>(2);
@@ -263,7 +269,7 @@ public sealed class GlUniformNode : GlInterfaceDeclarationNode
     /// <summary>
     /// Returns true if this is an array uniform declaration.
     /// </summary>
-    public bool IsArray => ArraySize.HasValue;
+    public bool IsArray => Children.Skip(3).FirstOrDefault() is SyntaxBlock { Kind: NodeKind.BracketBlock };
 
     /// <inheritdoc/>
     public override string ToString() =>
@@ -324,7 +330,7 @@ public static class GlslSchema
                 Query.Symbol(";"))
             .WithPriority(20)
             .Build())
-        // Uniform declaration: uniform type name; or uniform type name[size];
+        // Preserve optional initializer expressions as parsed nodes, including nested constructors.
         // Must match before function definition (higher priority)
         .DefineSyntax(Syntax.Define<GlUniformNode>("glUniform")
             .Match(
@@ -332,6 +338,7 @@ public static class GlslSchema
                 Query.AnyOf(Query.AnyKeyword, Query.AnyIdent), // Type (keyword or custom type)
                 Query.AnyIdent,                                // Name
                 Query.BracketBlock.Optional(),                 // Optional array [size]
+                Query.Sequence(Query.Operator("="), Query.Any.Until(Query.Symbol(";"))).Optional(),
                 Query.Symbol(";")
             )
             .WithPriority(15)

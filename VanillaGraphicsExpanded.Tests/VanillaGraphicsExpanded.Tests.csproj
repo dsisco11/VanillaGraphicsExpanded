@@ -24,6 +24,11 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VanillaGraphicsExpanded\VanillaGraphicsExpanded.csproj" />
+    <ProjectReference Include="Fixtures\ShaderPreparation\VgeShaderTestPreparation.csproj">
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+    <Compile Remove="Fixtures\ShaderPreparation\**\*.cs" />
+    <Compile Include="Fixtures\ShaderPreparation\ShaderObservationSource.cs" Link="Fixtures\ShaderPreparation\ShaderObservationSource.cs" />
     <Compile Include="..\ShaderBuildCatalog\TestShaderPrograms.cs" Link="Fixtures\Shaders\TestShaderPrograms.cs" />
     <Compile Include="..\ShaderBuildCatalog\TestShaderPrograms.Assertions.cs" Link="Fixtures\Shaders\TestShaderPrograms.Assertions.cs" />
     <!-- Dependencies of the linked production source emitter and preprocessor. -->
@@ -77,6 +82,7 @@
     <PropertyGroup>
       <TestShaderArtifacts>$(MSBuildProjectDirectory)\..\artifacts\spirv-tests\$(Configuration)</TestShaderArtifacts>
       <TestShaderInputs>$(MSBuildProjectDirectory)\obj\$(Configuration)\test-shader-inputs</TestShaderInputs>
+      <TestShaderPreparationReceipts>$(MSBuildProjectDirectory)\..\artifacts\shader-fixture-provenance\$(Configuration)</TestShaderPreparationReceipts>
     </PropertyGroup>
     <!-- Reconstruct the owned overlay so removed fixture sources cannot survive catalog changes. -->
     <RemoveDir Directories="$(TestShaderInputs)" />
@@ -86,6 +92,15 @@
     </ItemGroup>
     <Copy SourceFiles="@(_ProductionShaderInput)" DestinationFiles="@(_ProductionShaderInput->'$(TestShaderInputs)\vanillagraphicsexpanded\%(RecursiveDir)%(Filename)%(Extension)')" />
     <Copy SourceFiles="@(_FixtureShaderInput)" DestinationFiles="@(_FixtureShaderInput->'$(TestShaderInputs)\vanillagraphicsexpanded\%(RecursiveDir)%(Filename)%(Extension)')" />
+    <!-- Prepare feedback observations offline from the just-copied production roots and retain their provenance. -->
+    <MSBuild Projects="Fixtures\ShaderPreparation\VgeShaderTestPreparation.csproj"
+             Targets="Build" Properties="Configuration=$(Configuration)" />
+    <Exec Command="dotnet &quot;$(MSBuildThisFileDirectory)Fixtures\ShaderPreparation\bin\$(Configuration)\net10.0\VgeShaderTestPreparation.dll&quot; &quot;$(TestShaderInputs)&quot; &quot;$(TestShaderPreparationReceipts)&quot;" />
+    <!-- Publish the freshly prepared roots so the immutable source/catalog audit sees the actual build inputs. -->
+    <ItemGroup>
+      <_PreparedFeedbackSource Include="$(TestShaderInputs)\vanillagraphicsexpanded\shaders\tests\shadow-*-feedback.vsh" />
+    </ItemGroup>
+    <Copy SourceFiles="@(_PreparedFeedbackSource)" DestinationFiles="@(_PreparedFeedbackSource->'$(TargetDir)assets\shaders\tests\%(Filename)%(Extension)')" />
     <MSBuild Projects="..\SpirvBuild\VanillaGraphicsExpanded.SpirvBuild.csproj"
              Targets="CompileSpirvShaders"
              Properties="Configuration=$(Configuration);SpirvRegistry=tests;SpirvDomain=vanillagraphicsexpanded;SpirvAssetsRoot=$(TestShaderInputs);SpirvArtifactsDir=$(TestShaderArtifacts)" />
@@ -136,7 +151,7 @@
   <!-- Snapshot only this build's explicit inputs; obsolete files in incremental output are not test data. -->
   <Target Name="WriteTestInputManifest" AfterTargets="CopyTestSpirvAssets">
     <WriteLinesToFile File="$(TargetDir)fixture-inputs.txt"
-                      Lines="@(Content->'%(Link)');@(_TestSpirvFiles->'assets/shaders/%(RecursiveDir)%(Filename)%(Extension)')"
+                      Lines="@(Content->'%(Link)');@(_PreparedFeedbackSource->'assets/shaders/tests/%(Filename)%(Extension)');@(_TestSpirvFiles->'assets/shaders/%(RecursiveDir)%(Filename)%(Extension)')"
                       Overwrite="true" WriteOnlyWhenDifferent="true" Encoding="UTF-8" />
   </Target>
 

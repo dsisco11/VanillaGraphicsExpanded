@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Text.RegularExpressions;
 using TinyTokenizer.Ast;
 
 namespace VanillaGraphicsExpanded.Rendering.Shadows.Geometry;
@@ -23,26 +22,36 @@ internal static class ShadowVirtualStages
 
             vge_shadowObject=vge_shadowSelection.x;
             vge_shadowView=vge_shadowSelection.y;
-            """).Commit();
+            """ + "\n").Commit();
         return tree.ToText();
     }
 
     /// <summary>Projects the final deformed origin-relative position and writes all four clipping outputs on every return path.</summary>
-    internal static string FinalProducer(string source, string position, string viewFunctions)
+    internal static string FinalProducer(string source, string position)
     {
         // Material interface generation must finish first. In particular, gl_PerVertex
         // and gl_ClipDistance are built-ins, never scalar material varyings to interpolate.
-        if (source.Contains("gl_ClipDistance", StringComparison.Ordinal) || source.Contains("gl_CullDistance", StringComparison.Ordinal))
-            throw new NotSupportedException("Virtual shadows own the final four-plane clipping declaration.");
-        if (source.Contains("EmitVertex", StringComparison.Ordinal) || source.Contains("EmitStreamVertex", StringComparison.Ordinal))
+        var tree = Parse(source);
+        var clips = tree.Select(Query.Syntax<GlStageIoNode>().Named("gl_ClipDistance"))
+            .OfType<GlStageIoNode>().ToArray();
+        var dimensions = clips.Length == 1 ? clips[0].Children.OfType<SyntaxBlock>()
+            .Where(block => block.Kind == NodeKind.BracketBlock).ToArray() : [];
+        if (clips.Length != 1 || clips[0].Storage != GlInterfaceStorage.Output || clips[0].ValueType != "float" ||
+            dimensions.Length != 1 || dimensions[0].InnerChildren.Count() != 1 ||
+            dimensions[0].InnerChildren.Single() is not SyntaxToken { Text: "4" } ||
+            tree.Select(Query.Ident("gl_ClipDistance")).Count() != 1 ||
+            tree.Select(Query.Ident("gl_CullDistance")).Any())
+            throw new NotSupportedException("Virtual shadows require one explicit four-plane clipping output declaration.");
+        // A directive can alias an emission builtin without spelling a call here.
+        // Inspect parsed identifiers conservatively, while ignoring comments and literals.
+        if (tree.Select(Query.AnyOf(Query.Ident("EmitVertex"), Query.Ident("EmitStreamVertex"))).Any())
             throw new NotSupportedException("Geometry emission requires an explicit complete-output shadow variant.");
         if (position is not ("vge_shadowPosition" or "worldPos"))
             throw new ArgumentException("A generated final material position is required.", nameof(position));
-        var tree = Parse(source);
         if (tree.Select(Query.Syntax<GlInterfaceBlockHeaderNode>()).OfType<GlInterfaceBlockHeaderNode>()
             .Any(block => block.Storage == GlInterfaceStorage.Output && block.Name == "gl_PerVertex"))
             throw new NotSupportedException("A redeclared final gl_PerVertex block requires an explicit supported variant.");
-        return Wrap(tree, "uniform usamplerBuffer shadowViews;\nout float gl_ClipDistance[4];\n" + viewFunctions,
+        return Wrap(tree,
             $$"""
                 if (!shadowViewExists(vge_shadowView)) {
                     gl_Position=vec4(0.0,0.0,0.0,1.0);
@@ -56,24 +65,15 @@ internal static class ShadowVirtualStages
     }
 
     /// <summary>Preserves material rejection before guarded atomic publication; no physical layer or extra geometry stage is emitted.</summary>
-    internal static string Fragment(string source, string viewFunctions, string writeFunctions)
+    internal static string Fragment(string source)
     {
-        if (source.Contains("gl_FragDepth", StringComparison.Ordinal) || source.Contains("early_fragment_tests", StringComparison.Ordinal))
-            throw new NotSupportedException("Fragment depth replacement or early tests require a separately qualified atomic shadow variant.");
         var tree = Parse(source);
-        // Keep memory qualifiers before the uniform declaration so the shared typed
-        // layout emitter recognizes each image and assigns its catalog-owned binding.
+        if (tree.Select(Query.Ident("gl_FragDepth")).Any() ||
+            tree.Select(Query.Syntax<GlLayoutNode>()).OfType<GlLayoutNode>()
+                .Any(layout => layout.Qualifiers.Any(qualifier => qualifier.Nodes.Count == 1 &&
+                    Query.Ident("early_fragment_tests").Matches(qualifier.Nodes[0]))))
+            throw new NotSupportedException("Fragment depth replacement or early tests require a separately qualified atomic shadow variant.");
         return Wrap(tree, """
-            flat in uint vge_shadowView;
-            uniform usamplerBuffer shadowViews;
-            layout(std430) readonly buffer ShadowWriteEntries { uint shadowWriteEntries[]; };
-            layout(std430) readonly buffer ShadowWritableAssignments { uvec4 shadowWritableAssignments[]; };
-            layout(r32ui) coherent uniform uimage2D shadowBank0;
-            layout(r32ui) coherent uniform uimage2D shadowBank1;
-            layout(r32ui) coherent uniform uimage2D shadowBank2;
-            layout(r32ui) coherent uniform uimage2D shadowBank3;
-
-            """ + viewFunctions + "\n" + writeFunctions, """
                 if (!shadowViewExists(vge_shadowView)) return;
                 ShadowWriteView view;
                 for(uint index=0u;index<17u;index++)
@@ -93,19 +93,15 @@ internal static class ShadowVirtualStages
     {
         var tree = SyntaxTree.Parse(source, GlslSchema.Instance);
         if (tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Count() != 1 ||
-            source.Contains("vgeShadowMaterialMain", StringComparison.Ordinal))
+            tree.Select(Query.Ident("vgeShadowMaterialMain")).Any())
             throw new NotSupportedException("Virtual shadow generation requires one unwrapped main function.");
         return tree;
     }
 
     /// <summary>Runs the complete material body before final output, including material early returns and fragment discard.</summary>
-    private static string Wrap(SyntaxTree tree, string declarations, string finalOutput)
+    private static string Wrap(SyntaxTree tree, string finalOutput)
     {
-        var main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single();
-        string material = Regex.Replace(main.ToText(), @"\bmain\s*\(", "vgeShadowMaterialMain(", RegexOptions.None, TimeSpan.FromSeconds(1));
-        var markers = tree.Select(Query.Syntax<GlDirectiveNode>()).OfType<GlDirectiveNode>()
-            .Where(node => node.Name == "pragma" && node.ToText().Contains("vge_shadow_interface", StringComparison.Ordinal)).ToArray();
-        if (markers.Length > 1) throw new NotSupportedException("A shadow interface must have one declaration site.");
+        var main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).OfType<GlFunctionNode>().Single();
         var editor = tree.CreateEditor();
         var versions = tree.Select(Query.Syntax<GlDirectiveNode>()).OfType<GlDirectiveNode>()
             .Where(node => node.Name == "version").ToArray();
@@ -114,11 +110,8 @@ internal static class ShadowVirtualStages
         // addressing require the established 4.5 source feature set, independently
         // of the original native material's older GLSL version.
         if (versions.Length == 1) editor.Replace(versions[0], "#version 450 core\n");
-        if (markers.Length == 1) editor.Replace(markers[0], declarations + "\n");
-        else if (string.IsNullOrWhiteSpace(declarations) || declarations.Contains("bool shadowViewExists", StringComparison.Ordinal))
-            editor.InsertBefore(main, declarations + "\n");
-        else throw new NotSupportedException("Imported shadow helpers require a vge_shadow_interface pragma before their imports.");
-        editor.Replace(main, material + "\nvoid main() {\nvgeShadowMaterialMain();\n" + finalOutput + "\n}\n").Commit();
+        editor.Replace(main.NameNode, "vgeShadowMaterialMain")
+            .InsertAfter(main, "\nvoid main() {\nvgeShadowMaterialMain();\n" + finalOutput + "\n}\n").Commit();
         return (versions.Length == 0 ? "#version 450 core\n" : "") + tree.ToText();
     }
     #endregion

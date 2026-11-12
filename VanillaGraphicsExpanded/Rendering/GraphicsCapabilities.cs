@@ -136,6 +136,8 @@ public sealed record GraphicsCapabilities
     public int MaxUniformBufferBindings { get; init; }
     /// <summary>Maximum size of a uniform block, in bytes.</summary>
     public int MaxUniformBlockSize { get; init; }
+    /// <summary>Maximum storage blocks available to native packed vertex inputs.</summary>
+    public int MaxVertexShaderStorageBlocks { get; init; }
     /// <summary>Maximum storage blocks available to the fragment stage.</summary>
     public int MaxFragmentShaderStorageBlocks { get; init; }
     /// <summary>Maximum storage blocks available to the compute stage.</summary>

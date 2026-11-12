@@ -82,6 +82,7 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
         filePath = Path.GetFullPath(filePath);
         if (!filePath.StartsWith(assetsRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Import escaped assets: " + reference);
+
         if (!File.Exists(filePath))
         {
             var diag = new ResolutionFailedDiagnostic(reference, $"File not found: {filePath}", relativeTo?.Id, null);

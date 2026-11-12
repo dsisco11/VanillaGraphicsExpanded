@@ -11,6 +11,24 @@ internal static partial class TestShaderPrograms
     internal static ShaderVariantResolver Create()
     {
         var programs = GpuShaderContracts.Registry.Programs.Values.ToList();
+        var feedbackFragmentBindings = new GpuBindingContract();
+        feedbackFragmentBindings.FragmentOutputLocations.Add("result", 0);
+        var feedbackFragment = new ShaderStageContract("tests/clip-distance.fsh", "tests/clip-distance.fsh",
+            ShaderStageKind.Fragment, feedbackFragmentBindings);
+        foreach (string material in new[] { "static", "entity", "terrain" })
+        {
+            string identity = "tests/shadow-" + material + "-feedback.vsh";
+            string productionIdentity = "shadows/" + material + ".vsh";
+            var production = GpuShaderContracts.Registry.FindStage(productionIdentity);
+            var fixedDefines = new Dictionary<string, ShaderScalar>
+            {
+                ["VGE_VERTEX_DEFORMATION_ENABLED"] = ShaderScalar.From(1)
+            };
+            if (material == "static") fixedDefines["VGE_OBJECT_INSTANCED"] = ShaderScalar.From(0);
+            if (material == "terrain") fixedDefines["VGE_TERRAIN_PACKED_INPUT"] = ShaderScalar.From(0);
+            programs.Add(new("tests/shadow-" + material + "-feedback",
+                [new(identity, identity, ShaderStageKind.Vertex, production.Bindings, fixedDefines: fixedDefines), feedbackFragment], 1));
+        }
         foreach (string name in new[] { "terrain-capture-opaque", "terrain-capture-topsoil" })
             programs.Add(new("tests/" + name, [Fixture("complete-state", "vsh", ShaderStageKind.Vertex), Fixture(name, "fsh", ShaderStageKind.Fragment)], 1));
         foreach (string name in new[] { "complete-state", "rasterizer", "first-person" })
@@ -75,6 +93,11 @@ internal static partial class TestShaderPrograms
             new("tests/shadow-virtual.vsh", "tests/shadow-virtual.vsh", ShaderStageKind.Vertex, virtualShadowVertex),
             new("tests/shadow-virtual.fsh", "tests/shadow-virtual.fsh", ShaderStageKind.Fragment, virtualShadow)], 1));
         programs.Add(new("tests/temporal-debug", [Fixture("temporal-debug", "csh", ShaderStageKind.Compute)], 1));
+        var deformationInputs = new GpuBindingContract();
+        deformationInputs.RegisterShaderStorageBlockBinding("DeformationResults", 0);
+        deformationInputs.RegisterUniformBlockBinding("DeformationInputs", 28);
+        programs.Add(new("tests/shared-deformation-numeric",
+            [new("tests/shared-deformation-numeric.csh", "tests/shared-deformation-numeric.csh", ShaderStageKind.Compute, deformationInputs)], 1));
         var surfaceWorkCollector = new GpuBindingContract();
         surfaceWorkCollector.RegisterShaderStorageBlockBinding("DiagnosticCounters", 4);
         programs.Add(new("tests/surface-work-collector",

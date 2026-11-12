@@ -15,5 +15,7 @@ internal enum ShaderCapability
     /// <summary>Supports VGE's selectable scene color convention; whole-frame readiness is a separate requirement.</summary>
     SceneColorConvention = 4,
     /// <summary>Publishes linear material inputs for VGE deferred lighting rather than completed scene color.</summary>
-    SceneMaterialCapture = 8
+    SceneMaterialCapture = 8,
+    /// <summary>Evaluates the authored deformation model shared by visible geometry and virtual shadows.</summary>
+    SharedVertexDeformation = 16
 }

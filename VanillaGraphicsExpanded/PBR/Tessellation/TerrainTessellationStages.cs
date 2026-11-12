@@ -3,26 +3,16 @@ using System.Collections.Generic;
 using System.Text;
 using System.Linq;
 using TinyTokenizer.Ast;
-using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.PBR.Tessellation;
 
 /// <summary>Prepares matching tessellation sources from the terrain patch's typed output declarations.</summary>
-internal static class TerrainTessellationStages
+internal static partial class TerrainTessellationStages
 {
     /// <summary>Immutable stage templates prepared before engine compilation.</summary>
     internal sealed record Sources(string Control, string Evaluation);
 
     #region Interface preparation
-    /// <summary>Freezes selected engine-prefix policy into stage code without issuing native creation or linking commands.</summary>
-    internal static (RHIShaderStageDescription Control, RHIShaderStageDescription Evaluation) Describe(Sources sources, string prefixCode)
-    {
-        // The engine independently selects its vertex/fragment versions. These additional stages require GLSL 4.0.
-        string header = $"#version 400 core\n{prefixCode}\n\n";
-        return (new(ShaderStage.TessellationControl, header + sources.Control),
-            new(ShaderStage.TessellationEvaluation, header + sources.Evaluation));
-    }
-
     /// <summary>Retains source preprocessing guards and derives interpolation from declarations, without driver reflection.</summary>
     internal static Sources Generate(string vertexSource, Sources templates, bool depthBias = false)
     {
@@ -40,7 +30,7 @@ internal static class TerrainTessellationStages
         {
             if (node is GlDirectiveNode directive)
             {
-                if (directive.Name is "version" or "line") continue;
+                if (directive.Name is "version" or "line" or "pragma") continue;
                 control.AppendLine(directive.ToText());
                 evaluation.AppendLine(directive.ToText());
                 continue;
@@ -51,7 +41,7 @@ internal static class TerrainTessellationStages
             string type = output.ValueType;
             string qualifier = output.Interpolation;
             if (type is not ("float" or "vec2" or "vec3" or "vec4" or "int" or "uint")
-                || output.ToText().Contains('[') || qualifier is not ("" or "smooth" or "flat"))
+                || output.Children.Any(Query.BracketBlock.Matches) || qualifier is not ("" or "smooth" or "flat"))
                 throw new NotSupportedException($"Unsupported terrain output declaration: {output.ToText()}.");
             if (type is "int" or "uint" && qualifier != "flat")
                 throw new NotSupportedException($"Integer terrain output must be flat: {output.Name}.");
@@ -117,21 +107,26 @@ internal static class TerrainTessellationStages
         // Only opaque terrain carries the engine's authored decor depth offset.
         evaluation.AppendLine($"#define VGE_TESS_DEPTH_BIAS {(depthBias ? 1 : 0)}");
         string stageHeader = outputNames.Contains("vge_shadowPosition") ? "#define VGE_TESS_SHADOW 1\n" : "";
-        return new Sources(stageHeader + Assemble(templates.Control, control.ToString(), copies.ToString()),
-            stageHeader + Assemble(templates.Evaluation, evaluation.ToString(), interpolations.ToString()));
+        return new Sources(Assemble(templates.Control, control.ToString(), copies.ToString(), stageHeader),
+            Assemble(templates.Evaluation, evaluation.ToString(), interpolations.ToString(), stageHeader));
     }
 
     /// <summary>Inserts only the engine-dependent interface into the asset-owned stage body.</summary>
-    private static string Assemble(string template, string declarations, string assignments)
+    private static string Assemble(string template, string declarations, string assignments, string header)
     {
         var tree = SyntaxTree.Parse(template, GlslSchema.Instance);
         var main = Query.Syntax<GlFunctionNode>().Named("main");
-        tree.CreateEditor()
+        var editor = tree.CreateEditor();
+        var version = tree.Select(Query.Syntax<GlDirectiveNode>()).OfType<GlDirectiveNode>()
+            .SingleOrDefault(node => node.Name == "version");
+        if (version is not null) editor.InsertAfter(version, "\n" + header);
+        editor
             .InsertBefore(main, declarations)
             .InsertAfter(main.InnerStart("body"), "\n" + assignments)
             .Commit();
-        // The linker supplies the GLSL version and engine prefix.
-        return tree.ToText();
+        // Runtime templates obtain a version from their linker; offline roots own
+        // theirs already, and GLSL requires it to precede every generated define.
+        return (version is null ? header : "") + tree.ToText();
     }
     #endregion
 }

@@ -20,6 +20,8 @@ public sealed class ShadowDrawSettings
     /// <summary>Aggregate admitted virtual raster pixels, before conservative material/overdraw cost.</summary>
     [JsonProperty] public int RasterPixels { get; set; } = 16777216;
     [JsonProperty] public int EstimatedTriangles { get; set; } = 8388608;
+    /// <summary>Bounds conservative triangle-covered raster samples, including repeated virtual views.</summary>
+    [JsonProperty] public int EstimatedRasterSamples { get; set; } = 268435456;
 
     #region Public API
     /// <summary>Restores invalid controls to finite defaults; allocation still validates aggregate sizes.</summary>
@@ -38,6 +40,7 @@ public sealed class ShadowDrawSettings
         ViewInstances = Valid(ViewInstances, 1048576, 32768);
         RasterPixels = Valid(RasterPixels, int.MaxValue, 16777216);
         EstimatedTriangles = Valid(EstimatedTriangles, int.MaxValue, 8388608);
+        EstimatedRasterSamples = Valid(EstimatedRasterSamples, int.MaxValue, 268435456);
     }
 
     /// <summary>Separates in-flight policy from mutable live configuration.</summary>

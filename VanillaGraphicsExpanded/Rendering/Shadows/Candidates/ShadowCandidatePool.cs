@@ -56,6 +56,17 @@ internal sealed class ShadowCandidatePool : IDisposable
             && changes!.Epoch == current.ChangeEpoch && changes.ToSequence == current.ChangeSequence
             && DomainMatches(request, snapshot);
     }
+    /// <summary>Requires a point-source movement box large enough to cover conservative displaced caster segments.</summary>
+    internal bool CanConsumeEnvelope(ShadowCandidateHandle handle, ShadowCandidateCurrent current,
+        ShadowWorldPublication snapshot, double paddingInChunks)
+    {
+        if (!double.IsFinite(paddingInChunks) || paddingInChunks < 0 || !CanConsume(handle, current, snapshot)) return false;
+        var request = Require(handle);
+        if (!request.IsPoint) return true;
+        var p = current.PositionOrDirection;
+        return request.SourceBox.Contains(new(p.X - paddingInChunks, p.Y - paddingInChunks, p.Z - paddingInChunks,
+            p.X + paddingInChunks, p.Y + paddingInChunks, p.Z + paddingInChunks));
+    }
     /// <summary>Validates the complete fixed layout against policy and cached hardware limits before allocating.</summary>
     internal static ShadowCandidatePool Create(ICoreAPI api, ShadowCandidateSettings settings)
     {

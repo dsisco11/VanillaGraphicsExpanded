@@ -4,6 +4,8 @@ using System.Collections.Immutable;
 using VanillaGraphicsExpanded.Rendering.Shadows.Geometry;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
+using Vintagestory.API.Client;
+using Vintagestory.GameContent;
 
 namespace VanillaGraphicsExpanded.Rendering.Integration.Shadows;
 
@@ -14,7 +16,9 @@ internal sealed class NativeShadowEntityPreparation
     private readonly ShadowSceneChanges changes;
     private readonly HashSet<EntityRenderer> prepared = new(ReferenceEqualityComparer.Instance);
     private readonly HashSet<IAnimationManager> animated = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<EntityItemRenderer, ItemRenderInfo?> itemMaterials = new(ReferenceEqualityComparer.Instance);
     private IReadOnlyDictionary<long, EntityRenderer>? renderers;
+    private IReadOnlyDictionary<long, EntityRenderer>? published;
     private bool open, failed;
 
     #region Public API
@@ -22,6 +26,17 @@ internal sealed class NativeShadowEntityPreparation
     internal bool Complete { get; private set; }
     internal int ExtraPreparations { get; private set; }
     internal ImmutableArray<EntityRenderer> Renderers { get; private set; } = [];
+    /// <summary>Rejects native membership changes even when the captured scene contained no entities.</summary>
+    internal bool IsCurrent
+    {
+        get
+        {
+            if (!Complete || open || published is null || published.Count != Renderers.Length) return false;
+            foreach (var renderer in Renderers)
+                if (!published.TryGetValue(renderer.entity.EntityId, out var current) || !ReferenceEquals(current, renderer)) return false;
+            return true;
+        }
+    }
 
     /// <summary>Charges all retained renderer references to a finite preparation allowance.</summary>
     internal NativeShadowEntityPreparation(int capacity, ShadowSceneChanges changes)
@@ -39,7 +54,7 @@ internal sealed class NativeShadowEntityPreparation
         changes.BeginChange();
         open = true; Complete = false; failed = current.Count > capacity;
         Frame = checked(Frame + 1); ExtraPreparations = 0;
-        prepared.Clear(); animated.Clear(); Renderers = []; renderers = current;
+        prepared.Clear(); animated.Clear(); itemMaterials.Clear(); Renderers = []; published = null; renderers = current;
     }
 
     /// <summary>Preserves the native visible call while recording successful once-only preparation.</summary>
@@ -48,7 +63,11 @@ internal sealed class NativeShadowEntityPreparation
         if (!open) throw new InvalidOperationException("No entity preparation interval is active.");
         if (prepared.Contains(renderer)) return;
         renderer.BeforeRender(dt);
-        if (prepared.Count < capacity) prepared.Add(renderer);
+        if (prepared.Count < capacity)
+        {
+            PrepareItem(renderer, dt);
+            prepared.Add(renderer);
+        }
         else failed = true;
     }
 
@@ -60,6 +79,7 @@ internal sealed class NativeShadowEntityPreparation
             && ReferenceEquals(renderer.entity, entity) && !prepared.Contains(renderer))
         {
             renderer.BeforeRender(dt);
+            PrepareItem(renderer, dt);
             prepared.Add(renderer);
             ExtraPreparations++;
         }
@@ -98,13 +118,35 @@ internal sealed class NativeShadowEntityPreparation
                     if (!prepared.Contains(renderer)) { Complete = false; break; }
                     snapshot.Add(renderer);
                 }
-                if (Complete) Renderers = snapshot.MoveToImmutable();
+                if (Complete) { Renderers = snapshot.MoveToImmutable(); published = renderers; }
             }
             // Native custom renderers expose no guaranteed deformed bounds. Unknown extents
             // advance the existing broad epoch before retained history can be discarded.
             changes.CompleteChange(default, null, null, Frame, Frame, Frame);
         }
         finally { open = false; renderers = null; }
+    }
+
+    /// <summary>Checks original native membership directly so removal/replacement cannot survive a prepared frame certificate.</summary>
+    internal bool Matches(EntityRenderer renderer, long frame) => Complete && !open && Frame == frame &&
+        published is not null && published.Count == Renderers.Length && prepared.Contains(renderer) &&
+        published.TryGetValue(renderer.entity.EntityId, out var current) && ReferenceEquals(current, renderer);
+
+    /// <summary>Returns the ground material prepared at the existing once-per-frame native boundary.</summary>
+    internal ItemRenderInfo? ItemMaterial(EntityItemRenderer renderer, long frame)
+    {
+        if (!Matches(renderer, frame) || !itemMaterials.TryGetValue(renderer, out var info))
+            throw new InvalidOperationException("Native dropped-item preparation is unavailable.");
+        return info;
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Supplements the native dropped-item owner without a second renderer traversal or animation tick.</summary>
+    private void PrepareItem(EntityRenderer renderer, float dt)
+    {
+        if (renderer is EntityItemRenderer item)
+            itemMaterials.Add(item, NativeShadowItemPose.Prepare(item, dt));
     }
     #endregion
 }

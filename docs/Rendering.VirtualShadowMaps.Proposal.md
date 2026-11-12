@@ -1040,10 +1040,13 @@ Candidate expansion visits established candidate collections and intersects thei
 chunk bounds with requested page coverage before resolving eligible current ranges. It
 does not construct an unconditional product of all pages and all loaded geometry.
 Overlapping receivers must produce at most one occurrence of the same eligible range
-for a page. Visits and duplicate-processing work count against the budget even when
-they produce no draw. Use bounded keyed insertion for the page identity/generation and
-native range identity/generation, then prefix-sum compaction into admitted lists. Collision/probe or output
-exhaustion rejects completeness; it cannot discard an unknown duplicate as if already present.
+for a virtual view. A single occurrence can cover several physical pages. Visits and
+duplicate-processing work count against the budget even when they produce no draw.
+Where the bounded CPU input already assigns each native range a unique command index,
+deduplicate directly in initialized range/view slots and charge inactive slots as well.
+Inputs without that direct indexing require bounded keyed insertion by view and native
+range identity/generation, followed by compaction into admitted lists. Collision/probe
+or output exhaustion rejects completeness; it cannot discard an unknown duplicate as if already present.
 
 #### Admit complete pages before clearing or drawing
 

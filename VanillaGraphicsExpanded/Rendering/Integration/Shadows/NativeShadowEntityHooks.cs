@@ -5,6 +5,7 @@ using HarmonyLib;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.Client.NoObf;
+using Vintagestory.GameContent;
 
 namespace VanillaGraphicsExpanded.Rendering.Integration.Shadows;
 
@@ -24,8 +25,9 @@ internal static class NativeShadowEntityHooks
     /// <summary>Installs only the qualified native preparation boundary; no rendering consumer is enabled.</summary>
     internal static void Install(Harmony harmony, ClientMain world, NativeShadowEntityPreparation preparation)
     {
-        if (typeof(ClientMain).Assembly.ManifestModule.ModuleVersionId != new Guid("8a3ad3aa-2940-4c39-ae1b-881de9e65346"))
-            throw new NotSupportedException("Entity preparation requires the qualified native module.");
+        if (typeof(ClientMain).Assembly.ManifestModule.ModuleVersionId != new Guid("8a3ad3aa-2940-4c39-ae1b-881de9e65346") ||
+            typeof(EntityShapeRenderer).Assembly.ManifestModule.ModuleVersionId != new Guid("0d8db7e9-fd74-4129-bbe8-1ff82baf23fc"))
+            throw new NotSupportedException("Entity preparation requires the qualified native renderer modules.");
         if (owner is not null) throw new InvalidOperationException("An entity preparation owner is already attached.");
         harmony.Patch(AccessTools.Method(typeof(SystemRenderEntities), "OnBeforeRender"),
             prefix: new HarmonyMethod(typeof(NativeShadowEntityHooks), nameof(Begin)),

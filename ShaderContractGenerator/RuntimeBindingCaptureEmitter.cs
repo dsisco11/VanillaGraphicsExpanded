@@ -224,7 +224,7 @@ internal static class RuntimeBindingCaptureEmitter
         string role = Kind(property) switch { ShaderBindingKind.UniformBlock => "Uniform", ShaderBindingKind.StorageBlock => "ShaderStorage", _ => "AtomicCounter" };
         string prefix = "new " + rhi + "RHIBufferBinding(" + Identity(property) + "UL, " + rhi + "BufferRole." + role + ", ";
         if (property.Type.ToDisplayString() == "VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding")
-            return input + ".Buffer is null ? " + prefix + "default) : " + prefix + input + ".Buffer, " + input + ".OffsetBytes, " + input + ".SizeBytes, false)";
+            return input + ".Buffer.IsEmpty ? " + prefix + "default) : " + prefix + input + ".Buffer, " + input + ".OffsetBytes, " + input + ".SizeBytes, false)";
         return prefix + "(global::VanillaGraphicsExpanded.Rendering.GpuBufferRef)" + input + ")";
     }
     /// <summary>Filters layout-only descriptors out of runtime resource publication.</summary>

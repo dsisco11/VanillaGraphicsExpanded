@@ -19,7 +19,7 @@ internal sealed record ShaderBuildIdentities(string Preprocessing, string Emissi
         string implementation = Files("processing-implementation-v1", managed, index, details);
         // Native reflection is shipped alongside the tool, and must participate even before it is loaded.
         string reflection = Files("reflection-native-v1", ReflectionFiles(), index, details);
-        return new(Hash("preprocessing-v1", implementation), Hash("emission-v1", implementation),
+        return new(Hash("preprocessing-v3", implementation), Hash("emission-v1", implementation),
             ShaderBuildReceipt.CompilerFingerprint(workingDirectory, target, warnings, index, details),
             Hash("interface-v1", implementation, reflection, ShaderInterfaceExtraction.ExtractorIdentity,
                 PackagedShaderInterface.CurrentVersion.ToString(System.Globalization.CultureInfo.InvariantCulture)));

@@ -1,5 +1,5 @@
 #version 450 core
-#pragma vge_shadow_interface
+@import "../includes/shadows/fragment-interface.glsl"
 @import "../includes/shadows/views.glsl"
 @import "../includes/shadows/writing.glsl"
 

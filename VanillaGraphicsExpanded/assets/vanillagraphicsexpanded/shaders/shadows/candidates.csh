@@ -187,4 +187,7 @@ void main() {
         }
         H(0)=3u;
     }
+    // Publish the validated dependency interval even when its sequence starts at
+    // zero and therefore never enters the incremental-change traversal above.
+    if(H(0)==3u) { H(21)=P(30); H(22)=P(31); }
 }

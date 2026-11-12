@@ -57,13 +57,70 @@ void answer(uint reason,uint slot) {
     results[0]=reason; results[1]=slot;
     results[2]=slot<commands[0]?E(slot,21):0u; results[3]=slot<commands[0]?E(slot,22):0u;
 }
+/// Identifies only unfinished assignments allocated by this CPU-owned submission interval.
+bool belongsToBatch(uint s) {
+    return E(s,20)==1u && E(s,112)==commands[4] && E(s,113)==commands[5];
+}
+/// Finds the retained certificate with the same exact identity within the configured lookup bound.
+uint retainedFor(uint building) {
+    uint hash=2166136261u;
+    for(uint i=0u;i<17u;i++) hash=(hash^E(building,i))*16777619u;
+    for(uint probe=0u;probe<min(commands[2],commands[0]);probe++) {
+        uint s=(hash+probe)%commands[0];
+        if(E(s,20)!=2u) continue;
+        bool same=true;
+        for(uint i=0u;i<17u;i++) if(E(s,i)!=E(building,i)) same=false;
+        if(same) return s;
+    }
+    return commands[0];
+}
+/// Tests pending coverage against all demand accumulated on either representation of the key.
+bool enclosesDemand(uint building,uint required) {
+    if(required>=commands[0] || E(required,25)!=commands[4] || E(required,26)!=commands[5]) return true;
+    for(uint i=0u;i<6u;i++) {
+        double bound=packDouble2x32(uvec2(E(building,28u+2u*i),E(building,29u+2u*i)));
+        double demand=packDouble2x32(uvec2(E(required,48u+2u*i),E(required,49u+2u*i)));
+        if(i<3u?bound>demand:bound<demand) return false;
+    }
+    return true;
+}
+/// Validates the entire batch before publishing any member, then retires incomplete replacements on failure.
+void finishReplacements() {
+    bool complete=C(27)==1u && commands[12]!=0u;
+    double when=packDouble2x32(uvec2(C(46),C(47)));
+    for(uint s=0u;s<commands[0];s++) {
+        if(belongsToBatch(s)) {
+            double started=packDouble2x32(uvec2(E(s,46),E(s,47)));
+            if(E(s,27)!=1u || any(notEqual(writable[s],uvec4(E(s,21),E(s,22),commands[4],commands[5]))) ||
+                !dependenciesEqual(s) || isnan(when) || isinf(when) || when<started ||
+                !enclosesDemand(s,s) || !enclosesDemand(s,retainedFor(s))) complete=false;
+        }
+    }
+    for(uint s=0u;s<commands[0];s++) {
+        // Keep the pending-state guard around every mutation, including token
+        // withdrawal. Completed sampled entries are outside this operation.
+        if(belongsToBatch(s)) {
+            if(complete) {
+                uint old=retainedFor(s);
+                E(s,20)=2u; E(s,27)=0u; E(s,110)=0u; E(s,46)=C(46); E(s,47)=C(47);
+                if(old<commands[0]) retire(old);
+            } else retire(s);
+            writable[s]=uvec4(0);
+        }
+    }
+    answer(complete?0u:4u,commands[0]);
+}
 /// Executes one bounded operation serially, preserving old certificates until replacement publication.
 void main() {
     uint capacity=commands[0],resident=commands[1],limit=min(commands[2],capacity),target=commands[3],op=C(20);
     answer(1u,capacity);
-    if(op>11u) return;
+    if(op>13u) return;
     // GPU completion producers cannot change CPU-owned allocation/freeze batch state.
     if(commands[13]!=0u && op!=2u) return;
+    // Failed or incomplete selection cannot allocate, evict, clear or replace any tile.
+    if(commands[15]!=0u && (op!=1u || commands[14]!=1u ||
+        any(notEqual(uvec2(C(126),C(127)),uvec2(commands[4],commands[5]))))) return;
+    if(op==12u) { finishReplacements(); return; }
     if(op==1u || op==2u) {
         double nearDepth=packDouble2x32(uvec2(C(86),C(87)));
         double farDepth=packDouble2x32(uvec2(C(88),C(89)));
@@ -74,7 +131,7 @@ void main() {
     if(op==10u) {
         if(commands[12]!=0u) return;
         for(uint s=0u;s<capacity;s++)
-            writable[s]=E(s,20)==1u && E(s,27)==1u
+            writable[s]=belongsToBatch(s)
                 ?uvec4(E(s,21),E(s,22),commands[4],commands[5]):uvec4(0);
         answer(0u,capacity); return;
     }
@@ -101,6 +158,12 @@ void main() {
         if(op==4u && E(s,20)!=0u) retire(s);
     }
     if(op==4u) { answer(0u,capacity); return; }
+    if(op==13u) {
+        // Selection cannot allocate or move a token. Clear uses the returned exact
+        // assignment; fragment writes still require its completed clear marker.
+        if(commands[12]==0u || building==capacity || !belongsToBatch(building)) return;
+        answer(0u,building); return;
+    }
     if(op==11u) {
         if(oldSlot==capacity) return;
         double when=packDouble2x32(uvec2(C(46),C(47)));
@@ -165,6 +228,7 @@ void main() {
     E(freeSlot,20)=1u; E(freeSlot,21)=generation.x; E(freeSlot,22)=generation.y;
     E(freeSlot,27)=0u;
     E(freeSlot,60)=0u; E(freeSlot,61)=0u; E(freeSlot,110)=0u;
+    E(freeSlot,112)=commands[4]; E(freeSlot,113)=commands[5];
     E(freeSlot,25)=commands[4]; E(freeSlot,26)=commands[5];
     for(uint i=0u;i<12u;i++) E(freeSlot,48u+i)=C(28u+i);
     answer(0u,freeSlot);

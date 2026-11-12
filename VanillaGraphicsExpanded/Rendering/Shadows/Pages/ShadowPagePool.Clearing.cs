@@ -7,11 +7,19 @@ namespace VanillaGraphicsExpanded.Rendering.Shadows.Pages;
 internal sealed partial class ShadowPagePool
 {
     #region Public API
-    /// <summary>Queues an exact-token clear and ordered write authorization for the latest successful allocation.</summary>
+    /// <summary>Selects an exact pending assignment from the frozen batch without reading its physical location.</summary>
+    internal bool SelectReplacement(ShadowPageRequest request)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (!CanSubmit || !writesFrozen || OperationsRemaining == 0) return false;
+        return Execute(request with { Operation = ShadowPageOperation.SelectReplacement });
+    }
+
+    /// <summary>Queues an exact-token clear for the latest successful allocation or frozen replacement selection.</summary>
     internal bool ClearReplacement()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        if (!CanSubmit || writesFrozen || OperationsRemaining < 2) return false;
+        if (!CanSubmit || OperationsRemaining < 2) return false;
         if (!clearShader.EnsureReady() || clearShader.Shader != clearExecutable)
         { Withdraw(); throw new InvalidOperationException("Clear shader replacement withdraws page storage."); }
         operations += 2;

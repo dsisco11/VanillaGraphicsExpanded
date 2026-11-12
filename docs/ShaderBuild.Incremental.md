@@ -16,6 +16,20 @@ Use `-p:SpirvConcurrency=1` for serial processing or another positive limit to b
 selected jobs; the default is `min(8, logical CPU count)`. `SpirvAssetsRoot`,
 `SpirvRegistry` and `SpirvArtifactsDir` support isolated build fixtures.
 
+Shadow material variants compile only authored sources beneath the configured asset
+root. Installed game shader files are not inputs and cannot be resolved through
+`VINTAGE_STORY`. The game installation remains an assembly/API build dependency,
+not a shader-source dependency. Cache validation rejects source observations outside
+the asset root. Visible geometry and shadow geometry share the authored deformation
+include through their existing shader owners; VGE executables remain offline SPIR-V.
+
+The test project prepares transform-feedback observation roots in its temporary asset
+overlay before invoking the ordinary compiler. Its fixture utility expands the actual
+owned producer, replaces only the final projection wrapper and decorates the position
+output for observation. Separate receipts retain the producer dependency graph and
+input hashes. The production compiler has no feedback-specific source routing, and
+these observation roots are excluded from the production catalog and package.
+
 For focused validation, run `ShaderBuildTool/Tests/ValidateBuildContract.ps1` with
 `-Configuration Debug` or `-Configuration Release`. It restores the pinned tool and
 runs the maintained integration tests with temporary fixture assets. It does not

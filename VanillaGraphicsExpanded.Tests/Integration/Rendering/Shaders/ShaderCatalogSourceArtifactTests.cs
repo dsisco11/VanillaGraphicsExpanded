@@ -12,7 +12,9 @@ public sealed class ShaderCatalogSourceArtifactTests
     public void PublishedCatalogCoversPackagedShaderSources()
     {
         // Arrange: Snapshot source names from the actual build output, including source files eligible for registry wiring.
-        string[] extensions = [".vsh", ".fsh", ".csh", ".gsh", ".tcsh", ".tesh", ".glsl"];
+        // Include the catalog-declared clip-distance tessellation sources, which retain GLSL's .tesc/.tese suffixes.
+        // Compiler output suffixes (.tcsh/.tesh) are separate from these declared source paths.
+        string[] extensions = [".vsh", ".fsh", ".csh", ".gsh", ".geom", ".tcsh", ".tesh", ".tesc", ".tese", ".glsl"];
         var sources = TestAssetSnapshot.Built.Paths.Where(path => path.StartsWith("shaders/", StringComparison.Ordinal))
             .Where(path => extensions.Contains(Path.GetExtension(path))).Select(path => path["shaders/".Length..])
             // Fixture overlays replace a production source at the same asset path.

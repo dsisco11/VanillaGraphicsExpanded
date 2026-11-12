@@ -1,5 +1,5 @@
 #version 450 core
-#pragma vge_shadow_interface
+@import "../includes/shadows/vertex-interface.glsl"
 @import "../includes/shadows/views.glsl"
 
 vec4 vge_shadowPosition;

@@ -14,7 +14,7 @@ internal readonly record struct ShadowPageRequest(ShadowPageOperation Operation,
     internal uint[] Pack()
     {
         if (!Enum.IsDefined(Operation) || !double.IsFinite(Timestamp) || Timestamp < 0 ||
-            ((Operation <= ShadowPageOperation.RetireKey || Operation is ShadowPageOperation.CancelReplacement or ShadowPageOperation.Invalidate)
+            ((Operation <= ShadowPageOperation.RetireKey || Operation is ShadowPageOperation.CancelReplacement or ShadowPageOperation.Invalidate or ShadowPageOperation.SelectReplacement)
             && (!Key.Source.IsKnown || Key.Projection <= 0 || !Region.IsValid || WorldRevision <= 0 || SceneEpoch <= 0 || SceneSequence < 0)))
             throw new ArgumentOutOfRangeException(nameof(Key));
         if ((Operation is ShadowPageOperation.Allocate or ShadowPageOperation.Publish) && Projection == null)

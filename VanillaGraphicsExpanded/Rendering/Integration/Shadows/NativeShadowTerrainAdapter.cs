@@ -18,11 +18,14 @@ internal static class NativeShadowTerrainAdapter
         var groups = ImmutableArray.CreateBuilder<NativeShadowTerrainGroup>();
         var table = NativeShadowTerrainFields.Table(renderer);
         var textures = NativeShadowTerrainFields.Textures(renderer);
+        var platform = NativeShadowTerrainFields.Platform(renderer);
         int visits = 0;
         string? failure = null;
         try
         {
-            if (table is null || textures is null) throw new InvalidOperationException("Terrain table is unavailable.");
+            if (table is null || textures is null || platform is null)
+                throw new InvalidOperationException("Terrain table or native layout authority is unavailable.");
+            bool storage = platform.UseSSBOs;
             // Count table cells and pools, including skipped categories. Limits constrain
             // preparation itself, not merely the groups surviving material eligibility.
             for (int pass = 0; pass < table.Length; pass++)
@@ -40,7 +43,7 @@ internal static class NativeShadowTerrainAdapter
                         if (++visits > policy.GroupVisits) throw new InvalidOperationException("Terrain group visit allowance exhausted.");
                         if (atlas >= textures.Length || textures[atlas] <= 0 || pool is null)
                             throw new InvalidOperationException("Terrain material or pool publication is unavailable.");
-                        groups.Add(new(pool, (EnumChunkRenderPass)pass, atlas, textures[atlas]));
+                        groups.Add(new(pool, (EnumChunkRenderPass)pass, atlas, textures[atlas], storage, platform, renderer));
                     }
                 }
             }

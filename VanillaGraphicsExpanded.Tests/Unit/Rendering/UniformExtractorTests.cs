@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded;
+using TinyTokenizer.Ast;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
@@ -12,6 +13,70 @@ public class UniformExtractorTests
     #region Public API
 
     #region Basic Extraction Tests
+
+    /// <summary>Initialized scalar uniforms retain their authored constant initializer in the AST.</summary>
+    [Fact]
+    public void ParseUniform_InitializedScalar_PreservesInitializerExpression()
+    {
+        // Arrange
+        var tree = SyntaxTree.Parse("uniform float shadowIntensity = 1.0;", GlslSchema.Instance);
+
+        // Act
+        var uniform = Assert.Single(tree.Root.Children.OfType<GlUniformNode>());
+        string initializer = string.Concat(uniform.InitializerNodes.Select(static node => node.ToText())).Trim();
+
+        // Assert
+        Assert.Equal("shadowIntensity", uniform.Name);
+        Assert.Equal("float", uniform.TypeName);
+        Assert.Equal("1.0", initializer);
+    }
+
+    /// <summary>Nested constructor nodes preserve the complete authored uniform initializer expression.</summary>
+    [Fact]
+    public void ParseUniform_ConstructorInitializer_PreservesExpressionNodes()
+    {
+        // Arrange
+        const string expression = "vec3(1.0, mix(0.25, 0.75, 0.5), 0.0)";
+        var tree = SyntaxTree.Parse($"uniform vec3 tint = {expression};", GlslSchema.Instance);
+
+        // Act
+        var uniform = Assert.Single(tree.Root.Children.OfType<GlUniformNode>());
+        string initializer = string.Concat(uniform.InitializerNodes.Select(static node => node.ToText())).Trim();
+
+        // Assert
+        Assert.Equal(expression, initializer);
+    }
+
+    /// <summary>Uninitialized scalar uniforms expose no initializer nodes.</summary>
+    [Fact]
+    public void ParseUniform_WithoutInitializer_ExposesEmptyInitializer()
+    {
+        // Arrange
+        var tree = SyntaxTree.Parse("uniform int dontWarpVertices;", GlslSchema.Instance);
+
+        // Act
+        var uniform = Assert.Single(tree.Root.Children.OfType<GlUniformNode>());
+
+        // Assert
+        Assert.Empty(uniform.InitializerNodes);
+        Assert.False(uniform.IsArray);
+    }
+
+    /// <summary>Symbolic array extents retain array shape even when their element count is not a literal.</summary>
+    [Fact]
+    public void ParseUniform_SymbolicArrayExtent_RetainsArrayShape()
+    {
+        // Arrange
+        var tree = SyntaxTree.Parse("uniform vec4 palette[MAX_PALETTE_SIZE];", GlslSchema.Instance);
+
+        // Act
+        var uniform = Assert.Single(tree.Root.Children.OfType<GlUniformNode>());
+
+        // Assert
+        Assert.Equal("palette", uniform.Name);
+        Assert.True(uniform.IsArray);
+        Assert.Null(uniform.ArraySize);
+    }
 
     /// <summary>A single uniform is returned with its declared name, type, and scalar shape.</summary>
     [Fact]

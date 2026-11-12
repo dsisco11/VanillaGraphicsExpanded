@@ -47,8 +47,10 @@ internal sealed class VgeLightsRenderer : IRenderer
         if (stage == EnumRenderStage.Before) { Reset(); return; }
         if (stage != EnumRenderStage.Opaque || published) return;
         var source = api.Render.ShaderUniforms;
-        var game = (ClientMain)api.World;
-        var captured = NativeShadowLightSources.For(game).Capture(source.PointLightsCount);
+        // Native collection identity is available only from its owning client world.
+        // Other API world providers still publish illumination, with unknown shadow identity.
+        var captured = api.World is ClientMain game
+            ? NativeShadowLightSources.For(game).Capture(source.PointLightsCount) : default;
         inputs.Capture(source.PointLightsCount, source.PointLights3, source.PointLightColors3, captured.Keys.Span);
         var atmosphere = ModSystems.AtmosphereModSystem.Lighting;
         var origin = captured.Origin;

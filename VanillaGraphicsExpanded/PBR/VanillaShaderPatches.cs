@@ -38,7 +38,8 @@ internal static class VanillaShaderPatches
         || PatchedChunkShaders.Contains(sourceName)
         || SceneColor.SceneColorLegacyPatches.Supports(sourceName)
         || SceneColor.SceneColorParticleLightingPatches.Supports(sourceName)
-        || PbrSurfaceShaderPatches.Supports(sourceName);
+        || PbrSurfaceShaderPatches.Supports(sourceName)
+        || VertexDeformationPatches.Supports(sourceName);
 
     #endregion
 
@@ -230,6 +231,7 @@ flat in uint vge_faceId;
     {
         try
         {
+            bool deformation = VertexDeformationPatches.Preprocess(tree, sourceName);
             if (SceneColor.SceneColorParticleLightingPatches.Supports(sourceName)) return true;
             if (SceneColor.SceneColorLegacyPatches.Supports(sourceName))
             {
@@ -288,7 +290,7 @@ flat in uint vge_faceId;
                 return true;
             }
 
-            return false;
+            return deformation;
         }
         catch (Exception ex)
         {
@@ -371,6 +373,8 @@ flat in uint vge_faceId;
     {
         try
         {
+            bool deformation = VertexDeformationPatches.Apply(tree, sourceName);
+            if (deformation) declare?.Invoke(ShaderCapability.SharedVertexDeformation);
             if (SceneColor.SceneColorParticleLightingPatches.Supports(sourceName))
             {
                 SceneColor.SceneColorParticleLightingPatches.Apply(tree);
@@ -411,7 +415,7 @@ flat in uint vge_faceId;
                 log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
                 return true;
             }
-            return false;
+            return deformation;
         }
         catch (Exception ex)
         {

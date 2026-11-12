@@ -47,8 +47,12 @@ internal sealed record NativeShadowDrawRanges(ImmutableArray<ShadowDrawRange> Ra
                     || range.VertexStart > group.VertexCapacity - range.VertexCount)
                     throw new InvalidOperationException("Invalid native indexed range.");
                 uint cost = checked((uint)(range.IndexCount / 3) * (uint)tessellationAmplification);
+                // Mini-dimension partitions are storage coordinates, not their
+                // transformed world positions. Admit them independently of static
+                // chunk associations until the native owner supplies a tight envelope.
+                uint eligible = !group.Casts || eligibility[index] == 0 ? 0u : group.Dimension == 1 ? 2u : 1u;
                 output[index] = new((uint)groupIndex, (uint)(commands + cursor - first),
-                    group.Casts ? eligibility[index] : 0, cost, (uint)range.IndexStart, (uint)range.IndexCount,
+                    eligible, cost, (uint)range.IndexStart, (uint)range.IndexCount,
                     0, range.RevisionLow, range.RevisionHigh, (uint)range.VertexStart, (uint)range.VertexCount);
             }
             if (!group.Casts) continue;
