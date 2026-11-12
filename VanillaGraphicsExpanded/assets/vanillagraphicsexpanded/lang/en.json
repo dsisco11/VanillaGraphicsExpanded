@@ -1,4 +1,10 @@
 {
+  "config-shadow-total-memory": "Total tracked shadow memory (MiB)",
+  "config-shadow-total-memory-tooltip": "Includes physical pages, candidates, commands, retained replacements and resources awaiting GPU retirement. Driver overhead is additional.",
+  "config-shadow-gpu-target": "Shadow GPU scheduling target (ms)",
+  "config-shadow-gpu-target-tooltip": "A scheduling estimate updated by delayed timings, not a guaranteed frame-time ceiling.",
+  "config-shadow-local-limit": "Maximum shadowed local lights",
+  "config-shadow-local-limit-tooltip": "Zero disables local shadow admission while retaining independent sun and moon opportunities. Illumination is unchanged.",
   "config-shadow-page-memory": "Shadow page memory (MiB)",
   "config-shadow-page-memory-tooltip": "Maximum integer shadow storage and page metadata, including replacements and storage waiting for GPU completion.",
   "config-shadow-draw-memory": "Shadow drawing memory (MiB)",

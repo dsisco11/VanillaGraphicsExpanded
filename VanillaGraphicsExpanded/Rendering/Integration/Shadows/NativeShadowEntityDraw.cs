@@ -72,7 +72,7 @@ internal sealed class NativeShadowEntityDraw : ShadowPreparedDraw
             var rhi = RHICommandContext.Current;
             Pipeline = rhi.CreateGraphicsPipeline(new(shader.Shader, geometry.Layout,
                 rhi.DescribeRenderTargets(pass), DynamicPipelineState.Viewport,
-                rasterizer: new() { Cull = false }, label: "Shadows.NativeEntity")).RequireResource();
+                rasterizer: new() { Cull = false, DepthClamp = !view.Projection.IsPoint }, label: "Shadows.NativeEntity")).RequireResource();
             atlas.ObservePreparation(this, Withdraw);
         }
         catch { Pipeline?.Dispose(); atlas?.Dispose(); native.Dispose(); throw; }

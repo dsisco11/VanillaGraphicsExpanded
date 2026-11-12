@@ -7,14 +7,15 @@ namespace VanillaGraphicsExpanded.Rendering.Shadows.Pages;
 /// <summary>One fixed-size page command carrying enclosure and exact scene/depth dependencies.</summary>
 internal readonly record struct ShadowPageRequest(ShadowPageOperation Operation, ShadowPageKey Key,
     ShadowBounds Region, long WorldRevision, long SceneEpoch, long SceneSequence,
-    long Assignment = 0, bool Complete = false, ShadowProjectionSnapshot? Projection = null, double Timestamp = 0)
+    long Assignment = 0, bool Complete = false, ShadowProjectionSnapshot? Projection = null, double Timestamp = 0,
+    long CurrentProjection = 0, bool ReuseCurrent = false)
 {
     #region Public API
     /// <summary>Packs a 512-byte GPU command with retained projection and full 64-bit identity.</summary>
     internal uint[] Pack()
     {
         if (!Enum.IsDefined(Operation) || !double.IsFinite(Timestamp) || Timestamp < 0 ||
-            ((Operation <= ShadowPageOperation.RetireKey || Operation is ShadowPageOperation.CancelReplacement or ShadowPageOperation.Invalidate or ShadowPageOperation.SelectReplacement)
+            ((Operation <= ShadowPageOperation.RetireKey || Operation is ShadowPageOperation.CancelReplacement or ShadowPageOperation.Invalidate or ShadowPageOperation.SelectReplacement or ShadowPageOperation.ValidateCurrent or ShadowPageOperation.ValidateSource)
             && (!Key.Source.IsKnown || Key.Projection <= 0 || !Region.IsValid || WorldRevision <= 0 || SceneEpoch <= 0 || SceneSequence < 0)))
             throw new ArgumentOutOfRangeException(nameof(Key));
         if ((Operation is ShadowPageOperation.Allocate or ShadowPageOperation.Publish) && Projection == null)
@@ -30,6 +31,9 @@ internal readonly record struct ShadowPageRequest(ShadowPageOperation Operation,
         Put(w, 40, WorldRevision); Put(w, 42, SceneEpoch); Put(w, 44, SceneSequence);
         Put(w, 46, BitConverter.DoubleToInt64Bits(Timestamp));
         Projection?.WriteTo(w);
+        w[125] = ReuseCurrent ? 1u : 0u;
+        if(Operation==ShadowPageOperation.ValidateCurrent)
+        { if(CurrentProjection<=0)throw new ArgumentOutOfRangeException(nameof(CurrentProjection));Put(w,126,CurrentProjection); }
         return w;
     }
     /// <summary>Writes the common exact identity without inventing a page operation for other record types.</summary>

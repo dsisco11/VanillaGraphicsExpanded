@@ -82,7 +82,7 @@ internal sealed class NativeShadowTerrainDraw : ShadowPreparedDraw
             // this raster pass must neither test nor write a depth attachment.
             Pipeline = rhi.CreateGraphicsPipeline(new(shader.Shader, geometry.Layout,
                 rhi.DescribeRenderTargets(pass), DynamicPipelineState.Viewport,
-                rasterizer: new() { Cull = false }, assembly: new() { Topology = shader.Topology, PatchVertices = 3 },
+                rasterizer: new() { Cull = false, DepthClamp = !view.Projection.IsPoint }, assembly: new() { Topology = shader.Topology, PatchVertices = 3 },
                 label: "Shadows.NativeTerrain")).RequireResource();
             atlas.ObservePreparation(this, Withdraw);
         }

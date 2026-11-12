@@ -179,6 +179,86 @@ public sealed class NativeShadowSceneTests
         Assert.Equal(new float[] { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 7, 8, 9, 1 }, original);
     }
 
+    /// <summary>Visible item interpolation follows the native animation tick and draw rebuilding does not advance it again.</summary>
+    [Fact]
+    public void VisibleGroundItemPoseIsAdvancedBeforeCaptureAndNotAdvancedAgainAtDraw()
+    {
+        // Arrange: give the actual native item matrix routine valid camera/render services and a colliding item
+        // whose visible interpolation and collision damping are easy to calculate independently.
+        var cameraEntity = new EntityPlayer();
+        cameraEntity.CameraPos.Set(4, 5, 6);
+        var cameraPlayer = (ClientPlayer)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlayer));
+        var playerData = (ClientWorldPlayerData)RuntimeHelpers.GetUninitializedObject(typeof(ClientWorldPlayerData));
+        AccessTools.Field(typeof(ClientWorldPlayerData), "entityplayer").SetValue(playerData, cameraEntity);
+        AccessTools.Field(typeof(ClientPlayer), "worlddata").SetValue(cameraPlayer, playerData);
+        var world = new Mock<IClientWorldAccessor>();
+        world.SetupGet(value => value.Player).Returns(cameraPlayer);
+        world.SetupGet(value => value.ElapsedMilliseconds).Returns(1000);
+        var info = new ItemRenderInfo
+        {
+            Transform = new ModelTransform().EnsureDefaultValues(),
+            ModelRef = (MultiTextureMeshRef)RuntimeHelpers.GetUninitializedObject(typeof(MultiTextureMeshRef))
+        };
+        var slot = (ItemSlot)RuntimeHelpers.GetUninitializedObject(typeof(ItemSlot));
+        slot.Itemstack = new ItemStack(new Item());
+        var render = new Mock<IRenderAPI>();
+        render.Setup(value => value.GetItemStackRenderInfo(slot, EnumItemRenderTarget.Ground, 0.016f)).Returns(info);
+        var api = new Mock<ICoreClientAPI>();
+        api.SetupGet(value => value.World).Returns(world.Object);
+        api.SetupGet(value => value.Render).Returns(render.Object);
+        // Collided is a read-only OR of these engine-owned axis flags; vertical contact activates native damping.
+        var entity = new TestEntity(85) { IsRendered = true, CollidedVertically = true };
+        entity.Pos.SetPos(2, 4, 6);
+        var renderer = (EntityItemRenderer)RuntimeHelpers.GetUninitializedObject(typeof(EntityItemRenderer));
+        AccessTools.Field(typeof(EntityRenderer), "entity").SetValue(renderer, entity);
+        AccessTools.Field(typeof(EntityRenderer), "capi").SetValue(renderer, api.Object);
+        AccessTools.Field(typeof(EntityItemRenderer), "inslot").SetValue(renderer, slot);
+        AccessTools.Field(typeof(EntityItemRenderer), "lerpedPos").SetValue(renderer, new Vec3d(1, 2, 3));
+        renderer.ModelMat = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 7, 8, 9, 1];
+        AccessTools.Field(typeof(EntityItemRenderer), "xangle").SetValue(renderer, 4f);
+        AccessTools.Field(typeof(EntityItemRenderer), "yangle").SetValue(renderer, 6f);
+        AccessTools.Field(typeof(EntityItemRenderer), "zangle").SetValue(renderer, 8f);
+        var members = new Dictionary<long, EntityRenderer> { [entity.EntityId] = renderer };
+        var preparation = new NativeShadowEntityPreparation(4, new ShadowSceneChanges(8));
+        var owner = AccessTools.Field(typeof(NativeShadowEntityHooks), "owner");
+        object? previousOwner = owner.GetValue(null);
+
+        try
+        {
+            preparation.Begin(members);
+
+            // Act: prepare the visible item before capture, then run the exact native draw-matrix helper afterward.
+            preparation.PrepareVisible(renderer, 0.016f);
+            // Native OnClientFrame runs after BeforeRender and may move the item before the shadow gate closes.
+            entity.Pos.SetPos(4, 4, 6);
+            preparation.End(nativeFailed: false);
+            var position = (Vec3d)AccessTools.Field(typeof(EntityItemRenderer), "lerpedPos").GetValue(renderer)!;
+            float xangle = (float)AccessTools.Field(typeof(EntityItemRenderer), "xangle").GetValue(renderer)!;
+            float yangle = (float)AccessTools.Field(typeof(EntityItemRenderer), "yangle").GetValue(renderer)!;
+            float zangle = (float)AccessTools.Field(typeof(EntityItemRenderer), "zangle").GetValue(renderer)!;
+            var captured = NativeShadowItemPose.Capture(renderer, info);
+            owner.SetValue(null, preparation);
+            NativeShadowItemDrawHooks.LoadForDraw(renderer, info, shadowPass: false, dt: 0.016f);
+
+            // Assert: interpolation uses post-animation position and capture/draw preserve the prepared native angles.
+            Assert.True(preparation.Matches(renderer, preparation.Frame));
+            Assert.Equal(1 + (4 - 1) * 22 * 0.016, position.X, 5);
+            Assert.Equal(16, captured.Length);
+            Assert.All(captured, value => Assert.True(float.IsFinite(value)));
+            Assert.Equal(2.2f, xangle, 5);
+            Assert.Equal(3.3f, yangle, 5);
+            Assert.Equal(4.4f, zangle, 5);
+            Assert.Equal(xangle, (float)AccessTools.Field(typeof(EntityItemRenderer), "xangle").GetValue(renderer)!);
+            Assert.Equal(yangle, (float)AccessTools.Field(typeof(EntityItemRenderer), "yangle").GetValue(renderer)!);
+            Assert.Equal(zangle, (float)AccessTools.Field(typeof(EntityItemRenderer), "zangle").GetValue(renderer)!);
+            render.Verify(value => value.GetItemStackRenderInfo(slot, EnumItemRenderTarget.Ground, 0.016f), Times.Once);
+        }
+        finally
+        {
+            owner.SetValue(null, previousOwner);
+        }
+    }
+
     /// <summary>Unknown entity renderer types fail scene capture rather than becoming silent missing casters.</summary>
     [Fact]
     public void EntitySceneRejectsUnadaptedRendererFamily()

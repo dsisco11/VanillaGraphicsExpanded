@@ -3,8 +3,8 @@
 This is the implementation design for the [shared virtual shadow map proposal](Rendering.VirtualShadowMaps.Proposal.md).
 It specifies interfaces and invariants. Native input publication and the bounded dependency primitives
 described below, GPU candidate traversal, projection providers, page storage and shared sampling are implemented.
-Native shadow rendering is qualified through controlled integration. Complete frame admission and
-production lighting consumers are **not implemented**.
+Native shadow rendering is qualified through controlled integration. The current-frame admission gate
+is implemented for controlled integration; production lighting consumers remain disconnected.
 The [implementation plan](Rendering.VirtualShadowMaps.todo)
 controls delivery. Numerical profiles are provisional, not measured shipping defaults.
 The [qualification protocol](Rendering.VirtualShadowMaps.Qualification.md) defines the evidence needed
@@ -816,19 +816,127 @@ The frame gate follows current light capture and precedes the earliest affected 
 Demand includes opaque/cutout, entity/foliage, water and every contributing transparent layer, using
 current deformation and alpha rules. Transparent demand must not hide later layers through depth writes.
 Prepare offscreen casters as needed, advance animation once, and charge preparation to the shadow budget.
-The current dropped-item adapter supplements offscreen pose advancement at native
-preparation; visible dropped items still advance in their native drawing owner.
-Frame-gate integration and removal of native shadow draws must preserve a current
-visible-item pose before VSM capture, without adding a second advancement.
+The dropped-item adapter advances visible and offscreen poses after native animation finishes,
+before publishing preparation. Its qualified native drawing hook skips the corresponding
+interpolation block for prepared items and rebuilds the visible matrix without advancing
+collision damping, spin or water bobbing twice. Unprepared items preserve native drawing behavior.
 The existing late opaque receiver resolve is insufficient. Consumers migrate coherently to one selected
 shadow provider; no second native attenuation or hidden coarse fallback. Native work can remain only for
 explicitly owned remaining consumers.
 
+## Current-frame demand and readiness
+
+`ShadowFrameRenderer` runs at opaque order -9999, immediately after `VgeLightsRenderer`'s
+current capture at -10000. Its source receives that exact immutable light snapshot and
+the gate's shared ledger before preparation or demand work. Explicit construction requires
+a complete surface-receiver owner; ordinary startup does not install the new shadow provider.
+Downstream visible draw order is unchanged.
+The Done-stage callback seals page users after surface submission. Each borrowed publication is
+permanently withdrawn at that boundary; beginning a later page batch cannot revive an older packet.
+Configuration changes queue a complete generation replacement, withdraw consumer eligibility and
+poll the final old-user fence before allocating the replacement. Occupancy never grows the pool.
+
+`NativeShadowFrameSource` composes existing world, terrain and entity preparation owners.
+`IShadowSurfaceReceiverSource` supplies current conservative deformation-inclusive bounds
+for opaque, cutout, entity, foliage, water and transparent receivers, including every contributing
+layer and early bounds for late categories. All six categories must declare completion.
+Bounds demand deliberately performs no transparent depth writes and does not depend on
+previous-frame feedback. Exact visibility rejection can reduce requests but cannot remove a
+contributing layer. Missing categories and overflow fail completeness.
+
+`ShadowSurfaceDemand` projects depth-inclusive receiver enclosures, expands them for the
+manual PCF and bounded normal-bias footprint, and unions the current receiving regions sharing
+a page. Directional extrema use all eight corners. Point requests intersect the illumination
+influence enclosure and bound each cube face; source-plane crossings conservatively include
+the affected face. Extra conservative demand and duplicate visits are charged. One virtual
+region spans multiple physical pages rather than duplicating geometry per tile or array layer.
+Directional depth intervals include the loaded domain and current receiver bounds. Directional
+native draws use depth clamp to preserve near/far primitives, and the atomic writer explicitly clamps
+finite directional fragment depth to [0,1]. Hardware depth-value clamping belongs to the depth test,
+which this attachment-free atomic path does not use (see the
+[depth-clamp specification](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_depth_clamp.txt)).
+Nearer off-interval occluders therefore write zero depth rather than disappearing at the near plane.
+The far-clamped value cannot occlude an earlier receiver. Point views retain their
+finite near/far clipping. Receiving candidate enclosures are rounded outward to whole chunk partitions.
+
+`ShadowFrameBudget` is a single monotonic ledger for preparation, traversal, demand, expansion,
+groups, command slots, geometry instances, raster work, clears, retries and owned bytes.
+`NativeShadowScene.EstimateWork` includes complete native command intervals, tessellation costs,
+repeated virtual regions and conservative triangle/raster samples before drawing. Candidate
+slices attach that same ledger. Unknown bounds do not reduce the admission estimate.
+
+`ShadowScheduler` admits complete minimum acceptable alternatives before refinement. Directional
+and local shares receive separate opportunities before borrowing; sun and moon remain distinct
+sources. Local limits do not alter illumination. Stable identity ties, carried-source preference,
+bounded waiting, challenger margins and eligible incumbent hold times control selection.
+Incumbent protection requires a delayed observed complete GPU status with unchanged demand,
+mapping and dependency fingerprints inside its original finite age deadline. Unknown feedback
+does not grant a hold. A three-slot nonblocking ring copies only sixteen status bytes per light;
+it neither reads page/depth data nor authorizes sampling. Current GPU coverage remains authoritative.
+Local priority weights emission by conservative projected receiver extent and influence attenuation;
+celestial priority uses projected receiver extent. These estimates include all supplied contributing layers.
+Preparation uses the same scheduler history. Every source receives its minimum-demand opportunity
+before any source generates refinement demand. Covered candidate associations start a bounded
+replacement inside the motion guard; GPU selection prefers a complete replacement and otherwise
+uses the complete covered old association. Pending traversal cannot certify coverage.
+Delayed timestamp feedback changes subsequent estimates, with no current-frame query wait.
+The time target is an estimate and never a completeness certificate or exact execution ceiling.
+
+`NativeShadowFrameGate` freezes views and writable assignments, orders native complete-scene
+submission, then dispatches `ShadowReadinessPool` before surface consumers. Readiness is reduced
+on GPU from all demanded page enclosures using the same temporal and coverage implementation
+as sampling. One missing page withdraws that light's surface shadows; other lights remain
+independent. A coherent complete retained generation can be selected only when it covers
+current demand in its own rendered projection and passes finite age/motion bounds. The selected
+request interval accompanies GPU readiness so consumers can retain the chosen mapping while
+illuminating from the current light snapshot. Individual old/new projection sets are never mixed.
+
+`ValidateCurrent` checks cached dependencies without resetting an existing first-invalidation
+time. `ReuseCurrent` protects a complete current cache hit from redundant replacement writes.
+Unfinished scene inputs prohibit fresh admission but can still reach separate retained-coverage
+checks. Recovery requires consecutive complete current frames at the selected detail; no fade
+extends temporal expiry. Surface shader capability changes withdraw readiness synchronously.
+Ordinary capture/admission failures preserve duty history and publish unavailable status for known
+current sources; they do not restart denominators. World/context or shader capability loss resets
+the affected history. Selection diagnostics expose bounded waiting and age of the last refresh attempt.
+Coarse coverage remains usable while finer detail accumulates consecutive complete frames. A late
+native submission failure cancels replacement publication, retains charged private inputs through
+their fences and separately checks eligible old depths. It cannot damage a protected retained tile.
+Private draw captures, view records and selection buffers remain charged through nonblocking
+retirement. Growing world-input buffers similarly retain old allocations until their fence
+signals; fitting updates reuse existing storage without creating untracked orphan generations.
+
+```mermaid
+flowchart LR
+    P[Native preparation after animation] --> L[Current light capture]
+    L --> D[Complete current conservative surface demand]
+    D --> B[Shared budget and stable light arbitration]
+    B --> C[GPU chunk associations and bounded selection]
+    C --> W[Freeze views and replacement mappings]
+    W --> R[Selective clear and complete native raster submission]
+    R --> G[GPU whole-light coverage and temporal reduction]
+    G --> S[Surface readiness publication]
+```
+
+The Virtual Shadows debug view reads the GPU readiness buffer directly for current/stale/unavailable,
+detail, missing coverage, stale fraction, recovery, rendered age, stale duration, motion and current/stale
+duty rows. A separate candidate mode displays unfinished traversal, unresolved cells and guard state;
+the page mode displays physical residency, invalidation, array/tile address, assignment generation and source.
+Readiness reason codes distinguish incomplete demand (1), recovery (3), missing/reassigned pages (4),
+receiver containment (5), mapping mismatch (6), unknown dependencies/invalidation (7), rendered-age
+expiry (8), stale-age expiry (9), source motion (10), physical-address loss (11), arbitration (12)
+and surface capability loss (13). Zero means eligible. The final readiness row displays that code.
+Its text panel reports source identity, candidate age/covered motion, CPU admission estimates,
+traversal allowances, tracked/draining bytes and rejected ceiling causes separately. Delayed GPU
+timings name their original frame and remain distinct from conservative estimates. Neither
+view downloads depth images or page tables. These counters do not establish live appearance or
+measured moving-light performance; the qualification protocol controls those claims.
+
 ## Persisted settings and effective policy
 
 The opt-in `VirtualShadows` object in [VgeConfig](../VanillaGraphicsExpanded/LumOn/VgeConfig.cs)
-currently exposes input-publication, candidate, physical-page, drawing and temporal allowances. Extend it with the remaining schema below when rendering
-policy is implemented. Its types live in `Rendering/Shadows/Configuration`, avoiding further
+exposes input-publication, candidate, physical-page, drawing, temporal and whole-frame scheduling allowances.
+Scheduling controls live in `VirtualShadows.Scheduling`. Its types live in `Rendering/Shadows/Configuration`, avoiding further
 growth of unrelated nested settings. [ConfigModSystem](../VanillaGraphicsExpanded/ModSystems/ConfigModSystem.cs)
 continues to load/sanitize, materialize missing defaults and apply ConfigLib paths; it remains the configuration
 owner. The existing ConfigLib asset exposes page/drawing memory, view/raster limits and temporal controls. Its event handler must not become a second
@@ -836,7 +944,10 @@ writer racing ConfigLib saves. [LiveConfigReload](../VanillaGraphicsExpanded/Mod
 delivers sanitized settings; the shadow owner converts them to immutable requested/effective policies
 at a scheduling boundary. Cache enablement until its determining inputs change.
 
-The schema below defines units and validation, not actual currently accepted JSON properties.
+The schema below defines scheduling policy units and validation. Scheduling properties are persisted
+directly under `VirtualShadows.Scheduling`; candidate, page, drawing and temporal controls retain
+their existing typed configuration objects. `RefreshGuardFraction` belongs to `Candidates`.
+Advanced ceilings are explicit typed properties rather than a separate `Advanced` JSON object.
 All floating-point values must be finite. Byte arithmetic uses checked 64-bit integers; dispatch and
 shader indices additionally fit their signed/unsigned packing and hardware limits.
 

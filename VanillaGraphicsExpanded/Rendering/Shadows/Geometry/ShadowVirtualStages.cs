@@ -80,9 +80,14 @@ internal static class ShadowVirtualStages
                     view.key[index]=shadowViewWords(vge_shadowView,6u+index/4u)[index%4u];
                 uvec4 limits=shadowViewWords(vge_shadowView,13u);
                 view.capacity=limits.x; view.probes=limits.y; view.pageSize=limits.z; view.arrayLayers=limits.w;
-                view.batch=shadowViewWords(vge_shadowView,14u).xy;
+                uvec4 submission=shadowViewWords(vge_shadowView,14u);
+                view.batch=submission.xy;
                 ivec2 origin=ivec2(shadowViewWords(vge_shadowView,4u).xy);
-                shadowAtomicDepth(view,origin+ivec2(gl_FragCoord.xy),gl_FragCoord.z);
+                // Hardware depth clamp preserves primitives, but its depth-value
+                // clamp belongs to depth testing. Atomic writes have no depth attachment.
+                float depth=gl_FragCoord.z;
+                if(submission.z==0u && !isnan(depth) && !isinf(depth)) depth=clamp(depth,0.0,1.0);
+                shadowAtomicDepth(view,origin+ivec2(gl_FragCoord.xy),depth);
                 """);
     }
     #endregion

@@ -8,7 +8,7 @@ using Vintagestory.GameContent;
 
 namespace VanillaGraphicsExpanded.Rendering.Integration.Shadows;
 
-/// <summary>Uses the qualified dropped-item pose owner without invoking drawing or duplicating visible pose advancement.</summary>
+/// <summary>Prepares current dropped-item poses once before demand and shadow capture.</summary>
 internal static class NativeShadowItemPose
 {
     private static readonly AccessTools.FieldRef<EntityItemRenderer, ItemSlot> Slot =
@@ -22,7 +22,7 @@ internal static class NativeShadowItemPose
             AccessTools.Method(typeof(EntityItemRenderer), "LoadModelMatrix"));
 
     #region Public API
-    /// <summary>Prepares the native ground material and supplements pose advancement only for offscreen items.</summary>
+    /// <summary>Prepares native ground material and advances visible and offscreen poses before the surface gate.</summary>
     internal static ItemRenderInfo? Prepare(EntityItemRenderer renderer, float dt)
     {
         if (renderer.GetType() != typeof(EntityItemRenderer) ||
@@ -34,17 +34,13 @@ internal static class NativeShadowItemPose
         var info = renderer.capi.Render.GetItemStackRenderInfo(slot, EnumItemRenderTarget.Ground, dt);
         if (info?.ModelRef is null || info.Transform is null)
             throw new InvalidOperationException("Native dropped-item material preparation is incomplete.");
-        if (!renderer.entity.IsRendered)
-        {
-            // Native DoRender3DOpaque performs these updates only for objects it
-            // draws. Supplement that same operation once at the existing offscreen
-            // preparation boundary; visible objects retain their native advancement.
-            var position = Position(renderer); var target = renderer.entity.Pos;
-            position.X += (target.X - position.X) * 22 * dt;
-            position.Y += (target.InternalY - position.Y) * 22 * dt;
-            position.Z += (target.Z - position.Z) * 22 * dt;
-            Load(renderer, info, false, dt);
-        }
+        // The qualified native draw hook skips this same interpolation/advancement
+        // after successful preparation and still rebuilds its visible draw matrix.
+        var position = Position(renderer); var target = renderer.entity.Pos;
+        position.X += (target.X - position.X) * 22 * dt;
+        position.Y += (target.InternalY - position.Y) * 22 * dt;
+        position.Z += (target.Z - position.Z) * 22 * dt;
+        Load(renderer, info, false, dt);
         return info;
     }
 

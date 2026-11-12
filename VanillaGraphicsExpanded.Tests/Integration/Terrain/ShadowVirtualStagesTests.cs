@@ -63,9 +63,14 @@ public sealed class ShadowVirtualStagesTests(HeadlessGLFixture fixture) : Render
         // Material discard remains inside its original body; guarded atomic publication executes after it returns.
         int discard = finalFragment.IndexOf("discard;", StringComparison.Ordinal);
         int materialCall = finalFragment.IndexOf("vgeShadowMaterialMain();", StringComparison.Ordinal);
-        int atomicWrite = finalFragment.LastIndexOf("shadowAtomicDepth(view,origin+ivec2(gl_FragCoord.xy),gl_FragCoord.z);", StringComparison.Ordinal);
+        int depthRead = finalFragment.IndexOf("float depth=gl_FragCoord.z;", StringComparison.Ordinal);
+        int directionalClamp = finalFragment.IndexOf(
+            "if(submission.z==0u && !isnan(depth) && !isinf(depth)) depth=clamp(depth,0.0,1.0);", StringComparison.Ordinal);
+        int atomicWrite = finalFragment.LastIndexOf(
+            "shadowAtomicDepth(view,origin+ivec2(gl_FragCoord.xy),depth);", StringComparison.Ordinal);
         Assert.True(discard >= 0);
         Assert.True(materialCall >= 0 && atomicWrite > materialCall);
+        Assert.True(depthRead > materialCall && directionalClamp > depthRead && atomicWrite > directionalClamp);
         Assert.Contains("flat in uint vge_shadowView;", finalFragment);
         Assert.DoesNotContain("gl_Layer", finalFragment);
     }

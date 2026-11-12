@@ -24,5 +24,7 @@ public sealed class ShadowInputSettings
         if (ChangeCapacity is <= 0 or > 1048576) ChangeCapacity = 8192;
         if (ProbeLimit is <= 0 or > 4096) ProbeLimit = 128;
     }
+    /// <summary>Separates active native publication limits from mutable configuration.</summary>
+    internal ShadowInputSettings Freeze(){var copy=(ShadowInputSettings)MemberwiseClone();copy.Sanitize();return copy;}
     #endregion
 }

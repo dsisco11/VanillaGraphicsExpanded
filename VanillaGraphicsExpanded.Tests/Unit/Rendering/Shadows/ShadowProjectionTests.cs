@@ -167,6 +167,31 @@ public sealed class ShadowProjectionTests
         Assert.Equal(0, actual.X / actual.W, 6);
         Assert.Equal(0, actual.Y / actual.W, 6);
     }
+
+    /// <summary>Draw-view metadata keeps directional finite clamping separate from point-light depth values.</summary>
+    [Fact]
+    public void PackedDrawViewMarksPointDepthModeIndependently()
+    {
+        // Arrange: create one directional view and one point-face view with identical bounded raster regions.
+        var region = new ShadowRasterRegion(0, 0, 8, 8);
+        var origin = new Vector3d(0, 0, 0);
+        var directional = new DirectionalShadowProjection(Sun, 51, Vector3d.UnitY,
+            new ShadowBounds(-10, -10, -10, 10, 10, 10), baseTexelWidth: 1, pageSize: 8);
+        var point = new PointShadowProjection(Sun with { Kind = ShadowSourceKind.Entity }, 52, origin,
+            near: 0.05, far: 25, faceResolution: 64, pageSize: 8);
+        var directionalView = ShadowDrawView.Directional(directional, 0, region, region, origin);
+        var pointView = ShadowDrawView.Point(point, 0, region, region, origin);
+        var directionalWords = new uint[64];
+        var pointWords = new uint[64];
+
+        // Act: pack both view records through the same production layout boundary.
+        directionalView.Pack(directionalWords, capacity: 4, probes: 8, arrayLayers: 1, batch: 1);
+        pointView.Pack(pointWords, capacity: 4, probes: 8, arrayLayers: 1, batch: 1);
+
+        // Assert: only the point view selects the unclamped point-depth path in the atomic fragment writer.
+        Assert.Equal(0u, directionalWords[58]);
+        Assert.Equal(1u, pointWords[58]);
+    }
     #endregion
 
     #region Identity Validation and Page Clip Mapping

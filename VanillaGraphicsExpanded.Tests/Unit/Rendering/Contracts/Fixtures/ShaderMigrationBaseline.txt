@@ -1127,6 +1127,15 @@ A|shadows/entity|shadows/entity.fsh|VGE_VERTEX_DEFORMATION_ENABLED=1|
 A|shadows/entity|shadows/entity.vsh|VGE_VERTEX_DEFORMATION_ENABLED=0|
 A|shadows/entity|shadows/entity.vsh|VGE_VERTEX_DEFORMATION_ENABLED=1|
 A|shadows/pages|shadows/pages.csh||
+A|shadows/readiness-debug|debug_texture.vsh|VGE_SHADOW_DEBUG_CANDIDATES=0;VGE_SHADOW_DEBUG_PAGES=0|
+A|shadows/readiness-debug|debug_texture.vsh|VGE_SHADOW_DEBUG_CANDIDATES=0;VGE_SHADOW_DEBUG_PAGES=1|
+A|shadows/readiness-debug|debug_texture.vsh|VGE_SHADOW_DEBUG_CANDIDATES=1;VGE_SHADOW_DEBUG_PAGES=0|
+A|shadows/readiness-debug|debug_texture.vsh|VGE_SHADOW_DEBUG_CANDIDATES=1;VGE_SHADOW_DEBUG_PAGES=1|
+A|shadows/readiness-debug|shadows/readiness-debug.fsh|VGE_SHADOW_DEBUG_CANDIDATES=0;VGE_SHADOW_DEBUG_PAGES=0|
+A|shadows/readiness-debug|shadows/readiness-debug.fsh|VGE_SHADOW_DEBUG_CANDIDATES=0;VGE_SHADOW_DEBUG_PAGES=1|
+A|shadows/readiness-debug|shadows/readiness-debug.fsh|VGE_SHADOW_DEBUG_CANDIDATES=1;VGE_SHADOW_DEBUG_PAGES=0|
+A|shadows/readiness-debug|shadows/readiness-debug.fsh|VGE_SHADOW_DEBUG_CANDIDATES=1;VGE_SHADOW_DEBUG_PAGES=1|
+A|shadows/readiness|shadows/readiness.csh||
 A|shadows/sample|shadows/sample.csh||
 A|shadows/select|shadows/select.csh||
 A|shadows/static|shadows/static.vsh|VGE_OBJECT_INSTANCED=0;VGE_VERTEX_DEFORMATION_ENABLED=0|
@@ -2070,6 +2079,11 @@ B|shadows/entity.fsh||shadows/entity.fsh.spv
 B|shadows/entity.vsh|VGE_VERTEX_DEFORMATION_ENABLED=0|variants/shadows/entity.vsh/EHWHZAQSVAYTNM7ILIRFPMBY7A.spv
 B|shadows/entity.vsh|VGE_VERTEX_DEFORMATION_ENABLED=1|shadows/entity.vsh.spv
 B|shadows/pages.csh||shadows/pages.csh.spv
+B|shadows/readiness-debug.fsh|VGE_SHADOW_DEBUG_CANDIDATES=0;VGE_SHADOW_DEBUG_PAGES=0|shadows/readiness-debug.fsh.spv
+B|shadows/readiness-debug.fsh|VGE_SHADOW_DEBUG_CANDIDATES=0;VGE_SHADOW_DEBUG_PAGES=1|variants/shadows/readiness-debug.fsh/NK3OD733DAES7CSWYQ2SOWTEIU.spv
+B|shadows/readiness-debug.fsh|VGE_SHADOW_DEBUG_CANDIDATES=1;VGE_SHADOW_DEBUG_PAGES=0|variants/shadows/readiness-debug.fsh/Y7MNVT2Q5MPGMAWUUJZHPAN6G4.spv
+B|shadows/readiness-debug.fsh|VGE_SHADOW_DEBUG_CANDIDATES=1;VGE_SHADOW_DEBUG_PAGES=1|variants/shadows/readiness-debug.fsh/DI7HLQDE3NVU7BOAZLYC7URZ2A.spv
+B|shadows/readiness.csh||shadows/readiness.csh.spv
 B|shadows/sample.csh||shadows/sample.csh.spv
 B|shadows/select.csh||shadows/select.csh.spv
 B|shadows/static.vsh|VGE_OBJECT_INSTANCED=0;VGE_VERTEX_DEFORMATION_ENABLED=0|variants/shadows/static.vsh/OV5KMS6RFCGCY5DXWUKDOJFL2U.spv
@@ -2595,6 +2609,8 @@ O|shadows/terrain-adaptive|VGE_TERRAIN_PACKED_INPUT|Int|0||0,1||
 O|shadows/terrain-adaptive|VGE_VERTEX_DEFORMATION_ENABLED|Int|1||0,1||
 O|shadows/terrain|VGE_TERRAIN_PACKED_INPUT|Int|0||0,1||
 O|shadows/terrain|VGE_VERTEX_DEFORMATION_ENABLED|Int|1||0,1||
+O|shadows/readiness-debug|VGE_SHADOW_DEBUG_CANDIDATES|Bool|0||0,1||
+O|shadows/readiness-debug|VGE_SHADOW_DEBUG_PAGES|Bool|0||0,1||
 O|tests/trace_probe_anchor|LUMON_EMISSIVE_BOOST|Float|1||||
 O|tests/trace_probe_anchor|VGE_LUMON_ATLAS_TEXELS_PER_FRAME|Int|16||||
 O|tests/trace_probe_anchor|VGE_LUMON_DIRECT_LOCAL_VISIBILITY|Bool|0||0,1||
@@ -2784,6 +2800,8 @@ P|shadows/candidates|1
 P|shadows/clear|1
 P|shadows/entity|2
 P|shadows/pages|1
+P|shadows/readiness-debug|4
+P|shadows/readiness|1
 P|shadows/sample|1
 P|shadows/select|1
 P|shadows/static|4
@@ -3100,6 +3118,9 @@ S|shadows/clear|shadows/clear.csh|shadows/clear.csh|Compute|main|shadows/clear.c
 S|shadows/entity|shadows/entity.fsh|shadows/entity.fsh|Fragment|main|shadows/entity.fsh
 S|shadows/entity|shadows/entity.vsh|shadows/entity.vsh|Vertex|main|shadows/entity.vsh
 S|shadows/pages|shadows/pages.csh|shadows/pages.csh|Compute|main|shadows/pages.csh
+S|shadows/readiness-debug|debug_texture.vsh|debug_texture.vsh|Vertex|main|debug_texture.vsh
+S|shadows/readiness-debug|shadows/readiness-debug.fsh|shadows/readiness-debug.fsh|Fragment|main|shadows/readiness-debug.fsh
+S|shadows/readiness|shadows/readiness.csh|shadows/readiness.csh|Compute|main|shadows/readiness.csh
 S|shadows/sample|shadows/sample.csh|shadows/sample.csh|Compute|main|shadows/sample.csh
 S|shadows/select|shadows/select.csh|shadows/select.csh|Compute|main|shadows/select.csh
 S|shadows/static|shadows/static.vsh|shadows/static.vsh|Vertex|main|shadows/static.vsh

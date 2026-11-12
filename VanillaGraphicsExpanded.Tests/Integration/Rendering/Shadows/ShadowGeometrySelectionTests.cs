@@ -537,6 +537,78 @@ public sealed class ShadowGeometrySelectionTests(HeadlessGLFixture fixture) : Re
         }
     }
 
+    /// <summary>Selection uses complete replacement candidates, keeps a covered old set while pending, and rejects expiry.</summary>
+    [Fact]
+    public void CandidateSelectionRetainsPendingOldThenUsesCompleteReplacementAndRejectsExpiredOld()
+    {
+        // Arrange: the old narrow association covers one receiver chunk, while a broader replacement covers both chunks.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        var publication = Publication(0, 0, 0, 3, [1, 1, 1, 1]);
+        using var scene = new SelectionScene(assets.Api, publication, candidateCellsPerSlice: 1);
+        var source = Source(ShadowSourceKind.Sun, 38);
+        var domain = new ShadowChunkDomain(0, 0, 0, 0, 3, 0, 0);
+        var receiver = new ShadowBounds(0, 0, 0, 0.9, 0.9, 0.9);
+        var current = new ShadowCandidateCurrent(source, publication.Owner, publication.Generation, 1,
+            receiver, Vector3d.UnitZ, 1, 0, 29);
+        var oldRequest = ShadowCandidateRequest.Directional(source, publication.Owner, publication.Generation, 1,
+            domain, receiver, Vector3d.UnitZ, 1);
+        var replacementRequest = ShadowCandidateRequest.Directional(source, publication.Owner, publication.Generation, 1,
+            domain, domain.Bounds, Vector3d.UnitZ, 179.9);
+        var old = scene.AddCandidate(oldRequest, current);
+        Assert.True(scene.AdvanceCandidates(current, 128));
+        var replacement = scene.AddCandidate(replacementRequest, current);
+        Assert.False(scene.AdvanceCandidates(current, 1));
+        Assert.NotEqual(3u, ReadHeader(scene.Candidates.Headers, replacement.Handle.Slot).Status);
+        var view = ShadowDrawView.Directional(
+            new DirectionalShadowProjection(source, 29, Vector3d.UnitZ, new(0, 0, 0, 128, 32, 32), 4, pageSize: 8),
+            0, new(0, 0, 32, 8), new(0, 0, 32, 8), Vector3d.Zero);
+
+        // Act: an incomplete replacement certificate cannot evict the still-covered complete candidate set.
+        uint[] whilePending;
+        using (var selection = new ShadowGeometrySelection(assets.Api, [view],
+                   [old with { Replacement = replacement.Handle }], scene.Candidates, publication,
+                   scene.WorldBuffers, DrawRanges(publication), commandsPerView: 4, scene.Pages,
+                   DrawSettings(), otherDrawingBytes: 0))
+            whilePending = Read(selection.Output, 16 + 4 * 7);
+
+        // Assert: the complete old association remains usable while the newly allocated candidate is incomplete.
+        Assert.Equal(1u, whilePending[0]);
+        Assert.Equal(1u, whilePending[3]);
+
+        // Act: finish replacement traversal, then run the same view selection with both certificates current.
+        Assert.True(scene.AdvanceCandidates(current, 128));
+        uint[] afterReplacement;
+        using (var selection = new ShadowGeometrySelection(assets.Api, [view],
+                   [old with { Replacement = replacement.Handle }], scene.Candidates, publication,
+                   scene.WorldBuffers, DrawRanges(publication), commandsPerView: 4, scene.Pages,
+                   DrawSettings(), otherDrawingBytes: 0))
+            afterReplacement = Read(selection.Output, 16 + 4 * 7);
+
+        // Assert: replacement coverage contributes both represented ranges, proving the complete new set was preferred.
+        Assert.Equal(1u, afterReplacement[0]);
+        Assert.Equal(4u, afterReplacement[3]);
+
+        // Act: move beyond the old candidate's angular envelope and verify that it cannot remain a fallback.
+        var expiredCurrent = current with { PositionOrDirection = Vector3d.UnitX, ProjectionGeneration = 30 };
+        var expiredView = ShadowDrawView.Directional(new DirectionalShadowProjection(source, 30, Vector3d.UnitX,
+                new(-64, -64, -64, 128, 64, 64), 4, pageSize: 8), 0,
+            new(0, 0, 32, 8), new(0, 0, 32, 8), Vector3d.Zero);
+        Assert.Throws<InvalidOperationException>(() => new ShadowGeometrySelection(assets.Api, [expiredView],
+            [old with { Current = expiredCurrent, Replacement = replacement.Handle }], scene.Candidates,
+            publication, scene.WorldBuffers, DrawRanges(publication), commandsPerView: 4, scene.Pages,
+            DrawSettings(), otherDrawingBytes: 0));
+
+        // A replacement that still covers the moved source can become the primary association after the old one expires.
+        Assert.True(scene.AdvanceCandidate(replacement.Handle, expiredCurrent, 128));
+        using var currentSelection = new ShadowGeometrySelection(assets.Api, [expiredView],
+            [new(0, replacement.Handle, expiredCurrent)], scene.Candidates, publication,
+            scene.WorldBuffers, DrawRanges(publication), commandsPerView: 4, scene.Pages,
+            DrawSettings(), otherDrawingBytes: 0);
+        uint[] afterExpiry = Read(currentSelection.Output, 16 + 4 * 7);
+        Assert.Equal(1u, afterExpiry[0]);
+    }
+
     /// <summary>A failed later selection cannot evict or clear a previously published sampled tile.</summary>
     [Fact]
     public void FailedSelectionPreservesRetainedSampledPageAndDepth()
@@ -775,7 +847,7 @@ public sealed class ShadowGeometrySelectionTests(HeadlessGLFixture fixture) : Re
 
         /// <summary>Uploads a complete test world and opens bounded candidate and page submission owners.</summary>
         internal SelectionScene(Vintagestory.API.Common.ICoreAPI api, ShadowWorldPublication publication,
-            int tilesPerLayer = 1)
+            int tilesPerLayer = 1, int candidateCellsPerSlice = 64)
         {
             this.publication = publication;
             int dimension = publication.Table.First(entry => entry.Flags != 0).Dimension;
@@ -783,7 +855,7 @@ public sealed class ShadowGeometrySelectionTests(HeadlessGLFixture fixture) : Re
                 publication.Table.Where(entry => entry.Flags != 0).Max(entry => entry.X), 0, 0);
             receiver = domain.Bounds;
             Assert.True(WorldBuffers.Upload(publication));
-            Candidates = ShadowCandidatePool.Create(api, CandidateSettings());
+            Candidates = ShadowCandidatePool.Create(api, CandidateSettings(candidateCellsPerSlice));
             Assert.True(Candidates.BeginBatch(changes, publication, WorldBuffers));
             Pages = ShadowPagePool.Create(api, new ShadowPageSettings
             {
@@ -815,6 +887,44 @@ public sealed class ShadowGeometrySelectionTests(HeadlessGLFixture fixture) : Re
                 if (complete) return new(0, handle, current);
             }
             throw new Xunit.Sdk.XunitException("The test candidate did not complete within its finite dispatch bound.");
+        }
+
+        /// <summary>Allocates a caller-defined candidate so old and replacement enclosures can differ observably.</summary>
+        internal ShadowViewCandidates AddCandidate(ShadowCandidateRequest request, ShadowCandidateCurrent current)
+        {
+            Assert.True(Candidates.TryAllocate(request, out var handle));
+            activeCandidates.Add((handle, current));
+            return new(0, handle, current);
+        }
+
+        /// <summary>Advances every active handle under the same bounded candidate slices and reports complete certificates.</summary>
+        internal bool AdvanceCandidates(ShadowCandidateCurrent current, int maximumSlices)
+        {
+            for (int attempt = 0; attempt < maximumSlices; attempt++)
+            {
+                Assert.True(Candidates.BeginBatch(changes, publication, WorldBuffers));
+                foreach (var active in activeCandidates) Assert.True(Candidates.Advance(active.Handle, current));
+                if (activeCandidates.All(active =>
+                    {
+                        var header = ReadHeader(Candidates.Headers, active.Handle.Slot);
+                        return header.Status == 3 && header.Unresolved == 0;
+                    })) return true;
+            }
+            return false;
+        }
+
+        /// <summary>Advances one surviving association after the old angular enclosure has expired.</summary>
+        internal bool AdvanceCandidate(ShadowCandidateHandle handle, ShadowCandidateCurrent current, int maximumSlices)
+        {
+            for (int attempt = 0; attempt < maximumSlices; attempt++)
+            {
+                Assert.True(Candidates.BeginBatch(changes, publication, WorldBuffers));
+                Assert.True(Candidates.Advance(handle, current));
+                var header = ReadHeader(Candidates.Headers, handle.Slot);
+                if (header.Status == 3 && header.Unresolved == 0) return true;
+                if (header.Status is 4 or 5) return false;
+            }
+            return false;
         }
 
         /// <summary>Builds a bounded point-source candidate with independently selected receiver and source motion bounds.</summary>
@@ -856,10 +966,10 @@ public sealed class ShadowGeometrySelectionTests(HeadlessGLFixture fixture) : Re
 
         #region Private
         /// <summary>Allocates one association with enough charged capacity for these tiny domains.</summary>
-        private static ShadowCandidateSettings CandidateSettings() => new()
+        private static ShadowCandidateSettings CandidateSettings(int cellsPerSlice = 64) => new()
         {
             MemoryMiB = 8, HeaderCapacity = 8, SegmentsPerAssociation = 1, DedupCapacity = 128,
-            ProbeLimit = 128, ChangeCapacity = 16, SlabsPerSlice = 64, CellsPerSlice = 64,
+            ProbeLimit = 128, ChangeCapacity = 16, SlabsPerSlice = 64, CellsPerSlice = cellsPerSlice,
             ProbesPerSlice = 1024, ChangesPerSlice = 16, SlabsPerBatch = 256,
             CellsPerBatch = 4096, ProbesPerBatch = 16384, ChangesPerBatch = 64
         };

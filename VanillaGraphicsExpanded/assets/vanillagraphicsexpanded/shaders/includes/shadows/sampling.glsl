@@ -1,7 +1,11 @@
 // Shared GL 4.5 demand/addressing and explicit comparison filter. Hosts provide sampleInputs[],
 // entries[] and one usampler2DArray shadowDepthPool. No implicit derivatives or optional acceleration.
+#ifndef S
 #define S(i) sampleInputs[uint(i)]
+#endif
+#ifndef PE
 #define PE(s,i) entries[(s)*128u+uint(i)]
+#endif
 /// Decodes world/projection doubles without optional integer-64 operations.
 double shadowNumber(uint i) { return packDouble2x32(uvec2(S(i),S(i+1u))); }
 /// Reads a precise world vector before any float depth conversion.
@@ -62,43 +66,44 @@ bool shadowTap(ivec2 offset,out int face,out dvec2 texel,out double reference) {
     texel=t; return true;
 }
 /// Distinguishes complete current coverage from explicitly bounded retained coverage for every tap.
-bool shadowCoverage(uint slot,out bool stale) {
+uint shadowCoverageReason(uint slot,out bool stale) {
     stale=false;
     for(uint i=0u;i<3u;i++) {
         double lo=packDouble2x32(uvec2(PE(slot,28u+2u*i),PE(slot,29u+2u*i)));
         double hi=packDouble2x32(uvec2(PE(slot,34u+2u*i),PE(slot,35u+2u*i)));
-        if(shadowNumber(28u+2u*i)<lo || shadowNumber(34u+2u*i)>hi) return false;
+        if(shadowNumber(28u+2u*i)<lo || shadowNumber(34u+2u*i)>hi) return 5u;
     }
     // Never reinterpret retained depth through another projection, even if its generation was mislabelled.
     for(uint i=64u;i<98u;i++) {
         if(S(64)==1u && (i==90u || i==91u)) continue; // Point filter width is receiver-dependent.
-        if(PE(slot,i)!=S(i)) return false;
+        if(PE(slot,i)!=S(i)) return 6u;
     }
     bool current=PE(slot,110)==0u && PE(slot,12)==S(138) && PE(slot,13)==S(139)
         && PE(slot,40)==S(40) && PE(slot,41)==S(41) && PE(slot,42)==S(42)
         && PE(slot,43)==S(43) && PE(slot,44)==S(44) && PE(slot,45)==S(45);
-    if(current) return true;
+    if(current) return 0u;
     // Unknown invalidation time cannot become a newly started grace period at lookup time.
-    if(PE(slot,110)!=1u) return false;
+    if(PE(slot,110)!=1u) return 7u;
     double rendered=packDouble2x32(uvec2(PE(slot,46),PE(slot,47)));
     double invalidated=packDouble2x32(uvec2(PE(slot,60),PE(slot,61)));
     double now=shadowNumber(128u),renderAge=shadowNumber(130u),staleAge=shadowNumber(132u);
     if(isnan(now)||isinf(now)||isnan(rendered)||isinf(rendered)||isnan(invalidated)||isinf(invalidated)||
         isnan(renderAge)||isinf(renderAge)||isnan(staleAge)||isinf(staleAge)||rendered<0.0lf||
-        staleAge<=0.0lf||renderAge<=0.0lf||now<rendered||now<invalidated||
-        invalidated<rendered||now-rendered>renderAge||now-invalidated>staleAge) return false;
+        now<rendered||now<invalidated||invalidated<rendered) return 7u;
+    if(renderAge<=0.0lf || now-rendered>renderAge) return 8u;
+    if(staleAge<=0.0lf || now-invalidated>staleAge) return 9u;
     dvec3 light=shadowVector(140u);
-    if(any(isnan(light))||any(isinf(light))) return false;
+    if(any(isnan(light))||any(isinf(light))) return 10u;
     if(S(64)==1u) {
         dvec3 delta=light-shadowVector(92u); double tolerance=shadowNumber(134u);
-        if(isnan(tolerance)||isinf(tolerance)||tolerance<0.0lf||dot(delta,delta)>tolerance*tolerance) return false;
+        if(isnan(tolerance)||isinf(tolerance)||tolerance<0.0lf||dot(delta,delta)>tolerance*tolerance) return 10u;
     } else {
         double cosine=shadowNumber(136u);
-        if(isnan(cosine)||isinf(cosine)||cosine< -1.0lf||cosine>1.0lf) return false;
-        if(any(notEqual(light,shadowVector(80u))) && dot(light,shadowVector(80u))<cosine) return false;
+        if(isnan(cosine)||isinf(cosine)||cosine< -1.0lf||cosine>1.0lf) return 10u;
+        if(any(notEqual(light,shadowVector(80u))) && dot(light,shadowVector(80u))<cosine) return 10u;
     }
     stale=true;
-    return true;
+    return 0u;
 }
 /// Looks up full source/projection/face/page identity; probe exhaustion cannot alias a different page.
 bool shadowPhysicalAddress(uint slot) {
@@ -116,7 +121,7 @@ bool shadowLookup(int face,dvec2 texel,out uint slot,out bool stale) {
         uint s=(hash+probe)%S(116); if(PE(s,20)!=2u) continue;
         bool match=true;
         for(uint i=0u;i<17u;i++) { uint v=i==14u?uint(face):i==15u?uint(page.x):i==16u?uint(page.y):S(i); if(PE(s,i)!=v) match=false; }
-        if(match && shadowCoverage(s,stale) && shadowPhysicalAddress(s)) { slot=s; return true; }
+        if(match && shadowCoverageReason(s,stale)==0u && shadowPhysicalAddress(s)) { slot=s; return true; }
     }
     return false;
 }

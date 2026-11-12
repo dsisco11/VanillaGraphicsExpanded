@@ -183,6 +183,119 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         pool.SealBatch();
     }
 
+    /// <summary>Current dependency checks preserve a prior certificate and never restart its stale deadline.</summary>
+    [Fact]
+    public void CurrentDependencyValidationPreservesCoverageAndFirstInvalidationTime()
+    {
+        // Arrange: publish a complete page, then validate it against consecutive changed scene sequences.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 2, layers: 1));
+        var key = Key(0, 0, projection: 35);
+        Assert.True(pool.BeginBatch());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, Small)));
+        var allocation = Result(pool);
+        Assert.Equal(0u, allocation[0]);
+        long assignment = Assignment(allocation);
+        Assert.True(pool.ClearReplacement());
+        Assert.True(pool.FreezeWritableAssignments());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, key, Small, assignment, complete: true)));
+        int slot = checked((int)Result(pool)[1]);
+
+        // Act: validate successive dependency changes with later timestamps while naming the current projection.
+        var first = Request(ShadowPageOperation.ValidateCurrent, key, Small, complete: true) with
+        { SceneSequence = 20, CurrentProjection = key.Projection, Timestamp = 2 };
+        var second = first with { SceneSequence = 21, Timestamp = 9 };
+        Assert.True(pool.Execute(first));
+        Assert.Equal(0u, Result(pool)[0]);
+        Assert.True(pool.Execute(second));
+        var receipt = Result(pool);
+        var deadline = EntryWords(pool, slot, 60, 2);
+        var invalidated = EntryWords(pool, slot, 110, 1);
+        var invalidationTime = BitConverter.Int64BitsToDouble(((long)deadline[1] << 32) | deadline[0]);
+
+        // Assert: the compact GPU command receipt still identifies the old slot and its first stale timestamp.
+        Assert.Equal((uint)slot, receipt[1]);
+        Assert.Equal(1u, invalidated[0]);
+        Assert.Equal(2, invalidationTime);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key, Small)));
+        // Changed dependencies make the old complete page non-current; temporal sampling may use it only as stale.
+        Assert.Equal(2u, Result(pool)[0]);
+        pool.SealBatch();
+    }
+
+    /// <summary>Source-wide light or scene changes invalidate every retained page without restarting stale age.</summary>
+    [Fact]
+    public void SourceValidationPreservesFirstInvalidationAcrossLaterFrames()
+    {
+        // Arrange: publish an old directional mapping and construct a changed source projection generation.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 2, layers: 1));
+        var key = Key(0, 0, projection: 45);
+        Assert.True(pool.BeginBatch());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, Small)));
+        var allocation = Result(pool);
+        long assignment = Assignment(allocation);
+        Assert.True(pool.ClearReplacement());
+        Assert.True(pool.FreezeWritableAssignments());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, key, Small, assignment, complete: true)));
+        int slot = checked((int)Result(pool)[1]);
+        var currentKey = key with { Projection = key.Projection + 1 };
+        var movedProjection = new DirectionalShadowProjection(currentKey.Source, currentKey.Projection, Vector3d.UnitY,
+            new ShadowBounds(-100, -100, -100, 100, 100, 100), 1, pageSize: 8);
+        var movedSnapshot = ShadowProjectionSnapshot.Directional(movedProjection, currentKey.FaceOrLevel);
+
+        // Act: validate the new light mapping twice at later times while retaining the old page projection.
+        var first = Request(ShadowPageOperation.ValidateSource, currentKey, Small, complete: true) with
+        { Projection = movedSnapshot, Timestamp = 2 };
+        var later = first with { Timestamp = 9 };
+        Assert.True(pool.Execute(first));
+        Assert.Equal(0u, Result(pool)[0]);
+        Assert.True(pool.Execute(later));
+        var invalidated = EntryWords(pool, slot, 110, 1);
+        var deadline = EntryWords(pool, slot, 60, 2);
+        var invalidationTime = BitConverter.Int64BitsToDouble(((long)deadline[1] << 32) | deadline[0]);
+
+        // Assert: the source-level operation marks the prior complete page once and keeps its original stale deadline.
+        Assert.Equal(1u, invalidated[0]);
+        Assert.Equal(2, invalidationTime);
+        pool.SealBatch();
+    }
+
+    /// <summary>A requested allocation reuses a still-current complete assignment without creating a replacement.</summary>
+    [Fact]
+    public void AllocationWithReuseCurrentKeepsTheExistingAssignment()
+    {
+        // Arrange: publish one page and retain its exact physical slot for a same-dependency allocation request.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 2, layers: 1));
+        var key = Key(1, 0, projection: 36);
+        Assert.True(pool.BeginBatch());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, Small)));
+        var allocation = Result(pool);
+        long assignment = Assignment(allocation);
+        Assert.True(pool.ClearReplacement());
+        Assert.True(pool.FreezeWritableAssignments());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Publish, key, Small, assignment, complete: true)));
+        var published = Result(pool);
+        uint slot = published[1];
+
+        // Act: ask the pool for a replacement while explicitly allowing a matching current certificate to satisfy it.
+        pool.SealBatch(); RHICommandContext.Current.WaitIdle(); pool.Poll();
+        Assert.True(pool.BeginBatch());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, Small) with { ReuseCurrent = true }));
+        var reused = Result(pool);
+
+        // Assert: the same physical assignment satisfies the request and remains sampleable without a new write token.
+        Assert.Equal(0u, reused[0]);
+        Assert.Equal(slot, reused[1]);
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key, Small)));
+        Assert.Equal(0u, Result(pool)[0]);
+        pool.SealBatch();
+    }
+
     /// <summary>Full 64-bit page keys distinguish sources, virtual coordinates and projection generations.</summary>
     [Fact]
     public void PageLookupDoesNotAliasDifferentProjectionOrPageIdentity()
@@ -734,6 +847,12 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         using var batch = pool.Entries.MapRange<uint>(checked(slot * 512 + 112 * sizeof(uint)), 2, BufferMapAccess.Read);
         Assert.True(batch.IsMapped);
         return (state, batch.Span[0], batch.Span[1]);
+    }
+    /// <summary>Reads only a selected compact set of GPU certificate words needed by a page-state assertion.</summary>
+    private static uint[] EntryWords(ShadowPagePool pool, int slot, int firstWord, int count)
+    {
+        using var mapped = pool.Entries.MapRange<uint>(checked(slot * 512 + firstWord * sizeof(uint)), count, BufferMapAccess.Read);
+        Assert.True(mapped.IsMapped); return mapped.Span.ToArray();
     }
     /// <summary>Finds distinct serialized keys sharing a bounded linear-probe start bucket.</summary>
     private static (ShadowPageKey First, ShadowPageKey Second) CollidingKeys(int capacity)

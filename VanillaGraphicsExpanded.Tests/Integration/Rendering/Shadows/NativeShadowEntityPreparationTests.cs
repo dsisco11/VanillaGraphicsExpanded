@@ -8,6 +8,7 @@ using VanillaGraphicsExpanded.Rendering.Integration.Shadows;
 using VanillaGraphicsExpanded.Rendering.Shadows.Geometry;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common.Entities;
+using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 using Xunit;
 
@@ -43,6 +44,45 @@ public sealed class NativeShadowEntityPreparationTests
         Assert.DoesNotContain(rewritten, instruction => instruction.Calls(nativeBefore));
         Assert.DoesNotContain(rewritten, instruction => instruction.Calls(nativeAnimation));
         Assert.DoesNotContain(rewritten, instruction => instruction.Calls(nativeAdvance));
+    }
+
+    /// <summary>The native item draw keeps item lookup and drawing while skipping only prepared pose advancement.</summary>
+    [Fact]
+    public void NativeItemDrawIlRoutesPreparedPoseWithoutRemovingMaterialOrDrawWork()
+    {
+        // Arrange: inspect the installed dropped-item draw body and identify its pose, item lookup and matrix calls.
+        var target = AccessTools.Method(typeof(Vintagestory.GameContent.EntityItemRenderer), "DoRender3DOpaque");
+        var generator = new DynamicMethod("VgeShadowItemDrawIlProbe", typeof(void), System.Type.EmptyTypes,
+            typeof(NativeShadowEntityPreparationTests), true).GetILGenerator();
+        var original = PatchProcessor.GetOriginalInstructions(target, generator).ToArray();
+        var position = AccessTools.Field(typeof(Vintagestory.GameContent.EntityItemRenderer), "lerpedPos");
+        var getInfo = AccessTools.Method(typeof(IRenderAPI), nameof(IRenderAPI.GetItemStackRenderInfo));
+        var load = AccessTools.Method(typeof(Vintagestory.GameContent.EntityItemRenderer), "LoadModelMatrix");
+
+        // Act: apply the production transpiler to the real installed method.
+        var rewritten = NativeShadowItemDrawHooks.Rewrite(original, generator).ToArray();
+        var prepared = AccessTools.Method(typeof(NativeShadowEntityHooks), nameof(NativeShadowEntityHooks.ItemPrepared));
+        var loadForDraw = AccessTools.Method(typeof(NativeShadowItemDrawHooks), nameof(NativeShadowItemDrawHooks.LoadForDraw));
+        var branch = Assert.Single(rewritten, instruction => instruction.Calls(prepared));
+        int branchIndex = System.Array.IndexOf(rewritten, branch);
+        int destination = System.Array.FindIndex(rewritten, instruction => instruction.labels.Contains((Label)rewritten[branchIndex + 1].operand));
+
+        // Assert: the branch skips the complete three-axis interpolation block to the render API lookup,
+        // while retaining one native item-info request and routing only matrix rebuilding through the helper.
+        Assert.True(destination > branchIndex);
+        Assert.Equal(OpCodes.Ldloc_0, rewritten[destination].opcode);
+        Assert.Equal(original.Count(instruction => instruction.LoadsField(position)),
+            rewritten.Count(instruction => instruction.LoadsField(position)));
+        var guardedPoseBlock = rewritten.Skip(branchIndex + 2).Take(destination - branchIndex - 2).ToArray();
+        Assert.Equal(1, guardedPoseBlock.Count(instruction => instruction.StoresField(
+            AccessTools.Field(typeof(Vec3d), nameof(Vec3d.X)))));
+        Assert.Equal(1, guardedPoseBlock.Count(instruction => instruction.StoresField(
+            AccessTools.Field(typeof(Vec3d), nameof(Vec3d.Y)))));
+        Assert.Equal(1, guardedPoseBlock.Count(instruction => instruction.StoresField(
+            AccessTools.Field(typeof(Vec3d), nameof(Vec3d.Z)))));
+        Assert.Contains(rewritten, instruction => instruction.Calls(getInfo));
+        Assert.Equal(1, rewritten.Count(instruction => instruction.Calls(loadForDraw)));
+        Assert.DoesNotContain(rewritten, instruction => instruction.Calls(load));
     }
 
     /// <summary>An offscreen entity is prepared before its animation advances and visibility is restored afterward.</summary>

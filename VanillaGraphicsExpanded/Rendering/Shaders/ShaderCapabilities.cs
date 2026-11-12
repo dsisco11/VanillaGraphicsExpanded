@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System;
 using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
@@ -7,6 +8,8 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 internal static class ShaderCapabilities
 {
     private static readonly ConditionalWeakTable<ShaderProgramBase, State> Programs = new();
+    /// <summary>Notifies frame publications synchronously when an installed surface executable or its capabilities change.</summary>
+    internal static event Action<ShaderProgramBase>? Changed;
 
     /// <summary>Associates source intent and linked features with one managed shader owner.</summary>
     private sealed class State
@@ -36,12 +39,14 @@ internal static class ShaderCapabilities
         if (state.ProgramId != program.ProgramId) state.Linked = ShaderCapability.None;
         state.ProgramId = program.ProgramId;
         state.Linked |= capabilities;
+        Changed?.Invoke(program);
     }
 
     /// <summary>Removes one installed feature while preserving independent features on the same executable.</summary>
     internal static void Remove(ShaderProgramBase program, ShaderCapability capabilities)
     {
         if (Programs.TryGetValue(program, out var state)) state.Linked &= ~capabilities;
+        Changed?.Invoke(program);
     }
 
     /// <summary>Withdraws a failed executable without discarding its source declarations for a later compile.</summary>
@@ -50,10 +55,15 @@ internal static class ShaderCapabilities
         if (!Programs.TryGetValue(program, out var state)) return;
         state.Linked = ShaderCapability.None;
         state.ProgramId = 0;
+        Changed?.Invoke(program);
     }
 
     /// <summary>Invalidates source declarations and executable identity on reload, fallback, or disposal.</summary>
-    internal static void Forget(ShaderProgramBase program) => Programs.Remove(program);
+    internal static void Forget(ShaderProgramBase program)
+    {
+        Programs.Remove(program);
+        Changed?.Invoke(program);
+    }
     #endregion
 
     #region Draw classification

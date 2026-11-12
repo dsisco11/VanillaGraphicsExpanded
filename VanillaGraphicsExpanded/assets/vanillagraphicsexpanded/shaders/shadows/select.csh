@@ -128,16 +128,29 @@ bool selectObject(uint objectIndex,uint view) {
     return true;
 }
 
-/// Validates every association's exact generation, dependency interval and complete native lookup before emission.
+/// Checks one exact completed dependency certificate without reading it back to the CPU.
+bool completeCandidate(uint a,uint slot,uvec2 generation) {
+    uint h=slot*32u;
+    return headers[h]==3u && headers[h+16u]==0u && headers[h+1u]<=inputs[6] &&
+        all(equal(uvec2(headers[h+24u],headers[h+25u]),generation)) &&
+        all(equal(uvec2(headers[h+21u],headers[h+22u]),uvec2(inputs[a+4u],inputs[a+5u]))) &&
+        all(equal(uvec2(headers[h+28u],headers[h+29u]),uvec2(inputs[a+6u],inputs[a+7u]))) &&
+        all(equal(uvec2(headers[h+19u],headers[h+20u]),uvec2(inputs[a+8u],inputs[a+9u])));
+}
+
+/// Prefers a complete guarded replacement and otherwise retains complete covered old candidates.
 bool selectAssociation(uint association) {
     if(!visit()) return false;
-    uint a=32u+inputs[0]*64u+association*12u;
-    uint view=inputs[a], slot=inputs[a+1u], h=slot*32u;
-    if(headers[h]!=3u || headers[h+16u]!=0u || headers[h+1u]>inputs[6] ||
-        any(notEqual(uvec2(headers[h+24u],headers[h+25u]),uvec2(inputs[a+2u],inputs[a+3u]))) ||
-        any(notEqual(uvec2(headers[h+21u],headers[h+22u]),uvec2(inputs[a+4u],inputs[a+5u]))) ||
-        any(notEqual(uvec2(headers[h+28u],headers[h+29u]),uvec2(inputs[a+6u],inputs[a+7u]))) ||
-        any(notEqual(uvec2(headers[h+19u],headers[h+20u]),uvec2(inputs[a+8u],inputs[a+9u])))) {
+    uint a=32u+inputs[0]*64u+association*16u;
+    uint view=inputs[a], slot=inputs[a+1u];
+    bool replacement=false;
+    if(inputs[a+10u]!=0u) {
+        if(!visit()) return false;
+        uint next=inputs[a+10u]-1u;
+        if(completeCandidate(a,next,uvec2(inputs[a+11u],inputs[a+12u]))) {slot=next;replacement=true;}
+    }
+    uint h=slot*32u;
+    if(!replacement && !completeCandidate(a,slot,uvec2(inputs[a+2u],inputs[a+3u]))) {
         failure=1u; return false;
     }
     for(uint c=0u;c<headers[h+1u];c++) {

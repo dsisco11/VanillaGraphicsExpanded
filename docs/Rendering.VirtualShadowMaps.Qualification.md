@@ -201,3 +201,36 @@ readiness. Compare against matching accepted surface captures and obtain separat
 
 The implementation plan retains current baseline results and unresolved verification ownership. Passing
 the build routes above establishes only those exercised boundaries; no measured VSM claim exists yet.
+
+## Controlled frame-gate correctness receipts
+
+The 2026-11-12 captures below qualify controlled frame preparation, current surface demand, bounded
+arbitration and GPU whole-light readiness. Production surface consumers remain disconnected; these
+receipts do not establish live appearance or moving-light frame-time performance.
+
+- [Strict build and GPU regression capture](../artifacts/virtual-shadow-maps/frame-gate/20261112-030157-clamp-correction/):
+  Debug content verification passed with 20 warnings, none on changed production paths. All 25 affected
+  checks passed, including the six native source/gate cases, directional near-depth clamping and view-mode
+  packing. The actual context was OpenGL 4.5 on NVIDIA RTX 4090 with SPIR-V ingestion and optional
+  acceleration masked. The full correctness run recorded 6,219 passes, three shader-inventory snapshot
+  failures and 11 unrelated skips; all 247 shadow tests passed without skips.
+- [Inventory corrections and tooling capture](../artifacts/virtual-shadow-maps/frame-gate/20261112-032012-catalog-corrections/):
+  six targeted catalog, declaration and binding checks passed, resolving all three full-run failures.
+  Shader-build contract fixtures passed 156/156 and generator tests passed 158/158, without skips.
+  Correctness evidence therefore combines the retained full run with these targeted corrections;
+  it is not a fresh single all-green full-suite invocation. The retained skip classification identifies
+  six atmosphere checks, three tokenizer/source-map reproductions and two probe-tracing cases.
+- [Release package identity](../artifacts/virtual-shadow-maps/frame-gate/20261112-032338-package/package-identity.json):
+  canonical Cake validation, clean, publish, shader production and ZIP creation passed. Exact member,
+  size and SHA-256 comparison verified 1,188 ZIP files, 795 SPIR-V binaries and 795 associated interfaces,
+  including producer/runtime/archive binary-set equality, digest-index coverage, owned source provenance
+  and compiler/tool identities. The ZIP SHA-256 is
+  `432DF45EF1870B7E8894C51E329C1ADE149DEC967CAD463E6A15FE986EE1FC17`.
+  An initial verifier misclassified hashed variant filenames as shader-stage suffixes; the retained
+  corrected verifier derives stages from the source paths, including `.tcsh` and `.tesh`, and reports
+  zero issues without rebuilding or changing package bytes.
+
+Each capture retains commands, timestamps, environment overrides, complete logs, source snapshots/hashes
+and applicable TRX, catalog, interface and digest evidence. Production hashes match across the strict
+build, full regression run and Release package. Required handoff evidence includes these ignored artifact
+directories and the retained ZIP, rather than only the mutable build-output directories.

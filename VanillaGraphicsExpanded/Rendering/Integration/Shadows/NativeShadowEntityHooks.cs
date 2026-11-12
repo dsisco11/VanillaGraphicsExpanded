@@ -33,11 +33,17 @@ internal static class NativeShadowEntityHooks
             prefix: new HarmonyMethod(typeof(NativeShadowEntityHooks), nameof(Begin)),
             transpiler: new HarmonyMethod(typeof(NativeShadowEntityHooks), nameof(Rewrite)),
             finalizer: new HarmonyMethod(typeof(NativeShadowEntityHooks), nameof(End)));
+        harmony.Patch(AccessTools.Method(typeof(EntityItemRenderer), "DoRender3DOpaque"),
+            transpiler: new HarmonyMethod(typeof(NativeShadowItemDrawHooks), nameof(NativeShadowItemDrawHooks.Rewrite)));
         game = world; owner = preparation;
     }
 
     /// <summary>Withdraws callbacks before the owning Harmony instance removes its patch.</summary>
     internal static void Detach() { owner = null; game = null; }
+
+    /// <summary>Checks the existing preparation publication rather than retaining another per-renderer registry.</summary>
+    internal static bool ItemPrepared(EntityItemRenderer renderer) => owner is { IsCurrent:true } preparation &&
+        preparation.Matches(renderer,preparation.Frame);
 
     /// <summary>Replaces only the three native preparation calls, preserving culling, iteration and exception handling.</summary>
     internal static IEnumerable<CodeInstruction> Rewrite(IEnumerable<CodeInstruction> instructions)

@@ -67,7 +67,7 @@ internal sealed class ShadowGeometrySelection : IDisposable
         if (!float.IsFinite(packedPadding))
             throw new InvalidOperationException("Terrain deformation cannot be rounded outward to a finite GPU envelope.");
         int[] independent = Enumerable.Range(0, drawRanges.Length).Where(i => drawRanges[i].Eligible == 2).ToArray();
-        long inputBytes = checked((32L + views.Count * 64L + associations.Count * 12L + objects.Length * 8L + independent.Length) * 4);
+        long inputBytes = checked((32L + views.Count * 64L + associations.Count * 16L + objects.Length * 8L + independent.Length) * 4);
         long rangeBytes = Math.Max(44L, drawRanges.Length * 44L);
         long outputBytes = checked(64L + slots * 28L);
         // Include the CPU packing array, immutable input copies, independent-range
@@ -97,7 +97,7 @@ internal sealed class ShadowGeometrySelection : IDisposable
         words[11] = (uint)slots;
         ShadowPageRequest.Put(words, 12, pages.Batch);
         words[14] = (uint)objects.Length;
-        words[15] = checked((uint)(32 + views.Count * 64 + associations.Count * 12));
+        words[15] = checked((uint)(32 + views.Count * 64 + associations.Count * 16));
         words[16] = (uint)policy.ViewInstances;
         words[17] = (uint)independent.Length;
         words[18] = checked(words[15] + (uint)objects.Length * 8);
@@ -193,7 +193,8 @@ internal sealed class ShadowGeometrySelection : IDisposable
         if (draws.Count > checked(ViewCount * CommandsPerView))
             throw new InvalidOperationException("Native drawing group count exceeds its bounded command intervals.");
         foreach (var association in associations)
-            if (!candidates.CanConsumeEnvelope(association.Handle, association.Current, world, TerrainPadding / 32))
+            if (!candidates.CanConsumeEnvelope(association.Handle, association.Current, world, TerrainPadding / 32) ||
+                (association.Replacement is { } replacement && !candidates.CanConsumeEnvelope(replacement,association.Current,world,TerrainPadding/32)))
                 throw new InvalidOperationException("Candidate input changed after geometry selection.");
         var covered = new bool[checked(ViewCount * CommandsPerView)];
         foreach (var draw in draws)
@@ -276,7 +277,8 @@ internal sealed class ShadowGeometrySelection : IDisposable
         {
             var association = associations[i];
             if ((uint)association.View >= (uint)views.Count ||
-                !candidates.CanConsumeEnvelope(association.Handle, association.Current, world, terrainPadding / 32))
+                !candidates.CanConsumeEnvelope(association.Handle, association.Current, world, terrainPadding / 32) ||
+                (association.Replacement is { } replacement && !candidates.CanConsumeEnvelope(replacement,association.Current,world,terrainPadding/32)))
                 throw new InvalidOperationException("View candidate input is unavailable or no longer current.");
             var projection = views[association.View].Projection;
             var position = projection.IsPoint ?
@@ -287,12 +289,14 @@ internal sealed class ShadowGeometrySelection : IDisposable
                 association.Current.PositionOrDirection != position)
                 throw new InvalidOperationException("Candidate and raster projection snapshots disagree.");
             covered[association.View] = true;
-            int a = 32 + views.Count * 64 + i * 12;
+            int a = 32 + views.Count * 64 + i * 16;
             words[a] = (uint)association.View; words[a + 1] = (uint)association.Handle.Slot;
             ShadowPageRequest.Put(words, a + 2, association.Handle.Generation);
             ShadowPageRequest.Put(words, a + 4, candidates.BatchGeneration);
             ShadowPageRequest.Put(words, a + 6, world.Generation);
             ShadowPageRequest.Put(words, a + 8, association.Current.ChangeSequence);
+            if(association.Replacement is { } next)
+            {words[a+10]=checked((uint)next.Slot+1);ShadowPageRequest.Put(words,a+11,next.Generation);}
         }
         foreach (bool present in covered)
             if (!present) throw new InvalidOperationException("A virtual view has no complete candidate input.");

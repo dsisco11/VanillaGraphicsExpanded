@@ -2,10 +2,12 @@ using Newtonsoft.Json;
 
 namespace VanillaGraphicsExpanded.Rendering.Shadows.Configuration;
 
-/// <summary>Owns bounded shadow input and candidate policies; rendering admission is not yet available.</summary>
+/// <summary>Owns bounded shadow publication, storage and whole-frame admission policies.</summary>
 [JsonObject(MemberSerialization.OptIn)]
 public sealed class ShadowSettings
 {
+    /// <summary>Whole-frame budgets, light selection and readiness recovery.</summary>
+    [JsonProperty] public ShadowSchedulingSettings Scheduling { get; set; } = new();
     /// <summary>Configurable bounded native publication allowances.</summary>
     [JsonProperty] public ShadowInputSettings Inputs { get; set; } = new();
     /// <summary>Configurable GPU association storage, continuation and aggregate work allowances.</summary>
@@ -21,6 +23,8 @@ public sealed class ShadowSettings
     /// <summary>Materializes finite input and candidate policies under the existing configuration owner.</summary>
     internal void Sanitize()
     {
+        Scheduling ??= new();
+        Scheduling.Sanitize();
         Inputs ??= new();
         Inputs.Sanitize();
         Candidates ??= new();
@@ -31,6 +35,12 @@ public sealed class ShadowSettings
         Drawing.Sanitize();
         Temporal ??= new();
         Temporal.Sanitize();
+    }
+    /// <summary>Freezes every owning policy together at the scheduling boundary.</summary>
+    internal ShadowSettings Freeze()
+    {
+        Sanitize();return new(){Scheduling=Scheduling.Freeze(),Inputs=Inputs.Freeze(),Candidates=Candidates.Freeze(),
+            Pages=Pages.Freeze(),Drawing=Drawing.Freeze(),Temporal=Temporal.Freeze()};
     }
     #endregion
 }

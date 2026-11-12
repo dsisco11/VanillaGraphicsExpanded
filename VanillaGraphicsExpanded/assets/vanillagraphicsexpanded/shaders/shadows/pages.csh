@@ -114,13 +114,30 @@ void finishReplacements() {
 void main() {
     uint capacity=commands[0],limit=min(commands[2],capacity),op=C(20);
     answer(1u,capacity);
-    if(op>13u) return;
+    if(op>15u) return;
     // GPU completion producers cannot change CPU-owned allocation/freeze batch state.
     if(commands[13]!=0u && op!=2u) return;
     // Failed or incomplete selection cannot allocate, evict, clear or replace any tile.
     if(commands[15]!=0u && (op!=1u || commands[14]!=1u ||
         any(notEqual(uvec2(C(126),C(127)),uvec2(commands[4],commands[5]))))) return;
     if(op==12u) { finishReplacements(); return; }
+    if(op==15u) {
+        double when=packDouble2x32(uvec2(C(46),C(47)));
+        if(isnan(when)||isinf(when)||when<0.0lf) return;
+        for(uint s=0u;s<capacity;s++) {
+            if(E(s,20)!=2u || !keyEqual(s,12u)) continue;
+            bool same=C(27)==1u && dependenciesEqual(s) && E(s,64)==C(64) && E(s,65)==C(65);
+            for(uint i=86u;i<90u;i++)if(E(s,i)!=C(i))same=false;
+            uint start=C(64)==1u?92u:80u;
+            for(uint i=start;i<start+6u;i++)if(E(s,i)!=C(i))same=false;
+            if(same)continue;
+            double rendered=packDouble2x32(uvec2(E(s,46),E(s,47)));
+            double previous=packDouble2x32(uvec2(E(s,60),E(s,61)));
+            if(when<rendered)continue;
+            if(E(s,110)==0u || when<previous){E(s,60)=C(46);E(s,61)=C(47);E(s,110)=1u;}
+        }
+        answer(0u,capacity);return;
+    }
     if(op==1u || op==2u) {
         double nearDepth=packDouble2x32(uvec2(C(86),C(87)));
         double farDepth=packDouble2x32(uvec2(C(88),C(89)));
@@ -164,8 +181,10 @@ void main() {
         if(commands[12]==0u || building==capacity || !belongsToBatch(building)) return;
         answer(0u,building); return;
     }
-    if(op==11u) {
+    if(op==11u || op==14u) {
         if(oldSlot==capacity) return;
+        if(op==14u && C(27)==1u && dependenciesEqual(oldSlot) && E(oldSlot,12)==C(126) && E(oldSlot,13)==C(127))
+            { answer(0u,oldSlot);return; }
         double when=packDouble2x32(uvec2(C(46),C(47)));
         double rendered=packDouble2x32(uvec2(E(oldSlot,46),E(oldSlot,47)));
         if(isnan(when)||isinf(when)||when<rendered) { answer(4u,capacity); return; }
@@ -187,6 +206,8 @@ void main() {
         else answer(oldSlot<capacity?2u:1u,capacity);
         return;
     }
+    // A cache hit stays protected rather than receiving a redundant replacement.
+    if(op==1u && C(125)==1u && oldSlot<capacity && covers(oldSlot)) { answer(0u,oldSlot);return; }
     if(op==2u) {
         if(commands[12]==0u || building==capacity ||
             any(notEqual(writable[building],uvec4(C(21),C(22),commands[4],commands[5])))) { answer(4u,capacity); return; }

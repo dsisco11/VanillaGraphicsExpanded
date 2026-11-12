@@ -49,6 +49,7 @@ internal sealed class ShadowDrawView
         ShadowPageRequest.Put(words, 48, BitConverter.DoubleToInt64Bits(Origin.Z));
         words[52] = (uint)capacity; words[53] = (uint)probes; words[54] = (uint)Projection.PageSize;
         words[55] = (uint)arrayLayers; ShadowPageRequest.Put(words, 56, batch);
+        words[58] = Projection.IsPoint ? 1u : 0u;
     }
     #endregion
 

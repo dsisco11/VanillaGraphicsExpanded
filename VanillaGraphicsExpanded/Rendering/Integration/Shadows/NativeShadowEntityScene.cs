@@ -26,6 +26,8 @@ internal sealed class NativeShadowEntityScene : IDisposable
     #region Public API
     internal ImmutableArray<ShadowObjectDrawRange> Ranges { get; }
     internal long MetadataBytes { get; private set; }
+    /// <summary>Identifies the native preparation change stream required by complete frame admission.</summary>
+    internal ShadowSceneChanges Changes=>preparation.Changes;
 
     /// <summary>Uses the native preparation owner's enumeration; unknown renderer families reject whole-scene completeness.</summary>
     internal NativeShadowEntityScene(NativeShadowEntityPreparation preparation, ShadowDrawSettings settings,
@@ -87,7 +89,7 @@ internal sealed class NativeShadowEntityScene : IDisposable
         IReadOnlyList<ShadowDrawView> views, ShadowViewBuffer viewBuffer, ShadowGeometrySelection selection,
         ShadowPagePool pages)
     {
-        if (!IsCurrent || views.Count != selection.ViewCount || views.Count != viewCount)
+        if (!IsCurrent || views.Count != selection.ViewCount || views.Count > viewCount)
             throw new InvalidOperationException("Native entity publication changed before drawing.");
         var draws = ImmutableArray.CreateBuilder<ShadowPreparedDraw>();
         try

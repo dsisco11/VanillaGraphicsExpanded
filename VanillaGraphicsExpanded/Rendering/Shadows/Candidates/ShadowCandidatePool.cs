@@ -4,6 +4,7 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shadows.Configuration;
 using VanillaGraphicsExpanded.Rendering.Shadows.Geometry;
 using VanillaGraphicsExpanded.Rendering.Shadows.World;
+using VanillaGraphicsExpanded.Rendering.Shadows.Scheduling;
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering.Shadows.Candidates;
@@ -29,6 +30,7 @@ internal sealed class ShadowCandidatePool : IDisposable
     private long nextGeneration, batchGeneration;
     private int slabsLeft, cellsLeft, probesLeft, changesLeft;
     private bool batchValid, disposed;
+    private ShadowFrameBudget? frameBudget;
 
     /// <summary>Persistent 128-byte headers; consumers must check status, generation and unresolved count.</summary>
     internal GpuShaderStorageBuffer Headers { get; }
@@ -44,6 +46,9 @@ internal sealed class ShadowCandidatePool : IDisposable
     internal bool BatchValid => batchValid;
     /// <summary>Identifies the current dependency-validation interval retained in GPU headers.</summary>
     internal long BatchGeneration => batchGeneration;
+
+    /// <summary>Requires integrated candidate work to share the exact frame-wide accounting owner.</summary>
+    internal bool UsesBudget(ShadowFrameBudget budget) => ReferenceEquals(frameBudget,budget);
 
     #region Public API
     #region Creation and scheduling
@@ -111,9 +116,11 @@ internal sealed class ShadowCandidatePool : IDisposable
     }
 
     /// <summary>Freezes a changed-partition interval and borrows an exact native upload without copying terrain metadata.</summary>
-    internal bool BeginBatch(ShadowCandidateChanges changed, ShadowWorldPublication snapshot, ShadowWorldGpuBuffers uploadedWorld)
+    internal bool BeginBatch(ShadowCandidateChanges changed, ShadowWorldPublication snapshot, ShadowWorldGpuBuffers uploadedWorld,
+        ShadowFrameBudget? budget = null)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+        frameBudget=budget;
         bool sameInterval = changes is { } previous && previous.Epoch == changed.Epoch
             && previous.FromSequence == changed.FromSequence && previous.ToSequence == changed.ToSequence
             && previous.Complete == changed.Complete && !previous.Coordinates.IsDefault && !changed.Coordinates.IsDefault
@@ -155,6 +162,8 @@ internal sealed class ShadowCandidatePool : IDisposable
             && changes.ToSequence == current.ChangeSequence && DomainMatches(request, publication);
         int slabs = Math.Min(slabsLeft, policy.SlabsPerSlice), cells = Math.Min(cellsLeft, policy.CellsPerSlice);
         int probes = Math.Min(probesLeft, policy.ProbesPerSlice), checks = Math.Min(changesLeft, policy.ChangesPerSlice);
+        if(frameBudget is { } ledger && !ledger.TryCharge(new(Slabs:slabs,Cells:cells,Probes:probes,Changes:checks)))
+        { valid=false;slabs=cells=probes=checks=0; }
         // Even a zero-work slice updates dependency validity, so stale completed headers cannot survive exhaustion.
         slabsLeft -= slabs; cellsLeft -= cells; probesLeft -= probes; changesLeft -= checks;
         Pack(handle, request, current, valid, slabs, cells, probes, checks);

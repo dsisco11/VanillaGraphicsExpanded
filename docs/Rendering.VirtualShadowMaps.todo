@@ -857,61 +857,62 @@ Phase 9: Integrate current-frame demand, arbitration and readiness
   Depends on Phases 2–4, 7, 8A and 8B; Phase 5 records the checkpoint only.
   Outcome: one bounded current-frame shadow update produces coherent per-light surface readiness before
   shading. Controlled integration proves the gate before production consumer migration in Phase 10.
+  Verification: [controlled frame-gate correctness receipts](Rendering.VirtualShadowMaps.Qualification.md#controlled-frame-gate-correctness-receipts).
 
-  ☐ Integrate scene preparation, current light capture, surface-demand prepass, candidate/page work and
+  ☑ Integrate scene preparation, current light capture, surface-demand prepass, candidate/page work and
     readiness publication before the earliest participating surface draw, preserving downstream draw order.
-    ☐ Require SharedVertexDeformation on participating surface programs before fresh shadow admission;
+    ☑ Require SharedVertexDeformation on participating surface programs before fresh shadow admission;
       shader recovery or capability withdrawal must invalidate readiness.
-    ☐ Preserve current visible dropped-item poses before capture when relocating/removing native shadow
+    ☑ Preserve current visible dropped-item poses before capture when relocating/removing native shadow
       draws. The native adapter supplements offscreen preparation; gate integration must establish the
       visible-item preparation owner without advancing interpolation or animation twice.
-    ☐ Freeze compact view/projection records and renderable replacement-page mappings, then order integer
+    ☑ Freeze compact view/projection records and renderable replacement-page mappings, then order integer
       clear, virtual raster/atomic writes, completion and sampling visibility before publishing readiness.
-    ☐ Place the gate after VgeLightsRenderer's current capture; do not rely on the late opaque 8.5-to-9.0
+    ☑ Place the gate after VgeLightsRenderer's current capture; do not rely on the late opaque 8.5-to-9.0
       receiver/direct-light interval for earlier forward surfaces.
-    ☐ Generate current opaque/cutout, entity/foliage, water and all contributing transparent-layer requests.
+    ☑ Generate current opaque/cutout, entity/foliage, water and all contributing transparent-layer requests.
       Preserve deformation, alpha/visibility rules and valid opaque-depth rejection; do not let transparent
       depth writes hide later layers. Require conservative early requests for late receiver categories.
-    ☐ Include filter/bias footprints, receiving depth and light influence. Conservative projected bounds
+    ☑ Include filter/bias footprints, receiving depth and light influence. Conservative projected bounds
       are allowed only with complete coverage and charged extra demand. Feedback history only prioritizes.
-  ☐ Implement persisted settings and the scheduler against actual resource and work counters.
-    ☐ Enforce aggregate input/traversal/expansion/group/slot/instance/draw/retry limits across the entire
+  ☑ Implement persisted settings and the scheduler against actual resource and work counters.
+    ☑ Enforce aggregate input/traversal/expansion/group/slot/instance/draw/retry limits across the entire
       batch, not a full allowance per group or array layer. Include demand and entity preparation costs.
       Charge geometry/view expansion, virtual raster footprint, tessellation/overdraw estimates, atomic
       workload, page clearing and retained/replacement memory; pixel rejection is not free work.
-    ☐ Use directional/local reservations with borrowing and safe reclamation; retain independent sun/moon
+    ☑ Use directional/local reservations with borrowing and safe reclamation; retain independent sun/moon
       opportunities. Apply carried-source preference, visible contribution/cost, bounded waiting age,
       stable-ID ties, selection margins and valid-state hold times from the quality profile.
-    ☐ Seek complete coverage at affordable detail before refinement, then withdraw selected lights if
+    ☑ Seek complete coverage at affordable detail before refinement, then withdraw selected lights if
       minimum acceptable detail cannot fit. Bound retries; larger coarse pages may still be too expensive.
-    ☐ Use nonblocking timing feedback for later cost estimates, never as proof of completeness or an exact
+    ☑ Use nonblocking timing feedback for later cost estimates, never as proof of completeness or an exact
       frame-time ceiling. Keep all temporary generations, coverage metadata and change processing charged.
-    ☐ Schedule refresh of retained stale results within finite age/motion limits; use stable priorities,
+    ☑ Schedule refresh of retained stale results within finite age/motion limits; use stable priorities,
       bounded waiting and hysteresis without resetting deadlines on repeated edits or light motion.
       Account for concurrent old/new projection coverage, replacement storage and failed refresh attempts.
       Under overload retain only eligible covered results, then reduce detail or withdraw the light.
-  ☐ Reduce page validity/coverage to per-light readiness before any participating surface consumer.
-    ☐ Reject unfinished demand and request overflow. Unresolved geometry/invalidation work cannot certify
+  ☑ Reduce page validity/coverage to per-light readiness before any participating surface consumer.
+    ☑ Reject unfinished demand and request overflow. Unresolved geometry/invalidation work cannot certify
       current results; separately check whether retained results cover all current demand under Phase 7.
       Verify receiver containment in the selected rendered projection, even when page identity is unchanged.
-    ☐ Publish current, permitted-stale or unavailable status with the chosen sampling metadata. Retain
+    ☑ Publish current, permitted-stale or unavailable status with the chosen sampling metadata. Retain
       illumination for unavailable lights. Never sample partial, hard-invalid, expired or reassigned depths
       or silently switch to page-shaped local fallbacks. Keep sun/moon readiness independent.
-    ☐ Implement sustained complete-coverage recovery and detail hysteresis. Any transition must remain
+    ☑ Implement sustained complete-coverage recovery and detail hysteresis. Any transition must remain
       within temporal eligibility and budgets; fade cannot extend expiry or authorize missing coverage.
       Hard loss of eligibility goes unshadowed before shading.
-  ☐ Add counters/debug views for page requests/residency/validity, receiving coverage, candidate age and
+  ☑ Add counters/debug views for page requests/residency/validity, receiving coverage, candidate age and
     covered motion, unfinished traversal, overflow causes, source identity, selected detail, readiness,
     withdrawal/recovery, missing samples and baseline command/geometry cost. Separate current and stale
     duty cycles, rendered age, stale duration, motion error, refresh waiting and expiry/withdrawal reasons.
-    ☐ Expose virtual raster footprint, geometry/view repetitions, candidate/page rejection, writable versus
+    ☑ Expose virtual raster footprint, geometry/view repetitions, candidate/page rejection, writable versus
       retained tiles, atomic workload and contention proxies where measurable. Distinguish measured timings
       from conservative admission estimates; atomic completion does not establish page completeness.
-  ☐ Delegate combined integration/failure checks for fresh visibility, transparent layers, motion within
+  ☑ Delegate combined integration/failure checks for fresh visibility, transparent layers, motion within
     candidate coverage with depth invalidation, shared pages gaining receivers, overload, fair/stable
     recovery, explicit capacity/layout recreation and in-flight work. Include sustained edits/motion, expiry during
     overload and insufficient replacement memory. Verify no CPU completion wait is introduced.
-  ☐ Completion: current-frame readiness precedes every intended consumer, complete-light fallback and
+  ☑ Completion: current-frame readiness precedes every intended consumer, complete-light fallback and
     bounded work are verified, diagnostics explain failures and no partial prototype is enabled in
     production ahead of the coherent surface migration.
 
