@@ -211,7 +211,7 @@ public sealed class NativeShadowTerrainPlacementTests(HeadlessGLFixture fixture)
             });
         }
         // Assert: at least one real native fragment reached the integer page through captured selector bindings.
-        var clear = ImageAssertions.Comparisons.CompareUnsignedConstant(pages.DepthBank(0),
+        var clear = ImageAssertions.Comparisons.CompareUnsignedConstant(pages.DepthArray,
             ShadowDepthEncoding.Clear, new(new(0), 0, 0, 0, pages.PageSize, pages.PageSize));
         Assert.True(clear.Mismatches > 0);
 
@@ -349,10 +349,10 @@ public sealed class NativeShadowTerrainPlacementTests(HeadlessGLFixture fixture)
         CellsPerBatch = 512, ProbesPerBatch = 2048, ChangesPerBatch = 32
     };
 
-    /// <summary>Creates a one-bank writable page policy with enough operations for clear and publication controls.</summary>
+    /// <summary>Creates a one-layer writable page policy with enough operations for clear and publication controls.</summary>
     private static ShadowPageSettings PageSettings() => new()
     {
-        MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, BankCapacity = 1,
+        MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, ArrayLayers = 1,
         ProbeLimit = 16, OperationsPerBatch = 16
     };
 

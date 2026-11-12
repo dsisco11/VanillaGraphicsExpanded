@@ -148,7 +148,7 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
         Assert.False(batch.IsCurrent);
     }
 
-    /// <summary>Range sorting builds one bounded command interval per current caster group, independent of depth banks.</summary>
+    /// <summary>Range sorting builds one bounded command interval per current caster group, independent of depth layers.</summary>
     [Fact]
     public void DrawCommandsAggregateAcrossNativeGroupsAndArrays()
     {
@@ -161,7 +161,7 @@ public sealed class NativeShadowTerrainAdapterTests(HeadlessGLFixture fixture) :
             new ShadowDrawSettings { GroupVisits = 256 });
         var world = World([Range(17, 0, 3), Range(5, 0, 3)]);
 
-        // Act: Resolve complete current chunk ranges against the native groups without physical-bank expansion.
+        // Act: Resolve complete current chunk ranges against the native groups without physical-layer expansion.
         var draws = NativeShadowDrawRanges.Create(batch, world, new uint[] { 1, 0 }, 3, new ShadowDrawSettings());
 
         // Assert: Commands follow captured native group order and each caster group gets one bounded interval.

@@ -4,7 +4,7 @@ layout(std430,binding=0) readonly buffer PageCommands { uint commands[]; };
 layout(std430,binding=1) buffer PageEntries { uint entries[]; };
 layout(std430,binding=2) buffer PageResults { uint results[]; };
 layout(std430,binding=3) buffer WritableAssignments { uvec4 writable[]; };
-// Command prefix: capacity, resident slots, probes, target slots, batch low/high, completed low/high.
+// Command prefix: capacity, reserved, probes, reserved, batch low/high, completed low/high.
 // Each 128-word entry has key[0..16], state[20], assignment[21..22], retirement[23..24],
 // required batch[25..26], coverage doubles[28..39], world/scene epoch/sequence[40..45].
 // Rendered time[46..47], first invalidation[60..61], projection[64..97], invalidated flag[110].
@@ -112,7 +112,7 @@ void finishReplacements() {
 }
 /// Executes one bounded operation serially, preserving old certificates until replacement publication.
 void main() {
-    uint capacity=commands[0],resident=commands[1],limit=min(commands[2],capacity),target=commands[3],op=C(20);
+    uint capacity=commands[0],limit=min(commands[2],capacity),op=C(20);
     answer(1u,capacity);
     if(op>13u) return;
     // GPU completion producers cannot change CPU-owned allocation/freeze batch state.
@@ -140,7 +140,7 @@ void main() {
         for(uint s=0u;s<capacity;s++) {
             if(E(s,20)==3u && leq(uvec2(E(s,23),E(s,24)),uvec2(commands[6],commands[7]))) E(s,20)=0u;
             bool remove=op==7u || (op==5u && keyEqual(s,12u)) ||
-                (op==6u && E(s,0)==C(0) && E(s,1)==C(1) && E(s,2)==C(2)) || s>=target;
+                (op==6u && E(s,0)==C(0) && E(s,1)==C(1) && E(s,2)==C(2));
             if(remove && (E(s,20)==1u || E(s,20)==2u)) retire(s);
         }
         answer(0u,capacity); return;
@@ -151,7 +151,7 @@ void main() {
     for(uint probe=0u;probe<limit;probe++) {
         uint s=(hash+probe)%capacity;
         if(E(s,20)==3u && leq(uvec2(E(s,23),E(s,24)),uvec2(commands[6],commands[7]))) E(s,20)=0u;
-        if(E(s,20)==0u && s<min(resident,target) && freeSlot==capacity) freeSlot=s;
+        if(E(s,20)==0u && freeSlot==capacity) freeSlot=s;
         if(!keyEqual(s,17u)) continue;
         if(E(s,20)==2u) oldSlot=s;
         if(E(s,20)==1u) building=s;

@@ -61,7 +61,7 @@ to implementation design and qualification after approval.
 | Terrain search | Conservative DDA-style slab sweep over fixed chunk partitions and covered light motion |
 | World boundary | Engine-published loaded-chunk envelope per dimension, with unresolved interior gaps |
 | Candidate cache | Coordinate-keyed headers and segmented candidate lists from bounded GPU storage |
-| Sampling | Bounded manual PCF and explicit virtual lookup for every tap; statically addressed array samplers |
+| Sampling | Bounded manual PCF and explicit virtual lookup for every tap through one integer 2D-array sampler |
 | Overload | Complete reduced-detail coverage first, then stable light-level withdrawal and recovery |
 | Fog | Separate consumer readiness, full integration after surface shadows |
 
@@ -172,7 +172,7 @@ authored radius. Do not invent a different shadow-only illumination range.
 ### Sampling, allocation, and lifecycle contract
 
 Use bounded GPU page tables and free/retirement queues. Physical assignments are
-`(bank, tile X, tile Y, assignment generation)`; lookup/probe exhaustion is failure, not aliasing. Allocate
+`(array layer, tile X, tile Y, assignment generation)`; lookup/probe exhaustion is failure, not aliasing. Allocate
 demanded pages, evict invalid/unreferenced entries before current required coverage, and
 never overwrite a tile still referenced by scheduled GPU work.
 
@@ -183,9 +183,9 @@ directional levels, use world-consistent lookup and request all participating sa
 Never average depth pages into a fallback level. Bias uses a shared texel/depth convention
 with bounded slope/normal adjustments and material-aware culling.
 
-Generate a bounded dispatch over statically named integer tile-bank samplers. Point fetches avoid
-implicit-derivative requirements in divergent selection. The supported bank count is limited
-by slots available in every participating shader as well as memory/hardware limits. Optional
+Use one integer 2D-array sampler and explicit layer/tile coordinates. Point fetches avoid
+implicit-derivative requirements in divergent selection. Array dimensions and layers are limited
+by memory/hardware limits; validate the image and sampler slots in every participating shader. Optional
 bindless access is not required. Larger filters/contact-hardening are later quality modes
 only if their coverage and work fit the same contracts; they are not baseline dependencies.
 
@@ -663,10 +663,11 @@ accepted detail. Illumination is independent of shadow admission.
 
 Borrow only unused reservations. Reclaim borrowed capacity at a scheduling boundary through
 lower detail or light withdrawal, preserving in-flight resources until their users complete.
-A smaller budget drains excess allocations before admitting more; report the temporary
-retirement footprint rather than pretending it disappeared immediately. Grow incrementally.
-A page-format change withdraws affected publications and retires the old pool before replacing
-it within the allowance; do not silently allocate two full pools.
+Allocate the entire configured physical array capacity up front, with multiple tiles per layer.
+Demand changes page occupancy without resizing the resource. An explicit capacity/layout or page-format
+change withdraws cached publications and retires the old pool before replacing it within the allowance;
+report the retirement footprint until GPU users finish, and do not silently allocate two full pools.
+Allocation failure leaves shadows unavailable. Reservation changes affect admission within fixed storage.
 
 Nonblocking GPU timing feedback adjusts estimates for later frames. Never wait for a timing
 result to schedule the current frame. Hard work ceilings bound identifiable operations;
@@ -1014,7 +1015,7 @@ estimates may guide scheduling, but cannot prove candidate completeness or page 
 The selected pair is a current geometry/object instance and a virtual view or bounded raster region.
 One pair rasterizes the geometry once for all admitted pages it overlaps in that region. Commands
 reference compact object/view selectors and separate projection records, with explicit preservation of
-object instancing. A pair is not expanded into one instance per physical page or bank.
+object instancing. A pair is not expanded into one instance per physical page or array layer.
 
 Compatible native pass/atlas/material/layout groups remain CPU-owned submission boundaries. The GPU
 fills bounded initialized indirect intervals, including zero-instance commands. Pair lists, command
@@ -1131,8 +1132,8 @@ vertex-input realization borrows native streams and adds this compact selector; 
 vertex data remain unchanged. No matrix columns are appended to mesh-pool vertices.
 
 A geometry/view pair can affect several virtual pages. Deduplicate that pair within each compatible
-material/geometry submission group. Physical banks are destinations selected per fragment, not a reason
-to repeat geometry once for every bank or page. If a virtual view must be split to satisfy raster limits,
+material/geometry submission group. Physical array layers are destinations selected per fragment, not a reason
+to repeat geometry once for every layer or page. If a virtual view must be split to satisfy raster limits,
 retain the explicit region mapping and charge repeated geometry. All command slots are bounded and
 initialized; CPU submission does not read back GPU selections. Optional draw parameters, GPU count
 buffers and bindless access are unnecessary.
@@ -1158,8 +1159,8 @@ The established OpenGL 4.5 plus GL_ARB_gl_spirv requirement applies unchanged.
 
 ### Integer tiles, clearing and sampling
 
-Use resident R32UI tile banks with explicit `(bank, tile X, tile Y, assignment generation)` page-table
-addresses. Pool dimensions, bank count, view records, replacement allocations and retired storage all
+Use one resident R32UI 2D texture array with explicit `(layer, tile X, tile Y, assignment generation)` page-table
+addresses. Pool dimensions, layer count, view records, replacement allocations and retired storage all
 count against validated configurable budgets and actual resource/binding limits. Physical pages have
 no mip chain or stored gutter. The initial page extent remains a tuning hypothesis of 128 texels.
 
@@ -1176,8 +1177,8 @@ existing RHI barriers. Atomicity chooses the nearest individual texel value; onl
 of every required draw can publish a complete page and its receiving coverage.
 
 Sampling resolves each filter tap through virtual addressing and the selected rendered projection,
-then point-fetches and decodes its integer depth. Use statically addressed bank samplers rather than
-assuming arbitrary sampler-array indexing. Cube edges require adjacent-face reprojection and reference
+then point-fetches and decodes its integer depth through one unsigned integer array sampler with an
+explicit layer coordinate. Cube edges require adjacent-face reprojection and reference
 depth; clipmap levels require world-consistent requests. Compare each tap before averaging visibility.
 No averaging of stored depth constructs a coarse fallback. Replacement failure preserves only a separately
 eligible retained result; otherwise the light's shadows are unavailable.

@@ -67,8 +67,7 @@ internal sealed class NativeShadowEntityDraw : ShadowPreparedDraw
             var material = (IShadowEntityBindings)shader;
             material.Views = views.Texture; material.Atlas = atlas;
             material.Entries = pages.Entries; material.Writable = pages.WritableAssignments;
-            material.Bank0 = Image(pages, 0); material.Bank1 = Image(pages, 1);
-            material.Bank2 = Image(pages, 2); material.Bank3 = Image(pages, 3);
+            material.Depth = new(pages.DepthArray, ImageAccess.ReadWrite, Layered: true, Format: TextureFormat.R32ui);
             bindings = shader.CaptureBindings();
             var rhi = RHICommandContext.Current;
             Pipeline = rhi.CreateGraphicsPipeline(new(shader.Shader, geometry.Layout,
@@ -104,8 +103,5 @@ internal sealed class NativeShadowEntityDraw : ShadowPreparedDraw
     #region Private
     /// <summary>Withdraws this captured material when its native texture allocation changes.</summary>
     private void Withdraw() { withdrawn = true; }
-    /// <summary>Fills inactive bank bindings with a resident image; exact fragment ownership rejects nonexistent destinations.</summary>
-    private static RHIImageBinding Image(ShadowPagePool pages, int bank) =>
-        new(pages.DepthBank(bank < pages.ResidentBanks ? bank : 0), ImageAccess.ReadWrite, Format: TextureFormat.R32ui);
     #endregion
 }

@@ -110,7 +110,7 @@ internal sealed class ShadowGeometrySelection : IDisposable
             rasterPixels = checked(rasterPixels + region.Width * (long)region.Height);
             if (rasterPixels > policy.RasterPixels || views[view].Projection.PageSize != pages.PageSize)
                 throw new InvalidOperationException("Selection raster work exceeds the admitted region allowance.");
-            views[view].Pack(words.AsSpan(32 + view * 64, 64), pages.Capacity, pages.ProbeLimit, pages.ResidentBanks, pages.Batch);
+            views[view].Pack(words.AsSpan(32 + view * 64, 64), pages.Capacity, pages.ProbeLimit, pages.ArrayLayers, pages.Batch);
         }
         PackAssociations(words, views, associations, candidates, world, terrainPadding);
         requiredCommands = ValidateRanges(drawRanges, objects, commandsPerView);

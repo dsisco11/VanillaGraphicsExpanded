@@ -7,10 +7,7 @@ layout(std140,binding=28) uniform ShadowAtomicWriterInputs {
     uvec4 shadowBatch;
 };
 layout(location=0) flat in float atomicDepth;
-layout(r32ui,binding=0) uniform coherent uimage2D shadowBank0;
-layout(r32ui,binding=1) uniform coherent uimage2D shadowBank1;
-layout(r32ui,binding=2) uniform coherent uimage2D shadowBank2;
-layout(r32ui,binding=3) uniform coherent uimage2D shadowBank3;
+layout(r32ui,binding=0) uniform coherent uimage2DArray shadowDepthPool;
 @import "../includes/shadows/writing.glsl"
 
 void main()
@@ -20,7 +17,7 @@ void main()
     view.capacity=shadowConfiguration.x;
     view.probes=shadowConfiguration.y;
     view.pageSize=shadowConfiguration.z;
-    view.residentBanks=shadowConfiguration.w;
+    view.arrayLayers=shadowConfiguration.w;
     view.batch=shadowBatch.xy;
     shadowAtomicDepth(view,ivec2(gl_FragCoord.xy),atomicDepth);
 }

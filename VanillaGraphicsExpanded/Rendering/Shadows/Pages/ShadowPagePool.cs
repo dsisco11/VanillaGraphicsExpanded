@@ -6,7 +6,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering.Shadows.Pages;
 
-/// <summary>Owns bounded GPU page assignments and resident depth banks, without CPU selection readback.</summary>
+/// <summary>Owns bounded GPU page assignments and one fixed-capacity depth array, without CPU selection readback.</summary>
 internal sealed partial class ShadowPagePool : IDisposable
 {
     private readonly ICoreAPI api;
@@ -18,10 +18,10 @@ internal sealed partial class ShadowPagePool : IDisposable
     private ShadowTileClearShader clearShader = null!;
     private RHIShaderRef clearExecutable;
     private GpuShaderStorageBuffer commands = null!;
-    private readonly List<GpuTexture> banks = new();
+    private GpuTexture? depthArray;
     private readonly Queue<(long Epoch, GpuFence Fence)> fences = new();
-    private long epoch, completed, shrinkEpoch;
-    private int targetBanks, operations;
+    private long epoch, completed;
+    private int operations;
     private bool batchOpen, withdrawn, disposed, resourcesAlive, writesFrozen;
     private bool completionReserved;
     private ShadowPageSettings? replacement;
@@ -35,18 +35,18 @@ internal sealed partial class ShadowPagePool : IDisposable
     internal GpuShaderStorageBuffer WritableAssignments { get; private set; } = null!;
     /// <summary>Identifies the current ordered submission interval for frozen rendering inputs.</summary>
     internal long Batch => epoch;
-    /// <summary>Capacity includes unallocated banks; a request cannot allocate a nonresident tile.</summary>
-    internal int Capacity => checked((policy.TileColumns * policy.TileRows) * policy.BankCapacity);
-    /// <summary>Current physically resident banks, including banks draining after a shrink.</summary>
-    internal int ResidentBanks => banks.Count;
+    /// <summary>Capacity covers every allocated tile across all array layers.</summary>
+    internal int Capacity => checked((policy.TileColumns * policy.TileRows) * policy.ArrayLayers);
+    /// <summary>Configured layer count; all layers reside in the same allocation.</summary>
+    internal int ArrayLayers => policy.ArrayLayers;
     /// <summary>Reports all owned GPU bytes, including retired allocations pending fence completion.</summary>
-    internal long AllocatedBytes => resourcesAlive ? MetadataBytes + banks.Count * BankBytes : 0;
-    /// <summary>Reports the still-resident excess during a shrink instead of hiding retirement cost.</summary>
-    internal long DrainingBytes => Math.Max(0, banks.Count - targetBanks) * BankBytes;
+    internal long AllocatedBytes => resourcesAlive ? MetadataBytes + DepthBytes : 0;
+    /// <summary>Reports the withdrawn allocation until all submitted GPU users have finished.</summary>
+    internal long DrainingBytes => withdrawn ? AllocatedBytes : 0;
     /// <summary>Exposes the immutable page extent used by projection and sampling.</summary>
     internal int PageSize => policy.PageSize;
-    /// <summary>Reports tile capacity per bank without querying GPU selection.</summary>
-    internal int TilesPerBank => (policy.TileColumns * policy.TileRows);
+    /// <summary>Reports tile capacity per array layer without querying GPU selection.</summary>
+    internal int TilesPerLayer => (policy.TileColumns * policy.TileRows);
     /// <summary>Bounds every shader lookup, including sampling misses.</summary>
     internal int ProbeLimit => Math.Min(policy.ProbeLimit, Capacity);
     /// <summary>False once publication is withdrawn or the original context has ended.</summary>
@@ -60,12 +60,12 @@ internal sealed partial class ShadowPagePool : IDisposable
     /// <summary>Remaining command capacity must cover all completion publications before replacement tiles are cleared.</summary>
     internal int OperationsRemaining => CanSubmit ? policy.OperationsPerBatch - operations - (completionReserved ? 1 : 0) : 0;
     private long MetadataBytes => checked(Capacity * 528L + 576L + 32L);
-    private long BankBytes => checked(policy.PageSize * (long)policy.PageSize * 4 * (policy.TileColumns * policy.TileRows));
+    private long DepthBytes => checked(policy.PageSize * (long)policy.PageSize * 4 * Capacity);
 
     #region Public API
     #region Creation and operations
-    /// <summary>Validates planned compute/fragment binding availability and allocates metadata, then one integer tile bank.</summary>
-    internal static ShadowPagePool Create(ICoreAPI api, ShadowPageSettings settings, int availableSamplerSlots = 4)
+    /// <summary>Validates consumer binding availability and allocates the complete metadata and integer texture array.</summary>
+    internal static ShadowPagePool Create(ICoreAPI api, ShadowPageSettings settings, int availableSamplerSlots = 1)
     {
         ArgumentNullException.ThrowIfNull(api); ArgumentNullException.ThrowIfNull(settings);
         return new(api, settings.Freeze(), availableSamplerSlots);
@@ -133,45 +133,22 @@ internal sealed partial class ShadowPagePool : IDisposable
         if (completionReserved) FinishReplacements(false);
         fences.Enqueue((epoch, RHICommandContext.Current.InsertFence())); batchOpen = false;
     }
-    /// <summary>Returns resident storage for a resident bank; ownership remains with this pool.</summary>
-    internal GpuTexture DepthBank(int index)
-    {
-        if (!IsAvailable || index < 0 || index >= banks.Count) throw new InvalidOperationException("Depth bank is unavailable.");
-        return banks[index];
-    }
+    /// <summary>Borrows the complete resident depth array; ownership remains with this pool.</summary>
+    internal GpuTexture DepthArray => IsAvailable && depthArray is not null
+        ? depthArray : throw new InvalidOperationException("Depth array is unavailable.");
     #endregion
     #region Capacity and lifetime
-    /// <summary>Grows by one bank per call, with all metadata and resident/retired bytes charged before admission.</summary>
-    internal bool Grow()
-    {
-        if (!IsAvailable || batchOpen || banks.Count >= targetBanks || AllocatedBytes + BankBytes > policy.MemoryMiB * 1048576L) return false;
-        banks.Add(RHICommandContext.Current.CreateTexture(new RHITextureDescription {
-            Dimension = TextureDimension.Two, Format = TextureFormat.R32ui,
-            Width = checked(policy.PageSize * policy.TileColumns), Height = checked(policy.PageSize * policy.TileRows), Depth = 1, MipLevels = 1,
-            Storage = ResourceStorageMode.Immutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = 0,
-            Label = "Shadows.Depth." + banks.Count }).RequireResource());
-        return true;
-    }
-    /// <summary>Drains excess groups at a boundary; growth remains incremental and cannot bypass the memory allowance.</summary>
-    internal void SetBankTarget(int count)
-    {
-        if (!IsAvailable || batchOpen || count < 1 || count > policy.BankCapacity) throw new ArgumentOutOfRangeException(nameof(count));
-        if (count < banks.Count)
-        {
-            if (!BeginBatch()) throw new InvalidOperationException("Page retirement queue is full.");
-            targetBanks = count;
-            Dispatch(new ShadowPageRequest(ShadowPageOperation.Collect, default, default, 0, 0, 0).Pack());
-            shrinkEpoch = epoch; SealBatch();
-        }
-        else targetBanks = count;
-    }
-    /// <summary>Withdraws old publications before a format/layout/policy replacement; two full pools never coexist.</summary>
+    /// <summary>Withdraws before validating a replacement; invalid layouts stay unavailable and two full pools never coexist.</summary>
     internal void Reconfigure(ShadowPageSettings settings)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+        ArgumentNullException.ThrowIfNull(settings);
         if (batchOpen) throw new InvalidOperationException("Reconfigure only after all current consumers have submitted.");
+        // A rejected effective configuration cannot keep old capacities published as current.
+        // Drain those resources even when validation prevents a replacement allocation.
+        Withdraw();
         var next = settings.Freeze(); Validate(next, availableSamplerSlots);
-        Withdraw(); replacement = next;
+        replacement = next;
     }
     /// <summary>Withdraws publications on disable or world leave, retaining storage until submitted GPU users complete.</summary>
     internal void Withdraw()
@@ -188,17 +165,12 @@ internal sealed partial class ShadowPagePool : IDisposable
         if (epoch < long.MaxValue) epoch++;
         fences.Enqueue((epoch, RHICommandContext.Current.InsertFence())); withdrawn = true;
     }
-    /// <summary>Polls bounded fences, drains shrink excess and completes requested replacement without blocking.</summary>
+    /// <summary>Polls bounded fences and completes explicit replacement after the old allocation drains.</summary>
     internal void Poll()
     {
         if (disposed) return;
         while (fences.TryPeek(out var pending) && pending.Fence.TryConsumeIfSignaled())
         { completed = pending.Epoch; fences.Dequeue(); }
-        if (shrinkEpoch > 0 && completed >= shrinkEpoch)
-        {
-            while (banks.Count > targetBanks) { banks[^1].Dispose(); banks.RemoveAt(banks.Count - 1); }
-            shrinkEpoch = 0;
-        }
         if (withdrawn && fences.Count == 0 && (resourcesAlive || replacement is not null))
         {
             ReleaseResources();
@@ -237,10 +209,10 @@ internal sealed partial class ShadowPagePool : IDisposable
     {
         if (!shader.EnsureReady() || shader.Shader != executable)
         { Withdraw(); throw new InvalidOperationException("Page shader replacement requires pool reconfiguration."); }
-        uint[] prefix = new uint[16]; prefix[0] = (uint)Capacity; prefix[1] = (uint)(banks.Count * (policy.TileColumns * policy.TileRows));
-        prefix[2] = (uint)ProbeLimit; prefix[3] = (uint)(targetBanks * (policy.TileColumns * policy.TileRows));
+        uint[] prefix = new uint[16]; prefix[0] = (uint)Capacity;
+        prefix[2] = (uint)ProbeLimit;
         ShadowPageRequest.Put(prefix, 4, epoch); ShadowPageRequest.Put(prefix, 6, completed);
-        prefix[8] = (uint)TilesPerBank; prefix[9] = (uint)policy.TileColumns;
+        prefix[8] = (uint)TilesPerLayer; prefix[9] = (uint)policy.TileColumns;
         prefix[10] = (uint)PageSize;
         prefix[12] = writesFrozen ? 1u : 0u;
         prefix[13] = generated.HasValue ? 1u : 0u;

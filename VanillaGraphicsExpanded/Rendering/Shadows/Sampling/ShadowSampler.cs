@@ -31,16 +31,15 @@ internal sealed class ShadowSampler : IDisposable
     internal void Sample(ShadowPagePool pool, ShadowSampleRequest request)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        if (!pool.CanSubmit || pool.ResidentBanks < 1 || request.Words[65] != pool.PageSize)
+        if (!pool.CanSubmit || pool.ArrayLayers < 1 || request.Words[65] != pool.PageSize)
             throw new InvalidOperationException("Sampler and page storage are unavailable or incompatible.");
         if (!shader.EnsureReady() || shader.Shader != executable)
         { pool.Withdraw(); throw new InvalidOperationException("Sampling shader replacement requires a fresh sampler and withdrawn readiness."); }
         uint[] words = (uint[])request.Words.Clone(); words[116] = (uint)pool.Capacity; words[117] = (uint)pool.ProbeLimit;
-        words[118] = (uint)pool.TilesPerBank; words[119] = (uint)pool.ResidentBanks;
+        words[118] = (uint)pool.TilesPerLayer; words[119] = (uint)pool.ArrayLayers;
         inputs.UploadSubData<uint>(words, 0);
         var binding = (IShadowSamplingBindings)shader; binding.Inputs = inputs; binding.Entries = pool.Entries; binding.Results = Results;
-        binding.Depth0 = pool.DepthBank(0); binding.Depth1 = pool.DepthBank(Math.Min(1, pool.ResidentBanks - 1));
-        binding.Depth2 = pool.DepthBank(Math.Min(2, pool.ResidentBanks - 1)); binding.Depth3 = pool.DepthBank(Math.Min(3, pool.ResidentBanks - 1));
+        binding.Depth = pool.DepthArray;
         var rhi = RHICommandContext.Current;
         using var boundary = rhi.EnterBoundary(new("Shadows.Sample", true, compute: [shader.Pipeline]));
         boundary.Run(() => { shader.Dispatch(1); rhi.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.BufferUpdate)); });

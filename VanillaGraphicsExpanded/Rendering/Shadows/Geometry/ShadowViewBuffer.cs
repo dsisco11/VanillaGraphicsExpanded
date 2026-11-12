@@ -47,7 +47,7 @@ internal sealed class ShadowViewBuffer : IDisposable
                 view.Region.Width > caps.MaxTextureSize || view.Region.Height > caps.MaxTextureSize ||
                 pixels > policy.RasterPixels || view.Projection.PageSize != pool.PageSize)
                 throw new InvalidOperationException("Virtual raster region requires an explicitly budgeted split.");
-            view.Pack(words.AsSpan(i * 64, 64), pool.Capacity, pool.ProbeLimit, pool.ResidentBanks, pool.Batch);
+            view.Pack(words.AsSpan(i * 64, 64), pool.Capacity, pool.ProbeLimit, pool.ArrayLayers, pool.Batch);
         }
         Count = views.Count;
         this.views = ImmutableArray.CreateRange(views); pages = pool; pageBatch = pool.Batch;

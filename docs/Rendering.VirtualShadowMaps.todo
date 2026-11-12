@@ -4,9 +4,9 @@ Shared virtual shadow maps
 Source proposal: [Rendering.VirtualShadowMaps.Proposal.md](Rendering.VirtualShadowMaps.Proposal.md)
 Status: Phases 1–4 retain receipts for their original contracts. Phase 5's committed draft checkpoint
 has been refactored and qualified within Phase 7's controlled foundation scope. Phase 6's history
-investigation and support assessment and Phase 7 are complete. Phase 8A is qualified within its controlled
-native-geometry scope. Phase 8B's texture-array storage migration remains open; Phase 8 is not complete
-until that migration is qualified. Shadows remain disabled. Phase 9 and all later implementation work remain open.
+investigation and support assessment and Phase 7 are complete. Phase 8A's native geometry and Phase 8B's
+fixed-capacity texture-array migration are qualified within their controlled scope; Phase 8 is complete.
+Shadows remain disabled. Phase 9 and all later implementation work remain open.
 The baseline uses the system's established OpenGL 4.5 plus
 GL_ARB_gl_spirv requirement; shader ingestion is not a new VSM platform decision.
 Authority: the user's approved atomic rendering and bounded temporal reuse decisions below
@@ -185,7 +185,7 @@ Proposal and approved-amendment coverage map
   | Stable light/world/geometry identity and loaded domain | 2–3 retained; 7 interface regression; 8 lifecycle; 11 runtime |
   | Conservative chunk traversal, motion intervals and pruning proof | 3 retained; 7 handoff; 8/11 edit and streaming checks |
   | Existing draft checkpoint and provenance | 5: scoped commit identity and truthful unverified inventory |
-  | Projections, atomic physical pool, page addressing and sampling | 7: storage, encoding, lookup and lifecycle GPU checks |
+  | Projections, atomic physical pool, page addressing and sampling | 7: initial storage/encoding/lookup; 8B: fixed-capacity texture array and consumer/lifecycle requalification |
   | Compact metadata and baseline shader resource access | 7: stage/resource/indexing checks; 8 native shader integration |
   | Bounded temporal reuse and safe replacement | 7–9: age/motion/coverage/lifetime; 10–11 consistent sampling and acceptance |
   | Native geometry ownership, preparation and offscreen/material-compatible casters | 7 preservation; 8 actual integration; 13 cleanup |
@@ -210,7 +210,7 @@ Phase 1: Establish implementation contracts and qualification conditions
   | --- | --- | --- |
   | Repository/native boundaries | World publication and cache contract; Engine geometry ownership; Other integration findings | Contracts: Native boundary evidence and remaining verification; retained static receipts; phase-2 world adapter owns bootstrap/delta, unload/reset, upload/retirement and freshness proof |
   | Interfaces/generations/failures | Shared system boundary; Light identity; Sampling/allocation/lifecycle; Page coverage and reuse; Non-terrain change publication; GPU handoff | Contracts: Ownership, Publication interfaces, Generations/failure/lifetime and Rendering/admission; separate identity/coverage and explicit completion/failure states |
-  | Persisted policy | Configurable budgets, priorities, and allocation; Configurable capacity across depth arrays; Stable recovery | Contracts: Persisted settings and effective policy; schema/validation, complete finite profile fields, effective capacity and safe reconfiguration; numeric calibration stays open |
+  | Persisted policy | Configurable budgets, priorities, and allocation; Sampling, allocation, and lifecycle contract; Stable recovery | Contracts: Persisted settings and effective policy; schema/validation, complete finite profile fields, effective capacity and safe reconfiguration; numeric calibration stays open |
   | Qualification | Qualification gates and review status; Dynamic lighting and validity; Receivers, casters, and fog | Qualification protocol: hardware/profile manifest, repeatable sequences, percentile/availability metrics, correctness/fault matrix and user-run surface/fog scenarios |
 
   Completion review, 2026-11-09: primary second review and independent audit-stage-completion passed;
@@ -676,10 +676,11 @@ Phase 7: Refactor existing foundations for atomic VSM rendering and temporal reu
 Phase 8: Complete native geometry rendering into the atomic virtual shadow pool
   Depends on Phase 7 and retained native publication/candidate contracts from Phases 2–3.
   Outcome: complete native-scene replacement depth pages use virtual-coordinate rasterization and atomic
-  writes, without per-page CPU selection readback or native geometry ownership changes.
+  writes into one configurable, fixed-capacity R32UI texture array, without per-page CPU selection readback
+  or native geometry ownership changes. Complete both sub-phases before Phase 9.
 
 Phase 8A: Native geometry rendering and shader qualification
-  Completed within the controlled scope below. Its receipts qualify the existing bank-based implementation;
+  Completed within the controlled scope below. Its receipts qualify the bank-based checkpoint implementation;
   retain unaffected evidence, but requalify changed storage and consumers in Phase 8B.
 
   Requalified 2026-11-11 for authored shader ownership and shared visible/shadow deformation.
@@ -778,8 +779,82 @@ Phase 8A: Native geometry rendering and shader qualification
     failure behavior are verified, docs reconciled, and second review/independent completion audit pass.
     Production demand/readiness and measured live performance remain Phases 9–11.
 
+Phase 8B: Consolidate physical storage into a configurable texture array
+  Depends on Phase 8A. This approved storage decision supersedes earlier incremental bank-growth/shrink
+  requirements and separate-texture bindings. Preserve the completed geometry, deformation, clipping and
+  candidate work wherever its contracts remain applicable.
+  Outcome: allocate one R32UI 2D texture array at configured capacity, with multiple physical page tiles
+  per layer. Page occupancy changes within that allocation; demand does not grow or shrink the resource.
+  Explicit capacity/layout configuration changes recreate the pool and invalidate its cached pages.
+
+  Controlling sources: [proposal: sampling, allocation and lifecycle](Rendering.VirtualShadowMaps.Proposal.md#sampling-allocation-and-lifecycle-contract),
+  [proposal: integer tiles](Rendering.VirtualShadowMaps.Proposal.md#integer-tiles-clearing-and-sampling),
+  [contracts: physical pages and sampling](Rendering.VirtualShadowMaps.Contracts.md#projections-physical-pages-and-sampling),
+  [contracts: settings and effective policy](Rendering.VirtualShadowMaps.Contracts.md#persisted-settings-and-effective-policy),
+  and [qualification: evidence routes and correctness matrix](Rendering.VirtualShadowMaps.Qualification.md).
+  These sources govern every subtask below; retained temporal, ownership and failure contracts apply unchanged.
+
+  Completion, 2026-11-11: second source review, configured independent test review and independent
+  completion audit passed with no unresolved findings. Evidence paths are relative to this document:
+    [Strict Debug/content build](../artifacts/virtual-shadow-maps/texture-array-pool/20261111-215323/strict-debug.log)
+    passed with 21 warnings and zero errors. [Warning classification](../artifacts/virtual-shadow-maps/texture-array-pool/20261111-215323/build-warning-classification.json)
+    attributes these warnings to unchanged source or existing generated owners.
+    [Full correctness](../artifacts/virtual-shadow-maps/texture-array-pool/20261111-215323/all-correctness.trx)
+    recorded 6,175 passes, two subsequently corrected fixture failures and 11 unrelated skips.
+    [Correction checks](../artifacts/virtual-shadow-maps/texture-array-pool/20261111-215323/corrections-focused.trx)
+    passed 27 cases; the remaining unsupported fault-hook target was corrected and its
+    [final allocation-failure check passed 1/1](../artifacts/virtual-shadow-maps/texture-array-pool/20261111-215323/allocation-failure-corrected.trx).
+    This is retained full-suite evidence plus focused corrections, not a fresh all-green full rerun.
+    [Skip reasons](../artifacts/virtual-shadow-maps/texture-array-pool/20261111-215323/skips.json) remain explicit.
+    The exercised cases include array-layer/tile isolation, contended writes, selective clearing,
+    filtering seams, reuse/exhaustion, five-layer fixed capacity, exact byte accounting, pending-fence
+    recreation, invalid configuration, allocation failure and cache withdrawal. Ordinary/SSBO terrain,
+    tessellation, skinning and shared visible/shadow deformation retain executed regression coverage.
+    [Actual OpenGL 4.5/SPIR-V baseline](../artifacts/virtual-shadow-maps/texture-array-pool/20261111-215323/shadow-virtual-stage-gpu-output.txt)
+    passed all four cases on RTX 4090/NVIDIA 610.88 with optional acceleration paths masked.
+    [Shader build contracts: 156/156](../artifacts/virtual-shadow-maps/texture-array-pool/20261111-215323/build-contract.log) and
+    [generator regressions: 158/158](../artifacts/virtual-shadow-maps/texture-array-pool/20261111-215323/shader-contract-generator.trx) passed without skips.
+    [Canonical Release package identity](../artifacts/virtual-shadow-maps/texture-array-pool/20261111-215323/package-identity.json)
+    matched 1,181 files and 790 SPIR-V binaries, with 353 owned inputs, zero external inputs and no test assets.
+    Commands, logs, source diffs, copied shader receipts, exact member/hash inventory and ZIP accompany these receipts.
+    Source second review and configured independent test review resolved all findings. Production demand/readiness,
+    other-driver coverage and live appearance/performance remain outside this controlled qualification.
+
+  ☑ Reconcile the proposal, implementation contracts and affected plan references with the approved
+    texture-array ownership and capacity policy before dependent implementation changes. Preserve earlier
+    qualification receipts as scoped history rather than evidence for the new storage representation.
+  ☑ Replace separate bank textures with one R32UI 2D texture array allocated at the validated configured
+    capacity. Define layer/tile addressing, capacity rounding and effective hardware limits together.
+    ☑ Keep multiple page tiles per layer; do not restore one-array-layer-per-page capacity assumptions.
+    ☑ Account for the full allocated texture, metadata and resource retirement within configurable budgets.
+      Validate dimensions, array-layer limits, image/sampler bindings and allocation failure behavior.
+  ☑ Remove incremental Grow/SetBankTarget behavior and bank shrink/retirement machinery. Allocate, evict
+    and reuse pages within fixed physical capacity, retaining assignment generations and safe page reuse.
+    ☑ Preserve distinct sampled and writable replacement mappings, temporal eligibility and complete-page
+      publication. Capacity exhaustion cannot publish partial replacement depth or corrupt retained pages.
+  ☑ Implement explicit configuration-driven pool recreation: withdraw old publications, invalidate cached
+    pages, safely retire in-flight resources and allocate the replacement configured capacity through RHI.
+    ☑ Preserve memory accounting and lifecycle safety during replacement, allocation failure, disable,
+      world leave and context retirement; do not require two full pools to coexist.
+  ☑ Migrate all storage consumers as one coherent change: physical page addresses, atomic writers,
+    selective clearing, shared sampling, view data, shader contracts and RHI bindings.
+    ☑ Use array-image writes and array-sampler reads with explicit layer/tile coordinates. Preserve depth
+      encoding, clear values, material rejection, filtering, page-boundary behavior and RHI barriers.
+    ☑ Remove superseded bank interfaces and dispatch branches; retain offline SPIR-V compilation and the
+      established OpenGL 4.5 plus GL_ARB_gl_spirv baseline.
+  ☑ Update and delegate tests for layer/tile isolation, competing atomic writers, selective clearing,
+    sampling seams, page reuse, capacity exhaustion, explicit recreation and in-flight resource retirement.
+    Requalify affected ordinary/SSBO/tessellated/skinned raster paths and visible/shadow deformation checks.
+  ☑ Complete source review, configured independent test review and independent completion audit; run
+    affected checks, strict shader-content verification and canonical package validation, then reconcile
+    documentation and receipts. Retain earlier evidence only where the implementation remains unchanged.
+  ☑ Phase 8B completion: one fixed-capacity texture-array pool and every consumer satisfy the new contract;
+    incremental bank resizing is removed and explicit recreation is qualified. Phase 8 is then complete.
+  Demand-driven resolution adjustment remains a Phase 9 arbitration decision alongside approved priorities,
+  hysteresis and update budgets; it is not required to complete this storage migration.
+
 Phase 9: Integrate current-frame demand, arbitration and readiness
-  Depends on Phases 2–4 and 7–8; Phase 5 records the checkpoint only.
+  Depends on Phases 2–4, 7, 8A and 8B; Phase 5 records the checkpoint only.
   Outcome: one bounded current-frame shadow update produces coherent per-light surface readiness before
   shading. Controlled integration proves the gate before production consumer migration in Phase 10.
 
@@ -801,7 +876,7 @@ Phase 9: Integrate current-frame demand, arbitration and readiness
       are allowed only with complete coverage and charged extra demand. Feedback history only prioritizes.
   ☐ Implement persisted settings and the scheduler against actual resource and work counters.
     ☐ Enforce aggregate input/traversal/expansion/group/slot/instance/draw/retry limits across the entire
-      batch, not a full allowance per group or pool bank. Include demand and entity preparation costs.
+      batch, not a full allowance per group or array layer. Include demand and entity preparation costs.
       Charge geometry/view expansion, virtual raster footprint, tessellation/overdraw estimates, atomic
       workload, page clearing and retained/replacement memory; pixel rejection is not free work.
     ☐ Use directional/local reservations with borrowing and safe reclamation; retain independent sun/moon
@@ -834,7 +909,7 @@ Phase 9: Integrate current-frame demand, arbitration and readiness
       from conservative admission estimates; atomic completion does not establish page completeness.
   ☐ Delegate combined integration/failure checks for fresh visibility, transparent layers, motion within
     candidate coverage with depth invalidation, shared pages gaining receivers, overload, fair/stable
-    recovery, memory shrink/format reset and in-flight work. Include sustained edits/motion, expiry during
+    recovery, explicit capacity/layout recreation and in-flight work. Include sustained edits/motion, expiry during
     overload and insufficient replacement memory. Verify no CPU completion wait is introduced.
   ☐ Completion: current-frame readiness precedes every intended consumer, complete-light fallback and
     bounded work are verified, diagnostics explain failures and no partial prototype is enabled in

@@ -3,7 +3,8 @@
 This is the implementation design for the [shared virtual shadow map proposal](Rendering.VirtualShadowMaps.Proposal.md).
 It specifies interfaces and invariants. Native input publication and the bounded dependency primitives
 described below, GPU candidate traversal, projection providers, page storage and shared sampling are implemented.
-Native shadow rendering, complete frame admission and production lighting consumers are **not implemented**.
+Native shadow rendering is qualified through controlled integration. Complete frame admission and
+production lighting consumers are **not implemented**.
 The [implementation plan](Rendering.VirtualShadowMaps.todo)
 controls delivery. Numerical profiles are provisional, not measured shipping defaults.
 The [qualification protocol](Rendering.VirtualShadowMaps.Qualification.md) defines the evidence needed
@@ -372,17 +373,35 @@ creation; live rendering reconfiguration and the total resource budget belong to
 
 ### Replacement storage contract
 
-The approved replacement uses R32UI two-dimensional tile banks. `TileColumns` and `TileRows`
-(initially 16 each), `BankCapacity` (initially four) and `PageSize` (initially 128) define the
-requested layout. Validate each full bank dimension against texture limits and all metadata,
-resident, replacement and retiring bytes against the existing memory allowance. Named integer
-sampler/image bindings bound the supported bank count; it is not a hard-coded memory budget.
+The physical pool uses one R32UI two-dimensional texture array. `TileColumns` and `TileRows`
+(initially 16 each), `ArrayLayers` (initially four) and `PageSize` (initially 128) define the
+requested layout. Allocate the full validated capacity at creation: width and height are the page
+extent times the corresponding tile count, and capacity is tile columns times tile rows times
+array layers. These integer settings describe whole tiles and layers, so no partial-layer rounding
+or hidden capacity growth applies. Reject layouts exceeding texture dimensions, array-layer limits,
+bounded table indices or the memory allowance. Charge all allocated texels, metadata and in-flight
+retirement, including unoccupied tiles. One array sampler and one array image replace bank dispatch;
+validate their availability in every participating consumer before allocation.
 
-Page-table words 17, 18 and 19 hold explicit bank, tile X and tile Y respectively. Assignment
+Page-table words 17, 18 and 19 hold explicit array layer, tile X and tile Y respectively. Assignment
 generations still identify ownership. Sampling reads those fields rather than treating a hash-table
 slot as a texture-array layer. Writable replacement and sampled completed entries remain distinct.
 Each physical tile is uniquely owned within the bounded allocator; a retired tile cannot be reused
-until its scheduled GPU users finish. A whole-bank clear cannot initialize individual replacements.
+until its scheduled GPU users finish. A whole-layer clear cannot initialize individual replacements.
+
+```mermaid
+flowchart LR
+    V[Virtual page key] --> P[Sampled completed assignment]
+    V --> W[Writable replacement assignment]
+    P --> A[One fixed-capacity R32UI texture array]
+    W --> A
+    C[Explicit capacity or layout change] --> D[Withdraw publications and drain GPU users]
+    D --> R[Release old storage and allocate configured replacement]
+    R --> A
+```
+
+Both assignment paths address a layer and tile in the same allocation. A replacement uses a distinct
+tile while the old completed result remains eligible; publication switches only after complete drawing.
 
 Store finite conventional depth in [0,1] as unsigned IEEE-754 float bits, canonicalizing negative
 zero to positive zero. Unsigned atomic minimum selects the nearest depth; `0x3f800000` (1.0) is
@@ -418,10 +437,12 @@ Installed-game appearance and workload qualification remain separate from those 
 Four compiler-derived clip outputs restrict each view's uncached rectangle after final deformation.
 The final VS or TES owns these outputs; no geometry stage is added solely for clipping.
 
-`ShadowPagePool` allocates metadata once and grows one resident integer bank per request, with one
-level, nearest sampling and no gutters or multisampling. The shared binding layout reserves four
-statically named integer samplers/images. Actual fragment/compute limits and supplied consumer slots
-are checked before allocation; lighting integrations must recheck their real binding availability.
+`ShadowPagePool` allocates metadata and the entire configured texture array together, with one
+level, nearest sampling and no gutters or multisampling. Demand allocates, evicts and reuses page
+assignments inside that fixed resource; it never grows or shrinks storage. Actual fragment/compute
+image and sampler limits and supplied consumer slots are checked before allocation; lighting
+integrations must recheck their real binding availability. Failed allocation leaves the pool unavailable
+and releases partially constructed resources rather than publishing reduced or incomplete storage.
 
 The GPU table has fixed 512-byte slots plus a separate 16-byte writable token per slot. State distinguishes free, building, ready and retired assignments;
 these bounded slot sets also serve as the free and retirement queues. Full source/projection/face/page
@@ -444,16 +465,18 @@ owner must supply complete current requirements before eviction/allocation and a
 certificate. Native submission supplies the complete-drawing boundary; the production demand coordinator
 must still establish current consumer requirements before invoking it.
 
-`SetBankTarget` withdraws excess banks and exposes their bytes until fences allow disposal. `Withdraw`
-handles disable/world leave; source/dimension retirement is a GPU operation. `Reconfigure` withdraws and
-drains the old layout before allocating its replacement, preventing two full pools. The existing client
+Explicit capacity/layout configuration changes use `Reconfigure`, which withdraws all publications and
+drains the old allocation before creating the replacement, preventing two full pools. There is no
+incremental growth or bank shrink interface. `Withdraw` handles disable/world leave and cancels pending
+recreation; source/dimension retirement is a GPU operation. Allocation failure keeps publications
+unavailable. Report the old allocation's bytes until its fences drain. The existing client
 rendering lifetime's publication callback withdraws the pool synchronously on shader reload; context
 retirement closes the owner through the existing RHI lifetime. Physical
 pages do not own or retain engine geometry. The coordinator must continue polling a withdrawn owner until
 its tracked allocations drain. Terminal disposal uses the existing RHI resource retirement boundary.
 
 The shared `includes/shadows/sampling.glsl` resolves all nine filter taps through virtual addressing and
-coverage/dependency lookup, then performs point-fetched comparisons through statically named samplers.
+coverage/dependency lookup, then performs point-fetched comparisons through one integer array sampler.
 Cube-edge taps reconstruct the ray and evaluate conventional depth in the destination face on the biased
 receiver's radial shell. Directional levels use the same world receiver with their own texel width; there
 is no depth averaging or implicit fallback level. The same tap resolver is available to demand producers.
@@ -464,9 +487,14 @@ Any invalid tap returns unshadowed visibility for the query. Production per-ligh
 aggregation and overlays remain owned by the later frame/consumer integration.
 
 Accepted `VirtualShadows.Pages` controls are provisional: `MemoryMiB` 128, `PageSize` 128,
-`TileColumns` 16, `TileRows` 16, `BankCapacity` 4, `ProbeLimit` 128 and `OperationsPerBatch` 256. Projection/bias
+`TileColumns` 16, `TileRows` 16, `ArrayLayers` 4, `ProbeLimit` 128 and `OperationsPerBatch` 256. Projection/bias
 controls are `PointNear` 0.05, `DepthBiasTexels` 0.5, `NormalBiasTexels` 0.5 and `SlopeBiasTexels` 1.
-The four-bank ceiling is the implemented shader interface, not a hard-coded shadow-memory budget.
+Layer count is bounded by the validated hardware, table and memory limits, not a four-texture interface.
+`ArrayLayers` accepts positive integers up to 8,192 before effective validation; the total table also
+has an 8,192-page ceiling, and actual hardware and memory limits may be lower. Invalid numeric fields
+sanitize to defaults; an unsupported effective layout is rejected. Per-page storage is 512 bytes of
+table data, 16 bytes of writable tokens and four bytes per depth texel, plus 608 fixed command/result
+bytes per pool. Empty capacity costs the same allocated bytes as occupied capacity.
 The pool validates depth plus metadata/command/result storage against its allowance, integer and hardware
 limits; `AllocatedBytes` includes resident retirement storage. `ShadowSampler` separately reports its
 800-byte query/output allocation. Candidate, input, sampler and command storage remain charged to
@@ -620,7 +648,7 @@ Every operation returns a completion state with a reason; an empty result and un
 | Surface/volume demand | Consumer, frame/light snapshot, receiving world regions including depth, filter and bias footprints, requested detail | Current complete requests before the first participating consumer. All contributing transparent layers count. History can prioritize only. Late categories supply conservative early bounds. |
 | Candidate build/resume | Receiver coverage, light key, full covered motion/influence, world domain, pruning dependencies, work allowance, continuation cursor | Header plus coordinate spans, unresolved cells and completion. GPU traversal, deduplication and publication; CPU never reads selections to decide geometry draws. |
 | Scene change publication | Sequence, source lifetime, prior/current conservative bounds, geometry/pose/material/eligibility revisions; creation/removal flags | Existing scene adapters report all relevant changes, including new casters absent from previous draws. Bounds include deformation. Apply every change since cached publication. |
-| Page lookup | Source/lifetime, projection generation, level/face and virtual XY; request receiving region | Mapping to bank/tile XY/assignment generation plus separately certified coverage and dependencies. Bounded probes; collision exhaustion cannot alias or silently drop entries. |
+| Page lookup | Source/lifetime, projection generation, level/face and virtual XY; request receiving region | Mapping to layer/tile XY/assignment generation plus separately certified coverage and dependencies. Bounded probes; collision exhaustion cannot alias or silently drop entries. |
 | Page admission | Complete candidates, current terrain/non-terrain inputs, union of currently required receiving regions, remaining aggregate limits | Admit only complete updates before clearing. Count every preparation/expansion pass and repeated geometry cost. Unfinished selection produces no publishable page. |
 | Readiness publication | Complete current demand and valid covering page results for one light/consumer/frame | All surface paths share one result for that interval; sun and moon independent. Fog has separate readiness and cannot displace an admitted surface result. |
 | Shared sampling | Same light/readiness snapshot, world receiving position and bounded bias/filter parameters | Visibility in [0,1] attenuates only that light's direct term. Explicit virtual lookup for each tap; unexpected failure returns 1 and records a per-light failure. This guard does not satisfy the readiness contract. |
@@ -723,7 +751,7 @@ The established baseline uses OpenGL 4.5 plus SPIR-V ingestion, compute selectio
 indirect intervals and compact integer object/view selectors addressed by base-instance. Projection
 records are separate texture-buffer data so positive vertex/TES/geometry SSBO limits are unnecessary.
 A selected geometry/view pair can cover multiple physical pages. Object instancing remains explicit;
-physical banks do not multiply geometry commands. Optional draw parameters, GPU counts and bindless
+physical layers do not multiply geometry commands. Optional draw parameters, GPU counts and bindless
 access remain unnecessary. Native material-compatible variants are precompiled through existing owners.
 
 The replacement storage contract above defines R32UI tiles and ordered atomic depth. Four compiler-derived
@@ -832,7 +860,7 @@ A quality profile contains finite positive integer ceilings for input chunk/rang
 changed-region checks, slab advances, cell visits, association segments/entries, dedup probes, demand
 requests, coverage regions/containment checks, page/range intersection tests, temporary pairs, command
 slots, geometry/view instances, estimated post-tessellation primitives, clears, resident lookup entries and retries.
-All ceilings are **per whole frame batch**, including every bank/group/retry; storage capacities are
+All ceilings are **per whole frame batch**, including every layer/group/retry; storage capacities are
 also bounded over retained generations. Paused cursors and change backlogs count against storage.
 Optional advanced overrides use the same checks; unbounded work is not an accepted setting and overflow never means success.
 
@@ -851,7 +879,7 @@ independent directional caster horizon. Physical format is R32UI with ordered co
 unsupported format/filter requests are rejected rather than treated as implemented quality modes.
 
 Effective capacity reports requested bytes, allocated live bytes, scratch, building replacements,
-retired-but-in-flight bytes, page/table/candidate/command capacities, available sampler banks and every
+retired-but-in-flight bytes, page/table/candidate/command capacities, available array sampler/image bindings and every
 limiting reason. Driver overhead is separately described as untracked; the setting is not a process VRAM cap.
 Validate texture/layer/framebuffer limits, per-stage and combined sampler use, SSBO sizes/bindings, vertex
 inputs, compute dispatch limits and integer address ranges through the existing capability owner. Missing
@@ -860,8 +888,8 @@ required capability facts prevent certification; do not create a second probing 
 | Change | Scheduling-boundary behavior |
 | --- | --- |
 | Invalid numeric/null/malformed setting | Sanitize offending fields to supported defaults and diagnose; reject an invalid effective layout, without reusing stale capacities as current |
-| Grow | Allocate incrementally within the new allowance and hardware limits; report allocation failures and reduced effective capacity |
-| Shrink/reservation reclaim | Stop new admissions that exceed the target; reduce detail/withdraw lights, retire excess storage, report temporary footprint above the new target until GPU users finish |
+| Capacity/layout change | Withdraw cached publications, drain old resources and recreate the fully configured array within validated hardware/memory limits; allocation failure leaves shadows unavailable |
+| Reservation reclaim | Change page admission, detail or light selection within fixed storage; demand and occupancy never resize the allocation |
 | Format/page-size/shader mapping replacement | Withdraw affected publications, retire old pool before replacement within allowance; no implicit second full pool |
 | Policy/coverage change | Advance relevant policy dependencies; reuse only results proven compatible with new demand/motion bounds |
 | Disable/world leave/context loss | Withdraw before retirement, clear world-specific identity/readiness; preserve borrowed ownership |

@@ -25,10 +25,7 @@ internal sealed partial class ShadowPagePool
         operations += 2;
         var bindings = (IShadowTileClearBindings)clearShader;
         bindings.Policy = commands; bindings.Entries = Entries; bindings.Results = Results;
-        bindings.Bank0 = new(DepthBank(0), ImageAccess.WriteOnly, Format: TextureFormat.R32ui);
-        bindings.Bank1 = new(DepthBank(Math.Min(1, ResidentBanks - 1)), ImageAccess.WriteOnly, Format: TextureFormat.R32ui);
-        bindings.Bank2 = new(DepthBank(Math.Min(2, ResidentBanks - 1)), ImageAccess.WriteOnly, Format: TextureFormat.R32ui);
-        bindings.Bank3 = new(DepthBank(Math.Min(3, ResidentBanks - 1)), ImageAccess.WriteOnly, Format: TextureFormat.R32ui);
+        bindings.Depth = new(DepthArray, ImageAccess.WriteOnly, Layered: true, Format: TextureFormat.R32ui);
         var rhi = RHICommandContext.Current;
         using var boundary = rhi.EnterBoundary(new("Shadows.Clear", true, compute: [clearShader.Pipeline]));
         boundary.Run(() =>

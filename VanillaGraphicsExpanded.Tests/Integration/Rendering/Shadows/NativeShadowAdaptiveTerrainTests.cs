@@ -95,7 +95,7 @@ public sealed class NativeShadowAdaptiveTerrainTests(HeadlessGLFixture fixture) 
 
         // Assert: native alpha rejects before writes, while accepted fragments encode the known positive height offset.
         var region = TileRegion(page, pool.PageSize);
-        var clear = ImageAssertions.Comparisons.CompareUnsignedConstant(pool.DepthBank(page.Bank),
+        var clear = ImageAssertions.Comparisons.CompareUnsignedConstant(pool.DepthArray,
             ShadowDepthEncoding.Clear, region);
         uint written = checked((uint)(pool.PageSize * pool.PageSize) - clear.ConstantMatches);
         if (!opaqueAtlas) Assert.Equal(0u, written);
@@ -104,10 +104,10 @@ public sealed class NativeShadowAdaptiveTerrainTests(HeadlessGLFixture fixture) 
             Assert.True(written > 0);
             // The neutral counterfactual is exactly 0.5. Positive +Z displacement reduces depth;
             // the amplitude cap of .047 over the 34-unit fitted depth span bounds the full effect.
-            var range = ImageAssertions.Statistics.Inspect(pool.DepthBank(page.Bank),
+            var range = ImageAssertions.Statistics.Inspect(pool.DepthArray,
                 ShadowDepthEncoding.Encode(0.4985f), ShadowDepthEncoding.Encode(0.5f), region);
             Assert.Equal(written, range.InsideRange);
-            var displaced = ImageAssertions.Statistics.Inspect(pool.DepthBank(page.Bank), 0,
+            var displaced = ImageAssertions.Statistics.Inspect(pool.DepthArray, 0,
                 ShadowDepthEncoding.Encode(0.5f) - 1d, region);
             Assert.True(displaced.InsideRange > 0);
         }
@@ -117,9 +117,9 @@ public sealed class NativeShadowAdaptiveTerrainTests(HeadlessGLFixture fixture) 
     #endregion
 
     #region Private
-    /// <summary>Builds the selected physical tile's source-coordinate region in its depth bank.</summary>
+    /// <summary>Builds the selected physical tile's source-coordinate region in its depth layer.</summary>
     private static RHITextureRegion TileRegion(PhysicalPage page, int pageSize) =>
-        new(new(0), page.TileX * pageSize, page.TileY * pageSize, 0, pageSize, pageSize);
+        new(new(0, page.Layer), page.TileX * pageSize, page.TileY * pageSize, 0, pageSize, pageSize);
     /// <summary>Captures identity native transforms so final displacement remains the only known depth offset.</summary>
     private static void CaptureMaterial(ShadowDisplacedTerrainShader shader, ShadowDrawView view)
     {
@@ -140,10 +140,7 @@ public sealed class NativeShadowAdaptiveTerrainTests(HeadlessGLFixture fixture) 
         terrain.Faces = geometry.Faces;
         terrain.Entries = pool.Entries;
         terrain.Writable = pool.WritableAssignments;
-        terrain.Bank0 = IntegerImage(pool.DepthBank(0));
-        terrain.Bank1 = IntegerImage(pool.DepthBank(0));
-        terrain.Bank2 = IntegerImage(pool.DepthBank(0));
-        terrain.Bank3 = IntegerImage(pool.DepthBank(0));
+        terrain.Depth = IntegerImage(pool.DepthArray);
     }
 
     /// <summary>Builds one page and captures its allocated physical coordinates before later commands overwrite results.</summary>
@@ -151,7 +148,7 @@ public sealed class NativeShadowAdaptiveTerrainTests(HeadlessGLFixture fixture) 
     {
         var pool = ShadowPagePool.Create(api, new ShadowPageSettings
         {
-            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, BankCapacity = 1,
+            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, ArrayLayers = 1,
             ProbeLimit = 1, OperationsPerBatch = 16
         });
         var source = new ShadowSourceKey(93, 0, ShadowSourceKind.Sun, 3, 7, 0);
@@ -243,7 +240,7 @@ public sealed class NativeShadowAdaptiveTerrainTests(HeadlessGLFixture fixture) 
 
     /// <summary>Builds an exact writable integer image view for atomic page accumulation.</summary>
     private static RHIImageBinding IntegerImage(GpuTexture texture) =>
-        new(texture, ImageAccess.ReadWrite, Format: TextureFormat.R32ui);
+        new(texture, ImageAccess.ReadWrite, Layered: true, Format: TextureFormat.R32ui);
 
     /// <summary>Creates the native object/view selector stream required by the generated vertex interface.</summary>
     private static GpuVbo VertexData(uint[] words, string label)
@@ -265,8 +262,8 @@ public sealed class NativeShadowAdaptiveTerrainTests(HeadlessGLFixture fixture) 
         return mapped.Span.ToArray();
     }
 
-    /// <summary>Retains the physical bank and tile returned by the allocator for exact post-draw inspection.</summary>
-    private readonly record struct PhysicalPage(int Bank, int TileX, int TileY);
+    /// <summary>Retains the array layer and tile returned by the allocator for exact post-draw inspection.</summary>
+    private readonly record struct PhysicalPage(int Layer, int TileX, int TileY);
 
     /// <summary>Owns native-shaped mesh buffers while the geometry adapter borrows their current names.</summary>
     private sealed class NativeTerrainStorage : IDisposable

@@ -93,14 +93,14 @@ public sealed class NativeShadowStaticShaderTests(HeadlessGLFixture fixture) : R
         }
 
         // Assert: each selected view owns both original transformed instances and the unselected protected tile stays clear.
-        Assert.Equal(3, pages.Select(page => (page.Bank, page.TileX, page.TileY)).Distinct().Count());
-        Assert.Equal(3, pages.Select(page => page.Bank).Distinct().Count());
+        Assert.Equal(3, pages.Select(page => (page.Layer, page.TileX, page.TileY)).Distinct().Count());
+        Assert.Equal(3, pages.Select(page => page.Layer).Distinct().Count());
         for (int viewIndex = 0; viewIndex < 2; viewIndex++)
         {
             var page = pages[viewIndex];
-            var bank = pool.DepthBank(page.Bank);
+            var layer = pool.DepthArray;
             var region = TileRegion(page, pool.PageSize);
-            uint written = CountWritten(bank, page, pool.PageSize);
+            uint written = CountWritten(layer, page, pool.PageSize);
             if (!opaqueAtlas) Assert.Equal(0u, written);
             else
             {
@@ -110,46 +110,45 @@ public sealed class NativeShadowStaticShaderTests(HeadlessGLFixture fixture) : R
                     var nearer = ExpectedDepthRange(.05f, 2f, 6f);
                     var farther = ExpectedDepthRange(.15f, 2f, 6f);
                     var middle = ExpectedDepthRange(.10f, 2f, 6f);
-                    uint nearCount = CountRange(bank, region, nearer);
-                    uint farCount = CountRange(bank, region, farther);
+                    uint nearCount = CountRange(layer, region, nearer);
+                    uint farCount = CountRange(layer, region, farther);
                     Assert.True(nearCount > 0);
                     Assert.True(farCount > 0);
-                    Assert.Equal(0u, CountRange(bank, region, middle));
+                    Assert.Equal(0u, CountRange(layer, region, middle));
                     Assert.Equal(written, nearCount + farCount);
-                    Assert.True(CountWritten(bank, page, pool.PageSize, leftHalf: true) > 0);
-                    Assert.True(CountWritten(bank, page, pool.PageSize, leftHalf: false) > 0);
+                    Assert.True(CountWritten(layer, page, pool.PageSize, leftHalf: true) > 0);
+                    Assert.True(CountWritten(layer, page, pool.PageSize, leftHalf: false) > 0);
                 }
                 else
                 {
                     var expected = ExpectedDepthRange(0, -2f, 2f);
-                    Assert.Equal(written, CountRange(bank, region, expected));
+                    Assert.Equal(written, CountRange(layer, region, expected));
                 }
             }
         }
         var protectedPage = pages[2];
         var protectedClear = ImageAssertions.Comparisons.CompareUnsignedConstant(
-            pool.DepthBank(protectedPage.Bank), ShadowDepthEncoding.Clear, TileRegion(protectedPage, pool.PageSize));
+            pool.DepthArray, ShadowDepthEncoding.Clear, TileRegion(protectedPage, pool.PageSize));
         Assert.Equal((uint)(pool.PageSize * pool.PageSize), protectedClear.ConstantMatches);
         pool.SealBatch();
         views.Seal();
     }
 
-    /// <summary>Native static geometry crosses the point near plane and page seam while only one bank tile is writable.</summary>
+    /// <summary>Native static geometry crosses the point near plane and page seam while only one layer tile is writable.</summary>
     [Fact]
-    public void PackagedStaticPointCrossingPreservesSampledNeighborAcrossBanks()
+    public void PackagedStaticPointCrossingPreservesSampledNeighborAcrossLayers()
     {
-        // Arrange: publish a sentinel page in the second bank, then open a sparse replacement interval for its neighbor.
+        // Arrange: publish a sentinel page in the second layer, then open a sparse replacement interval for its neighbor.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         Assert.SkipWhen(GpuSupport.Graphics.MaxClipDistances < 4,
             "The context cannot execute the four-plane native point-shadow fixture.");
         using var api = new BinaryShaderApiFixture();
         using var pool = ShadowPagePool.Create(api.Api, new ShadowPageSettings
         {
-            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, BankCapacity = 2,
+            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, ArrayLayers = 2,
             ProbeLimit = 2, OperationsPerBatch = 24
         });
-        while (pool.ResidentBanks < 2) Assert.True(pool.Grow());
-        var source = new ShadowSourceKey(221, 0, ShadowSourceKind.Entity, 9, 3, 0);
+                var source = new ShadowSourceKey(221, 0, ShadowSourceKind.Entity, 9, 3, 0);
         var projection = new PointShadowProjection(source, 1, Vector3d.Zero,
             near: .1, far: 10, faceResolution: 16, pageSize: 8);
         ShadowPageRequest protectedRequest = PointRequest(projection, pageX: 1);
@@ -166,7 +165,7 @@ public sealed class NativeShadowStaticShaderTests(HeadlessGLFixture fixture) : R
         Assert.True(pool.BeginBatch());
         var writableRequest = PointRequest(projection, pageX: 0);
         var writablePage = AllocatePage(pool, writableRequest);
-        Assert.NotEqual(protectedPage.Bank, writablePage.Bank);
+        Assert.NotEqual(protectedPage.Layer, writablePage.Layer);
         Assert.True(pool.ClearReplacement());
         Assert.True(pool.FreezeWritableAssignments());
         var lookup = PointRequest(projection, pageX: 1, operation: ShadowPageOperation.Lookup);
@@ -214,16 +213,16 @@ public sealed class NativeShadowStaticShaderTests(HeadlessGLFixture fixture) : R
         }
 
         // Assert: clipped fragments write finite point depths on the writable side; the sampled tile remains exact.
-        var writableBank = pool.DepthBank(writablePage.Bank);
-        uint written = CountWritten(writableBank, writablePage, pool.PageSize);
+        var writableLayer = pool.DepthArray;
+        uint written = CountWritten(writableLayer, writablePage, pool.PageSize);
         Assert.True(written > 0);
-        var finite = ImageAssertions.Statistics.Inspect(writableBank, 0, ShadowDepthEncoding.Encode(.61f),
+        var finite = ImageAssertions.Statistics.Inspect(writableLayer, 0, ShadowDepthEncoding.Encode(.61f),
             TileRegion(writablePage, pool.PageSize));
         Assert.Equal(written, finite.InsideRange);
-        var near = ImageAssertions.Statistics.Inspect(writableBank, 0,
+        var near = ImageAssertions.Statistics.Inspect(writableLayer, 0,
             ShadowDepthEncoding.Encode(.6f) - 1d, TileRegion(writablePage, pool.PageSize));
         Assert.True(near.InsideRange > 0);
-        var retainedTile = ImageAssertions.Comparisons.CompareUnsignedConstant(pool.DepthBank(protectedPage.Bank),
+        var retainedTile = ImageAssertions.Comparisons.CompareUnsignedConstant(pool.DepthArray,
             retained, TileRegion(protectedPage, pool.PageSize));
         Assert.Equal((uint)(pool.PageSize * pool.PageSize), retainedTile.ConstantMatches);
         pool.SealBatch();
@@ -299,10 +298,7 @@ public sealed class NativeShadowStaticShaderTests(HeadlessGLFixture fixture) : R
         material.Atlas = atlas;
         material.Entries = pool.Entries;
         material.Writable = pool.WritableAssignments;
-        material.Bank0 = IntegerImage(pool.DepthBank(0));
-        material.Bank1 = IntegerImage(pool.DepthBank(Math.Min(1, pool.ResidentBanks - 1)));
-        material.Bank2 = IntegerImage(pool.DepthBank(Math.Min(2, pool.ResidentBanks - 1)));
-        material.Bank3 = IntegerImage(pool.DepthBank(Math.Min(3, pool.ResidentBanks - 1)));
+        material.Depth = IntegerImage(pool.DepthArray);
     }
 
     /// <summary>Allocates one exact page and captures its physical coordinates before later commands overwrite results.</summary>
@@ -310,14 +306,12 @@ public sealed class NativeShadowStaticShaderTests(HeadlessGLFixture fixture) : R
     {
         var pool = ShadowPagePool.Create(api, new ShadowPageSettings
         {
-            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, BankCapacity = 3,
+            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, ArrayLayers = 3,
             ProbeLimit = 3, OperationsPerBatch = 16
         });
         var bounds = new ShadowBounds(-16, -16, -16, 16, 16, 16);
         try
         {
-            while (pool.ResidentBanks < 3)
-                if (!pool.Grow()) throw new InvalidOperationException("Static depth bank growth failed.");
             if (!pool.BeginBatch()) throw new InvalidOperationException("Static shadow page interval could not begin.");
             var pages = new PhysicalPage[3];
             for (int i = 0; i < pages.Length; i++)
@@ -377,8 +371,8 @@ public sealed class NativeShadowStaticShaderTests(HeadlessGLFixture fixture) : R
     /// <summary>Seeds a physical integer tile through the RHI for retained-page protection checks.</summary>
     private static void ClearTile(ShadowPagePool pool, PhysicalPage page, uint value)
     {
-        var texture = pool.DepthBank(page.Bank);
-        var region = new RHITextureRegion(new(), page.TileX * pool.PageSize, page.TileY * pool.PageSize,
+        var texture = pool.DepthArray;
+        var region = new RHITextureRegion(new(0, page.Layer), page.TileX * pool.PageSize, page.TileY * pool.PageSize,
             0, pool.PageSize, pool.PageSize);
         var encoding = new RHIPixelEncoding(PixelChannelLayout.RedInteger, PixelComponentType.UnsignedInt);
         RHICommandContext.Current.ClearTexture(texture, region, encoding, BitConverter.GetBytes(value));
@@ -422,28 +416,28 @@ public sealed class NativeShadowStaticShaderTests(HeadlessGLFixture fixture) : R
         return buffer;
     }
 
-    /// <summary>Builds an explicit read/write view of one integer depth bank.</summary>
+    /// <summary>Builds an explicit read/write view of one integer depth layer.</summary>
     private static RHIImageBinding IntegerImage(GpuTexture texture) =>
-        new(texture, ImageAccess.ReadWrite, Format: TextureFormat.R32ui);
+        new(texture, ImageAccess.ReadWrite, Layered: true, Format: TextureFormat.R32ui);
 
-    /// <summary>Builds the selected physical tile's source-coordinate region in its depth bank.</summary>
+    /// <summary>Builds the selected physical tile's source-coordinate region in its depth layer.</summary>
     private static RHITextureRegion TileRegion(PhysicalPage page, int pageSize) =>
-        new(new(0), page.TileX * pageSize, page.TileY * pageSize, 0, pageSize, pageSize);
+        new(new(0, page.Layer), page.TileX * pageSize, page.TileY * pageSize, 0, pageSize, pageSize);
 
     /// <summary>Counts non-clear integer depths over the selected physical tile on the GPU.</summary>
-    private uint CountWritten(GpuTexture bank, PhysicalPage page, int pageSize, bool? leftHalf = null)
+    private uint CountWritten(GpuTexture layer, PhysicalPage page, int pageSize, bool? leftHalf = null)
     {
         var region = leftHalf is null ? TileRegion(page, pageSize) :
-            new RHITextureRegion(new(0), page.TileX * pageSize + (leftHalf.Value ? 0 : pageSize / 2),
+            new RHITextureRegion(new(0, page.Layer), page.TileX * pageSize + (leftHalf.Value ? 0 : pageSize / 2),
                 page.TileY * pageSize, 0, pageSize / 2, pageSize);
-        var clear = ImageAssertions.Comparisons.CompareUnsignedConstant(bank, ShadowDepthEncoding.Clear, region);
+        var clear = ImageAssertions.Comparisons.CompareUnsignedConstant(layer, ShadowDepthEncoding.Clear, region);
         return checked((uint)(region.Width * region.Height) - clear.ConstantMatches);
     }
 
     /// <summary>Counts integer depth words within an independently authored float interval on the GPU.</summary>
-    private uint CountRange(GpuTexture bank, RHITextureRegion region, (float Minimum, float Maximum) range)
+    private uint CountRange(GpuTexture layer, RHITextureRegion region, (float Minimum, float Maximum) range)
     {
-        var inspected = ImageAssertions.Statistics.Inspect(bank,
+        var inspected = ImageAssertions.Statistics.Inspect(layer,
             ShadowDepthEncoding.Encode(Math.Max(0f, range.Minimum - .0002f)),
             ShadowDepthEncoding.Encode(range.Maximum + .0002f), region);
         return inspected.InsideRange;
@@ -465,8 +459,8 @@ public sealed class NativeShadowStaticShaderTests(HeadlessGLFixture fixture) : R
         EstimatedTriangles = 8, EstimatedRasterSamples = 4096
     };
 
-    /// <summary>Retains the assigned bank and tile identity for post-raster inspection.</summary>
-    private readonly record struct PhysicalPage(int Bank, int TileX, int TileY);
+    /// <summary>Retains the assigned layer and tile identity for post-raster inspection.</summary>
+    private readonly record struct PhysicalPage(int Layer, int TileX, int TileY);
 
     /// <summary>Owns real world, candidate, and page producers for the selection identity boundary test.</summary>
     private sealed class SelectionOwnerFixture : IDisposable
@@ -511,7 +505,7 @@ public sealed class NativeShadowStaticShaderTests(HeadlessGLFixture fixture) : R
             Pages = ShadowPagePool.Create(api, new ShadowPageSettings
             {
                 MemoryMiB = 2, PageSize = 8, TileColumns = 1, TileRows = 1,
-                BankCapacity = 1, ProbeLimit = 8, OperationsPerBatch = 8
+                ArrayLayers = 1, ProbeLimit = 8, OperationsPerBatch = 8
             });
             if (!Pages.BeginBatch()) throw new InvalidOperationException("Static selection test page interval could not begin.");
         }

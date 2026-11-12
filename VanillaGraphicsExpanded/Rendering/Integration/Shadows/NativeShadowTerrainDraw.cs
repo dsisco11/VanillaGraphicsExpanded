@@ -75,8 +75,7 @@ internal sealed class NativeShadowTerrainDraw : ShadowPreparedDraw
             material.Views = views.Texture; material.Atlas = atlas;
             material.Faces = group.Geometry.Faces;
             material.Entries = pages.Entries; material.Writable = pages.WritableAssignments;
-            material.Bank0 = Image(pages, 0); material.Bank1 = Image(pages, 1);
-            material.Bank2 = Image(pages, 2); material.Bank3 = Image(pages, 3);
+            material.Depth = new(pages.DepthArray, ImageAccess.ReadWrite, Layered: true, Format: TextureFormat.R32ui);
             bindings = shader.CaptureBindings();
             var rhi = RHICommandContext.Current;
             // Native shadow terrain is two-sided. Integer image atomics own depth;
@@ -120,8 +119,5 @@ internal sealed class NativeShadowTerrainDraw : ShadowPreparedDraw
     /// <summary>Rejects a material snapshot after the borrowed atlas changes its storage configuration.</summary>
     private void Withdraw() { withdrawn = true; }
 
-    /// <summary>Uses a resident image for unused bindings while fragment authorization rejects nonexistent banks.</summary>
-    private static RHIImageBinding Image(ShadowPagePool pages, int bank) =>
-        new(pages.DepthBank(bank < pages.ResidentBanks ? bank : 0), ImageAccess.ReadWrite, Format: TextureFormat.R32ui);
     #endregion
 }

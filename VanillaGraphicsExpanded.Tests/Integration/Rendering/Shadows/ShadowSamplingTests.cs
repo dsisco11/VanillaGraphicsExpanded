@@ -21,16 +21,15 @@ namespace VanillaGraphicsExpanded.Tests.Integration.Rendering.Shadows;
 public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
-    /// <summary>Every directional tap uses virtual lookup across four static sampler banks and whole-query fallback on misses.</summary>
+    /// <summary>Every directional tap uses virtual lookup through one array and whole-query fallback on misses.</summary>
     [Fact]
     public void DirectionalPcfCoversFourPagesAndFailsUnshadowedAsOneQuery()
     {
-        // Arrange: place one receiver at the intersection of four pages backed by four independent integer banks.
+        // Arrange: place one receiver at the intersection of four pages in distinct layers of one integer array.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        var settings = Settings(banks: 4, tilesPerBank: 1);
+        var settings = Settings(layers: 4, tilesPerLayer: 1);
         using var pool = ShadowPagePool.Create(assets.Api, settings);
-        while (pool.ResidentBanks < 4) Assert.True(pool.Grow());
         using var sampler = new ShadowSampler(assets.Api);
         var projection = new DirectionalShadowProjection(Sun, 61, Vector3d.UnitZ,
             new ShadowBounds(-1024, -1024, -1024, 1024, 1024, 1024), baseTexelWidth: 1,
@@ -58,8 +57,8 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
         foreach (var address in UniquePages(missingKeys))
             assignments.Add((address.Face, address.X, address.Y), PublishDepth(pool, request, address, 1f));
 
-        // Assert: all four pages land in different statically named sampler banks, with no sample failures.
-        Assert.Equal(new[] { 0, 1, 2, 3 }, assignments.Values.Select(x => x.Physical.Bank).Order().ToArray());
+        // Assert: all four pages land in different array layers, with no sample failures.
+        Assert.Equal(new[] { 0, 1, 2, 3 }, assignments.Values.Select(x => x.Physical.Layer).Order().ToArray());
         sampler.Sample(pool, request);
         var lit = Read(sampler.Results, 40);
         Assert.Equal(0u, lit[1]);
@@ -102,9 +101,8 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
         // Arrange: select one world point at a clipmap page corner and create separate fine/coarse requests.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        var settings = Settings(banks: 4, tilesPerBank: 2);
+        var settings = Settings(layers: 4, tilesPerLayer: 2);
         using var pool = ShadowPagePool.Create(assets.Api, settings);
-        while (pool.ResidentBanks < 4) Assert.True(pool.Grow());
         using var sampler = new ShadowSampler(assets.Api);
         var receiver = new Vector3d(127.5, 127.5, 0);
         var projection = new DirectionalShadowProjection(Sun, 67, Vector3d.UnitZ,
@@ -145,12 +143,11 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
     [Fact]
     public void PointPcfRemapsFaceEdgesAndKeepsEveryTapAddressable()
     {
-        // Arrange: choose a point receiver next to the +Z/+X cube seam and enable the four baseline texture banks.
+        // Arrange: choose a point receiver next to the +Z/+X cube seam and enable the four baseline texture layers.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        var settings = Settings(banks: 4, tilesPerBank: 1);
+        var settings = Settings(layers: 4, tilesPerLayer: 1);
         using var pool = ShadowPagePool.Create(assets.Api, settings);
-        while (pool.ResidentBanks < 4) Assert.True(pool.Grow());
         using var sampler = new ShadowSampler(assets.Api);
         var projection = new PointShadowProjection(Point, 71, Vector3d.Zero, near: 0.05, far: 30,
             faceResolution: 128, pageSize: settings.PageSize);
@@ -244,7 +241,7 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
         // Arrange: publish one directional page certificate and open a consumer interval for the matching query.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        var settings = Settings(pageSize: 128, banks: 1, tilesPerBank: 8);
+        var settings = Settings(pageSize: 128, layers: 1, tilesPerLayer: 8);
         using var pool = ShadowPagePool.Create(assets.Api, settings);
         using var sampler = new ShadowSampler(assets.Api);
         var projection = new DirectionalShadowProjection(Sun, 81, Vector3d.UnitZ,
@@ -436,7 +433,7 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
         // Arrange: fill the only resident tile with dark depth, then change the page's scene dependency.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        var settings = Settings(tilesPerBank: 1, banks: 1);
+        var settings = Settings(tilesPerLayer: 1, layers: 1);
         using var pool = ShadowPagePool.Create(assets.Api, settings);
         using var sampler = new ShadowSampler(assets.Api);
         var projection = new DirectionalShadowProjection(Sun, 107, Vector3d.UnitZ,
@@ -477,11 +474,10 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
         // Arrange: render one dark complete page, then invalidate it while retaining its sampleable assignment.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        var settings = Settings(tilesPerBank: 1, banks: 2);
+        var settings = Settings(tilesPerLayer: 1, layers: 2);
         using var pool = ShadowPagePool.Create(assets.Api, settings);
         using var sampler = new ShadowSampler(assets.Api);
-        while (pool.ResidentBanks < 2) Assert.True(pool.Grow());
-        var projection = new DirectionalShadowProjection(Sun, 109, Vector3d.UnitZ,
+                var projection = new DirectionalShadowProjection(Sun, 109, Vector3d.UnitZ,
             new ShadowBounds(-1024, -1024, -1024, 1024, 1024, 1024), baseTexelWidth: 1,
             levels: 1, pageSize: settings.PageSize);
         var receiver = new Vector3d(12, 20, 30);
@@ -605,7 +601,7 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
         // Arrange: use legal int32 page keys far from origin and a four-tap page intersection.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        var settings = Settings(pageSize: 128, banks: 1, tilesPerBank: 4);
+        var settings = Settings(pageSize: 128, layers: 1, tilesPerLayer: 4);
         using var pool = ShadowPagePool.Create(assets.Api, settings);
         using var sampler = new ShadowSampler(assets.Api);
         var projection = new DirectionalShadowProjection(Sun, 91, Vector3d.UnitZ,
@@ -666,7 +662,7 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
         using var assets = new BinaryShaderApiFixture();
         const int pageSize = 128;
         const int lastPage = int.MaxValue;
-        var settings = Settings(pageSize: pageSize, banks: 1, tilesPerBank: 2);
+        var settings = Settings(pageSize: pageSize, layers: 1, tilesPerLayer: 2);
         using var pool = ShadowPagePool.Create(assets.Api, settings);
         using var sampler = new ShadowSampler(assets.Api);
         var projection = new DirectionalShadowProjection(Sun, 121, Vector3d.UnitZ,
@@ -719,9 +715,9 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
     private static readonly ShadowSourceKey Sun = new(23, 0, ShadowSourceKind.Sun, 3, 29, 0);
     private static readonly ShadowSourceKey Point = new(23, 0, ShadowSourceKind.Hand, 3, 31, 2);
     #region Sample Request Setup and Result Decoding
-    /// <summary>Creates a small four-sampler-compatible pool for deterministic synthetic depth tests.</summary>
-    private static ShadowPageSettings Settings(int pageSize = 128, int tilesPerBank = 1, int banks = 4) => new()
-    { MemoryMiB = 16, PageSize = pageSize, TileColumns = tilesPerBank, TileRows = 1, BankCapacity = banks,
+    /// <summary>Creates a small fixed-capacity array for deterministic synthetic depth tests.</summary>
+    private static ShadowPageSettings Settings(int pageSize = 128, int tilesPerLayer = 1, int layers = 4) => new()
+    { MemoryMiB = 16, PageSize = pageSize, TileColumns = tilesPerLayer, TileRows = 1, ArrayLayers = layers,
         ProbeLimit = 128, OperationsPerBatch = 256 };
     /// <summary>Reads an explicitly requested result prefix after ordered GPU execution.</summary>
     private static uint[] Read(GpuShaderStorageBuffer buffer, int words)
@@ -837,22 +833,22 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
     private static void UploadDepth(ShadowPagePool pool, int slot, float[] depth, int size)
     {
         var physical = Physical(pool, slot);
-        var texture = pool.DepthBank(physical.Bank);
+        var texture = pool.DepthArray;
         uint[] encoded = depth.Select(ShadowDepthEncoding.Encode).ToArray();
         var encoding = RHICommandContext.Current.GetTextureEncoding(texture, PixelComponentType.UnsignedInt);
         RHICommandContext.Current.UploadTexture(texture,
-            new(new(0, 0), physical.TileX * size, physical.TileY * size, 0, size, size),
+            new(new(0, physical.Layer), physical.TileX * size, physical.TileY * size, 0, size, size),
             encoding, MemoryMarshal.AsBytes(encoded.AsSpan()));
     }
-    /// <summary>Reads bank and tile coordinates directly from the entry table for one GPU-selected assignment.</summary>
+    /// <summary>Reads array layer and tile coordinates directly from the entry table for one GPU-selected assignment.</summary>
     private static PhysicalPage Physical(ShadowPagePool pool, int slot)
     {
         using var mapped = pool.Entries.MapRange<uint>(checked(slot * 512 + 17 * sizeof(uint)), 3, BufferMapAccess.Read);
         Assert.True(mapped.IsMapped);
         return new(checked((int)mapped.Span[0]), checked((int)mapped.Span[1]), checked((int)mapped.Span[2]));
     }
-    /// <summary>Stores the physical bank and 2D tile coordinates explicitly recorded for one page entry.</summary>
-    private readonly record struct PhysicalPage(int Bank, int TileX, int TileY);
+    /// <summary>Stores the physical layer and 2D tile coordinates explicitly recorded for one page entry.</summary>
+    private readonly record struct PhysicalPage(int Layer, int TileX, int TileY);
     /// <summary>Fills every texel in a page tile with one constant comparison depth.</summary>
     private static float[] UniformDepth(int size, float value) => Enumerable.Repeat(value, size * size).ToArray();
     /// <summary>Builds one resident page with a spatially varying depth pattern.</summary>

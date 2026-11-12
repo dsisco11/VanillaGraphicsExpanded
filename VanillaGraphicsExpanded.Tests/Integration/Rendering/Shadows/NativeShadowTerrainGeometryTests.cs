@@ -95,13 +95,13 @@ public sealed class NativeShadowTerrainGeometryTests(HeadlessGLFixture fixture) 
 
         // Assert: accepted z=0 fragments write mid-depth; native alpha-discarded fragments leave the integer tile clear.
         var region = TileRegion(physical, pool.PageSize);
-        var clear = ImageAssertions.Comparisons.CompareUnsignedConstant(pool.DepthBank(physical.Bank),
+        var clear = ImageAssertions.Comparisons.CompareUnsignedConstant(pool.DepthArray,
             ShadowDepthEncoding.Clear, region);
         uint written = checked((uint)(pool.PageSize * pool.PageSize) - clear.ConstantMatches);
         if (opaqueAtlas)
         {
             Assert.True(written > 0);
-            var exact = ImageAssertions.Comparisons.CompareUnsignedConstant(pool.DepthBank(physical.Bank),
+            var exact = ImageAssertions.Comparisons.CompareUnsignedConstant(pool.DepthArray,
                 ShadowDepthEncoding.Encode(0.5f), region);
             Assert.Equal(written, exact.ConstantMatches);
         }
@@ -154,7 +154,7 @@ public sealed class NativeShadowTerrainGeometryTests(HeadlessGLFixture fixture) 
     {
         var pool = ShadowPagePool.Create(api, new ShadowPageSettings
         {
-            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, BankCapacity = 1,
+            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, ArrayLayers = 1,
             ProbeLimit = 1, OperationsPerBatch = 16
         });
         var source = new ShadowSourceKey(81, 0, ShadowSourceKind.Sun, 4, 12, 0);
@@ -217,8 +217,7 @@ public sealed class NativeShadowTerrainGeometryTests(HeadlessGLFixture fixture) 
             ],
             images:
             [
-                Image("shadowBank0", pool.DepthBank(0)), Image("shadowBank1", pool.DepthBank(0)),
-                Image("shadowBank2", pool.DepthBank(0)), Image("shadowBank3", pool.DepthBank(0))
+                Image("shadowDepthPool", pool.DepthArray)
             ],
             buffers: buffers);
     }
@@ -267,16 +266,16 @@ public sealed class NativeShadowTerrainGeometryTests(HeadlessGLFixture fixture) 
         return buffer;
     }
 
-    /// <summary>Builds the selected physical tile's source-coordinate region in its depth bank.</summary>
+    /// <summary>Builds the selected physical tile's source-coordinate region in its depth layer.</summary>
     private static RHITextureRegion TileRegion(PhysicalPage page, int pageSize) =>
-        new(new(0), page.TileX * pageSize, page.TileY * pageSize, 0, pageSize, pageSize);
+        new(new(0, page.Layer), page.TileX * pageSize, page.TileY * pageSize, 0, pageSize, pageSize);
 
     /// <summary>Builds one explicit read/write image view required by atomic minimum.</summary>
     private static RHIImageInput Image(string name, GpuTexture texture) =>
         new(GpuBindingEntry.Identity(ShaderBindingKind.Image, name),
-            new RHIImageBinding(texture, ImageAccess.ReadWrite, Format: TextureFormat.R32ui));
+            new RHIImageBinding(texture, ImageAccess.ReadWrite, Layered: true, Format: TextureFormat.R32ui));
 
-    /// <summary>Reads an allocator result prefix for the slot's bank and physical page coordinates.</summary>
+    /// <summary>Reads an allocator result prefix for the slot's layer and physical page coordinates.</summary>
     private static uint[] Read(GpuShaderStorageBuffer buffer, int words)
     {
         using var mapped = buffer.MapRange<uint>(0, words, BufferMapAccess.Read);
@@ -285,7 +284,7 @@ public sealed class NativeShadowTerrainGeometryTests(HeadlessGLFixture fixture) 
     }
 
     /// <summary>Captures a shader-selected physical page location without treating its slot as a texture coordinate.</summary>
-    private readonly record struct PhysicalPage(int Bank, int TileX, int TileY);
+    private readonly record struct PhysicalPage(int Layer, int TileX, int TileY);
 
     /// <summary>Owns test allocations while presenting an engine-shaped mesh whose VAO and buffers remain externally owned.</summary>
     private sealed class NativeTerrainStorage : IDisposable

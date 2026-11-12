@@ -57,7 +57,7 @@ public sealed class ShadowVirtualStageGpuTests(HeadlessGLFixture fixture, ITestO
         using var assets = new BinaryShaderApiFixture();
         using var pool = ShadowPagePool.Create(assets.Api, new ShadowPageSettings
         {
-            MemoryMiB = 4, PageSize = 8, TileColumns = 2, TileRows = 1, BankCapacity = 1,
+            MemoryMiB = 4, PageSize = 8, TileColumns = 2, TileRows = 1, ArrayLayers = 1,
             ProbeLimit = 2, OperationsPerBatch = 16
         });
         var source = new ShadowSourceKey(73, 0, ShadowSourceKind.Sun, 2, 11, 0);
@@ -120,10 +120,7 @@ public sealed class ShadowVirtualStageGpuTests(HeadlessGLFixture fixture, ITestO
             samplers: [new(GpuBindingEntry.Identity(ShaderBindingKind.Sampler, "shadowViews"), views.Texture)],
             images:
             [
-                Image("shadowBank0", pool.DepthBank(0)),
-                Image("shadowBank1", pool.DepthBank(0)),
-                Image("shadowBank2", pool.DepthBank(0)),
-                Image("shadowBank3", pool.DepthBank(0))
+                Image("shadowDepthPool", pool.DepthArray)
             ],
             buffers:
             [
@@ -151,14 +148,14 @@ public sealed class ShadowVirtualStageGpuTests(HeadlessGLFixture fixture, ITestO
 
         // Assert: the negative small origin is non-page-aligned; large signed origins and local offsets
         // still address the exact assigned base/adjacent tiles without narrowing absolute texels.
-        var bank = pool.DepthBank(physical.Bank);
-        Assert.Equal(ShadowDepthEncoding.Clear, ReadDepth(bank, physical, 1, 4, pool.PageSize));
+        var layer = pool.DepthArray;
+        Assert.Equal(ShadowDepthEncoding.Clear, ReadDepth(layer, physical, 1, 4, pool.PageSize));
         uint expectedVisibleDepth = selectedView == 0 ? ShadowDepthEncoding.Encode(0.5f) : ShadowDepthEncoding.Clear;
-        Assert.Equal(expectedVisibleDepth, ReadDepth(bank, physical, texelX + 3, texelY + 4, pool.PageSize));
-        Assert.Equal(expectedVisibleDepth, ReadDepth(bank, adjacentPhysical, 0, texelY + 4, pool.PageSize));
-        Assert.Equal(ShadowDepthEncoding.Clear, ReadDepth(bank, physical, texelX + 3, texelY + 7, pool.PageSize));
-        Assert.Equal(ShadowDepthEncoding.Clear, ReadDepth(bank, adjacentPhysical, 1, texelY + 4, pool.PageSize));
-        Assert.Equal(ShadowDepthEncoding.Clear, ReadDepth(bank, adjacentPhysical, 2, texelY + 4, pool.PageSize));
+        Assert.Equal(expectedVisibleDepth, ReadDepth(layer, physical, texelX + 3, texelY + 4, pool.PageSize));
+        Assert.Equal(expectedVisibleDepth, ReadDepth(layer, adjacentPhysical, 0, texelY + 4, pool.PageSize));
+        Assert.Equal(ShadowDepthEncoding.Clear, ReadDepth(layer, physical, texelX + 3, texelY + 7, pool.PageSize));
+        Assert.Equal(ShadowDepthEncoding.Clear, ReadDepth(layer, adjacentPhysical, 1, texelY + 4, pool.PageSize));
+        Assert.Equal(ShadowDepthEncoding.Clear, ReadDepth(layer, adjacentPhysical, 2, texelY + 4, pool.PageSize));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         pool.SealBatch();
         views.Seal();
@@ -175,7 +172,7 @@ public sealed class ShadowVirtualStageGpuTests(HeadlessGLFixture fixture, ITestO
         return mapped.Span.ToArray();
     }
 
-    /// <summary>Reads the physical bank and tile assigned to the virtual page from its GPU entry.</summary>
+    /// <summary>Reads the array layer and tile assigned to the virtual page from its GPU entry.</summary>
     private static PhysicalPage ReadPhysical(ShadowPagePool pool, int slot)
     {
         using var mapped = pool.Entries.MapRange<uint>(checked(slot * 512 + 17 * sizeof(uint)), 3, BufferMapAccess.Read);
@@ -184,16 +181,16 @@ public sealed class ShadowVirtualStageGpuTests(HeadlessGLFixture fixture, ITestO
     }
 
     /// <summary>Reads one depth texel after translating view-local coordinates into its allocated physical tile.</summary>
-    private static uint ReadDepth(GpuTexture bank, PhysicalPage page, int x, int y, int pageSize) =>
-        GpuLocalRead.UInt32(bank, page.TileX * pageSize + x, page.TileY * pageSize + y, 0);
+    private static uint ReadDepth(GpuTexture layer, PhysicalPage page, int x, int y, int pageSize) =>
+        GpuLocalRead.UInt32(layer, page.TileX * pageSize + x, page.TileY * pageSize + y, page.Layer);
 
     /// <summary>Builds one explicit read/write image view required by imageAtomicMin's read-modify-write behavior.</summary>
     private static RHIImageInput Image(string name, GpuTexture texture) =>
         new(GpuBindingEntry.Identity(ShaderBindingKind.Image, name),
-            new RHIImageBinding(texture, ImageAccess.ReadWrite, Format: TextureFormat.R32ui));
+            new RHIImageBinding(texture, ImageAccess.ReadWrite, Layered: true, Format: TextureFormat.R32ui));
 
-    /// <summary>Stores the page bank and tile coordinates returned by the GPU allocator.</summary>
-    private readonly record struct PhysicalPage(int Bank, int TileX, int TileY);
+    /// <summary>Stores the page array layer and tile coordinates returned by the GPU allocator.</summary>
+    private readonly record struct PhysicalPage(int Layer, int TileX, int TileY);
 
     /// <summary>Temporarily masks optional dispatch capabilities while preserving native OpenGL and SPIR-V ingestion.</summary>
     private sealed class OptionalFeatureScope : IDisposable

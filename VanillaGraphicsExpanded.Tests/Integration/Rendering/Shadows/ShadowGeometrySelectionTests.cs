@@ -488,7 +488,7 @@ public sealed class ShadowGeometrySelectionTests(HeadlessGLFixture fixture) : Re
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
         var publication = Publication(0, 0, 0, 0, [1]);
-        using var scene = new SelectionScene(assets.Api, publication, tilesPerBank: 2);
+        using var scene = new SelectionScene(assets.Api, publication, tilesPerLayer: 2);
         var source = Source(ShadowSourceKind.Sun, 37);
         var candidate = scene.Candidate(source, 29);
         using var selection = new ShadowGeometrySelection(assets.Api,
@@ -574,8 +574,8 @@ public sealed class ShadowGeometrySelectionTests(HeadlessGLFixture fixture) : Re
         scene.Pages.Poll();
         Assert.True(scene.Pages.BeginBatch());
         const uint retainedDepth = 0x5a17c0de;
-        RHICommandContext.Current.ClearTexture(scene.Pages.DepthBank(0),
-            new(new(0), 0, 0, 0, scene.Pages.DepthBank(0).Width, scene.Pages.DepthBank(0).Height, 1),
+        RHICommandContext.Current.ClearTexture(scene.Pages.DepthArray,
+            new(new(0), 0, 0, 0, scene.Pages.DepthArray.Width, scene.Pages.DepthArray.Height, 1),
             new(PixelChannelLayout.RedInteger, PixelComponentType.UnsignedInt), BitConverter.GetBytes(retainedDepth));
 
         // Arrange: create a real candidate but force bounded selection work to fail before it can certify completion.
@@ -604,7 +604,7 @@ public sealed class ShadowGeometrySelectionTests(HeadlessGLFixture fixture) : Re
         RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureUpdate | ResourceAccess.TextureFetch));
         var encoding = new RHIPixelEncoding(PixelChannelLayout.RedInteger, PixelComponentType.UnsignedInt);
         using var depthReadback = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(
-            scene.Pages.DepthBank(0), new(new(0), 0, 0, 0, 1, 1, 1), encoding));
+            scene.Pages.DepthArray, new(new(0), 0, 0, 0, 1, 1, 1), encoding));
         Assert.Equal(CompletionStatus.Ready, depthReadback.Wait());
         using var depthMapping = depthReadback.MapReadyReadback();
         uint depthAfter = System.Runtime.InteropServices.MemoryMarshal.Read<uint>(depthMapping.Bytes);
@@ -775,7 +775,7 @@ public sealed class ShadowGeometrySelectionTests(HeadlessGLFixture fixture) : Re
 
         /// <summary>Uploads a complete test world and opens bounded candidate and page submission owners.</summary>
         internal SelectionScene(Vintagestory.API.Common.ICoreAPI api, ShadowWorldPublication publication,
-            int tilesPerBank = 1)
+            int tilesPerLayer = 1)
         {
             this.publication = publication;
             int dimension = publication.Table.First(entry => entry.Flags != 0).Dimension;
@@ -787,7 +787,7 @@ public sealed class ShadowGeometrySelectionTests(HeadlessGLFixture fixture) : Re
             Assert.True(Candidates.BeginBatch(changes, publication, WorldBuffers));
             Pages = ShadowPagePool.Create(api, new ShadowPageSettings
             {
-                MemoryMiB = 4, PageSize = 8, TileColumns = tilesPerBank, TileRows = 1, BankCapacity = 1,
+                MemoryMiB = 4, PageSize = 8, TileColumns = tilesPerLayer, TileRows = 1, ArrayLayers = 1,
                 ProbeLimit = 64, OperationsPerBatch = 16
             });
             Assert.True(Pages.BeginBatch());

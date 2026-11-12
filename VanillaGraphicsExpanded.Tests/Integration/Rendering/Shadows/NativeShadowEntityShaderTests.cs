@@ -82,15 +82,15 @@ public sealed class NativeShadowEntityShaderTests(HeadlessGLFixture fixture) : R
         }
 
         // Assert: cutout leaves the tile untouched; opaque fragments encode the known joint plus native-warp depth shift.
-        uint written = CountWritten(pool.DepthBank(page.Bank), page, pool.PageSize);
+        uint written = CountWritten(pool.DepthArray, page, pool.PageSize);
         if (!opaqueAtlas) Assert.Equal(0u, written);
         else
         {
             uint lower = ShadowDepthEncoding.Encode(0.49f), upper = ShadowDepthEncoding.Encode(0.5f);
-            var range = ImageAssertions.Statistics.Inspect(pool.DepthBank(page.Bank), lower, upper,
+            var range = ImageAssertions.Statistics.Inspect(pool.DepthArray, lower, upper,
                 TileRegion(page, pool.PageSize));
             Assert.Equal(written, range.InsideRange);
-            var nearer = ImageAssertions.Statistics.Inspect(pool.DepthBank(page.Bank), 0,
+            var nearer = ImageAssertions.Statistics.Inspect(pool.DepthArray, 0,
                 ShadowDepthEncoding.Encode(0.497f) - 1d, TileRegion(page, pool.PageSize));
             Assert.True(nearer.InsideRange > 0);
         }
@@ -100,14 +100,14 @@ public sealed class NativeShadowEntityShaderTests(HeadlessGLFixture fixture) : R
     #endregion
 
     #region Private
-    /// <summary>Builds the selected physical tile's source-coordinate region in its depth bank.</summary>
+    /// <summary>Builds the selected physical tile's source-coordinate region in its depth layer.</summary>
     private static RHITextureRegion TileRegion(PhysicalPage page, int pageSize) =>
-        new(new(0), page.TileX * pageSize, page.TileY * pageSize, 0, pageSize, pageSize);
+        new(new(0, page.Layer), page.TileX * pageSize, page.TileY * pageSize, 0, pageSize, pageSize);
 
     /// <summary>Counts non-clear integer depths over one complete physical tile on the GPU.</summary>
-    private uint CountWritten(GpuTexture bank, PhysicalPage page, int pageSize)
+    private uint CountWritten(GpuTexture layer, PhysicalPage page, int pageSize)
     {
-        var clear = ImageAssertions.Comparisons.CompareUnsignedConstant(bank, ShadowDepthEncoding.Clear,
+        var clear = ImageAssertions.Comparisons.CompareUnsignedConstant(layer, ShadowDepthEncoding.Clear,
             TileRegion(page, pageSize));
         return checked((uint)(pageSize * pageSize) - clear.ConstantMatches);
     }
@@ -133,10 +133,7 @@ public sealed class NativeShadowEntityShaderTests(HeadlessGLFixture fixture) : R
         entity.Atlas = atlas;
         entity.Entries = pool.Entries;
         entity.Writable = pool.WritableAssignments;
-        entity.Bank0 = IntegerImage(pool.DepthBank(0));
-        entity.Bank1 = IntegerImage(pool.DepthBank(0));
-        entity.Bank2 = IntegerImage(pool.DepthBank(0));
-        entity.Bank3 = IntegerImage(pool.DepthBank(0));
+        entity.Depth = IntegerImage(pool.DepthArray);
     }
 
     /// <summary>Creates one page and reads its assigned physical coordinates before later commands replace result words.</summary>
@@ -144,7 +141,7 @@ public sealed class NativeShadowEntityShaderTests(HeadlessGLFixture fixture) : R
     {
         var pool = ShadowPagePool.Create(api, new ShadowPageSettings
         {
-            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, BankCapacity = 1,
+            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, ArrayLayers = 1,
             ProbeLimit = 1, OperationsPerBatch = 16
         });
         var source = new ShadowSourceKey(111, 0, ShadowSourceKind.Sun, 8, 2, 0);
@@ -213,7 +210,7 @@ public sealed class NativeShadowEntityShaderTests(HeadlessGLFixture fixture) : R
 
     /// <summary>Creates an exact image view for atomic replacement depth writes.</summary>
     private static RHIImageBinding IntegerImage(GpuTexture texture) =>
-        new(texture, ImageAccess.ReadWrite, Format: TextureFormat.R32ui);
+        new(texture, ImageAccess.ReadWrite, Layered: true, Format: TextureFormat.R32ui);
 
     /// <summary>Maps the allocator's bounded result prefix for exact page assignment inspection.</summary>
     private static uint[] Read(GpuShaderStorageBuffer buffer, int words)
@@ -223,8 +220,8 @@ public sealed class NativeShadowEntityShaderTests(HeadlessGLFixture fixture) : R
         return mapped.Span.ToArray();
     }
 
-    /// <summary>Retains the allocator-selected bank and physical tile for depth readback.</summary>
-    private readonly record struct PhysicalPage(int Bank, int TileX, int TileY);
+    /// <summary>Retains the allocator-selected layer and physical tile for depth readback.</summary>
+    private readonly record struct PhysicalPage(int Layer, int TileX, int TileY);
 
     /// <summary>Owns native-shaped position, UV, flag, joint and element allocations while the adapter borrows them.</summary>
     private sealed class NativeEntityStorage : IDisposable

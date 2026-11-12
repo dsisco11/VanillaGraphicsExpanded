@@ -29,9 +29,9 @@ internal sealed class ShadowDrawView
             ShadowRasterProjection.Point(projection, face, region, origin));
 
     /// <summary>Packs sixteen RGBA32UI texels for texture-buffer access on every vertex-producing stage.</summary>
-    internal void Pack(Span<uint> words, int capacity, int probes, int residentBanks, long batch)
+    internal void Pack(Span<uint> words, int capacity, int probes, int arrayLayers, long batch)
     {
-        if (words.Length != 64 || capacity < 1 || probes < 1 || residentBanks is < 1 or > 4 || batch < 1)
+        if (words.Length != 64 || capacity < 1 || probes < 1 || arrayLayers < 1 || batch < 1)
             throw new ArgumentException("Invalid view record or pool bounds.");
         words.Clear();
         for (int i = 0; i < 16; i++) words[i] = BitConverter.SingleToUInt32Bits(Matrix[i]);
@@ -48,7 +48,7 @@ internal sealed class ShadowDrawView
         ShadowPageRequest.Put(words, 46, BitConverter.DoubleToInt64Bits(Origin.Y));
         ShadowPageRequest.Put(words, 48, BitConverter.DoubleToInt64Bits(Origin.Z));
         words[52] = (uint)capacity; words[53] = (uint)probes; words[54] = (uint)Projection.PageSize;
-        words[55] = (uint)residentBanks; ShadowPageRequest.Put(words, 56, batch);
+        words[55] = (uint)arrayLayers; ShadowPageRequest.Put(words, 56, batch);
     }
     #endregion
 

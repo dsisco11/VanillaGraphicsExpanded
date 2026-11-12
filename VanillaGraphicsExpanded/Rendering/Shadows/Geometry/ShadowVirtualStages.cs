@@ -79,7 +79,7 @@ internal static class ShadowVirtualStages
                 for(uint index=0u;index<17u;index++)
                     view.key[index]=shadowViewWords(vge_shadowView,6u+index/4u)[index%4u];
                 uvec4 limits=shadowViewWords(vge_shadowView,13u);
-                view.capacity=limits.x; view.probes=limits.y; view.pageSize=limits.z; view.residentBanks=limits.w;
+                view.capacity=limits.x; view.probes=limits.y; view.pageSize=limits.z; view.arrayLayers=limits.w;
                 view.batch=shadowViewWords(vge_shadowView,14u).xy;
                 ivec2 origin=ivec2(shadowViewWords(vge_shadowView,4u).xy);
                 shadowAtomicDepth(view,origin+ivec2(gl_FragCoord.xy),gl_FragCoord.z);

@@ -58,7 +58,7 @@ public sealed class ShadowDepthSubmissionTests(HeadlessGLFixture fixture) : Rend
             batch.Changes, batch.ChangeWatermark, () => draw.IsCurrent, timestamp: 0);
         Assert.True(batch.Scene.Pages.Execute(batch.Lookup(request)));
         uint[] result = Read(batch.Scene.Pages.Results, 8);
-        uint written = CountWritten(batch.Scene.Pages.DepthBank(0), batch.Scene.Pages.PageSize);
+        uint written = CountWritten(batch.Scene.Pages.DepthArray, batch.Scene.Pages.PageSize);
 
         // Assert: table lookup resolves a finalized assignment and real terrain fragments changed integer depth.
         Assert.Equal(0u, result[0]);
@@ -100,7 +100,7 @@ public sealed class ShadowDepthSubmissionTests(HeadlessGLFixture fixture) : Rend
                 [terrain, .. objectDraws], batch.Changes, batch.ChangeWatermark,
                 () => player.Scene.IsCurrent && terrain.IsCurrent && objectDraws.All(draw => draw.IsCurrent), timestamp: 0);
             Assert.True(batch.Scene.Pages.Execute(batch.Lookup(request)));
-            uint written = CountWritten(batch.Scene.Pages.DepthBank(0), batch.Scene.Pages.PageSize);
+            uint written = CountWritten(batch.Scene.Pages.DepthArray, batch.Scene.Pages.PageSize);
 
             // Assert: finalized table lookup accepts the page and actual native-shaped body/held streams wrote integer depth.
             uint[] result = Read(batch.Scene.Pages.Results, 8);
@@ -123,7 +123,7 @@ public sealed class ShadowDepthSubmissionTests(HeadlessGLFixture fixture) : Rend
     public void DepthSubmissionRejectsIncompleteIntervalsBeforeClear(SubmissionIntervalFault fault)
     {
         EnsureContextValid(); fixture.InitializeResourceDisposal();
-        using var batch = new NativeSubmissionBatch(projectionGeneration: 42, tilesPerBank: 2);
+        using var batch = new NativeSubmissionBatch(projectionGeneration: 42, tilesPerLayer: 2);
         long oldAssignment = batch.PublishOldPage(projectionGeneration: 41, marker: 0x6b42a19d);
         using var draw = batch.CreateDraw();
         var request = batch.Replacement(projectionGeneration: 42, timestamp: 0);
@@ -135,7 +135,7 @@ public sealed class ShadowDepthSubmissionTests(HeadlessGLFixture fixture) : Rend
         Assert.Throws<InvalidOperationException>(() => ShadowDepthSubmission.Submit(batch.Scene.Pages,
             batch.Selection, [new(0, request)], draws, batch.Changes, batch.ChangeWatermark,
             () => draw.IsCurrent, timestamp: 0));
-        uint retainedDepth = ReadDepth(batch.Scene.Pages.DepthBank(0), 0, 0);
+        uint retainedDepth = ReadDepth(batch.Scene.Pages.DepthArray, 0, 0);
         Assert.True(batch.Scene.Pages.Execute(batch.Lookup(batch.OldRequest)));
         uint[] retained = Read(batch.Scene.Pages.Results, 8);
 
@@ -153,7 +153,7 @@ public sealed class ShadowDepthSubmissionTests(HeadlessGLFixture fixture) : Rend
     public void DepthSubmissionAbortsAfterNativeChangeAndPreservesOldPage()
     {
         EnsureContextValid(); fixture.InitializeResourceDisposal();
-        using var batch = new NativeSubmissionBatch(projectionGeneration: 52, tilesPerBank: 2);
+        using var batch = new NativeSubmissionBatch(projectionGeneration: 52, tilesPerLayer: 2);
         long oldAssignment = batch.PublishOldPage(projectionGeneration: 51, marker: 0x13c07e5b);
         using var draw = batch.CreateDraw();
         var request = batch.Replacement(projectionGeneration: 52, timestamp: 1);
@@ -173,7 +173,7 @@ public sealed class ShadowDepthSubmissionTests(HeadlessGLFixture fixture) : Rend
         Assert.False(draw.IsCurrent);
         Assert.True(batch.Scene.Pages.Execute(batch.Lookup(batch.OldRequest)));
         uint[] retained = Read(batch.Scene.Pages.Results, 8);
-        uint retainedDepth = ReadDepth(batch.Scene.Pages.DepthBank(0), 0, 0);
+        uint retainedDepth = ReadDepth(batch.Scene.Pages.DepthArray, 0, 0);
         Assert.True(batch.Scene.Pages.Execute(batch.Lookup(request)));
         uint[] abandoned = Read(batch.Scene.Pages.Results, 8);
 
@@ -199,9 +199,9 @@ public sealed class ShadowDepthSubmissionTests(HeadlessGLFixture fixture) : Rend
     private static long Assignment(uint[] result) => unchecked((long)(((ulong)result[3] << 32) | result[2]));
 
     /// <summary>Counts non-clear integer depths over one complete physical tile on the GPU.</summary>
-    private uint CountWritten(GpuTexture bank, int size)
+    private uint CountWritten(GpuTexture layer, int size)
     {
-        var clear = ImageAssertions.Comparisons.CompareUnsignedConstant(bank, ShadowDepthEncoding.Clear,
+        var clear = ImageAssertions.Comparisons.CompareUnsignedConstant(layer, ShadowDepthEncoding.Clear,
             new(new(0), 0, 0, 0, size, size));
         return checked((uint)(size * size) - clear.ConstantMatches);
     }
@@ -389,11 +389,11 @@ public sealed class ShadowDepthSubmissionTests(HeadlessGLFixture fixture) : Rend
         internal ShadowPageRequest OldRequest => oldRequest ?? throw new InvalidOperationException("No retained old page was published.");
 
         /// <summary>Creates a bounded GPU fixture with one complete current native range and a current candidate.</summary>
-        internal NativeSubmissionBatch(long projectionGeneration, int tilesPerBank = 1)
+        internal NativeSubmissionBatch(long projectionGeneration, int tilesPerLayer = 1)
         {
             source = Source(ShadowSourceKind.Sun, 71, dimension: 0);
             publication = Publication();
-            Scene = new SubmissionScene(assets.Api, publication, tilesPerBank);
+            Scene = new SubmissionScene(assets.Api, publication, tilesPerLayer);
             Candidate = Scene.Candidate(source, projectionGeneration);
             view = View(source, projectionGeneration, new(0, 0, 8, 8), Vector3d.Zero);
             ranges = DrawRanges(publication);
@@ -472,8 +472,8 @@ public sealed class ShadowDepthSubmissionTests(HeadlessGLFixture fixture) : Rend
             RHICommandContext.Current.WaitIdle();
             Scene.Pages.Poll();
             Assert.True(Scene.Pages.BeginBatch());
-            RHICommandContext.Current.ClearTexture(Scene.Pages.DepthBank(0), new(new(0), 0, 0, 0,
-                Scene.Pages.DepthBank(0).Width, Scene.Pages.DepthBank(0).Height, 1),
+            RHICommandContext.Current.ClearTexture(Scene.Pages.DepthArray, new(new(0), 0, 0, 0,
+                Scene.Pages.DepthArray.Width, Scene.Pages.DepthArray.Height, 1),
                 new(PixelChannelLayout.RedInteger, PixelComponentType.UnsignedInt), BitConverter.GetBytes(marker));
             return assignment;
         }
@@ -551,7 +551,7 @@ public sealed class ShadowDepthSubmissionTests(HeadlessGLFixture fixture) : Rend
 
         /// <summary>Uploads the complete world and opens bounded candidate/page owners.</summary>
         internal SubmissionScene(Vintagestory.API.Common.ICoreAPI api,
-            ShadowWorldPublication publication, int tilesPerBank)
+            ShadowWorldPublication publication, int tilesPerLayer)
         {
             this.publication = publication;
             Assert.True(WorldBuffers.Upload(publication));
@@ -565,8 +565,8 @@ public sealed class ShadowDepthSubmissionTests(HeadlessGLFixture fixture) : Rend
             Assert.True(Candidates.BeginBatch(changes, publication, WorldBuffers));
             Pages = ShadowPagePool.Create(api, new ShadowPageSettings
             {
-                MemoryMiB = 8, PageSize = 8, TileColumns = tilesPerBank, TileRows = 1,
-                BankCapacity = 1, ProbeLimit = 64, OperationsPerBatch = 32
+                MemoryMiB = 8, PageSize = 8, TileColumns = tilesPerLayer, TileRows = 1,
+                ArrayLayers = 1, ProbeLimit = 64, OperationsPerBatch = 32
             });
             Assert.True(Pages.BeginBatch());
         }

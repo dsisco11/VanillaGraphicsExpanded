@@ -28,18 +28,9 @@ internal interface IShadowTerrainBindings
     /// <summary>Supplies only cleared frozen replacement assignments.</summary>
     [ShaderBinding("ShadowWritableAssignments", ShaderBindingKind.StorageBlock, 1, ShaderStageKind.Fragment)]
     GpuShaderStorageBuffer? Writable { set; }
-    /// <summary>Supplies the first integer destination bank.</summary>
-    [ShaderBinding("shadowBank0", ShaderBindingKind.Image, 0, ShaderStageKind.Fragment)]
-    RHIImageBinding Bank0 { set; }
-    /// <summary>Supplies the second integer destination bank.</summary>
-    [ShaderBinding("shadowBank1", ShaderBindingKind.Image, 1, ShaderStageKind.Fragment)]
-    RHIImageBinding Bank1 { set; }
-    /// <summary>Supplies the third integer destination bank.</summary>
-    [ShaderBinding("shadowBank2", ShaderBindingKind.Image, 2, ShaderStageKind.Fragment)]
-    RHIImageBinding Bank2 { set; }
-    /// <summary>Supplies the fourth integer destination bank.</summary>
-    [ShaderBinding("shadowBank3", ShaderBindingKind.Image, 3, ShaderStageKind.Fragment)]
-    RHIImageBinding Bank3 { set; }
+    /// <summary>Supplies the complete layered integer destination.</summary>
+    [ShaderBinding("shadowDepthPool", ShaderBindingKind.Image, 0, ShaderStageKind.Fragment, ShaderType = ShaderResourceType.UnsignedIntImage2DArray)]
+    RHIImageBinding Depth { set; }
     /// <summary>Preserves the original object identity independently of view selection.</summary>
     [ShaderBinding("vge_shadowObject", ShaderBindingKind.VaryingLocation, 8, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     ShaderVaryingLocationBinding ObjectLocation { get; }

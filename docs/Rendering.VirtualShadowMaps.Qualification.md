@@ -50,7 +50,7 @@ Use these named capture configurations:
 | --- | --- |
 | Reference-Baseline | Available reference GPU, 1920x1080, fixed render scale 1, VSync/frame cap disabled for timing, Balanced requested settings, default 256 MiB / 2 ms / eight shadowed locals; optional acceleration paths disabled |
 | Reference-HighDemand | Same scene/config identity at 2560x1440 and higher light/receiver demand; explicit overload and recovery, not a substitute for baseline |
-| Capacity-Limited | Same context with deliberately restricted tiles/banks/sampler slots/storage/operation limits plus low-memory and zero-local settings; verifies effective capacity/failure rules, not slower-hardware performance |
+| Capacity-Limited | Same context with deliberately restricted tiles/array layers/sampler slots/storage/operation limits plus low-memory and zero-local settings; verifies effective capacity/failure rules, not slower-hardware performance |
 | Baseline-Context | Reference GPU with an actual OpenGL 4.5 context, the established GL_ARB_gl_spirv ingestion support, and optional VSM acceleration disabled. Repeat correctness through packaged production SPIR-V with captured context/extensions and limits. A newer context or GLSL-only fixture does not prove this minimum-context production route; capability masking establishes branch independence only. |
 
 Capability masking on a newer GPU validates branch independence, not another GPU's speed or full driver
@@ -171,11 +171,11 @@ CPU reference uncertainty may increase false positives; no reference-required ce
 | Classification | Fresh/stale/absent Empty/connectivity, occlusion setting disabled, sealed cavity/pillar/bent passage, source inside chunk, empty-to-filled and passage opening with unchanged light; proof of opacity agreement or bounds-only behavior |
 | Coverage/cache | New receiver at another depth in the same page, enlargement to enclosure, shared surface/fog page, new filter/bias footprints, motion within candidate coverage invalidating depths, expired candidate interval |
 | Scene/native lifetime | Load/edit/upload/removal/dimension reset races, stale/reused native range, failed upload, offscreen entity and moving chunk, material/pose changes without transform changes, lost/deferred change publication |
-| Raster/sampling | Ordinary/SSBO terrain, tessellation displacement, cutouts/foliage, object instancing, source-near crossings, deep directional span, cube/clipmap/page seams, unchanged protected tiles after selective clear, multiple integer banks, contended nearest-depth atomics, all filter taps |
+| Raster/sampling | Ordinary/SSBO terrain, tessellation displacement, cutouts/foliage, object instancing, source-near crossings, deep directional span, cube/clipmap/page seams, unchanged protected tiles after selective clear, multiple array layers, contended nearest-depth atomics, all filter taps |
 | Temporal | Current/permitted-stale/unavailable, strict zero reuse, repeated edits without expiry reset, age and motion boundaries, separate current light and rendered projection, new receiver coverage, insufficient replacement space, hard source/world/resource withdrawal |
 | Virtual views | Packaged SPIR-V uses compact object/view inputs and texture-buffer projection records; final-deformation clipping, invalid selectors, region boundaries and limits, material discard before atomics, RHI raster target and charged in-flight bytes |
 | Readiness | Demand overflow, hidden versus contributing transparent layers, early/late consumers, independent sun/moon failures, unsupported consumer bindings, immediate withdrawal, sustained recovery without stale fades |
-| Lifecycle | Shrink/grow, disable, source/world removal, context and shader replacement, in-flight retirement, aggregate limits over multiple banks/groups; unknown inputs never equal an empty complete set |
+| Lifecycle | Explicit capacity recreation, disable, source/world removal, context and shader replacement, in-flight retirement, aggregate limits over multiple layers/groups; unknown inputs never equal an empty complete set |
 
 Run real GPU variants with draw parameters, indirect counts, direct vertex/TES layer output and bindless
 sampling disabled. Preserve the established SPIR-V ingestion capability and load packaged production artifacts.

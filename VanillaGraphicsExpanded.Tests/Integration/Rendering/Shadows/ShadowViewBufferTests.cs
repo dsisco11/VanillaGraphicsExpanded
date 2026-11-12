@@ -58,7 +58,7 @@ public sealed class ShadowViewBufferTests(HeadlessGLFixture fixture) : RenderTes
         var secondPass = views.DescribePass(1);
         long charged = views.AllocatedBytes;
         views.Seal();
-        GL.Finish();
+        RHICommandContext.Current.WaitIdle();
         bool retired = views.Poll();
 
         // Assert: records select their own raster sizes and accounting drops only after fence completion.
@@ -74,11 +74,11 @@ public sealed class ShadowViewBufferTests(HeadlessGLFixture fixture) : RenderTes
     #endregion
 
     #region Private
-    /// <summary>Creates an open one-bank page pool used only to validate the immutable view-record contract.</summary>
+    /// <summary>Creates an open one-layer page pool used only to validate the immutable view-record contract.</summary>
     private static ShadowPagePool Pool(Vintagestory.API.Common.ICoreAPI api) =>
         ShadowPagePool.Create(api, new ShadowPageSettings
         {
-            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, BankCapacity = 1
+            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, ArrayLayers = 1
         });
 
     /// <summary>Builds two views with distinct virtual pass areas but the same finite directional projection.</summary>

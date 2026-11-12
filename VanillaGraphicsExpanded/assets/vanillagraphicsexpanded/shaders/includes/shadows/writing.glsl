@@ -1,12 +1,12 @@
-// Fragment hosts provide shadowWriteEntries[], shadowWritableAssignments[] and four r32ui
-// images shadowBank0..3 through their generated binding contracts. No depth attachment writes.
+// Fragment hosts provide shadowWriteEntries[], shadowWritableAssignments[] and one r32ui
+// array image shadowDepthPool through their generated binding contracts. No depth attachment writes.
 struct ShadowWriteView {
     // Last two key words are the signed base page; the remaining identity is exact.
     uint key[17];
     uint capacity;
     uint probes;
     uint pageSize;
-    uint residentBanks;
+    uint arrayLayers;
     uvec2 batch;
 };
 #define WE(s,i) shadowWriteEntries[(s)*128u+uint(i)]
@@ -41,19 +41,15 @@ bool shadowAtomicDepth(ShadowWriteView view, ivec2 viewTexel, float depth) {
             if(WE(slot,i)!=value) match=false;
         }
         if(!match) continue;
-        uint bank=WE(slot,17);
-        if(bank>=view.residentBanks || bank>=4u) return false;
-        ivec2 dimensions=bank==0u?imageSize(shadowBank0):bank==1u?imageSize(shadowBank1):
-            bank==2u?imageSize(shadowBank2):imageSize(shadowBank3);
+        uint layer=WE(slot,17);
+        ivec3 dimensions=imageSize(shadowDepthPool);
+        if(layer>=view.arrayLayers || layer>=uint(dimensions.z)) return false;
         // Divide before multiplying so malformed tile coordinates cannot wrap into valid storage.
         uvec2 tile=uvec2(WE(slot,18),WE(slot,19));
-        if(any(greaterThanEqual(tile,uvec2(dimensions)/view.pageSize))) return false;
+        if(any(greaterThanEqual(tile,uvec2(dimensions.xy)/view.pageSize))) return false;
         ivec2 at=ivec2(tile*view.pageSize)+local;
         uint encoded=floatBitsToUint(depth==0.0?0.0:depth);
-        if(bank==0u) imageAtomicMin(shadowBank0,at,encoded);
-        else if(bank==1u) imageAtomicMin(shadowBank1,at,encoded);
-        else if(bank==2u) imageAtomicMin(shadowBank2,at,encoded);
-        else imageAtomicMin(shadowBank3,at,encoded);
+        imageAtomicMin(shadowDepthPool,ivec3(at,int(layer)),encoded);
         return true;
     }
     return false;

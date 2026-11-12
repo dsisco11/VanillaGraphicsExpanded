@@ -38,7 +38,7 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
         using var assets = new BinaryShaderApiFixture();
         using var pool = ShadowPagePool.Create(assets.Api, new ShadowPageSettings
         {
-            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, BankCapacity = 1,
+            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, ArrayLayers = 1,
             ProbeLimit = 1, OperationsPerBatch = 16
         });
         var source = new ShadowSourceKey(71, 0, ShadowSourceKind.Sun, 3, 9, 0);
@@ -92,11 +92,11 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
             });
         }
         // Assert: the clipped half retained the far clear value, while a surviving fragment atomically lowered depth.
-        var bank = pool.DepthBank(physical.Bank);
-        Assert.Equal(ShadowDepthEncoding.Clear, GpuLocalRead.UInt32(bank,
-            physical.TileX * pool.PageSize + 1, physical.TileY * pool.PageSize + 4, 0));
-        Assert.Equal(ShadowDepthEncoding.Encode(0.25f), GpuLocalRead.UInt32(bank,
-            physical.TileX * pool.PageSize + 6, physical.TileY * pool.PageSize + 4, 0));
+        var layer = pool.DepthArray;
+        Assert.Equal(ShadowDepthEncoding.Clear, GpuLocalRead.UInt32(layer,
+            physical.TileX * pool.PageSize + 1, physical.TileY * pool.PageSize + 4, physical.Layer));
+        Assert.Equal(ShadowDepthEncoding.Encode(0.25f), GpuLocalRead.UInt32(layer,
+            physical.TileX * pool.PageSize + 6, physical.TileY * pool.PageSize + 4, physical.Layer));
         pool.SealBatch();
     }
 
@@ -112,7 +112,7 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
         using var assets = new BinaryShaderApiFixture();
         var settings = new ShadowPageSettings
         {
-            MemoryMiB = 4, PageSize = 8, TileColumns = 2, TileRows = 1, BankCapacity = 1,
+            MemoryMiB = 4, PageSize = 8, TileColumns = 2, TileRows = 1, ArrayLayers = 1,
             ProbeLimit = 128, OperationsPerBatch = 32
         };
         using var pool = ShadowPagePool.Create(assets.Api, settings);
@@ -149,7 +149,7 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
 
         // Act: begin a new batch with a writable page X=0 and draw two overlapping instances across both pages.
         pool.SealBatch();
-        GL.Finish(); pool.Poll();
+        RHICommandContext.Current.WaitIdle(); pool.Poll();
         Assert.True(pool.BeginBatch());
         var writeKey = new ShadowPageKey(source, 2, 0, 0, 0);
         var writeRequest = new ShadowPageRequest(ShadowPageOperation.Allocate, writeKey,
@@ -196,11 +196,11 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
         }
 
         // Assert: nearest depth wins whether the far fragment is submitted first or last; sampled X=1 stays at .5.
-        var bank = pool.DepthBank(0);
-        Assert.Equal(ShadowDepthEncoding.Encode(0.25f), GpuLocalRead.UInt32(bank,
-            writableTile.TileX * pool.PageSize + 3, writableTile.TileY * pool.PageSize + 4, 0));
-        Assert.Equal(ShadowDepthEncoding.Encode(0.5f), GpuLocalRead.UInt32(bank,
-            protectedTile.TileX * pool.PageSize + 3, protectedTile.TileY * pool.PageSize + 4, 0));
+        var layer = pool.DepthArray;
+        Assert.Equal(ShadowDepthEncoding.Encode(0.25f), GpuLocalRead.UInt32(layer,
+            writableTile.TileX * pool.PageSize + 3, writableTile.TileY * pool.PageSize + 4, writableTile.Layer));
+        Assert.Equal(ShadowDepthEncoding.Encode(0.5f), GpuLocalRead.UInt32(layer,
+            protectedTile.TileX * pool.PageSize + 3, protectedTile.TileY * pool.PageSize + 4, protectedTile.Layer));
         pool.SealBatch();
     }
     #endregion
@@ -280,20 +280,17 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
         uint[] words = new uint[28];
         Array.Copy(request.Pack(), words, 17);
         words[20] = (uint)pool.Capacity; words[21] = (uint)pool.ProbeLimit;
-        words[22] = (uint)pool.PageSize; words[23] = (uint)pool.ResidentBanks;
+        words[22] = (uint)pool.PageSize; words[23] = (uint)pool.ArrayLayers;
         words[24] = (uint)pool.Batch; words[25] = (uint)(pool.Batch >> 32);
         return words;
     }
 
-    /// <summary>Binds the frozen assignment map and four named read/write integer banks for atomic minimum.</summary>
+    /// <summary>Binds the frozen assignment map and the read/write integer array for atomic minimum.</summary>
     private static RHIResourceBindings WriterBindings(RHIShader shader, ShadowPagePool pool, GpuUniformBuffer pageKey) =>
         new(shader,
             images:
             [
-                Image("shadowBank0", pool.DepthBank(0)),
-                Image("shadowBank1", pool.DepthBank(0)),
-                Image("shadowBank2", pool.DepthBank(0)),
-                Image("shadowBank3", pool.DepthBank(0))
+                Image("shadowDepthPool", pool.DepthArray)
             ],
             buffers:
             [
@@ -308,18 +305,18 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
     /// <summary>Uploads one synthetic far-to-near test value into only the nominated physical page tile.</summary>
     private static void UploadTile(ShadowPagePool pool, PhysicalPage tile, float depth)
     {
-        var texture = pool.DepthBank(tile.Bank);
+        var texture = pool.DepthArray;
         uint[] encoded = Enumerable.Repeat(ShadowDepthEncoding.Encode(depth), pool.PageSize * pool.PageSize).ToArray();
         var encoding = RHICommandContext.Current.GetTextureEncoding(texture, PixelComponentType.UnsignedInt);
         RHICommandContext.Current.UploadTexture(texture,
-            new(new(0, 0), tile.TileX * pool.PageSize, tile.TileY * pool.PageSize, 0, pool.PageSize, pool.PageSize),
+            new(new(0, tile.Layer), tile.TileX * pool.PageSize, tile.TileY * pool.PageSize, 0, pool.PageSize, pool.PageSize),
             encoding, System.Runtime.InteropServices.MemoryMarshal.AsBytes(encoded.AsSpan()));
     }
 
     /// <summary>Combines the GPU allocator's assignment words without interpreting the slot as a tile address.</summary>
     private static long Assignment(uint[] result) => unchecked((long)(((ulong)result[3] << 32) | result[2]));
 
-    /// <summary>Reads the assigned bank and 2D tile directly from the GPU entry record.</summary>
+    /// <summary>Reads the assigned layer and 2D tile directly from the GPU entry record.</summary>
     private static PhysicalPage ReadPhysical(ShadowPagePool pool, int slot)
     {
         using var mapped = pool.Entries.MapRange<uint>(checked(slot * 512 + 17 * sizeof(uint)), 3, BufferMapAccess.Read);
@@ -327,12 +324,12 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
         return new(checked((int)mapped.Span[0]), checked((int)mapped.Span[1]), checked((int)mapped.Span[2]));
     }
 
-    /// <summary>Builds one non-layered R32UI image view for a named writer resource.</summary>
+    /// <summary>Builds a layered R32UI array image view for a named writer resource.</summary>
     private static RHIImageInput Image(string name, GpuTexture texture) =>
         new(GpuBindingEntry.Identity(ShaderBindingKind.Image, name),
-            new RHIImageBinding(texture, ImageAccess.ReadWrite, Format: TextureFormat.R32ui));
+            new RHIImageBinding(texture, ImageAccess.ReadWrite, Layered: true, Format: TextureFormat.R32ui));
 
-    /// <summary>Stores the explicit bank and tile coordinates selected by the page allocator.</summary>
-    private readonly record struct PhysicalPage(int Bank, int TileX, int TileY);
+    /// <summary>Stores the explicit array layer and tile coordinates selected by the page allocator.</summary>
+    private readonly record struct PhysicalPage(int Layer, int TileX, int TileY);
     #endregion
 }

@@ -71,8 +71,7 @@ internal static partial class TestShaderPrograms
         atomicWriter.RegisterShaderStorageBlockBinding("ShadowWritableAssignments", 1);
         atomicWriter.RegisterUniformBlockBinding("ShadowAtomicWriterInputs", 28);
         atomicWriter.VaryingLocations.Add("atomicDepth", 0);
-        foreach (int unit in Enumerable.Range(0, 4))
-            atomicWriter.RegisterImageUnit("shadowBank" + unit, unit);
+        atomicWriter.RegisterImageUnit("shadowDepthPool", 0);
         var atomicWriterVertex = new GpuBindingContract();
         atomicWriterVertex.VaryingLocations.Add("atomicDepth", 0);
         programs.Add(new("tests/shadow-atomic-writer", [
@@ -87,8 +86,7 @@ internal static partial class TestShaderPrograms
         virtualShadow.VaryingLocations.Add("vge_shadowView", 1);
         virtualShadow.RegisterShaderStorageBlockBinding("ShadowWriteEntries", 0);
         virtualShadow.RegisterShaderStorageBlockBinding("ShadowWritableAssignments", 1);
-        foreach (int unit in Enumerable.Range(0, 4))
-            virtualShadow.RegisterImageUnit("shadowBank" + unit, unit);
+        virtualShadow.RegisterImageUnit("shadowDepthPool", 0);
         programs.Add(new("tests/shadow-virtual", [
             new("tests/shadow-virtual.vsh", "tests/shadow-virtual.vsh", ShaderStageKind.Vertex, virtualShadowVertex),
             new("tests/shadow-virtual.fsh", "tests/shadow-virtual.fsh", ShaderStageKind.Fragment, virtualShadow)], 1));

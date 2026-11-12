@@ -1,9 +1,12 @@
 using System.Collections;
 using System.Reflection;
+using System.Threading;
+using HarmonyLib;
 using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Rendering.Shadows.Configuration;
 using VanillaGraphicsExpanded.Rendering.Shadows.Geometry;
@@ -21,6 +24,9 @@ namespace VanillaGraphicsExpanded.Tests.Integration.Rendering.Shadows;
 [Trait("Category", "GpuIntegration")]
 public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+    private static int pendingFencePolls;
+    private static int observedPendingFencePolls;
+    private static int arrayCreationAttempts;
     private static readonly ShadowBounds Small = new(-1, -1, 2, 1, 1, 3);
     private static readonly ShadowBounds Expanded = new(-1, -1, 8, 1, 1, 9);
     private static readonly ShadowBounds RequiredUnion = new(-1, -1, 2, 1, 1, 9);
@@ -37,7 +43,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         // Arrange: allocate a tiny GL 4.5 page table and keep every operation inside one controlled batch.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerBank: 2, banks: 1));
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 2, layers: 1));
         var key = Key(0, 0, projection: 3);
         Assert.True(pool.BeginBatch());
 
@@ -139,7 +145,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         // Arrange: create one exact assignment through the legacy single-page publish path.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerBank: 2, banks: 1));
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 2, layers: 1));
         var key = Key(0, 0, projection: 33);
         Assert.True(pool.BeginBatch());
         Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, Small)));
@@ -184,7 +190,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         // Arrange: publish one synthetic complete key and reserve its physical assignment.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerBank: 2, banks: 1));
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 2, layers: 1));
         var key = Key(5, -4, projection: (1L << 40) + 19);
         Assert.True(pool.BeginBatch());
         Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, Small)));
@@ -213,7 +219,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         // Arrange: provide valid fixed-size commands through the same real SSBO range accepted by production producers.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerBank: 2, banks: 1));
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 2, layers: 1));
         using var generated = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription
         {
             Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0,
@@ -253,7 +259,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         // Arrange: publish two pages for one source, the other celestial source, and another dimension.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerBank: 4, banks: 1));
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 4, layers: 1));
         var sunA = Key(1, 2, source: Sun);
         var sunB = Key(2, 2, source: Sun);
         var moon = Key(1, 2, source: Sun with { Kind = ShadowSourceKind.Moon, Slot = 1 });
@@ -298,7 +304,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
             .ToDictionary(pair => pair.Key, pair => (string?)pair.Value.MacroLiteral);
         output.WriteLine("=== Runtime-preprocessed shadows/pages.csh ===");
         output.WriteLine(ShaderSourceCode.Load(assets.Api, "shadows/pages", "csh", fixedDefines).EmittedSource);
-        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerBank: 1, banks: 1));
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 1, layers: 1));
         Assert.True(pool.BeginBatch());
 
         // Act: reserve the only slot, then request a distinct page before its assignment is retired.
@@ -321,7 +327,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         // Arrange: use one physical tile so every successful allocation must reuse the same slot after retirement.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerBank: 1, banks: 1));
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 1, layers: 1));
         var firstKey = Key(0, 0); var secondKey = Key(1, 0);
         Assert.True(pool.BeginBatch());
         Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, firstKey, Small)));
@@ -372,7 +378,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         // Arrange: find two serialized page keys with the same initial bucket under a deliberate one-probe policy.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        var settings = Settings(tilesPerBank: 4, banks: 1); settings.ProbeLimit = 1;
+        var settings = Settings(tilesPerLayer: 4, layers: 1); settings.ProbeLimit = 1;
         using var pool = ShadowPagePool.Create(assets.Api, settings);
         var keys = CollidingKeys(pool.Capacity);
         Assert.NotEqual(keys.First, keys.Second);
@@ -404,11 +410,11 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         using var assets = new BinaryShaderApiFixture();
         var lifetime = ClientRenderingLifetime.Create(assets.Api, GpuShaderProgramLibraries.Require(assets.Api));
         lifetime.Attach(static () => { });
-        using var pool = ShadowPagePool.Create(assets.Api, Settings(pageSize: 8, tilesPerBank: 1, banks: 1));
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(pageSize: 8, tilesPerLayer: 1, layers: 1));
         try
         {
             // Act: queue reconfiguration, then let the native reload owner withdraw the pool synchronously.
-            pool.Reconfigure(Settings(pageSize: 16, tilesPerBank: 1, banks: 1));
+            pool.Reconfigure(Settings(pageSize: 16, tilesPerLayer: 1, layers: 1));
             Assert.False(pool.IsAvailable);
             ClientRenderingLifetime.BeginNativeReload();
             Assert.True(lifetime.Reloading);
@@ -435,8 +441,8 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         // Arrange: start a new settings replacement while the original allocation is still owned.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        using var pool = ShadowPagePool.Create(assets.Api, Settings(pageSize: 8, tilesPerBank: 1, banks: 1));
-        pool.Reconfigure(Settings(pageSize: 16, tilesPerBank: 1, banks: 1));
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(pageSize: 8, tilesPerLayer: 1, layers: 1));
+        pool.Reconfigure(Settings(pageSize: 16, tilesPerLayer: 1, layers: 1));
         Assert.False(pool.IsAvailable);
         Assert.True(pool.AllocatedBytes > 0);
 
@@ -457,7 +463,7 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         // Arrange: capture the real harness registration so it can be restored exactly after its retirement callback runs.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        using var pool = ShadowPagePool.Create(assets.Api, Settings(pageSize: 8, tilesPerBank: 1, banks: 1));
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(pageSize: 8, tilesPerLayer: 1, layers: 1));
         var original = RenderContextRegistry.Current();
         var registrations = (IDictionary)typeof(RenderContextRegistry).GetField("registrations", BindingFlags.Static | BindingFlags.NonPublic)!.GetValue(null)!;
         object registration = registrations[original.Handle]!;
@@ -482,15 +488,17 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         Assert.Equal(0, pool.AllocatedBytes);
     }
 
-    /// <summary>Retirement preserves in-flight storage and dimension/source operations apply the exact intended scope.</summary>
+    /// <summary>Page occupancy uses fixed storage, and explicit layout reconfiguration replaces its array after users retire.</summary>
     [Fact]
     public void RetirementAndReconfigurationRespectFenceAndSourceScopes()
     {
-        // Arrange: create multiple resident banks and publish two celestial pages.
+        // Arrange: allocate one complete array up front, then publish two celestial pages into its fixed capacity.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerBank: 2, banks: 2));
-        Assert.True(pool.Grow());
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 2, layers: 2));
+        Assert.Equal(2, pool.DepthArray.Depth);
+        long expectedOldAllocation = ExpectedPoolBytes(pageSize: 8, tilesPerLayer: 2, layers: 2);
+        Assert.Equal(expectedOldAllocation, pool.AllocatedBytes);
         var sun = Key(0, 0, 5, Sun);
         var moon = Key(0, 0, 5, Sun with { Kind = ShadowSourceKind.Moon, Slot = 1 });
         Assert.True(pool.BeginBatch());
@@ -504,28 +512,147 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         uint moonStillCurrent = Result(pool)[0];
         pool.SealBatch();
 
-        // Assert: source removal is isolated; a bank shrink retains bytes until its GPU fence completes.
+        // Assert: source removal is isolated and page occupancy changes do not resize the physical array.
         Assert.Equal(0u, moonStillCurrent);
-        long beforeShrink = pool.AllocatedBytes;
-        pool.SetBankTarget(1);
-        Assert.Equal(2, pool.ResidentBanks);
-        Assert.True(pool.DrainingBytes > 0);
-        RHICommandContext.Current.WaitIdle(); pool.Poll();
-        Assert.Equal(1, pool.ResidentBanks);
+        Assert.Equal(2, pool.ArrayLayers);
         Assert.Equal(0, pool.DrainingBytes);
-        Assert.True(pool.AllocatedBytes < beforeShrink);
+        Assert.Equal(expectedOldAllocation, pool.AllocatedBytes);
+        Assert.Equal(2, pool.DepthArray.Depth);
 
-        // Act: withdraw and rebuild with a different format policy after all prior users have retired.
-        pool.Reconfigure(Settings(pageSize: 16, tilesPerBank: 2, banks: 1));
+        // Act: request a different fixed layout; replacement waits until the original array's users retire.
+        var oldArray = PhysicalArray(pool);
+        int oldTextureId = oldArray.TextureId;
+        RHICommandContext.Current.WaitIdle(); pool.Poll();
+        pool.Reconfigure(Settings(pageSize: 16, tilesPerLayer: 2, layers: 3));
         Assert.False(pool.IsAvailable);
+        Assert.Equal(expectedOldAllocation, pool.AllocatedBytes);
+        Assert.Same(oldArray, PhysicalArray(pool));
+        Assert.Equal(oldTextureId, oldArray.TextureId);
+        Interlocked.Exchange(ref pendingFencePolls, 1);
+        Interlocked.Exchange(ref observedPendingFencePolls, 0);
+        var harmony = new Harmony("Tests.ShadowArrayRetirementPendingFence");
+        try
+        {
+            harmony.Patch(AccessTools.Method(typeof(OpenGLBackend), "WaitCpu"),
+                prefix: new HarmonyMethod(typeof(ShadowPagePoolTests), nameof(KeepNextFencePending)));
+            pool.Poll();
+        }
+        finally { harmony.UnpatchAll(harmony.Id); }
+
+        // Assert: a pending withdrawal fence keeps the full old allocation alive and blocks replacement.
+        Assert.Equal(0, Interlocked.Exchange(ref pendingFencePolls, 0));
+        Assert.Equal(1, Interlocked.Exchange(ref observedPendingFencePolls, 0));
+        Assert.False(pool.IsAvailable);
+        Assert.Equal(expectedOldAllocation, pool.AllocatedBytes);
+        Assert.Same(oldArray, PhysicalArray(pool));
+        Assert.Equal(oldTextureId, oldArray.TextureId);
+        Assert.Equal(8, pool.PageSize);
+        Assert.Equal(2, pool.ArrayLayers);
+
+        // Act: complete the real fence, then allow Poll to release the old array and create the new layout.
         RHICommandContext.Current.WaitIdle(); pool.Poll();
 
-        // Assert: the replacement is a fresh usable pool with no surviving old publication.
+        // Assert: the replacement owns exactly the requested new array and old page identities are gone.
         Assert.True(pool.IsAvailable);
         Assert.Equal(16, pool.PageSize);
-        Assert.Equal(1, pool.ResidentBanks);
+        Assert.Equal(3, pool.ArrayLayers);
+        Assert.Equal(3, pool.DepthArray.Depth);
+        Assert.Equal(ExpectedPoolBytes(pageSize: 16, tilesPerLayer: 2, layers: 3), pool.AllocatedBytes);
+        Assert.Equal(0, pool.DrainingBytes);
         Assert.True(pool.BeginBatch());
+        Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, moon, Small, pageSize: 16)));
+        Assert.Equal(1u, Result(pool)[0]);
         pool.SealBatch();
+    }
+
+    /// <summary>Invalid replacement layout withdraws the old pool instead of retaining stale pages or retrying invisibly.</summary>
+    [Fact]
+    public void InvalidArrayReconfigurationLeavesPoolUnavailable()
+    {
+        // Arrange: create a live pool with one allocated array, then request an unsupported effective layout.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 1, layers: 1));
+        Assert.Equal(1, pool.DepthArray.Depth);
+
+        // Act: unsupported replacement fails after its old publication has been withdrawn.
+        Assert.Throws<InvalidOperationException>(() => pool.Reconfigure(new ShadowPageSettings
+        {
+            MemoryMiB = 1, PageSize = 1024, TileColumns = 128, TileRows = 16, ArrayLayers = 8
+        }));
+        RHICommandContext.Current.WaitIdle(); pool.Poll();
+
+        // Assert: no cached page storage remains available and the pool does not retry an invalid layout.
+        Assert.False(pool.IsAvailable);
+        Assert.Equal(0, pool.AllocatedBytes);
+        Assert.False(pool.BeginBatch());
+    }
+
+    /// <summary>A physical array with more than four layers is fully allocated and page demand never resizes it.</summary>
+    [Fact]
+    public void FixedArrayCapacitySupportsMoreThanFourLayers()
+    {
+        // Arrange: configure five one-tile layers, exceeding the former four independently bound image limit.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 1, layers: 5));
+        Assert.Equal(TextureDimension.TwoArray, pool.DepthArray.TextureTarget);
+        Assert.Equal(5, pool.DepthArray.Depth);
+        long allocatedBytes = pool.AllocatedBytes;
+        int textureId = pool.DepthArray.TextureId;
+        Assert.True(pool.BeginBatch());
+
+        // Act: allocate one distinct page per physical slot while retaining the same fixed texture object.
+        var assignedLayers = new List<int>();
+        for (int index = 0; index < 5; index++)
+        {
+            var key = Key(index, 0, projection: 100 + index);
+            Assert.True(pool.Execute(Request(ShadowPageOperation.Allocate, key, Small)));
+            uint[] result = Result(pool);
+            Assert.Equal(0u, result[0]);
+            int slot = checked((int)result[1]);
+            using var entry = pool.Entries.MapRange<uint>(checked(slot * 512 + 17 * sizeof(uint)), 1, BufferMapAccess.Read);
+            Assert.True(entry.IsMapped);
+            assignedLayers.Add(checked((int)entry.Span[0]));
+        }
+
+        // Assert: every configured layer is reachable and demand leaves allocation bytes unchanged.
+        Assert.Equal(Enumerable.Range(0, 5), assignedLayers.Order());
+        Assert.Equal(textureId, pool.DepthArray.TextureId);
+        Assert.Equal(allocatedBytes, pool.AllocatedBytes);
+        Assert.Equal(5, pool.DepthArray.Depth);
+        pool.SealBatch();
+    }
+
+    /// <summary>Failed array allocation during reconfiguration retires partial resources and leaves the pool unavailable.</summary>
+    [Fact]
+    public void FailedArrayRecreationReleasesPartialResources()
+    {
+        // Arrange: queue a valid replacement after a live array, then fail the RHI texture factory used by the pool.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        using var pool = ShadowPagePool.Create(assets.Api, Settings(tilesPerLayer: 1, layers: 1));
+        Assert.Equal(ExpectedPoolBytes(pageSize: 8, tilesPerLayer: 1, layers: 1), pool.AllocatedBytes);
+        pool.Reconfigure(Settings(tilesPerLayer: 1, layers: 2));
+        Assert.False(pool.IsAvailable);
+        Interlocked.Exchange(ref arrayCreationAttempts, 0);
+        var harmony = new Harmony("Tests.ShadowArrayRecreationFailure");
+        try
+        {
+            harmony.Patch(AccessTools.Method(typeof(OpenGLBackend), "LowerTexture"),
+                prefix: new HarmonyMethod(typeof(ShadowPagePoolTests), nameof(RejectArrayCreation)));
+
+            // Act: the queued recreation reaches RHI allocation only after the old storage's fence is complete.
+            RHICommandContext.Current.WaitIdle();
+            Assert.Throws<ApplicationException>(() => pool.Poll());
+
+            // Assert: the failed replacement exposes neither a partial array nor the old withdrawn allocation.
+            Assert.Equal(1, Interlocked.Exchange(ref arrayCreationAttempts, 0));
+            Assert.False(pool.IsAvailable);
+            Assert.Equal(0, pool.AllocatedBytes);
+            Assert.False(pool.BeginBatch());
+        }
+        finally { harmony.UnpatchAll(harmony.Id); }
     }
 
     /// <summary>Unsupported static sampler capacity and over-budget complete layouts fail before claiming allocation.</summary>
@@ -536,32 +663,49 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
 
-        // Act and assert: the baseline requires four named sampler bindings and charges full configured capacity.
+        // Act and assert: one array sampler is required and all configured capacity is charged before allocation.
         Assert.Throws<InvalidOperationException>(() => ShadowPagePool.Create(assets.Api,
-            Settings(pageSize: 16, tilesPerBank: 1, banks: 1), availableSamplerSlots: 3));
+            Settings(pageSize: 16, tilesPerLayer: 1, layers: 1), availableSamplerSlots: 0));
         Assert.Throws<InvalidOperationException>(() => ShadowPagePool.Create(assets.Api,
-            new ShadowPageSettings { MemoryMiB = 1, PageSize = 1024, TileColumns = 128, TileRows = 16, BankCapacity = 4 }));
+            new ShadowPageSettings { MemoryMiB = 1, PageSize = 1024, TileColumns = 128, TileRows = 16, ArrayLayers = 4 }));
+        int beyondHardwareLayers = GpuSupport.Graphics.MaxArrayTextureLayers + 1;
+        if (beyondHardwareLayers <= 8192)
+            Assert.Throws<InvalidOperationException>(() => ShadowPagePool.Create(assets.Api,
+                new ShadowPageSettings { MemoryMiB = 4096, PageSize = 1, TileColumns = 1, TileRows = 1,
+                    ArrayLayers = beyondHardwareLayers }));
     }
     #endregion
     #endregion
 
     #region Private
-    /// <summary>Creates a small policy while retaining four static baseline sampler banks.</summary>
-    private static ShadowPageSettings Settings(int pageSize = 8, int tilesPerBank = 2, int banks = 1) => new()
-    { MemoryMiB = 16, PageSize = pageSize, TileColumns = tilesPerBank, TileRows = 1, BankCapacity = banks,
+    /// <summary>Returns Pending for one pool fence poll without changing the native fence or its eventual completion.</summary>
+    private static bool KeepNextFencePending(ref CompletionStatus __result)
+    {
+        if (Interlocked.Exchange(ref pendingFencePolls, 0) == 0) return true;
+        Interlocked.Increment(ref observedPendingFencePolls);
+        __result = CompletionStatus.Pending;
+        return false;
+    }
+
+    /// <summary>Injects failure at the non-generic RHI lowering boundary reached by physical array allocation.</summary>
+    private static void RejectArrayCreation() { Interlocked.Increment(ref arrayCreationAttempts); throw new ApplicationException("Injected shadow array allocation failure."); }
+
+    /// <summary>Creates a small fixed physical array policy for deterministic page tests.</summary>
+    private static ShadowPageSettings Settings(int pageSize = 8, int tilesPerLayer = 2, int layers = 1) => new()
+    { MemoryMiB = 16, PageSize = pageSize, TileColumns = tilesPerLayer, TileRows = 1, ArrayLayers = layers,
         ProbeLimit = 128, OperationsPerBatch = 256 };
     /// <summary>Builds a stable absolute source/projection/page tuple for synthetic page operations.</summary>
     private static ShadowPageKey Key(int x, int y, long projection = 5, ShadowSourceKey? source = null) =>
         new(source ?? Sun, projection, 0, x, y);
     /// <summary>Creates a page command with one controlled world and scene dependency stamp.</summary>
     private static ShadowPageRequest Request(ShadowPageOperation operation, ShadowPageKey key, ShadowBounds region,
-        long assignment = 0, bool complete = false) => new(operation, key, region, 13, 17, 19,
-            assignment, complete, Projection(key));
+        long assignment = 0, bool complete = false, int pageSize = 8) => new(operation, key, region, 13, 17, 19,
+            assignment, complete, Projection(key, pageSize));
     /// <summary>Builds a matching stable directional snapshot for synthetic page-table certificate commands.</summary>
-    private static ShadowProjectionSnapshot Projection(ShadowPageKey key)
+    private static ShadowProjectionSnapshot Projection(ShadowPageKey key, int pageSize = 8)
     {
         var projection = new DirectionalShadowProjection(key.Source, key.Projection, Vector3d.UnitZ,
-            new ShadowBounds(-100, -100, -100, 100, 100, 100), 1, Math.Max(1, key.FaceOrLevel + 1), pageSize: 8);
+            new ShadowBounds(-100, -100, -100, 100, 100, 100), 1, Math.Max(1, key.FaceOrLevel + 1), pageSize: pageSize);
         return ShadowProjectionSnapshot.Directional(projection, key.FaceOrLevel);
     }
     /// <summary>Reads only the test-visible result words after the preceding ordered dispatch.</summary>
@@ -569,6 +713,15 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
     {
         using var mapped = pool.Results.MapRange<uint>(0, 8, BufferMapAccess.Read);
         Assert.True(mapped.IsMapped); return mapped.Span.ToArray();
+    }
+    /// <summary>Observes the retained owned array during withdrawal when public consumers are intentionally blocked.</summary>
+    private static GpuTexture PhysicalArray(ShadowPagePool pool) => (GpuTexture)typeof(ShadowPagePool)
+        .GetField("depthArray", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(pool)!;
+    /// <summary>Computes complete array and per-page metadata accounting independently from pool-reported bytes.</summary>
+    private static long ExpectedPoolBytes(int pageSize, int tilesPerLayer, int layers)
+    {
+        long capacity = checked((long)tilesPerLayer * layers);
+        return checked(capacity * (528 + (long)pageSize * pageSize * sizeof(uint)) + 608);
     }
     /// <summary>Reads state and the allocation-batch token from their exact fields in one bounded page-table slot.</summary>
     private static (uint State, uint BatchLow, uint BatchHigh) EntryLifecycle(ShadowPagePool pool, int slot)

@@ -241,7 +241,7 @@ public sealed class ShadowPageCompletionTests(HeadlessGLFixture fixture) : Rende
     /// <summary>Creates a compact pool with a configurable resident tile count and operation allowance.</summary>
     private static ShadowPageSettings Settings(int tiles) => new()
     {
-        MemoryMiB = 8, PageSize = 8, TileColumns = tiles, TileRows = 1, BankCapacity = 1,
+        MemoryMiB = 8, PageSize = 8, TileColumns = tiles, TileRows = 1, ArrayLayers = 1,
         ProbeLimit = 64, OperationsPerBatch = 64
     };
 

@@ -1,5 +1,5 @@
 // Shared GL 4.5 demand/addressing and explicit comparison filter. Hosts provide sampleInputs[],
-// entries[] and four statically named usampler2D bindings. No implicit derivatives or optional acceleration.
+// entries[] and one usampler2DArray shadowDepthPool. No implicit derivatives or optional acceleration.
 #define S(i) sampleInputs[uint(i)]
 #define PE(s,i) entries[(s)*128u+uint(i)]
 /// Decodes world/projection doubles without optional integer-64 operations.
@@ -102,11 +102,10 @@ bool shadowCoverage(uint slot,out bool stale) {
 }
 /// Looks up full source/projection/face/page identity; probe exhaustion cannot alias a different page.
 bool shadowPhysicalAddress(uint slot) {
-    uint bank=PE(slot,17);
-    if(S(65)==0u || bank>=S(119) || bank>=4u) return false;
-    ivec2 dimensions=bank==0u?textureSize(shadowDepth0,0):bank==1u?textureSize(shadowDepth1,0):
-        bank==2u?textureSize(shadowDepth2,0):textureSize(shadowDepth3,0);
-    return all(lessThan(uvec2(PE(slot,18),PE(slot,19)),uvec2(dimensions)/S(65)));
+    uint layer=PE(slot,17);
+    ivec3 dimensions=textureSize(shadowDepthPool,0);
+    if(S(65)==0u || layer>=S(119) || layer>=uint(dimensions.z)) return false;
+    return all(lessThan(uvec2(PE(slot,18),PE(slot,19)),uvec2(dimensions.xy)/S(65)));
 }
 /// Finds only certified, covered pages with a valid explicit physical address.
 bool shadowLookup(int face,dvec2 texel,out uint slot,out bool stale) {
@@ -121,15 +120,11 @@ bool shadowLookup(int face,dvec2 texel,out uint slot,out bool stale) {
     }
     return false;
 }
-/// Uses static sampler expressions and point fetches, legal under divergent receiver selection on GL 4.5.
+/// Uses an explicit array layer and point fetches, legal under divergent receiver selection on GL 4.5.
 float shadowFetch(uint slot,dvec2 texel) {
     ivec2 local=ivec2(mod(dvec2(texel),double(S(65))));
     ivec2 at=ivec2(PE(slot,18),PE(slot,19))*int(S(65))+local;
-    uint bank=PE(slot,17);
-    if(bank==0u) return uintBitsToFloat(texelFetch(shadowDepth0,at,0).r);
-    if(bank==1u) return uintBitsToFloat(texelFetch(shadowDepth1,at,0).r);
-    if(bank==2u) return uintBitsToFloat(texelFetch(shadowDepth2,at,0).r);
-    return uintBitsToFloat(texelFetch(shadowDepth3,at,0).r);
+    return uintBitsToFloat(texelFetch(shadowDepthPool,ivec3(at,int(PE(slot,17))),0).r);
 }
 /// Evaluates all taps; any invalid lookup withdraws the whole query and returns diagnosed illumination.
 float shadowPcf(out uint failureMask,out uint staleMask,out ivec3 addresses[9],out float references[9]) {
