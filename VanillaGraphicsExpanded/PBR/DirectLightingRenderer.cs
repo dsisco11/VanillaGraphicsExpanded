@@ -146,7 +146,7 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
 
         // Target routing, clear masks and complete drawing state belong to submission owners.
         var pass = isolated?.Pass ?? bufferManager.LightingPass!;
-        AssignInputs(shader, primaryFb);
+        AssignInputs(shader);
 
         using var cpuScope = Profiler.BeginScope("PBR.DirectLighting", "Render");
         using (GlGpuProfiler.Instance.Scope("PBR.DirectLighting"))
@@ -169,8 +169,6 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
     public void Dispose()
     {
         reloadPreload?.Dispose();
-        shadowNearInput?.Dispose(); shadowNearInput = null;
-        shadowFarInput?.Dispose(); shadowFarInput = null;
         lightingPipeline?.Dispose();
         lightingPipeline = null;
         

@@ -141,7 +141,7 @@ public sealed class ShadowSourceAndCoverageTests
     public void InfluenceUsesSharedNativeOrAuthoredFormula(float x, float y, float z, float authoredRadius, float expected)
     {
         // Arrange: construct payloads at the engine and authored radius boundary.
-        var light = new ShadowPointLight(default, Vector3.Zero, new(x, y, z, authoredRadius));
+        var light = new ShadowPointLight(default, Vector3.Zero, new(x, y, z, authoredRadius), WorldPosition: null);
 
         // Act: evaluate the contract used for both demand and attenuation support.
         float radius = light.Radius;

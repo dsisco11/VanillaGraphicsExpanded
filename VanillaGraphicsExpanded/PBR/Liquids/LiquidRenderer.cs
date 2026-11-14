@@ -116,8 +116,6 @@ internal sealed class LiquidRenderer : IRenderer
             program.ResetModelTransform();
             program.ForcedTransparency = 0;
             program.DepthTexture = source.PrimaryDepth;
-            program.ShadowMapNear = source.ShadowNear;
-            program.ShadowMapFar = source.ShadowFar;
             program.LightShaftOcclusion = Postprocessing.LightShaftOcclusionRenderer.Texture;
             program.AerialRadianceTexture = AtmosphereModSystem.AerialRadianceTexture;
             program.AerialAttenuationTexture = AtmosphereModSystem.AerialAttenuationTexture;

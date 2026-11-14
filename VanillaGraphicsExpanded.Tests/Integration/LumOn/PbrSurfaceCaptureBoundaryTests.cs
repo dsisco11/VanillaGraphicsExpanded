@@ -30,7 +30,9 @@ public sealed class PbrSurfaceCaptureBoundaryTests : RenderTestBase
         // Arrange: Compile a controlled source fixture that varies route and water-variable naming independently.
         EnsureContextValid();
         string source = """
-            #version 330 core
+            #version 450 core
+            #extension GL_ARB_explicit_attrib_location: enable
+            #extension GL_ARB_explicit_uniform_location: warn
             #define USEOIT 0
             #define NORMALVIEW 0
             #define BLOOM 0
@@ -41,6 +43,23 @@ public sealed class PbrSurfaceCaptureBoundaryTests : RenderTestBase
             float fogAmount = 0.0;
             float getMatMetallicFromRenderFlags(int flags) { return 0.0; }
             vec3 VgeLocalEnvironment(vec3 block, vec3 sky) { return block + sky * 0.35; }
+            vec4 applyPsychedelicEffect(vec4 color, vec3 position, int sub)
+            {
+                float df = clamp(0.5, 0.09, 1);
+                return color * df;
+            }
+            float getFogLevel(vec4 position, float fogMin, float fogDensity)
+            {
+                float depth = 1.0;
+                float nearnessToPlayer = clamp((8-depth)/8, 0, 0.9);
+                return nearnessToPlayer;
+            }
+            float retainIntegerLoop()
+            {
+                float value = 0.0;
+                for (int i = 0; i < 3; i++) value += 1.0;
+                return value;
+            }
             // This mechanical capture fixture isolates source routing from photometric calibration.
             vec3 VgeBlockIlluminance(vec3 block, bool worldAccessor) { return block; }
             vec3 VgeDiffuseIncident(vec3 incident) { return incident; }
@@ -68,13 +87,43 @@ public sealed class PbrSurfaceCaptureBoundaryTests : RenderTestBase
         string helper = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"));
         source = source.Replace("layout(location=0)", helper + "\nlayout(location=0)");
         var tree = SyntaxTree.Parse(source, GlslSchema.Instance);
-        PbrSurfaceShaderPatches.Apply(tree, "standard.fsh");
+        var editor = tree.CreateEditor();
+        PbrSurfaceShaderPatches.Apply(tree, editor, "standard.fsh");
+        editor.Commit();
+        string patchedSource = tree.ToText();
+        // Assert: One queued patch removes only the targeted extension and preserves unrelated syntax and source behavior.
+        Assert.DoesNotContain("#extension GL_ARB_explicit_attrib_location", patchedSource, StringComparison.Ordinal);
+        const string unrelatedExtension = "#extension GL_ARB_explicit_uniform_location: warn";
+        Assert.Contains(unrelatedExtension, patchedSource, StringComparison.Ordinal);
+        Assert.Contains("uniform int vge_pbrRoute;", patchedSource, StringComparison.Ordinal);
+        Assert.True(patchedSource.IndexOf("uniform int vge_pbrRoute;", StringComparison.Ordinal) >
+            patchedSource.IndexOf(unrelatedExtension, StringComparison.Ordinal),
+            "The inserted declarations must follow a surviving leading extension directive.");
+        Assert.Contains("float df = clamp(0.5, 0.09, 1.0);", patchedSource, StringComparison.Ordinal);
+        Assert.Contains("float nearnessToPlayer = clamp((8-depth)/8, 0.0, 0.9);", patchedSource, StringComparison.Ordinal);
+        Assert.Contains("for (int i = 0; i < 3; i++)", patchedSource, StringComparison.Ordinal);
         int vertex = 0, fragment = 0, program = 0;
         try
         {
-            // Act: Link and render the patched fragment source with the selected route.
-            vertex = Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0) in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
-            fragment = Compile(ShaderType.FragmentShader, tree.ToText());
+            string vertexSource = """
+                #version 450 core
+                layout(location=0) in vec2 position;
+                out vec3 vge_viewPosition;
+                out vec3 vge_blockField;
+                out vec3 vge_sunIrradiance;
+                out float vge_skyVisibility;
+                void main()
+                {
+                    gl_Position = vec4(position, 0, 1);
+                    vge_viewPosition = vec3(0.0);
+                    vge_blockField = vec3(0.0);
+                    vge_sunIrradiance = vec3(0.0);
+                    vge_skyVisibility = 1.0;
+                }
+                """;
+            // Act: Link the patched fragment against its complete controlled native-forward varying interface.
+            vertex = Compile(ShaderType.VertexShader, vertexSource);
+            fragment = Compile(ShaderType.FragmentShader, patchedSource);
             program = GL.CreateProgram();
             GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);

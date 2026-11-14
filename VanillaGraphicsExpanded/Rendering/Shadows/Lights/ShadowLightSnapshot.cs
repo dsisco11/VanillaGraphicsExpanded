@@ -5,15 +5,16 @@ using System.Numerics;
 namespace VanillaGraphicsExpanded.Rendering.Shadows.Lights;
 
 /// <summary>Freezes the exact light payload and coordinate convention alongside source ownership.</summary>
+/// <remarks>WorldToView is the frozen camera-relative view; point-light shadow positions are captured independently in world space.</remarks>
 internal sealed record ShadowLightSnapshot(long Frame, long World, int Dimension,
     ImmutableArray<ShadowPointLight> Points, ShadowDirectionalLight Sun, ShadowDirectionalLight Moon,
     ImmutableArray<double> WorldToView, int OriginX, int OriginY, int OriginZ,
     Vector3 OriginRemainder)
 {
-    /// <summary>Counts defensively unidentifiable sources without excluding their illumination.</summary>
+    /// <summary>Counts sources lacking identity or original position without excluding their illumination.</summary>
     internal int UnknownSources
     {
-        get { int count = 0; foreach (var light in Points) if (!light.Source.IsKnown) count++; return count; }
+        get { int count = 0; foreach (var light in Points) if (!light.Source.IsKnown || light.WorldPosition is null) count++; return count; }
     }
 
     #region Public API

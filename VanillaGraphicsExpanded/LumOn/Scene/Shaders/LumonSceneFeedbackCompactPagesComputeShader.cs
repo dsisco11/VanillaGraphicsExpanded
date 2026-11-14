@@ -18,15 +18,10 @@ internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : GpuC
 {
 
     public static string ShaderName => Contract.Identity;
-    private const int ParamsUboSizeBytes = 16; // uvec4
 
-    private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
-    private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
 
-    private uint maxRequests;
-    private uint frameStamp;
-    private uint scanOffset;
-    private uint compactMode;
+    private readonly LumonSceneFeedbackCompactPagesParameters parameters = new();
+
 
     #region Public API
     /// <summary>Creates the executable before adopting its retained input owner.</summary>
@@ -60,8 +55,6 @@ internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : GpuC
         return true;
     }
 
-
-
     /// <summary>Retains RequestCounter for the next dispatch submission.</summary>
     public void BindRequestCounter(GpuAtomicCounterBuffer counter)
     { RequestCounter = counter; }
@@ -70,43 +63,43 @@ internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : GpuC
     public void BindRequestsSsbo(GpuShaderStorageBuffer ssbo)
     { PageRequests = ssbo; }
 
+    /// <summary>Stages MaxRequests in the retained dispatch inputs.</summary>
     public uint MaxRequests
     {
         set
         {
             RequireInputMutation();
-            maxRequests = value;
-            StageParameters();
+            parameters.SetMaxRequests(value);
         }
     }
 
+    /// <summary>Stages FrameStamp in the retained dispatch inputs.</summary>
     public uint FrameStamp
     {
         set
         {
             RequireInputMutation();
-            frameStamp = value;
-            StageParameters();
+            parameters.SetFrameStamp(value);
         }
     }
 
+    /// <summary>Stages ScanOffset in the retained dispatch inputs.</summary>
     public uint ScanOffset
     {
         set
         {
             RequireInputMutation();
-            scanOffset = value;
-            StageParameters();
+            parameters.SetScanOffset(value);
         }
     }
 
+    /// <summary>Stages CompactMode in the retained dispatch inputs.</summary>
     public uint CompactMode
     {
         set
         {
             RequireInputMutation();
-            compactMode = value;
-            StageParameters();
+            parameters.SetCompactMode(value);
         }
     }
 
@@ -121,11 +114,5 @@ internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : GpuC
         OwnUniformBuffer(parameters);
     }
 
-    /// <summary>Packs retained values for one complete publication at dispatch.</summary>
-    private void StageParameters()
-    {
-        UboPacking.WriteUVec4(paramsBytes, 0, maxRequests, frameStamp, scanOffset, compactMode);
-        parameters.SetBytes(paramsBytes);
-    }
     #endregion
 }

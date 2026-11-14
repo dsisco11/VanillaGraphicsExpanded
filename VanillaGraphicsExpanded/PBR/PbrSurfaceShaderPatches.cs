@@ -25,6 +25,10 @@ internal static class PbrSurfaceShaderPatches
     /// <summary>Queues shared BRDF imports into a stage-scoped transaction.</summary>
     internal static bool Preprocess(SyntaxTree tree, SyntaxEditor editor, string name)
     {
+        // Shared surface sampling uses the established GL 4.5 storage contract.
+        // Change the parsed directive, never scan source text.
+        var version = tree.Select(Query.Syntax<GlDirectiveNode>().Named("version")).Single();
+        editor.Replace(version, "#version 450 core\n");
         if (name == "chunktransparent.vsh")
         {
             editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
@@ -81,6 +85,7 @@ internal static class PbrSurfaceShaderPatches
     /// <summary>Queues material and lighting integration into a stage-scoped transaction.</summary>
     internal static void Apply(SyntaxTree tree, SyntaxEditor editor, string name)
     {
+        QueueCoreCompatibilityEdits(tree, editor);
         bool chunk = name.StartsWith("chunktransparent", StringComparison.Ordinal);
         bool instanced = name.StartsWith("instanced", StringComparison.Ordinal);
         bool entity = name.StartsWith("entityanimated", StringComparison.Ordinal);
@@ -88,13 +93,27 @@ internal static class PbrSurfaceShaderPatches
         string matrix = chunk || instanced ? "modelViewMatrix" : "viewMatrix";
         string blockDecoder = chunk ? "false" : "true";
         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
+        // Surface lighting has one shadow provider. Retain defined native outputs
+        // for stage linkage, but eliminate native cascade projection and sampling
+        // even in variants whose engine helpers remain reachable for other effects.
+        if (vertex && tree.Select(Query.Syntax<GlFunctionNode>().Named("calcShadowMapCoords")).Any())
+            editor.Replace(Query.Syntax<GlFunctionNode>().Named("calcShadowMapCoords").Block("body").Inner(), """
+
+                #if SHADOWQUALITY > 0
+                shadowCoordsFar = vec4(0);
+                #endif
+                #if SHADOWQUALITY > 1
+                shadowCoordsNear = vec4(0);
+                #endif
+
+                """);
+        if (!vertex && tree.Select(Query.Syntax<GlFunctionNode>().Named("getBrightnessFromShadowMap")).Any())
+            editor.Replace(Query.Syntax<GlFunctionNode>().Named("getBrightnessFromShadowMap").Block("body").Inner(),
+                "\nreturn 1.0;\n");
         string declarations = """
 
         uniform int vge_pbrRoute;
         uniform vec3 vge_atmosphereEnvironment;
-        uniform vec3 vge_atmosphereSolar;
-        uniform vec3 vge_atmosphereSunDirection;
-        uniform float vge_atmosphereDirectRadius;
         #define VGE_ATMOSPHERE_SCATTERING_DIRECTIONS
         uniform vec3 vge_atmosphereScatteringSun;
         uniform vec3 vge_atmosphereScatteringMoon;
@@ -190,10 +209,9 @@ internal static class PbrSurfaceShaderPatches
         uniform sampler2D vge_normalDepthTex;
 
         """;
-        // Imported extensions can occur inside include guards after helper definitions.
-        // Anchor these core-language declarations at the unconditional version header so
-        // every patched helper sees them and no include guard can suppress them.
-        var header = tree.Select(Query.Syntax<GlDirectiveNode>().Named("version")).Single();
+        // Keep surviving header extensions before declarations, as core GLSL requires.
+        // Imported or conditional directives cannot anchor unconditional material declarations.
+        var header = FindMaterialHeader(tree);
         editor.InsertAfter(header, declarations);
         editor.InsertAfter(mainQuery.InnerStart("body"), $"""
 
@@ -304,5 +322,70 @@ internal static class PbrSurfaceShaderPatches
         else editor.InsertBefore(mainQuery.InnerEnd("body"), finish);
     }
 
+    #endregion
+
+    #region Private
+    /// <summary>Finds the last surviving unconditional header extension, or the version when none remains.</summary>
+    private static GlDirectiveNode FindMaterialHeader(SyntaxTree tree)
+    {
+        var header = tree.Select(Query.Syntax<GlDirectiveNode>().Named("version")).OfType<GlDirectiveNode>().Single();
+        // Inspect only the leading unconditional directive prefix. Selecting an extension inside an
+        // imported include guard could suppress material declarations or place them after helpers.
+        foreach (var node in tree.Root.Children)
+        {
+            if (node is not GlDirectiveNode directive || directive.Name is "if" or "ifdef" or "ifndef") break;
+            if (directive.Name == "extension" && !IsRedundantCoreExtension(directive)) header = directive;
+        }
+        return header;
+    }
+
+    /// <summary>Identifies the compatibility extension directives already supplied by the selected core language.</summary>
+    private static bool IsRedundantCoreExtension(GlDirectiveNode directive)
+    {
+        string extension = directive.ArgumentsText.Split([' ', '\t', ':'], StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
+        return extension is "GL_ARB_shading_language_420pack" or "GL_ARB_shader_storage_buffer_object" or
+            "GL_ARB_shader_image_load_store" or "GL_ARB_explicit_attrib_location";
+    }
+
+    /// <summary>Queues core-profile compatibility edits alongside the material and lighting changes.</summary>
+    private static void QueueCoreCompatibilityEdits(SyntaxTree tree, SyntaxEditor editor)
+    {
+        // The shared editor resolves adjacent replacements and header insertions from the same tree.
+        // Keep unrelated extension directives and native expression types unchanged.
+        foreach (var directive in tree.Select(Query.Syntax<GlDirectiveNode>().Named("extension")).OfType<GlDirectiveNode>())
+        {
+            if (IsRedundantCoreExtension(directive))
+                editor.Replace(directive, "\n");
+        }
+        QueueFloatClampLiterals(tree, editor);
+    }
+
+    /// <summary>Keeps native scalar clamp calls unambiguously float when core GLSL also offers double overloads.</summary>
+    private static void QueueFloatClampLiterals(SyntaxTree tree, SyntaxEditor editor)
+    {
+        foreach (var (functionName, variable) in new[] { ("applyPsychedelicEffect", "df"), ("getFogLevel", "nearnessToPlayer") })
+        foreach (var function in tree.Select(Query.Syntax<GlFunctionNode>().Named(functionName)).OfType<GlFunctionNode>())
+        {
+            // Match the typed declaration, then only the scalar bound arguments of
+            // its clamp call. Integer loops, other expressions and native effects
+            // keep their original types and behavior.
+            // Function bodies retain these declarations as flat AST tokens.
+            var nodes = function.Body.Children.ToArray();
+            int declaration = Enumerable.Range(0, Math.Max(0, nodes.Length - 4)).Single(index =>
+                nodes[index] is SyntaxToken { Text: "float" } &&
+                nodes[index + 1] is SyntaxToken name && name.Text == variable &&
+                nodes[index + 2] is SyntaxToken { Text: "=" } &&
+                nodes[index + 3] is SyntaxToken { Text: "clamp" } &&
+                nodes[index + 4] is SyntaxBlock { Opener: '(' });
+            var arguments = (SyntaxBlock)nodes[declaration + 4];
+            int argument = 0;
+            foreach (var node in arguments.Children.Skip(1).SkipLast(1))
+            {
+                if (node is SyntaxToken { Text: "," }) { argument++; continue; }
+                if (argument > 0 && node is SyntaxToken token && token.Text is "0" or "1")
+                    editor.Replace(token, token.Text + ".0");
+            }
+        }
+    }
     #endregion
 }

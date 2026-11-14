@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
@@ -41,7 +42,7 @@ internal sealed class LocalExposurePrototypeProbeProgram : GpuProgram
         UboPacking.WriteVec4(bytes, 16, strengthsAndBounds.X, strengthsAndBounds.Y,
             strengthsAndBounds.Z, strengthsAndBounds.W);
         UboPacking.WriteInt32(bytes, 32, (int)operation);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
     #endregion
 

@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 [ShaderStage("Contract", ShaderStageKind.Compute, "cloud_volume/copy.csh")]
 internal sealed partial class CloudVolumeCopyProgram : GpuComputeProgram, ICloudVolumeCopyBindings
 {
-    private readonly PackedUniformBuffer inputs = new(48);
+    private readonly CloudVolumeCopyParameters inputs = new();
     #region Public API
     /// <summary>Loads the independent diffuse publication executable.</summary>
     internal static CloudVolumeCopyProgram Create(ICoreAPI api)
@@ -24,10 +24,8 @@ internal sealed partial class CloudVolumeCopyProgram : GpuComputeProgram, ICloud
     /// <summary>Captures a complete re-encode or an exact same-scale repair from retained block history.</summary>
     internal void Capture(CloudVolumeDomain domain, CloudVolumeEncoding source, CloudVolumeEncoding target, bool repair = false)
     {
-        RequireInputMutation(); Span<byte> data = stackalloc byte[48]; data.Clear();
-        UboPacking.WriteIVec4(data, 0, domain.Size, CloudVolumeDomain.Height, domain.Size, repair ? 1 : 0);
-        UboPacking.WriteVec4(data, 16, source.Scale, target.Scale, 0, 0);
-        UboPacking.WriteVec4(data, 32, target.Cap.X, target.Cap.Y, target.Cap.Z, 0); inputs.SetBytes(data);
+        RequireInputMutation();
+        inputs.Capture(domain, source, target, repair);
     }
     #endregion
     #region Private

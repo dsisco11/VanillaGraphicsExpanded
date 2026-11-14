@@ -20,12 +20,7 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : TraceGeometr
 
     public static string ShaderName => Contract.Identity;
 
-    private const int ParamsUboSizeBytes = 64; // uvec4 + ivec4 + ivec4 + ivec4
-
-    private const int AtlasLayoutOffsetBytes = 0;
-
-    private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
-    private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
+    private readonly LumonSceneCaptureVoxelParameters parameters = new();
 
     public SurfaceWorkDiagnostics Diagnostics { get; } = new();
 
@@ -37,8 +32,7 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : TraceGeometr
         bool measured = Diagnostics.Begin(SurfaceWorkStage.Capture, pages);
         try
         {
-            UboPacking.WriteUVec4(paramsBytes, 16, measured ? 1u : 0u, 0, 0, 0);
-            StageParameters();
+            parameters.SetDiagnostics(measured);
             base.Dispatch(groupsX, groupsY, pages);
         }
         finally { Diagnostics.End(); }
@@ -126,8 +120,7 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : TraceGeometr
     public void SetAtlasLayout(uint tileSizeTexels, uint tilesPerAxis, uint tilesPerAtlas, uint borderTexels)
     {
         RequireInputMutation();
-        UboPacking.WriteUVec4(paramsBytes, AtlasLayoutOffsetBytes, tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
-        StageParameters();
+        parameters.SetAtlasLayout(tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
     }
 
     /// <summary>Supplies retained packed dispatch parameters.</summary>
@@ -151,10 +144,5 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : TraceGeometr
         OwnUniformBuffer(parameters);
     }
 
-    /// <summary>Packs retained values for one complete publication at dispatch.</summary>
-    private void StageParameters()
-    {
-        parameters.SetBytes(paramsBytes);
-    }
     #endregion
 }

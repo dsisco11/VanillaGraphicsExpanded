@@ -20,10 +20,13 @@ internal sealed class ShadowSampleRequest
         Vector3d normal, long worldRevision, long sceneEpoch, long sceneSequence, ShadowPageSettings settings)
     {
         double width = projection.TexelWidth(level);
-        var query = new ShadowSampleRequest(projection.Key(receiver, level), receiver, normal, width, worldRevision, sceneEpoch, sceneSequence, settings);
         var snapshot = ShadowProjectionSnapshot.Directional(projection, level);
+        var point = new ShadowBounds(receiver.X, receiver.Y, receiver.Z, receiver.X, receiver.Y, receiver.Z);
+        var query = new ShadowSampleRequest(projection.Key(receiver, level), receiver, normal, width, worldRevision, sceneEpoch, sceneSequence,
+            settings, ShadowCoordinates.SamplingOrigin(snapshot, point));
         snapshot.WriteTo(query.Words); query.PageRequest = query.PageRequest with { Projection = snapshot };
-        new ShadowTemporalQuery(snapshot, 0, new() { MaxStaleAgeSeconds = 0 }).WriteTo(query.Words);
+        ShadowCoordinates.WriteSamplingFrame(query.Words, snapshot, query.Footprint);
+        new ShadowTemporalQuery(snapshot, 0, new() { MaxStaleAgeSeconds = 0 }).WriteTo(query.Words, snapshot);
         return query;
     }
     /// <summary>Builds a point query on a radial receiver shell; taps are remapped to their destination face.</summary>
@@ -33,11 +36,11 @@ internal sealed class ShadowSampleRequest
         double distance = Math.Sqrt(Vector3d.Dot(receiver - projection.Position, receiver - projection.Position));
         double width = 2 * distance / projection.FaceResolution;
         var query = new ShadowSampleRequest(projection.Key(receiver), receiver, normal, width, worldRevision, sceneEpoch, sceneSequence,
-            settings, 3 * (1 + 8.0 / projection.FaceResolution));
+            settings, projection.Position, 3 * (1 + 8.0 / projection.FaceResolution));
         var snapshot = ShadowProjectionSnapshot.Point(projection, query.PageRequest.Key.FaceOrLevel);
         snapshot.WriteTo(query.Words); query.PageRequest = query.PageRequest with { Projection = snapshot };
-        Number(query.Words, 90, width);
-        new ShadowTemporalQuery(snapshot, 0, new() { MaxStaleAgeSeconds = 0 }).WriteTo(query.Words);
+        ShadowCoordinates.WriteSamplingFrame(query.Words, snapshot, query.Footprint);
+        new ShadowTemporalQuery(snapshot, 0, new() { MaxStaleAgeSeconds = 0 }).WriteTo(query.Words, snapshot);
         return query;
     }
 
@@ -48,45 +51,49 @@ internal sealed class ShadowSampleRequest
         if (temporal.Current.Source != PageRequest.Key.Source || temporal.Current.IsPoint != (Words[64] == 1))
             throw new ArgumentException("Current illumination and retained depth must share source lifetime and projection kind.", nameof(temporal));
         var result = new ShadowSampleRequest(this);
-        temporal.WriteTo(result.Words);
+        temporal.WriteTo(result.Words, PageRequest.Projection!);
         return result;
     }
     #endregion
     #region Private
     /// <summary>Constructs a conservative enclosure for all nine taps and the bounded receiver normal shift.</summary>
     private ShadowSampleRequest(ShadowPageKey key, Vector3d receiver, Vector3d normal, double texelWidth,
-        long worldRevision, long sceneEpoch, long sceneSequence, ShadowPageSettings settings, double filterRadius = 3)
+        long worldRevision, long sceneEpoch, long sceneSequence, ShadowPageSettings settings, Vector3d samplingOrigin, double filterRadius = 3)
     {
         if (!ShadowProjectionMath.Finite(receiver) || !ShadowProjectionMath.Finite(normal) || !double.IsFinite(texelWidth) || texelWidth <= 0)
             throw new ArgumentOutOfRangeException(nameof(receiver));
         var policy = settings.Freeze(); normal = ShadowProjectionMath.Unit(normal);
         // Three widths cover normalized cube-plane perturbation (including a half-texel center) at any face edge.
+        var local = receiver - samplingOrigin;
+        double arithmetic = Math.ScaleB(Math.Max(1, Math.Max(Math.Abs(local.X), Math.Max(Math.Abs(local.Y), Math.Abs(local.Z)))), -20);
         double radius = (filterRadius + policy.NormalBiasTexels) * texelWidth;
-        Footprint = new(receiver.X - radius, receiver.Y - radius, receiver.Z - radius,
+        var filtered = new ShadowBounds(receiver.X - radius, receiver.Y - radius, receiver.Z - radius,
             receiver.X + radius, receiver.Y + radius, receiver.Z + radius);
+        radius += ShadowCoordinates.DemandPadding(filtered) + arithmetic;
+        Footprint = ShadowCoverageBounds.Canonicalize(new(receiver.X - radius, receiver.Y - radius, receiver.Z - radius,
+            receiver.X + radius, receiver.Y + radius, receiver.Z + radius));
         PageRequest = new(ShadowPageOperation.Lookup, key, Footprint, worldRevision, sceneEpoch, sceneSequence);
-        Words = new uint[160]; PageRequest.Pack().CopyTo(Words, 0);
-        // Preserve native chunk-sized origin identity before packing bounded receiver remainders.
-        int x = OriginCell(receiver.X), y = OriginCell(receiver.Y), z = OriginCell(receiver.Z);
-        Origin = new(x * 32.0, y * 32.0, z * 32.0);
-        Words[120] = (uint)x; Words[121] = (uint)y; Words[122] = (uint)z;
-        Vector(Words, 98, receiver - Origin); Vector(Words, 104, normal);
-        Number(Words, 110, policy.DepthBiasTexels); Number(Words, 112, policy.NormalBiasTexels); Number(Words, 114, policy.SlopeBiasTexels);
+        Words = new uint[ShadowCoordinates.SamplingWords]; PageRequest.Pack().CopyTo(Words, 0);
+        // Validate native range and make this standalone query's receiver its own translated origin.
+        ValidateOrigin(receiver.X); ValidateOrigin(receiver.Y); ValidateOrigin(receiver.Z);
+        Origin = receiver;
+        ShadowCoordinates.Vector(Words, 98, System.Numerics.Vector3.Zero);
+        ShadowCoordinates.Vector(Words, 101, new System.Numerics.Vector3((float)normal.X, (float)normal.Y, (float)normal.Z));
+        ShadowCoordinates.Split(Origin, out var high, out var low);
+        ShadowCoordinates.Vector(Words, 104, high); ShadowCoordinates.Vector(Words, 107, low);
+        ShadowCoordinates.Float(Words, 123, (float)ShadowCoordinates.OriginError(Origin));
+        ShadowCoordinates.Float(Words, 110, (float)policy.DepthBiasTexels);
+        ShadowCoordinates.Float(Words, 111, (float)policy.NormalBiasTexels);
+        ShadowCoordinates.Float(Words, 112, (float)policy.SlopeBiasTexels);
     }
     /// <summary>Copies request storage so temporal policy changes cannot mutate an already submitted query.</summary>
     private ShadowSampleRequest(ShadowSampleRequest source)
     { Words = (uint[])source.Words.Clone(); Footprint = source.Footprint; PageRequest = source.PageRequest; Origin = source.Origin; }
-    /// <summary>Writes a world-space vector as doubles so large origins are not rounded through float.</summary>
-    private static void Vector(uint[] words, int offset, Vector3d v)
-    { Number(words, offset, v.X); Number(words, offset + 2, v.Y); Number(words, offset + 4, v.Z); }
-    /// <summary>Packs an IEEE double into the shared word layout.</summary>
-    private static void Number(uint[] words, int offset, double value) => ShadowPageRequest.Put(words, offset, BitConverter.DoubleToInt64Bits(value));
     /// <summary>Rejects world origins outside native signed chunk coordinates instead of overflowing their identity.</summary>
-    private static int OriginCell(double world)
+    private static void ValidateOrigin(double world)
     {
         double cell = Math.Floor(world / 32);
         if (cell < int.MinValue || cell > int.MaxValue) throw new ArgumentOutOfRangeException(nameof(world));
-        return (int)cell;
     }
     #endregion
 }

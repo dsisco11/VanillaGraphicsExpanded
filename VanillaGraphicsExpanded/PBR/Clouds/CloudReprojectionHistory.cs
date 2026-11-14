@@ -26,7 +26,7 @@ internal sealed class CloudReprojectionHistory
         bool compatible=valid && !camera.CameraCut && camera.FrameIndex==input.Frame && unchecked(frame+1)==input.Frame
             && owner.TryGetTarget(out var previousOwner) && ReferenceEquals(previousOwner,input.Owner) && input.Storage.Width==mapWidth
             && input.World==world && input.Allocation==allocation && input.Upload>=upload && input.Shader==shader
-            && camera.CalibrationGeneration==calibration && System.Runtime.InteropServices.MemoryMarshal.Read<Vector2>(camera.Bytes.Slice(384,8))==screen
+            && camera.CalibrationGeneration==calibration && camera.ScreenSize==screen
             && contentCompatible
             && camera.Projection.SequenceEqual(projection);
         // Raw uploads, completed lighting publications and fog inputs evolve during normal
@@ -62,7 +62,7 @@ internal sealed class CloudReprojectionHistory
         // A skipped/failed cloud draw leaves this frame certificate behind and rejects reuse.
         camera.Projection.CopyTo(projection);
         calibration=camera.CalibrationGeneration;
-        screen=System.Runtime.InteropServices.MemoryMarshal.Read<Vector2>(camera.Bytes.Slice(384,8)); valid=true;
+        screen=camera.ScreenSize; valid=true;
     }
     #endregion
 

@@ -282,7 +282,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         using var local = Pipeline(colors, 16, 8, 1, globalStops, new(.5f), new(4));
         Vector4 controls = new(1, 1, 1.111798286f, .143282309f);
         using var lookup = new ColorGradingLut();
-        var graded = lookup.Prepare(Programs.Api, controls);
+        var graded = lookup.Prepare(Programs.Api, new(controls.X, controls.Y, controls.Z, controls.W));
         using var baselineInput = TestFramework.CreateTexture(16, 8, TextureFormat.Rgba32f, colors.SelectMany(c => new[] { c.X, c.Y, c.Z, 1f }).ToArray());
         // Preserve the direct pre-dither LUT observation: pbr_final adds display dithering and cannot satisfy this authored tolerance.
         using var baseline = DrawImage(LocalExposureProbeOperation.GradingLookup, 16, 8, baselineInput,

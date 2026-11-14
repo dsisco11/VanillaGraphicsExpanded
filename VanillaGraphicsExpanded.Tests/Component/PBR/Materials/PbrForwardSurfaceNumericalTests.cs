@@ -1,9 +1,11 @@
 using System.Collections.Immutable;
 using System.Numerics;
 using VanillaGraphicsExpanded.ModSystems;
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.PBR.Materials.Energy;
+using VanillaGraphicsExpanded.PBR.Shadows;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
@@ -15,7 +17,7 @@ using VanillaGraphicsExpanded.Tests.Support.Lighting;
 
 using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
 namespace VanillaGraphicsExpanded.Tests.Component.PBR.Materials;
-/// <summary>Checks shared forward lighting at shadow, emission and view-space point-light boundaries.</summary>
+/// <summary>Checks shared forward lighting at solar, VSM occlusion, emission and view-space point-light boundaries.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
@@ -24,7 +26,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
     /// <summary>Uses the shared headless context.</summary>
     public PbrForwardSurfaceNumericalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    /// <summary>Checks explicit solar inputs, shadow occlusion, emission, view-space points and enclosed aerial transport.</summary>
+    /// <summary>Checks explicit solar inputs, VSM occlusion, emission, view-space points and enclosed aerial transport.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -52,6 +54,12 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
         float[] view = scenario == 3
             ? [0, 0, 1, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 0, 1]
             : [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+        if (scenario == 11)
+        {
+            view = (float[])view.Clone();
+            view[12] = -64;
+            view[13] = -64;
+        }
         // Act by rendering the authored forward-boundary scenario with that view transform.
         float[] actual = RenderScenario(scenario, view);
         float factor = scenario is 1 or 9 or 15 ? 64f
@@ -112,8 +120,20 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
         using var programs = new ComponentShaderPrograms();
         string identity = scenario is >= 6 and <= 9 ? "tests/pbr-forward-surface-legacy-environment" : "tests/pbr-forward-surface";
         var program = programs.Create<PbrForwardSurfaceProbeProgram>(identity: identity);
-        using var frame = new VgeFrameUniformBuffer();
+        float[] inverseProjection = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+        using var frame = TestFrameCamera.Create(inverseProjection, view, 1, 1, .1f, 100);
         using var lights = new VgeLightsUniformBuffer();
+        // Keep each authored direct term in the source snapshot consumed by VSM surface shading;
+        // scenario 11 alone uses a ready occluding page, while other scenarios exercise fail-open lighting.
+        Vector3 solar = scenario == 4 ? new(.2f, .4f, .8f)
+            : scenario is 10 or 11 ? new(.3f, .5f, .7f) : Vector3.Zero;
+        using var shadowFixture = scenario == 11
+            ? new PublishedSurfaceShadowFixture(0f, receiverRelative: new Vector3d(64, 64, -2), solar: solar)
+            : null;
+        using var shadowInputs = shadowFixture is null
+            ? SurfaceShadowTestInputs.Create(Vector3.UnitZ, solar)
+            : null;
+        var currentShadowInputs = shadowFixture?.Inputs ?? shadowInputs!;
         lights.Capture(scenario is 2 or 3 or 8 or 14 ? 1 : 0, [0, 0, 0], [4, 4, 4]);
         if (scenario >= 16)
             lights.CaptureAuthored([new(new(0, 0, scenario == 17 ? 0 : -1), Vector3.One,
@@ -135,11 +155,9 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             ?? throw new InvalidOperationException("The authored aerial-radiance texture was not published.");
         var aerialAttenuation = AtmosphereModSystem.AerialAttenuationTexture
             ?? throw new InvalidOperationException("The authored aerial-attenuation texture was not published.");
-        using var depth = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
-        depth.UploadDataImmediate([scenario is 4 or 5 or 10 ? 1f : 0f]);
         using var lighting = new TestFrameLightingPublication();
-        program.Capture(scenario, view, frame, lights, lighting.Buffer, depth, aerialRadiance,
-            aerialAttenuation, neutralShaftOcclusion);
+        program.Capture(scenario, frame, lights, lighting.Buffer, aerialRadiance,
+            aerialAttenuation, neutralShaftOcclusion, currentShadowInputs);
 
         using var target = CreateRenderTarget(1, 1, TextureFormat.Rgba32f);
         var commands = RHICommandContext.Current;

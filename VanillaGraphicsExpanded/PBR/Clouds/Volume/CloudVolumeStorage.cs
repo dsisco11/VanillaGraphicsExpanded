@@ -172,7 +172,7 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
             !caps.SupportsInternalFormatQuery2 || caps.Max3DTextureSize < Math.Max(domain.Size, CloudVolumeDomain.Height) ||
             caps.MaxTextureSize < domain.Width || caps.MaxImageUnits < 4 || caps.MaxComputeImageUniforms < 4 ||
             caps.MaxComputeTextureImageUnits < 1 || caps.MaxCombinedTextureImageUnits < 1 ||
-            caps.MaxUniformBufferBindings < 1 || caps.MaxUniformBlockSize < 80 ||
+            caps.MaxUniformBufferBindings < 1 || caps.MaxUniformBlockSize < CloudVolumeMaintenanceParameters.BlockSize ||
             caps.MaxShaderStorageBufferBindings < 3 || caps.MaxComputeShaderStorageBlocks < 3 ||
             caps.MaxShaderStorageBlockSize < Math.Max(domain.Blocks * 64L, CloudVolumeDomain.ScratchBytes - 4096) ||
             caps.MaxComputeWorkGroupInvocations < 256 || caps.MaxComputeWorkGroupSize.Length < 3 ||

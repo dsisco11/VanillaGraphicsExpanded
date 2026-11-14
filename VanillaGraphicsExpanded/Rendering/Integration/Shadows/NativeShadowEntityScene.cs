@@ -150,7 +150,7 @@ internal sealed class NativeShadowEntityScene : IDisposable
                 vao.IndicesCount <= 0 || vao.IndicesCount % 3 != 0 || mesh.textureids[index] <= 0)
                 throw new InvalidOperationException("Native entity command or material extent is unavailable.");
             bool rigid = hand is not null || item is not null;
-            Charge(checked(512L + views * (rigid ? 512 : ShadowEntityShader.JointCapacity * 64L + 512)), policy.MemoryMiB * 1048576L);
+            Charge(checked(512L + views * (rigid ? 512 : ShadowAnimationParameters.JointCapacity * 64L + 512)), policy.MemoryMiB * 1048576L);
             NativeShadowStaticGeometry? geometry = null;
             if (rigid)
             {

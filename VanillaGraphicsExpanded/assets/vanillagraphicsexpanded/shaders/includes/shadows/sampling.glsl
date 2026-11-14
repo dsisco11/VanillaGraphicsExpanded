@@ -1,149 +1,199 @@
-// Shared GL 4.5 demand/addressing and explicit comparison filter. Hosts provide sampleInputs[],
-// entries[] and one usampler2DArray shadowDepthPool. No implicit derivatives or optional acceleration.
+// FP32 translated receivers, integer virtual pages and explicit depth comparisons.
 #ifndef S
 #define S(i) sampleInputs[uint(i)]
 #endif
 #ifndef PE
 #define PE(s,i) entries[(s)*128u+uint(i)]
 #endif
-/// Decodes world/projection doubles without optional integer-64 operations.
-double shadowNumber(uint i) { return packDouble2x32(uvec2(S(i),S(i+1u))); }
-/// Reads a precise world vector before any float depth conversion.
-dvec3 shadowVector(uint i) { return dvec3(shadowNumber(i),shadowNumber(i+2u),shadowNumber(i+4u)); }
-/// Reconstructs precise world positions from native integer chunk origin and bounded relative doubles.
-dvec3 shadowWorld(uint i) { return dvec3(ivec3(S(120),S(121),S(122)))*32.0lf+shadowVector(i); }
-/// Resolves cube ties deterministically in X, Y, Z order.
-int shadowFace(dvec3 d) {
-    dvec3 a=abs(d);
-    // Strict comparisons retain the first dominant axis on ties.
-    int axis=0;
-    if(a.y>a.x) axis=1;
-    if(a.z>a[axis]) axis=2;
-    return 2*axis+(d[axis]<0.0lf?1:0);
+#ifndef VGE_SHADOW_SURFACE_RECEIVER
+@import "./coverage.glsl"
+#endif
+/// Reads a scalar in the frozen rendered projection's sampling frame.
+float shadowFrame(uint i) { return uintBitsToFloat(S(160u+i)); }
+/// Reads a vector in the translated sampling frame.
+vec3 shadowFrameVector(uint i) { return vec3(shadowFrame(i),shadowFrame(i+1u),shadowFrame(i+2u)); }
+/// Returns a float sum together with the rounding it would otherwise discard.
+vec3 shadowSum(vec3 a,vec3 b,out vec3 error) {
+    precise vec3 sum=a+b;
+    precise vec3 bVirtual=sum-a;
+    precise vec3 aVirtual=sum-bVirtual;
+    precise vec3 bError=b-bVirtual;
+    precise vec3 aError=a-aVirtual;
+    precise vec3 roundoff=aError+bError;
+    error=roundoff;
+    return sum;
 }
-/// Reconstructs an unbounded face-plane ray so edge taps route to adjacent faces.
-dvec3 shadowDirection(int face,dvec2 uv) {
-    if(face==0) return dvec3(1,-uv.y,-uv.x); if(face==1) return dvec3(-1,-uv.y,uv.x);
-    if(face==2) return dvec3(uv.x,1,uv.y); if(face==3) return dvec3(uv.x,-1,-uv.y);
-    if(face==4) return dvec3(uv.x,-uv.y,1); return dvec3(-uv.x,-uv.y,-1);
+/// Cancels origins before demotion, retaining low-part rounding across high-part boundaries.
+vec3 shadowOriginOffset(vec3 aHigh,vec3 aLow,vec3 bHigh,vec3 bLow) {
+    precise vec3 highError,lowError,sumError;
+    precise vec3 high=shadowSum(aHigh,-bHigh,highError);
+    precise vec3 low=shadowSum(aLow,-bLow,lowError);
+    precise vec3 sum=shadowSum(high,low,sumError);
+    precise vec3 residual=(highError+lowError)+sumError;
+    precise vec3 offset=sum+residual;
+    return offset;
 }
-/// Returns face numerator XY and positive major-axis depth.
-dvec3 shadowFaceCoordinates(dvec3 d,int face) {
-    if(face==0) return dvec3(-d.z,-d.y,d.x); if(face==1) return dvec3(d.z,-d.y,-d.x);
-    if(face==2) return dvec3(d.x,d.z,d.y); if(face==3) return dvec3(d.x,-d.z,-d.y);
-    if(face==4) return dvec3(d.x,-d.y,d.z); return dvec3(-d.x,-d.y,-d.z);
+/// Returns a bounded receiver without assembling an absolute world position.
+vec3 shadowReceiver() {
+#ifdef VGE_SHADOW_SURFACE_RECEIVER
+    return vgeShadowReceiver;
+#else
+    return uintBitsToFloat(uvec3(S(98),S(99),S(100)));
+#endif
 }
-/// Uses one mapping for demand and filtering; world position stays consistent at directional level transitions.
-bool shadowTap(ivec2 offset,out int face,out dvec2 texel,out double reference) {
-    face=0; texel=dvec2(0); reference=0.0lf;
-    dvec3 receiver=shadowWorld(98u),normal=shadowVector(104u);
-    double width=shadowNumber(90u),nearDepth=shadowNumber(86u),farDepth=shadowNumber(88u);
-    dvec3 shifted=receiver+normal*(shadowNumber(112u)*width);
-    dvec3 towardLight=S(64)==0u?-shadowVector(80u):normalize(shadowVector(92u)-shifted);
-    double cosine=clamp(abs(dot(normal,towardLight)),0.0lf,1.0lf);
-    double slope=min(4.0lf,sqrt(max(0.0lf,1.0lf-cosine*cosine))/max(0.1lf,cosine));
-    double bias=min(4.0lf,shadowNumber(110u)+shadowNumber(114u)*slope)*width;
-    dvec2 t;
+/// Returns the owning camera/query origin high part.
+vec3 shadowOriginHigh() {
+#ifdef VGE_SHADOW_SURFACE_RECEIVER
+    return vgeShadowOriginHigh.xyz;
+#else
+    return uintBitsToFloat(uvec3(S(104),S(105),S(106)));
+#endif
+}
+/// Returns the owning camera/query origin low part.
+vec3 shadowOriginLow() {
+#ifdef VGE_SHADOW_SURFACE_RECEIVER
+    return vgeShadowOriginLow.xyz;
+#else
+    return uintBitsToFloat(uvec3(S(107),S(108),S(109)));
+#endif
+}
+/// Returns the world-axis receiver normal.
+vec3 shadowNormal() {
+#ifdef VGE_SHADOW_SURFACE_RECEIVER
+    return vgeShadowNormal;
+#else
+    return uintBitsToFloat(uvec3(S(101),S(102),S(103)));
+#endif
+}
+/// Returns the float texel-bias policy.
+vec3 shadowBias() {
+#ifdef VGE_SHADOW_SURFACE_RECEIVER
+    return vgeShadowBias.xyz;
+#else
+    return uintBitsToFloat(uvec3(S(110),S(111),S(112)));
+#endif
+}
+/// Converts the receiver directly into the selected rendered light frame.
+vec3 shadowTranslatedReceiver() {
+    return shadowReceiver()+shadowOriginOffset(shadowOriginHigh(),shadowOriginLow(),shadowFrameVector(0u),shadowFrameVector(3u));
+}
+/// Preserves deterministic X/Y/Z tie ownership.
+int shadowFace(vec3 d) {
+    vec3 a=abs(d);int axis=0;if(a.y>a.x)axis=1;if(a.z>a[axis])axis=2;
+    return 2*axis+(d[axis]<0.0?1:0);
+}
+/// Reconstructs an unbounded face ray for seam traversal.
+vec3 shadowDirection(int face,vec2 uv) {
+    if(face==0)return vec3(1,-uv.y,-uv.x);if(face==1)return vec3(-1,-uv.y,uv.x);
+    if(face==2)return vec3(uv.x,1,uv.y);if(face==3)return vec3(uv.x,-1,-uv.y);
+    if(face==4)return vec3(uv.x,-uv.y,1);return vec3(-uv.x,-uv.y,-1);
+}
+/// Returns face numerators and positive major-axis depth.
+vec3 shadowFaceCoordinates(vec3 d,int face) {
+    if(face==0)return vec3(-d.z,-d.y,d.x);if(face==1)return vec3(d.z,-d.y,-d.x);
+    if(face==2)return vec3(d.x,d.z,d.y);if(face==3)return vec3(d.x,-d.z,-d.y);
+    if(face==4)return vec3(d.x,-d.y,d.z);return vec3(-d.x,-d.y,-d.z);
+}
+/// Resolves receiver-dependent texel scale in the rendered light frame.
+float shadowWidth(vec3 receiver) { return S(64)==0u?shadowFrame(15u):2.0*length(receiver)/float(S(66)); }
+/// Adds local displacement without overflowing signed global page identity.
+bool shadowAddPage(int anchor,int delta,out int page) {
+    page=0;
+    if((delta>0&&anchor>2147483647-delta)||(delta<0&&anchor<(-2147483647-1)-delta))return false;
+    page=anchor+delta;return true;
+}
+/// Produces integer pages and bounded local texels without large float texel addresses.
+bool shadowTap(ivec2 offset,out int face,out ivec2 page,out ivec2 local,out float reference) {
+    face=0;page=ivec2(0);local=ivec2(0);reference=0;
+    if(S(191)==0u)return false;
+    vec3 receiver=shadowTranslatedReceiver(),normal=shadowNormal(),biasPolicy=shadowBias();
+    float width=shadowWidth(receiver),nearDepth=shadowFrame(16u),farDepth=shadowFrame(17u);
+    vec3 shifted=receiver+normal*(biasPolicy.y*width);
+    vec3 towardLight=S(64)==0u?-shadowFrameVector(12u):normalize(-shifted);
+    float cosine=clamp(abs(dot(normal,towardLight)),0.0,1.0);
+    float slope=min(4.0,sqrt(max(0.0,1.0-cosine*cosine))/max(.1,cosine));
+    float bias=min(4.0,biasPolicy.x+biasPolicy.z*slope)*width;
+    vec2 t;
     if(S(64)==0u) {
         face=int(S(14));
-        t=floor(dvec2(dot(shifted,shadowVector(68u)),dot(shifted,shadowVector(74u)))/width)+dvec2(offset);
-        reference=(dot(shifted,shadowVector(80u))-nearDepth-bias)/(farDepth-nearDepth);
+        t=floor(vec2(dot(shifted,shadowFrameVector(6u)),dot(shifted,shadowFrameVector(9u)))/width+
+            vec2(shadowFrame(20u),shadowFrame(21u)))+vec2(offset);
+        reference=(dot(shifted,shadowFrameVector(12u))-nearDepth-bias)/(farDepth-nearDepth);
     } else {
-        dvec3 d=shifted-shadowVector(92u); double radius=length(d); if(radius<=0.0lf) return false;
-        int original=shadowFace(d); dvec3 initial=shadowFaceCoordinates(d,original);
-        dvec2 pixel=floor((initial.xy/initial.z+1.0lf)*0.5lf*double(S(66)))+dvec2(offset)+0.5lf;
-        dvec3 ray=shadowDirection(original,pixel*(2.0lf/double(S(66)))-1.0lf);
-        face=shadowFace(ray);
-        dvec3 target=shadowFaceCoordinates(normalize(ray)*radius,face);
-        t=floor((target.xy/target.z+1.0lf)*0.5lf*double(S(66)));
-        t=clamp(t,dvec2(0),dvec2(double(S(66)-1u)));
+        float radius=length(shifted);if(radius<=0.0)return false;
+        int original=shadowFace(shifted);vec3 initial=shadowFaceCoordinates(shifted,original);
+        vec2 pixel=floor((initial.xy/initial.z+1.0)*.5*float(S(66)))+vec2(offset)+.5;
+        vec3 ray=shadowDirection(original,pixel*(2.0/float(S(66)))-1.0);
+        face=shadowFace(ray);vec3 target=shadowFaceCoordinates(normalize(ray)*radius,face);
+        t=clamp(floor((target.xy/target.z+1.0)*.5*float(S(66))),vec2(0),vec2(float(S(66)-1u)));
         reference=farDepth/(farDepth-nearDepth)-farDepth*nearDepth/((farDepth-nearDepth)*target.z);
         reference-=bias*farDepth*nearDepth/((farDepth-nearDepth)*target.z*target.z);
     }
-    // The last signed page owns its entire texel interval; only the next page is out of range.
-    if(any(isnan(t))||any(isinf(t))||any(lessThan(t,dvec2(-2147483648.0lf*double(S(65)))))||any(greaterThanEqual(t,dvec2(2147483648.0lf*double(S(65)))))
-        ||isnan(reference)||isinf(reference)||reference<0.0lf||reference>1.0lf) return false;
-    texel=t; return true;
+    if(any(isnan(t))||any(isinf(t))||isnan(reference)||isinf(reference)||reference<0.0||reference>1.0)return false;
+    vec2 delta=floor(t/float(S(65)));
+    if(any(lessThan(delta,vec2(-2147483648.0)))||any(greaterThanEqual(delta,vec2(2147483648.0))))return false;
+    ivec2 anchor=S(64)==0u?ivec2(S(178),S(179)):ivec2(0);
+    if(!shadowAddPage(anchor.x,int(delta.x),page.x)||!shadowAddPage(anchor.y,int(delta.y),page.y))return false;
+    local=ivec2(t-delta*float(S(65)));return true;
 }
-/// Distinguishes complete current coverage from explicitly bounded retained coverage for every tap.
-uint shadowCoverageReason(uint slot,out bool stale) {
-    stale=false;
-    for(uint i=0u;i<3u;i++) {
-        double lo=packDouble2x32(uvec2(PE(slot,28u+2u*i),PE(slot,29u+2u*i)));
-        double hi=packDouble2x32(uvec2(PE(slot,34u+2u*i),PE(slot,35u+2u*i)));
-        if(shadowNumber(28u+2u*i)<lo || shadowNumber(34u+2u*i)>hi) return 5u;
-    }
-    // Never reinterpret retained depth through another projection, even if its generation was mislabelled.
-    for(uint i=64u;i<98u;i++) {
-        if(S(64)==1u && (i==90u || i==91u)) continue; // Point filter width is receiver-dependent.
-        if(PE(slot,i)!=S(i)) return 6u;
-    }
-    bool current=PE(slot,110)==0u && PE(slot,12)==S(138) && PE(slot,13)==S(139)
-        && PE(slot,40)==S(40) && PE(slot,41)==S(41) && PE(slot,42)==S(42)
-        && PE(slot,43)==S(43) && PE(slot,44)==S(44) && PE(slot,45)==S(45);
-    if(current) return 0u;
-    // Unknown invalidation time cannot become a newly started grace period at lookup time.
-    if(PE(slot,110)!=1u) return 7u;
-    double rendered=packDouble2x32(uvec2(PE(slot,46),PE(slot,47)));
-    double invalidated=packDouble2x32(uvec2(PE(slot,60),PE(slot,61)));
-    double now=shadowNumber(128u),renderAge=shadowNumber(130u),staleAge=shadowNumber(132u);
-    if(isnan(now)||isinf(now)||isnan(rendered)||isinf(rendered)||isnan(invalidated)||isinf(invalidated)||
-        isnan(renderAge)||isinf(renderAge)||isnan(staleAge)||isinf(staleAge)||rendered<0.0lf||
-        now<rendered||now<invalidated||invalidated<rendered) return 7u;
-    if(renderAge<=0.0lf || now-rendered>renderAge) return 8u;
-    if(staleAge<=0.0lf || now-invalidated>staleAge) return 9u;
-    dvec3 light=shadowVector(140u);
-    if(any(isnan(light))||any(isinf(light))) return 10u;
-    if(S(64)==1u) {
-        dvec3 delta=light-shadowVector(92u); double tolerance=shadowNumber(134u);
-        if(isnan(tolerance)||isinf(tolerance)||tolerance<0.0lf||dot(delta,delta)>tolerance*tolerance) return 10u;
-    } else {
-        double cosine=shadowNumber(136u);
-        if(isnan(cosine)||isinf(cosine)||cosine< -1.0lf||cosine>1.0lf) return 10u;
-        if(any(notEqual(light,shadowVector(80u))) && dot(light,shadowVector(80u))<cosine) return 10u;
-    }
-    stale=true;
-    return 0u;
+/// Checks the complete fragment footprint in the page entry's independent coverage frame.
+bool shadowFloatCoverage(uint slot) {
+    vec3 high=uintBitsToFloat(uvec3(PE(slot,104),PE(slot,105),PE(slot,106)));
+    vec3 low=uintBitsToFloat(uvec3(PE(slot,107),PE(slot,108),PE(slot,109)));
+    vec3 coverageOffset=shadowOriginOffset(shadowOriginHigh(),shadowOriginLow(),high,low);
+    vec3 receiver=shadowReceiver()+coverageOffset;
+    float width=shadowWidth(shadowTranslatedReceiver());
+    vec3 originOffset=shadowOriginOffset(shadowOriginHigh(),shadowOriginLow(),shadowFrameVector(0u),shadowFrameVector(3u));
+    vec3 magnitude=abs(shadowReceiver())+abs(originOffset);
+    float rounding=4.76837158203125e-7*max(1.0,max(magnitude.x,max(magnitude.y,magnitude.z)));
+    float radius=(3.0*(S(64)==1u?1.0+8.0/float(S(66)):1.0)+shadowBias().y)*width+rounding+shadowFrame(22u);
+#ifdef VGE_SHADOW_SURFACE_RECEIVER
+    radius+=vgeShadowBias.w;
+#else
+    radius+=uintBitsToFloat(S(123));
+#endif
+    vec3 minimum=uintBitsToFloat(uvec3(PE(slot,98),PE(slot,99),PE(slot,100)));
+    vec3 maximum=uintBitsToFloat(uvec3(PE(slot,101),PE(slot,102),PE(slot,103)));
+    return all(greaterThanEqual(receiver-vec3(radius),minimum))&&all(lessThanEqual(receiver+vec3(radius),maximum));
 }
-/// Looks up full source/projection/face/page identity; probe exhaustion cannot alias a different page.
-bool shadowPhysicalAddress(uint slot) {
-    uint layer=PE(slot,17);
-    ivec3 dimensions=textureSize(shadowDepthPool,0);
-    if(S(65)==0u || layer>=S(119) || layer>=uint(dimensions.z)) return false;
-    return all(lessThan(uvec2(PE(slot,18),PE(slot,19)),uvec2(dimensions.xy)/S(65)));
-}
-/// Finds only certified, covered pages with a valid explicit physical address.
-bool shadowLookup(int face,dvec2 texel,out uint slot,out bool stale) {
-    stale=false;
-    ivec2 page=ivec2(floor(dvec2(texel)/double(S(65)))); uint hash=2166136261u;
-    for(uint i=0u;i<17u;i++) { uint v=i==14u?uint(face):i==15u?uint(page.x):i==16u?uint(page.y):S(i); hash=(hash^v)*16777619u; }
+/// Resolves exact source, rendered generation, destination face and integer page.
+bool shadowLookup(int face,ivec2 page,out uint slot,out bool stale) {
+    slot=0u;stale=false;uint hash=2166136261u;
+    for(uint i=0u;i<17u;i++){uint v=i==14u?uint(face):i==15u?uint(page.x):i==16u?uint(page.y):S(i);hash=(hash^v)*16777619u;}
     for(uint probe=0u;probe<min(S(117),S(116));probe++) {
-        uint s=(hash+probe)%S(116); if(PE(s,20)!=2u) continue;
+        uint s=(hash+probe)%S(116);if(PE(s,20)!=2u)continue;
         bool match=true;
-        for(uint i=0u;i<17u;i++) { uint v=i==14u?uint(face):i==15u?uint(page.x):i==16u?uint(page.y):S(i); if(PE(s,i)!=v) match=false; }
-        if(match && shadowCoverageReason(s,stale)==0u && shadowPhysicalAddress(s)) { slot=s; return true; }
+        for(uint i=0u;i<17u;i++){uint v=i==14u?uint(face):i==15u?uint(page.x):i==16u?uint(page.y):S(i);if(PE(s,i)!=v)match=false;}
+        if(!match)continue;
+        for(uint i=64u;i<98u;i++){if(S(64)==1u&&(i==90u||i==91u))continue;if(PE(s,i)!=S(i))match=false;}
+#ifndef VGE_SHADOW_SURFACE_RECEIVER
+        if(shadowCoverageReason(s,stale)!=0u)match=false;
+#else
+        // The immutable gate interval already certified temporal eligibility for this selected mapping.
+        stale=PE(s,110)==1u;
+#endif
+        ivec3 dimensions=textureSize(shadowDepthPool,0);
+        bool address=S(65)>0u&&PE(s,17)<S(119)&&PE(s,17)<uint(dimensions.z)&&
+            all(lessThan(uvec2(PE(s,18),PE(s,19)),uvec2(dimensions.xy)/S(65)));
+        if(match&&address&&shadowFloatCoverage(s)){slot=s;return true;}
     }
     return false;
 }
-/// Uses an explicit array layer and point fetches, legal under divergent receiver selection on GL 4.5.
-float shadowFetch(uint slot,dvec2 texel) {
-    ivec2 local=ivec2(mod(dvec2(texel),double(S(65))));
-    ivec2 at=ivec2(PE(slot,18),PE(slot,19))*int(S(65))+local;
-    return uintBitsToFloat(texelFetch(shadowDepthPool,ivec3(at,int(PE(slot,17))),0).r);
-}
-/// Evaluates all taps; any invalid lookup withdraws the whole query and returns diagnosed illumination.
+/// Evaluates nine taps, withdrawing the whole query on any invalid lookup.
 float shadowPcf(out uint failureMask,out uint staleMask,out ivec3 addresses[9],out float references[9]) {
-    failureMask=0u; staleMask=0u; float visibility=0.0; int tap=0;
-    for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++) {
-        int face=0; dvec2 texel=dvec2(0); double reference=0.0lf; uint slot=0u;
-        bool valid=shadowTap(ivec2(x,y),face,texel,reference);
-        addresses[tap]=ivec3(face,ivec2(floor(texel/double(S(65))))); references[tap]=float(reference);
-        bool stale=false;
-        if(!valid || !shadowLookup(face,texel,slot,stale)) failureMask|=1u<<uint(tap);
-        else { float depth=shadowFetch(slot,texel); if(isnan(depth)||isinf(depth)||depth<0.0||depth>1.0) failureMask|=1u<<uint(tap); else visibility+=reference<=double(depth)?1.0:0.0; }
-        if(stale) staleMask|=1u<<uint(tap);
-        tap++;
+    failureMask=0u;staleMask=0u;float visibility=0.0;int tap=0;
+    for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++) {
+        int face;ivec2 page,local;float reference;uint slot;bool stale=false;
+        bool valid=shadowTap(ivec2(x,y),face,page,local,reference);
+        addresses[tap]=ivec3(face,page);references[tap]=reference;
+        if(!valid||!shadowLookup(face,page,slot,stale))failureMask|=1u<<uint(tap);
+        else {
+            ivec2 at=ivec2(PE(slot,18),PE(slot,19))*int(S(65))+local;
+            float depth=uintBitsToFloat(texelFetch(shadowDepthPool,ivec3(at,int(PE(slot,17))),0).r);
+            if(isnan(depth)||isinf(depth)||depth<0.0||depth>1.0)failureMask|=1u<<uint(tap);
+            else visibility+=reference<=depth?1.0:0.0;
+        }
+        if(stale)staleMask|=1u<<uint(tap);tap++;
     }
     return failureMask==0u?visibility/9.0:1.0;
 }
-

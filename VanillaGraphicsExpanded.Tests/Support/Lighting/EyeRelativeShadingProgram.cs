@@ -2,6 +2,7 @@ using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Tests.Support.Lighting;
@@ -46,7 +47,7 @@ internal sealed class EyeRelativeShadingProgram : GpuProgram
         UboPacking.WriteVec3(bytes, 0, surface.X, surface.Y, surface.Z);
         UboPacking.WriteInt32(bytes, 12, outputMode);
         UboPacking.WriteInt32(bytes, 16, 0);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
     #endregion
 

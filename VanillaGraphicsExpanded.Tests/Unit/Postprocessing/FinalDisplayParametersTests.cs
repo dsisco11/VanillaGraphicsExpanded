@@ -27,12 +27,12 @@ public sealed class FinalDisplayParametersTests
         var captured=FinalDisplayParameters.Capture(api.Object);
 
         // Assert
-        Assert.Equal(ClientSettings.GammaLevel / 3f,captured.Grading.X);
-        Assert.Equal(ClientSettings.ExtraGammaLevel,captured.Grading.Y);
-        Assert.Equal(ClientSettings.BrightnessLevel+(1.3f*2-1.66f)/3,captured.Grading.Z);
-        Assert.Equal(.2f,captured.Grading.W);
-        Assert.Equal(.15f+.3f,captured.Effects.X);Assert.Equal(17,captured.Effects.Y);Assert.Equal(.4f,captured.Effects.Z);
-        Assert.Equal(.7f,captured.Vignette.X);Assert.Equal(-.2f,captured.Vignette.Y);Assert.Equal(.9f,captured.Vignette.Z);
+        Assert.Equal(ClientSettings.GammaLevel / 3f,captured.Grading.Gamma);
+        Assert.Equal(ClientSettings.ExtraGammaLevel,captured.Grading.ExtraGamma);
+        Assert.Equal(ClientSettings.BrightnessLevel+(1.3f*2-1.66f)/3,captured.Grading.Brightness);
+        Assert.Equal(.2f,captured.Grading.Contrast);
+        Assert.Equal(.15f+.3f,captured.Sepia);Assert.Equal(17,captured.WindPhase);Assert.Equal(.4f,captured.GlitchStrength);
+        Assert.Equal(.7f,captured.DamageVignette);Assert.Equal(-.2f,captured.SideDamageVignette);Assert.Equal(.9f,captured.FrostVignette);
 
         // Arrange a changed source so the second capture can be compared with the retained first snapshot.
         uniforms.DropShadowIntensity=0;uniforms.WindWaveCounter=18;
@@ -41,8 +41,8 @@ public sealed class FinalDisplayParametersTests
         var next=FinalDisplayParameters.Capture(api.Object);
 
         // Assert
-        Assert.Equal(ClientSettings.BrightnessLevel,next.Grading.Z);
-        Assert.Equal(17,captured.Effects.Y);Assert.Equal(18,next.Effects.Y);
+        Assert.Equal(ClientSettings.BrightnessLevel,next.Grading.Brightness);
+        Assert.Equal(17,captured.WindPhase);Assert.Equal(18,next.WindPhase);
     }
     #endregion
 }

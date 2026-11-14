@@ -7,8 +7,13 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 internal sealed class WaterPixelNormalRefractionUniformBuffer : CpuUniformBuffer
 {
     #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 48;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+
     /// <summary>Creates zero-default inputs with immutable single-frame publication.</summary>
-    internal WaterPixelNormalRefractionUniformBuffer() : base(48) { }
+    internal WaterPixelNormalRefractionUniformBuffer() : base() { }
 
     /// <summary>Supplies the view-space interface point.</summary>
     internal Vector3 Surface

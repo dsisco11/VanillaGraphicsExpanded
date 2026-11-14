@@ -10,21 +10,28 @@ layout(std430, binding=3) buffer CandidateDedup { uint dedup[]; };
 layout(std430, binding=4) readonly buffer CandidateChanges { ivec4 changes[]; };
 layout(std430, binding=5) readonly buffer CandidateWorld { uvec4 world[]; };
 
+@import "../includes/shadows/certificates.glsl"
+
 uint baseInput, baseHeader, baseOutput, baseHash;
 uint slabsLeft, cellsLeft, probesLeft, changesLeft;
 #define P(i) inputs[baseInput+uint(i)]
 #define H(i) headers[baseHeader+uint(i)]
 
-/// Decodes a CPU little-word-order double without optional integer-64 shader operations.
-double number(uint offset) { return packDouble2x32(uvec2(P(offset),P(offset+1u))); }
+/// Reads an outward-rounded local FP32 bound.
+float number(uint offset) { return uintBitsToFloat(P(offset)); }
 /// Returns relative lower/upper XYZ endpoints, whose fourth components are unused.
-dvec3 vectorAt(uint offset) { return dvec3(number(offset),number(offset+2u),number(offset+4u)); }
+vec3 vectorAt(uint offset) { return vec3(number(offset),number(offset+2u),number(offset+4u)); }
 /// Includes an outward error allowance for every short arithmetic chain in the bounded local domain.
-double errorBound(double value) { return 1.0e-7lf+(abs(value)+1.0lf)*1.0e-11lf; }
+float errorBound(float value) {
+    vec3 r=max(abs(vectorAt(40u)),abs(vectorAt(48u)));
+    r=max(r,max(abs(vectorAt(56u)),abs(vectorAt(64u))));
+    float scale=max(max(r.x,r.y),max(r.z,float(max(P(20),max(P(21),P(22))))));
+    return (abs(value)+scale+1.0)*4.0e-6;
+}
 /// Converts a closed extent to touching cells, then clips before converting to signed integer indices.
-int lowerCell(double value, int maximum) { return int(clamp(ceil(value-errorBound(value))-1.0lf,0.0lf,double(maximum)+1.0lf)); }
+int lowerCell(float value, int maximum) { return int(clamp(ceil(value-errorBound(value))-1.0,0.0,float(maximum)+1.0)); }
 /// Includes the upper touching cell; a negative result denotes no intersection.
-int upperCell(double value, int maximum) { return int(clamp(floor(value+errorBound(value)),-1.0lf,double(maximum))); }
+int upperCell(float value, int maximum) { return int(clamp(floor(value+errorBound(value)),-1.0,float(maximum))); }
 /// Matches native lookup's wrapping unsigned FNV hash, retaining the dimension.
 uint coordinateHash(ivec4 c) {
     uint h=2166136261u;
@@ -32,43 +39,46 @@ uint coordinateHash(ivec4 c) {
     h=(h^uint(c.y))*16777619u; return (h^uint(c.z))*16777619u;
 }
 /// Restricts a segment parameter by a linear inequality, rounding outwards rather than dropping ties.
-bool restrictUpper(double coefficient, double rhs, inout double lo, inout double hi) {
+bool restrictUpper(float coefficient, float rhs, inout float lo, inout float hi) {
     rhs += errorBound(rhs);
-    if(coefficient==0.0lf) return rhs>=0.0lf;
-    double u=rhs/coefficient;
-    if(coefficient>0.0lf) hi=min(hi,u+errorBound(u));
+    // A near-parallel constraint cannot safely narrow the interval. It can still
+    // reject a slab whose negative gap exceeds every possible coefficient error.
+    float uncertainty=errorBound(coefficient);
+    if(abs(coefficient)<=uncertainty) return rhs>=-abs(coefficient)-uncertainty;
+    float u=rhs/coefficient;
+    if(coefficient>0.0) hi=min(hi,u+errorBound(u));
     else lo=max(lo,u-errorBound(u));
     return lo<=hi;
 }
 /// Bounds a transverse directional interval by all four endpoint products.
-dvec2 swept(double lo, double hi, double h0, double h1, double s0, double s1) {
-    dvec4 p=dvec4(h0*s0,h0*s1,h1*s0,h1*s1);
-    return dvec2(lo+min(min(p.x,p.y),min(p.z,p.w)),hi+max(max(p.x,p.y),max(p.z,p.w)));
+vec2 swept(float lo, float hi, float h0, float h1, float s0, float s1) {
+    vec4 p=vec4(h0*s0,h0*s1,h1*s0,h1*s1);
+    return vec2(lo+min(min(p.x,p.y),min(p.z,p.w)),hi+max(max(p.x,p.y),max(p.z,p.w)));
 }
 /// Computes the full slab rectangle; no center ray or sampled-direction approximation is used.
 bool rectangle(uint subset,int slab,out ivec4 range) {
     uint sector=72u+subset*16u;
     int q=int(P(sector)), a=(q+1)%3, b=(q+2)%3, sign=int(P(sector+1u));
-    dvec3 r0=vectorAt(40u),r1=vectorAt(48u);
-    dvec2 x,y;
+    vec3 r0=vectorAt(40u),r1=vectorAt(48u);
+    vec2 x,y;
     if(P(8)==0u) {
-        double q0=sign>0 ? double(slab) : -double(slab)-1.0lf;
-        double q1=q0+1.0lf;
-        double low=sign>0 ? r0[q] : -r1[q], high=sign>0 ? r1[q] : -r0[q];
-        double h0=max(0.0lf,q0-high-errorBound(q0-high));
-        double h1=q1-low+errorBound(q1-low);
+        float q0=sign>0 ? float(slab) : -float(slab)-1.0;
+        float q1=q0+1.0;
+        float low=sign>0 ? r0[q] : -r1[q], high=sign>0 ? r1[q] : -r0[q];
+        float h0=max(0.0,q0-high-errorBound(q0-high));
+        float h1=q1-low+errorBound(q1-low);
         if(h1<h0) return false;
         x=swept(r0[a],r1[a],h0,h1,number(sector+4u),number(sector+6u));
         y=swept(r0[b],r1[b],h0,h1,number(sector+8u),number(sector+10u));
     } else {
-        dvec3 s0=vectorAt(56u),s1=vectorAt(64u);
-        double u0=0.0lf,u1=1.0lf;
-        if(!restrictUpper(s0[q]-r0[q],double(slab)+1.0lf-r0[q],u0,u1)
-            || !restrictUpper(r1[q]-s1[q],r1[q]-double(slab),u0,u1)) return false;
-        dvec3 low0=r0+(s0-r0)*u0,low1=r0+(s0-r0)*u1;
-        dvec3 high0=r1+(s1-r1)*u0,high1=r1+(s1-r1)*u1;
-        x=dvec2(min(low0[a],low1[a]),max(high0[a],high1[a]));
-        y=dvec2(min(low0[b],low1[b]),max(high0[b],high1[b]));
+        vec3 s0=vectorAt(56u),s1=vectorAt(64u);
+        float u0=0.0,u1=1.0;
+        if(!restrictUpper(s0[q]-r0[q],float(slab)+1.0-r0[q],u0,u1)
+            || !restrictUpper(r1[q]-s1[q],r1[q]-float(slab),u0,u1)) return false;
+        vec3 low0=r0+(s0-r0)*u0,low1=r0+(s0-r0)*u1;
+        vec3 high0=r1+(s1-r1)*u0,high1=r1+(s1-r1)*u1;
+        x=vec2(min(low0[a],low1[a]),max(high0[a],high1[a]));
+        y=vec2(min(low0[b],low1[b]),max(high0[b],high1[b]));
     }
     ivec3 end=ivec3(P(20),P(21),P(22));
     range=ivec4(lowerCell(x.x,end[a]),upperCell(x.y,end[a]),lowerCell(y.x,end[b]),upperCell(y.y,end[b]));
@@ -120,13 +130,13 @@ bool validateCell() {
     }
     H(16)++; H(17)++; H(27)=0u; return true;
 }
-/// Tests a conservative active region for changed partitions; bounds-only membership itself remains stable.
+/// Tests a conservative active region for changed partitions; bounds-only membership itse remains stable.
 bool affectsRegion(ivec4 c) {
     if(c.w!=int(P(15))) return false;
-    dvec3 lo=dvec3(0.0lf),hi=dvec3(P(20),P(21),P(22))+1.0lf;
+    vec3 lo=vec3(0.0),hi=vec3(P(20),P(21),P(22))+1.0;
     if(P(8)!=0u) { lo=min(vectorAt(40u),vectorAt(56u)); hi=max(vectorAt(48u),vectorAt(64u)); }
-    dvec3 cell=dvec3(c.xyz)-dvec3(int(P(16)),int(P(17)),int(P(18)));
-    return all(lessThanEqual(cell,hi)) && all(greaterThanEqual(cell+1.0lf,lo));
+    vec3 cell=vec3(shadowCellDelta(c.x,int(P(16))),shadowCellDelta(c.y,int(P(17))),shadowCellDelta(c.z,int(P(18))));
+    return all(lessThanEqual(cell,hi+vec3(errorBound(0.0)))) && all(greaterThanEqual(cell+1.0,lo-vec3(errorBound(0.0))));
 }
 /// Executes a bounded slice; completion follows both traversal and current dependency validation.
 void main() {
@@ -141,7 +151,7 @@ void main() {
     if(H(29)>P(33) || (H(29)==P(33) && H(28)>P(32)) || H(20)>P(25)
         || (H(20)==P(25) && H(19)>P(24))) { H(0)=5u; return; }
     if(newSequence) {
-        // The host also rejects incomplete/lost history. The GPU verifies the covered watermark itself.
+        // The host also rejects incomplete/lost history. The GPU verifies the covered watermark itse.
         uvec2 old=uvec2(H(19),H(20)), first=uvec2(P(26),P(27));
         if(old.y<first.y || (old.y==first.y && old.x<first.x)) { H(0)=5u; return; }
         if(H(21)!=P(30) || H(22)!=P(31)) { H(18)=0u; H(21)=P(30);H(22)=P(31); }

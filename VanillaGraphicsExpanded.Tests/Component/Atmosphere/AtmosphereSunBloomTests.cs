@@ -72,7 +72,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
             // Assert: energy follows only the admitted scene radiance and preserves source pixels.
             using var solar = new Assertions.GpuImageSnapshot(color);
             ImageAssertions.Comparisons.CompareConstant(glow, 0, channelMask: 1).AssertEqual();
-            bloom.SourceImage=color;bloom.SecondaryImage=color;bloom.Capture(Vector4.Zero,new(1,0,1,ev));
+            bloom.SourceImage=color;bloom.SecondaryImage=color;bloom.CaptureExtraction(true,false,1,0,1,ev);
             SubmitBloom(draw,bloom,extracted);
             bloom.SourceImage=extracted[0];bloom.CaptureGaussian(4,false);SubmitBloom(draw,bloom,horizontal);
             bloom.SourceImage=horizontal[0];bloom.CaptureGaussian(4,true);SubmitBloom(draw,bloom,halo);

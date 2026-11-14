@@ -40,11 +40,18 @@ internal sealed partial class LiquidShaderProgram : GpuProgram, ILiquidPoolInput
         set { RequireInputMutation(); frameInputs = value; }
     }
     private VgeLightsUniformBuffer? lightsInputs;
+    private VanillaGraphicsExpanded.PBR.Shadows.SurfaceShadowInputSet? shadowInputs;
     /// <summary>Borrows an explicit alternate-view light snapshot without changing its ownership.</summary>
     internal VgeLightsUniformBuffer? LightsInputs
     {
         get => lightsInputs;
         set { RequireInputMutation(); lightsInputs = value; }
+    }
+    /// <summary>Borrows a matching light/shadow interval for an explicitly owned alternate view.</summary>
+    internal VanillaGraphicsExpanded.PBR.Shadows.SurfaceShadowInputSet? ShadowInputs
+    {
+        get => shadowInputs;
+        set { RequireInputMutation(); shadowInputs = value; }
     }
     private readonly LiquidDrawParamsUbo draw = new();
     private readonly LiquidFrameParamsUbo frame = new();
@@ -76,6 +83,8 @@ internal sealed partial class LiquidShaderProgram : GpuProgram, ILiquidPoolInput
     CpuUniformBuffer ILiquidShaderProgramBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
     /// <summary>Reuses the current world light publication or an explicit alternate-view snapshot.</summary>
     CpuUniformBuffer ILiquidShaderProgramBindings.LightsInputs => LightsInputs ?? VgeLightsRenderer.Current;
+    /// <summary>Uses the optional exact alternate shadow interval or the current shared frame set.</summary>
+    VanillaGraphicsExpanded.PBR.Shadows.SurfaceShadowInputSet? Shadows.ISurfaceShadowBindings.ShadowInputs => shadowInputs;
     /// <summary>Supplies retained liquid effect inputs.</summary>
     CpuUniformBuffer ILiquidShaderProgramBindings.FrameParameters => frame;
     /// <summary>Supplies retained draw inputs.</summary>

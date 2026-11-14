@@ -108,7 +108,7 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
         using var output=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         using var zero=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[0f,0f,0f,0f]);
         display.FrameInputs=frameCamera;display.SceneImage=target[0];display.BloomImage=zero;display.ShaftImage=zero;display.ExposureBuffer=neutralExposure;
-        display.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
+        display.Capture(false,new(new(1,1,1,0),0,0,0,0,0,0),0,false,0);
         using var draw=new PostprocessDraw();
         var displayPipeline=draw.Prepare(display,output.PostprocessPass());
         {

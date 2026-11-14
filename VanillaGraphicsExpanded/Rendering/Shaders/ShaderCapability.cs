@@ -17,5 +17,7 @@ internal enum ShaderCapability
     /// <summary>Publishes linear material inputs for VGE deferred lighting rather than completed scene color.</summary>
     SceneMaterialCapture = 8,
     /// <summary>Evaluates the authored deformation model shared by visible geometry and virtual shadows.</summary>
-    SharedVertexDeformation = 16
+    SharedVertexDeformation = 16,
+    /// <summary>Uses one shared integer-array surface provider with current-light and rendered-projection separation.</summary>
+    SharedSurfaceShadows = 32
 }

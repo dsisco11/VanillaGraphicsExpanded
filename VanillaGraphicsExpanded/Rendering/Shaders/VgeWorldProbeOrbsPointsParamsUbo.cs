@@ -10,11 +10,15 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// </summary>
 public sealed class VgeWorldProbeOrbsPointsParamsUbo : CpuUniformBuffer
 {
+    #region Public API
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => UboSizeBytes;
+
     public const string BlockName = "VgeWorldProbeOrbsPointsParamsUBO";
     public const int UboSizeBytes = 32;
 
     /// <summary>Allocates point geometry and fading controls independently of the shared camera.</summary>
-    public VgeWorldProbeOrbsPointsParamsUbo() : base(UboSizeBytes)
+    public VgeWorldProbeOrbsPointsParamsUbo() : base()
     {
     }
 
@@ -54,4 +58,5 @@ public sealed class VgeWorldProbeOrbsPointsParamsUbo : CpuUniformBuffer
     }
     /// <summary>Selects importance coloring in the retained draw parameters.</summary>
     public bool ImportanceColorMode { set => WriteFloat(24, value ? 1f : 0f); }
+    #endregion
 }

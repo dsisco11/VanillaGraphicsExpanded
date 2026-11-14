@@ -144,8 +144,11 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
         {
             VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.LumOn.Enabled = lumon;
             PbrShaderLightingMode.GenerationLumOnEnabled = null;
-            vertex = Compile(ShaderType.VertexShader, InstalledEngineShaderSources.Build(family + ".vsh", shadow, oit, ssao, ssbo, depth));
-            fragment = Compile(ShaderType.FragmentShader, InstalledEngineShaderSources.Build(family + ".fsh", shadow, oit, ssao, ssbo, depth));
+            string vertexSource = InstalledEngineShaderSources.Build(family + ".vsh", shadow, oit, ssao, ssbo, depth);
+            string fragmentSource = InstalledEngineShaderSources.Build(family + ".fsh", shadow, oit, ssao, ssbo, depth);
+            if (family == "standard") AssertStandardCoreCompatibilityEdits(fragmentSource);
+            vertex = Compile(ShaderType.VertexShader, vertexSource);
+            fragment = Compile(ShaderType.FragmentShader, fragmentSource);
             program = GL.CreateProgram();
             GL.AttachShader(program, vertex);
             GL.AttachShader(program, fragment);
@@ -242,6 +245,16 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
     #endregion
 
     #region Private
+    /// <summary>Checks standard-shader extension cleanup, float clamps, and declarations before native linking.</summary>
+    private static void AssertStandardCoreCompatibilityEdits(string source)
+    {
+        Assert.Contains("#version 450 core", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("#extension GL_ARB_explicit_attrib_location", source, StringComparison.Ordinal);
+        Assert.Contains("uniform int vge_pbrRoute;", source, StringComparison.Ordinal);
+        Assert.Contains("float df = clamp((gl_FragCoord.w*20 - 0.3) * 20, 0.09, 1.0);", source, StringComparison.Ordinal);
+        Assert.Contains("float nearnessToPlayer = clamp((8-depth)/8, 0.0, 0.9);", source, StringComparison.Ordinal);
+    }
+
     /// <summary>Reports full driver errors without leaking failed shader objects.</summary>
     private static int Compile(ShaderType type, string source)
     {

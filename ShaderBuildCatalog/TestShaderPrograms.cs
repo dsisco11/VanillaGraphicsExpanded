@@ -182,11 +182,17 @@ internal static partial class TestShaderPrograms
             bindings.RegisterUniformBlockBinding("VgeLightsUBO", GpuBindingRegistry.Ubo.Lights);
             bindings.RegisterUniformBlockBinding("TestInputs", 28);
             bindings.RegisterShaderStorageBlockBinding("FrozenFrameLighting", 4);
-            bindings.RegisterSamplerUnit("shadowMapFar", 0);
             bindings.RegisterSamplerUnit("vge_atmosphereAerialRadiance", 11);
             bindings.RegisterSamplerUnit("vge_atmosphereAerialAttenuation", 12);
             bindings.RegisterSamplerUnit("vge_lightShaftOcclusion", 13);
             bindings.RegisterSamplerUnit("vge_microfacetEnergy", 32);
+            // The forward helper imports the shared surface interface, so the RHI executable contract
+            // must carry the same typed VSM resources as production surface programs.
+            var surface = GpuShaderContracts.Create("pbr_direct_lighting");
+            bindings.UniformBlocks.Add("SurfaceShadowParameters", surface.UniformBlocks["SurfaceShadowParameters"]);
+            foreach (string name in new[] { "SurfaceShadowRequests", "PageEntries", "SurfaceShadowReadiness", "SurfaceShadowDiagnostics" })
+                bindings.StorageBlocks.Add(name, surface.StorageBlocks[name]);
+            bindings.Samplers.Add("shadowDepthPool", surface.Samplers["shadowDepthPool"]);
             bindings.FragmentOutputLocations.Add("outColor", 0);
             string identity = lumon ? "tests/pbr-forward-surface" : "tests/pbr-forward-surface-legacy-environment";
             var stage = new ShaderStageContract(identity + ".fsh", "tests/pbr-forward-surface.fsh",

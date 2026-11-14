@@ -1,5 +1,4 @@
 using System;
-using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -14,11 +13,9 @@ namespace VanillaGraphicsExpanded.Rendering.Shadows.Geometry;
 [ShaderUse("Contract", ShaderStageKind.Vertex, nameof(Waving))]
 internal sealed partial class ShadowEntityShader : GpuProgram, IShadowEntityBindings
 {
-    /// <summary>Matches the qualified installed engine's animation uniform block capacity.</summary>
-    internal const int JointCapacity = 230;
-    private readonly PackedUniformBuffer parameters = new(208);
-    private readonly PackedUniformBuffer animation = new(JointCapacity * 64);
-    private readonly PackedUniformBuffer flags = new(16);
+    private readonly ShadowMaterialParameters parameters = new();
+    private readonly ShadowAnimationParameters animation = new();
+    private readonly ShadowObjectParameters flags = new();
 
     /// <inheritdoc />
     internal override GpuShaderContract ProgramContract => Contract;
@@ -31,20 +28,13 @@ internal sealed partial class ShadowEntityShader : GpuProgram, IShadowEntityBind
     /// <summary>Copies a complete finite material and palette snapshot before generated resource capture.</summary>
     internal void CaptureMaterial(ReadOnlySpan<byte> material, ReadOnlySpan<float> joints, int renderFlags)
     {
-        if (material.Length != 208 || joints.Length < 16 || joints.Length % 16 != 0 || joints.Length > JointCapacity * 16)
-            throw new ArgumentException("Native entity material or animation palette has an unsupported extent.");
-        for (int i = 0; i < material.Length; i += 4)
-            if (i != 132 && !float.IsFinite(BitConverter.ToSingle(material.Slice(i, 4))))
-                throw new ArgumentException("Native entity material is not finite.");
-        foreach (float value in joints)
-            if (!float.IsFinite(value)) throw new ArgumentException("Native entity animation is not finite.");
-        // Unused joints cannot inherit another object's matrices. Native upload owns
-        // joint indices; the complete fixed-size buffer is private shadow metadata.
-        Span<byte> palette = stackalloc byte[JointCapacity * 64]; palette.Clear();
-        MemoryMarshal.AsBytes(joints).CopyTo(palette);
-        Span<byte> packedFlags = stackalloc byte[16]; packedFlags.Clear();
-        UboPacking.WriteInt32(packedFlags, 0, renderFlags);
-        RequireInputMutation(); parameters.SetBytes(material); animation.SetBytes(palette); flags.SetBytes(packedFlags);
+        // Validate every participating block before committing any part of the entity inputs.
+        ShadowMaterialParameters.Validate(material);
+        ShadowAnimationParameters.Validate(joints);
+        RequireInputMutation();
+        parameters.SetValidatedMaterial(material);
+        animation.SetValidatedPalette(joints);
+        flags.SetFlags(renderFlags);
     }
 
     /// <summary>Loads only a precompiled material variant, preserving the production SPIR-V loading requirement.</summary>

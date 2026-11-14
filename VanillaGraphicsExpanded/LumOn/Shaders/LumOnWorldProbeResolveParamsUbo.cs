@@ -9,11 +9,15 @@ namespace VanillaGraphicsExpanded.LumOn.Shaders;
 /// </summary>
 public sealed class LumOnWorldProbeResolveParamsUbo : CpuUniformBuffer
 {
+    #region Public API
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => UboSizeBytes;
+
     public const string BlockName = "VgeLumOnWorldProbeResolveParamsUBO";
     public const int UboSizeBytes = 16;
 
     /// <summary>Retains atlas dimensions across frames until the owning resolve target changes.</summary>
-    public LumOnWorldProbeResolveParamsUbo() : base(UboSizeBytes, Rendering.Uniforms.UniformBufferUsage.MultiFrame)
+    public LumOnWorldProbeResolveParamsUbo() : base(Rendering.Uniforms.UniformBufferUsage.MultiFrame)
     {
     }
 
@@ -24,4 +28,5 @@ public sealed class LumOnWorldProbeResolveParamsUbo : CpuUniformBuffer
             WriteVector4(0, new(value.X, value.Y, 0f, 0f));
         }
     }
+    #endregion
 }

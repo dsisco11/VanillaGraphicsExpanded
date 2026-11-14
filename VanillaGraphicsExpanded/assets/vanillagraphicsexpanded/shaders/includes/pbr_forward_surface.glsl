@@ -8,51 +8,35 @@
 
 
 @import "./vge_lights_ubo.glsl"
-
-/** Samples engine-provided cascade coordinates without the vanilla ambient brightness floor. */
-float VgeForwardOcclusion(sampler2DShadow map, vec4 coords, float bias)
-{
-    if (coords.w <= 0.0) return 0.0;
-    vec2 texel = 1.0 / vec2(max(textureSize(map, 0), ivec2(1)));
-    float lit = 0.0;
-    for (int x = -1; x <= 1; ++x)
-        for (int y = -1; y <= 1; ++y)
-            lit += texture(map, vec3(coords.xy + vec2(x, y) * texel, coords.z - bias));
-    return (1.0 - lit / 9.0) * coords.w;
-}
+@import "./shadows/surface.glsl"
+@import "./pbr_celestial_direct.glsl"
 
 /** Evaluates late/OIT radiance before the engine blends its color; alpha remains owned by the caller. */
 vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog, float transmission)
 {
-    mat3 toWorld = transpose(mat3(VGE_SURFACE_VIEW));
+    mat3 toWorld = mat3(vgeFrame.invViewMatrix);
     vec3 V = normalize(toWorld * -vge_viewPosition);
-    float occlusion = 0.0;
-    #if SHADOWQUALITY > 0
-    occlusion += VgeForwardOcclusion(shadowMapFar, shadowCoordsFar, 0.0009);
-    #endif
-    #if SHADOWQUALITY > 1
-    occlusion += VgeForwardOcclusion(shadowMapNear, shadowCoordsNear, 0.0005);
-    #endif
-    float visibility = 1.0 - clamp(occlusion * shadowIntensity, 0.0, 1.0);
+    vec3 receiver = (vgeFrame.invViewMatrix * vec4(vge_viewPosition, 1.0)).xyz;
     float roughness = clamp(material.r, 0.04, 1.0);
     float metallic = clamp(material.g, 0.0, 1.0);
     vec3 diffuse = vec3(0.0), specular = vec3(0.0);
-    addFiniteDiskDirectLight(baseColor, N, V, normalize(vge_atmosphereSunDirection), (vge_atmosphereSolar * vge_skyVisibility) * visibility,
-        roughness, metallic, vge_atmosphereDirectRadius > 0.0 ? vge_atmosphereDirectRadius : VGE_SOLAR_ANGULAR_RADIUS, diffuse, specular);
-    vec3 transmitted = VgeTransmission(baseColor, N, V, normalize(vge_atmosphereSunDirection),
-        vge_atmosphereSolar * vge_skyVisibility, metallic, transmission,
-        clamp(1.0 - occlusion, 0.0, 1.0),roughness);
-    #if DYNLIGHTS > 0
-    for (int i = 0; i < min(int(vgeLights.lightCount), DYNLIGHTS); ++i)
+    vec3 transmitted = vec3(0);
+    VgeAccumulateCelestialDirect(0, vgeSurfaceSunDirection, vgeSurfaceSolar, vgeSurfaceSunRadius,
+        receiver, baseColor, N, V, vge_skyVisibility, roughness, metallic, transmission,
+        diffuse, specular, transmitted);
+    VgeAccumulateCelestialDirect(1, vgeSurfaceMoonDirection, vgeSurfaceLunar, vgeSurfaceMoonRadius,
+        receiver, baseColor, N, V, vge_skyVisibility, roughness, metallic, transmission,
+        diffuse, specular, transmitted);
+    for (int i = 0; i < clamp(int(vgeLights.lightCount), 0, vgeLights.positions.length()); ++i)
     {
         vec3 delta = vgeLights.positions[i].xyz - vge_viewPosition;
         float distanceSquared = max(dot(delta, delta), 0.0001);
         vec3 direction = toWorld * delta;
         direction *= inversesqrt(max(dot(direction, direction), 0.0001));
-        addDirectLight(baseColor, N, V, direction, VgePointIlluminance(vgeLights.colors[i], distanceSquared),
+        addDirectLight(baseColor, N, V, direction, VgePointIlluminance(vgeLights.colors[i], distanceSquared)
+            * vgeSurfaceShadowVisibility(2 + i, receiver, N),
             roughness, metallic, diffuse, specular);
     }
-    #endif
     diffuse = diffuse*(1.0-clamp(transmission,0.0,1.0)) + transmitted;
     // Local block illumination is a bounded fallback for these receivers, not screen-space GI
     // sampled from an unrelated opaque surface behind a transparent/first-person mesh.
@@ -69,7 +53,7 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog, float t
     if (vge_atmosphereAerialParams.z > .7)
         radiance = mix(radiance, VgeCompatibilityLuminance(rgbaFog.rgb), clamp(fog, 0.0, 1.0));
     else
-        radiance = VgeApplyAerial(radiance, toWorld * vge_viewPosition, vge_skyVisibility, vge_atmosphereAerialParams.xyw, vge_atmosphereSunDirection);
+        radiance = VgeApplyAerial(radiance, toWorld * vge_viewPosition, vge_skyVisibility, vge_atmosphereAerialParams.xyw, vgeSurfaceSunDirection);
     if (vge_pbrRoute != 0) return VgeStoreSceneLighting(radiance);
     return VgeSceneOutput(radiance, gl_FragCoord.xy, false);
 }

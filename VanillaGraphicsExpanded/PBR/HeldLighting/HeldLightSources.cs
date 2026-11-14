@@ -88,7 +88,7 @@ internal sealed class HeldLightSources
         {
             var identities = NativeShadowLightSources.For(game);
             identities.Admit(game, index, identities.Entity(player, right ? 1 : 2,
-                (right ? player.RightHandItemSlot : player.LeftHandItemSlot)?.Itemstack));
+                (right ? player.RightHandItemSlot : player.LeftHandItemSlot)?.Itemstack), new(position.X, position.InternalY, position.Z));
             // Capture only when an entry was published. The getter returns reusable engine scratch storage.
             if (pending.Count == 0) Array.Copy(game.CurrentModelViewMatrixd, view, 16);
             pending.Add((player, right, index));
@@ -99,10 +99,11 @@ internal sealed class HeldLightSources
     private static void AddOwned(SystemRenderPlayerEffects effects, byte[] hsv, Entity entity, ClientMain game)
     {
         int before = game.shUniforms.PointLightsCount;
+        var worldPosition = new VanillaGraphicsExpanded.Numerics.Vector3d(entity.Pos.X, entity.Pos.InternalY, entity.Pos.Z);
         AddPointLight(effects, hsv, entity.Pos);
         if (game.shUniforms.PointLightsCount != before + 1) return;
         var identities = NativeShadowLightSources.For(game);
-        identities.Admit(game, before, identities.Entity(entity));
+        identities.Admit(game, before, identities.Entity(entity), worldPosition);
     }
 
     /// <summary>Returns the item's actual dynamic emission, including extinguished-item state.</summary>
@@ -128,7 +129,10 @@ internal sealed class HeldLightSources
                 if (entry.Player.Properties.Client.Renderer is not EntityPlayerShapeRenderer shape) continue;
                 Vec3d? position = HeldLightAttachment.Resolve(shape, entry.Player, entry.Right);
                 if (position != null)
+                {
                     WriteViewPosition(game.shUniforms.PointLights3, entry.Index, frame.view, position);
+                    NativeShadowLightSources.For(game).UpdatePosition(entry.Index, new(position.X, position.Y, position.Z));
+                }
             }
         }
         finally

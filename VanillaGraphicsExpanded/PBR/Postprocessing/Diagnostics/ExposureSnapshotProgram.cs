@@ -60,8 +60,13 @@ internal sealed partial class ExposureSnapshotProgram : GpuComputeProgram, IExpo
     private sealed class SnapshotInputs : CpuUniformBuffer
     {
         #region Public API
+        /// <summary>Byte extent of this concrete std140 layout.</summary>
+        internal const int BlockSize = 48;
+        /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+        public override int SizeBytes => BlockSize;
+
         /// <summary>Allocates just the diagnostic controls.</summary>
-        internal SnapshotInputs() : base(48) { }
+        internal SnapshotInputs() : base() { }
         /// <summary>Retains captured policy rather than reading mutable configuration during dispatch.</summary>
         internal void Capture(LocalExposureParameters local, CameraExposureParameters camera, bool antialias)
         {

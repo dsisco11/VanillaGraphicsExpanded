@@ -34,8 +34,8 @@ public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTest
         int draw = installed.GetUniformBlockIndex(LiquidDrawParamsUbo.BlockName);
         GL.GetActiveUniformBlock(shader.ProgramId, waves, ActiveUniformBlockParameter.UniformBlockDataSize, out int waveSize);
         GL.GetActiveUniformBlock(shader.ProgramId, draw, ActiveUniformBlockParameter.UniformBlockDataSize, out int drawSize);
-        Assert.Equal(32, waveSize);
-        Assert.Equal(80, drawSize);
+        Assert.Equal(LiquidWaveParamsUbo.BlockSize, waveSize);
+        Assert.Equal(LiquidDrawParamsUbo.BlockSize, drawSize);
         foreach (int block in new[] { waves, draw })
         {
             GL.GetActiveUniformBlock(shader.ProgramId, block, ActiveUniformBlockParameter.UniformBlockReferencedByVertexShader, out int vertex);

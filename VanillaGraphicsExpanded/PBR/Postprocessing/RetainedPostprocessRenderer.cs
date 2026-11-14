@@ -34,7 +34,7 @@ internal sealed class RetainedPostprocessRenderer : IDisposable
     {
         luma!.SourceImage=scene;
         luma.ExposureBuffer=exposure.Buffer;
-        luma.Capture(new(0,0,engine.Fxaa?1:0,exposure.Buffer is not null?1:0),new(0,0,0,exposure.ManualLogGain));
+        luma.Capture(engine.Fxaa,exposure.Buffer is not null,exposure.ManualLogGain);
         draw.Submit(commands,lumaPipeline!,lumaTarget!,luma!.CaptureBindings());
     }
     /// <summary>Retires owned targets and clears publication before a new resource lifetime.</summary>

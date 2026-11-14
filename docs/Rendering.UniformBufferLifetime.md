@@ -1,176 +1,155 @@
-# Uniform publication lifetime implementation
+# Uniform buffer layouts and publication lifetimes
 
-Source contract: [proposal](Rendering.UniformBufferLifetime.Proposal.md).
-Execution: [implementation plan](Rendering.UniformBufferLifetime.todo), under
-[water performance](PBR.WaterPerformance.todo). Implemented and verified on 2026-10-05; scope and measurement limits are recorded below.
+Uniform data has three distinct owners: a concrete UBO defines and packs the CPU layout, a logical
+publication tracks its committed revision, and a renderer-owned allocator protects the physical GPU
+range while commands may still use it. Capturing inputs freezes CPU data; execution allocates,
+uploads and binds the required GPU version.
 
-## Ownership and policy
+## Layout ownership
 
-CpuUniformBuffer retains packing, change revision and write guards. UniformPublication holds the
-fixed usage and successful physical version; both named and prepared-slot publication use it.
-SingleFrame is the explicit compatibility default. SingleDraw never reuses across independent
-publications; scope restoration may conservatively allocate again and does not count actual draws.
-No engine-wide draw hook or one-draw migration is inferred from shader activation.
+Every concrete `CpuUniformBuffer` implements the immutable `SizeBytes` property. The base constructor
+accepts publication usage and allocates the declared extent. Fixed layouts return a class-owned size
+constant. A variable-size subclass must initialize its size before the base constructor runs.
 
-The existing ring/frame controller owns both allocators. Transient epochs retain immutable copies;
-persistent size-class pages hold independently owned versions. Slots are rounded from the native
-alignment, pages hold at least eight slots and normally 64 KiB, and retained storage has an 8 MiB
-budget per allocator. Exhaustion fails publication; it never overwrites a live range. Pages remain
-resident for reuse until owner teardown. These choices cover the inventoried typed blocks
-without a native object per activation and remain internal policy, not shader layout contracts.
+The concrete UBO also owns field packing, packing validation, exposed field offsets and array strides.
+Renderers and shader wrappers pass named values or operations to its setters. Mixed control vectors
+and operation/flag components are assembled inside the UBO; positions, directions and colors can
+remain natural vector inputs. Capability checks and byte
+inspection use owner constants or typed accessors instead of duplicating byte positions. Cached
+native snapshots retain semantic values; UBO-owned encoders produce their material byte candidates.
+Generated shader contracts supply resource bindings and reflected minimum extents;
+matching byte counts alone do not establish that two layouts mean the same thing.
 
-Every successful logical bind records latest use, even when OpenGlStateCache suppresses the native bind.
-Scope restoration republishes through the same owner. Frame fences group those uses; released
-versions become free only after their latest serial completes. A signaled fence never releases a
-still-owned current version. Conventional persistent pages are never orphaned; mapped storage uses
-coherent writes or explicit flushes. Pool reclamation polls and does not block; pressure fails at the
-budget rather than guessing completion from frame age.
+Typed setters and complete-block edits share write guards, byte-change detection and dirty revision
+tracking. The bulk `SetBytes` operation is protected so only a UBO implementation can commit packed
+bytes. Arbitrary-payload test fixtures expose their own explicit test-only API. Custom writable-span
+or array edits inside a UBO must call `MarkDirty`. Packing and capture
+remain CPU-only. Decode wire fields according to the declared layout rather than assuming a host
+vector or other managed structure has the same representation.
 
-Publication commits revision and dirty state only after upload and binding succeed. A failed candidate
-is released, while the previous successful version and pending CPU bytes survive. Earlier successfully
-published blocks remain committed if a later resource fails, matching existing nontransactional
-submission. Prepared numeric interface extents reject undersized blocks before publication, including
-after reload; explicit data ownership remains necessary for same-sized but semantically different layouts.
-Compatible slot changes rebind the same physical version. Raw GPU block paths remain supported.
+See [runtime shader inputs](ShaderAuthoring.md#choose-runtime-inputs) for authoring rules and
+[uniform interface validation](GPU.UniformContractValidation.md) for reflected extent checks.
 
-Logical UniformPublication disposal is terminal. CpuUniformBuffer.Dispose retains its established
-reset semantics by disposing that publication and allowing a later fresh publication of its CPU bytes.
-GpuProgram.OwnUniformBuffer explicitly attaches ownership and write guards; terminal shader disposal
-releases registered blocks, while engine executable reload and borrowing shader disposal do not.
+## Ownership and publication
 
-Uniform allocators belong to one renderer/context lifetime. Dispose them while that context is
-current, before its teardown. Automatic context replacement is outside this work; existing
-OpenGlStateCache context policy is unchanged.
-
-One unsafe historical compatibility behavior is intentionally tightened: publication after EndFrame
-fails until BeginFrame. Otherwise GPU use could escape the fence protecting its storage. Repeated
-BeginFrame with pending writes seals the previous epoch before reusing a page. Transient waits flush
-the command stream and reject failed fences rather than treating failure as completion.
-
-## Consumer inventory
-
-| Data family | Writes and owner | Selected policy |
-| --- | --- | --- |
-| LiquidDrawParamsUbo, 80 bytes | Per terrain-pool draw; each liquid shader owns an independent instance | Explicit SingleFrame; SingleDraw awaits a one-draw owned execution contract. |
-| LiquidFrameParamsUbo, 1360 bytes | Atmosphere, medium and liquid effect inputs; independent surface/volume instances | Explicit SingleFrame. |
-| VgeLightsUniformBuffer, 3216 bytes | One completed engine point-light snapshot owned independently of LumOn; shared by deferred, forward and liquid shading | SingleFrame; unchanged consumers reuse the same immutable publication. |
-| LiquidWaveParamsUbo, 32 bytes | Frame-varying phases/weather shared by liquid surface and depth programs | Explicit SingleFrame. |
-| VgeFrameUniformBuffer, 544 bytes | One world camera/frame snapshot plus explicitly owned alternate views | SingleFrame; shared immutable publication. |
-| LumOnWorldProbeResolveParamsUbo, 16 bytes | Atlas dimensions change with resource size; each resolve shader explicitly owns its block | MultiFrame; two resolve shaders register terminal ownership. |
-| PBR direct lighting/composite, 208/128 bytes | Solar/shadow/transport and pass inputs; camera and dynamic lights use shared owners | SingleFrame compatibility. No persistent-policy benefit inferred from shader longevity. |
-| Height bake, 528 bytes | Per tile/pass/solver iteration; shared intentionally by bake orchestration | SingleFrame compatibility. |
-| LumOn probe/near-field/combine/upsample/debug; shared depth hierarchy; debug line/orb blocks | Per probe/pass/camera/debug draw | SingleFrame compatibility; later tuning requires measured stable writes. |
-| SurfaceLightingParamsUbo, 144 bytes | Domain snapshots, owned by query/trace batches or screen-probe shader | SingleFrame compatibility pending workload benefit and all owners' disposal migration. |
-| Packed compute blocks | Dispatch-specific externally packed complete blocks with SetBytes comparisons | SingleFrame default; callers can explicitly request another lifetime. |
-| Existing native GPU blocks | Explicit GPU resources borrowed by prepared bindings | Unchanged resource policy; not CPU logical publications. |
-
-No stable water-only block was invented or forced into retained storage. Water participates through
-its explicit transient policy and mixed workload verification alongside genuinely stable non-water
-atlas dimensions. Other candidates remain optional measured consumer tuning, not deferred allocator safety.
-
-## Requirement traceability
-
-| Proposal requirement | Implementation / verification |
-| --- | --- |
-| Intent, baseline, lifetime, identity and publication | UniformBufferUsage, UniformPublication, CpuUniformBuffer; independent activation, dirty/failure/retry and snapshot tests. |
-| Transient storage | GpuUniformRingBuffer epochs/fences; repeated index, closed frame, overflow and actual GPU immutable ranges. |
-| Persistent storage, latest use and OpenGL | PersistentUniformStorage, UniformStoragePage/Version; conventional/coherent/explicit-flush tests, last-use retirement and generation reuse. |
-| Sharing, reload and disposal | Explicit shader ownership, common publication, prepared interface extents; borrowed slots/owners, reload and terminal versus reset behavior. |
-| Integration and source layout | Existing frame controller, GpuUniformBuffer and OpenGlStateCache; renderer-owned teardown, native failure and targeted invalidation checks. |
-| Consumer migration, verification, measurements and completion | Consumer table above and mixed liquid/resolve workload; allocation/copy/bind/resident/pending/wait counters. |
-
-Allocation, copied-byte, binding and fence-poll/wait diagnostics are compiled only in DEBUG.
-Resident-byte budgets, allocation epochs, pending retirement and fence completion serials remain
-functional bookkeeping in every configuration. Release tests continue validating storage contents
-and retirement without diagnostic counter assertions.
-
-## Measured allocation and storage results
-
-The matched fixture runs eight frames with four liquid draws per frame, identical shader settings,
-and stable resolve parameters. The transient reference is a SingleFrame block in the same fixture,
-not a separate run of the original checkout. Conventional and mapped uploads produce the same payload counts:
-
-| Counter | Transient reference | Retained stable block |
-| --- | ---: | ---: |
-| Stable block allocations | 8 | 1 |
-| Stable block copied bytes | 128 | 16 |
-| Stable block logical binds | 32 | 32 |
-| Water copied bytes | 40,192 | 40,192 |
-
-The fixture retains 196,608 bytes of transient pages and adds one 65,536-byte retained page.
-At the completed measurement point, pending retirement and transient fence waits are zero;
-the final Debug run recorded 13 retirement polls on each backend; Release recorded 16 for conventional
-and 15 for mapped storage. Poll counts depend on completion timing. These are fixture results,
-not production memory totals or guarantees of zero waits. The production transient ring uses three
-2 MiB pages; the measurement fixture deliberately uses smaller pages. Separate retirement tests retain
-pending versions until latest-use completion. The persistent allocator never blocks on pressure;
-it fails at its budget. The fixture uses completion synchronization for deterministic counters.
-CPU/GPU and live frame timing are unmeasured; allocation/copy reductions alone do not establish
-frame-time improvement.
-
-## Review and acceptance
-
-A second source review followed publication failure paths, unchanged rebinding, repeated frame
-epochs and shader ownership. A separate completion-audit pass identified missing dedicated
-direct-write/MarkDirty and transient-exhaustion tests; focused GPU tests now cover those contracts.
-The audit reconciled the
-full proposal and linked authoring, demand-loading, uniform-validation and pipeline-ownership
-contracts with the requirement table above. Compatibility defaults and conservative consumer
-selection are explicit; no required persistent-lifetime or retirement work is deferred.
-
-Behavioral coverage lives in UniformLifetimeTests, UniformLifetimeSharingTests,
-UniformLifetimeMeasurementTests, alongside existing shader,
-compute, ring and mutation regressions. Tests observe native GPU values, including nested retained
-restoration, both upload mechanisms, explicit flushing, latest-use protection, failed publication
-and retry, shader reload/disposal. Context-replacement coverage was removed with that unsupported scope.
-
-## Linked-contract evidence
-
-- [ShaderAuthoring](ShaderAuthoring.md#cpu-uniform-upload-lifetime): packing/revision guards,
-  validation-before-publication, named/numeric shared authority and immutable snapshots map to
-  CpuUniformBuffer, ShaderPreparedSubmission and UniformPublication; ShaderInputSubmissionTests,
-  ComputeInputSubmissionTests and UniformLifetimeTests exercise these paths.
-- [Demand loading](GPU.ShaderDemandLoading.md#graphics-ownership): terminal ownership remains
-  separate from executable reload. GpuProgram.UniformOwnership and GpuProgram.Preparation release
-  only registered owned blocks; UniformLifetimeSharingTests checks reload, borrower disposal,
-  terminal disposal and nested restoration.
-- [Uniform validation](GPU.UniformContractValidation.md): existing prepared numeric metadata supplies
-  minimum active block extents through GpuPreparedBindings. Undersized blocks fail before upload;
-  this does not prove semantic compatibility between equal-sized layouts. No replacement reflection
-  parser or source-text test was introduced.
-- [Pipeline ownership](Rendering.AuthoritativePipelineState.Proposal.md#architectural-responsibilities):
-  resource binding stays in GpuUniformBuffer/OpenGlStateCache; the frame controller only coordinates lifetime.
-  UniformStoragePage, UniformStorageVersion, PersistentUniformStorage and UniformPublication separate
-  storage, range identity, allocation/retirement and logical publication. The user's explicit removal
-  of context-replacement support governs this work; future pipeline/context changes remain separate.
-
-SingleDraw is verified as fresh allocation per independent publication, with conservative restoration.
-No production consumer is claimed to have an enforced one-draw lifetime. The native error test injects
-an existing GL error before the upload success check; it verifies failure bookkeeping and retry, not
-hardware failure or out-of-memory recovery. Latest-use retirement is tested deterministically by
-completing the original fence, rebinding in a later unsealed interval and rejecting premature reuse.
-## Validation receipts
-
-Final shader-enabled Debug and Release builds passed. Each configuration passed 80/80 focused tests,
-with zero failures or skips, including the four added direct-write/exhaustion cases. Build/analyzer
-warnings remain; these were not warning-free builds. The second review and independent completion
-audit found no remaining required lifetime or retirement issue within the agreed scope.
-
-The final focused selection includes UniformLifetime, CpuUniformBufferTests,
-ComputeInputSubmissionTests, GpuUniformRingBufferIntegrationTests, LiquidShaderProgramTests,
-LumOnWorldProbeRadianceTileResolveFunctionalTests, PreparedSubmissionTests,
-ShaderInputSubmissionTests, EngineStartupContextTests, ShaderUniformPublicationTests and
-ShaderInputSubmissionStateTests. Each name is an OR-ed FullyQualifiedName substring filter.
-
-Run from the repository root with NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages:
-
-```text
-dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c <Debug|Release> --no-restore -p:EnableSpirv=true --filter <selection above> --logger "trx;LogFileName=uniform-phase6-<debug|release>.trx" --results-directory artifacts/TestResults
+```mermaid
+flowchart LR
+    Owner[Shader or renderer owner] --> CPU[Concrete CPU UBO]
+    CPU --> Snapshot[Immutable bytes and revision]
+    Snapshot --> Publication[Logical publication]
+    Publication --> Ring[Transient ring]
+    Publication --> Retained[Retained size-class storage]
+    Ring --> Binding[RHI uniform binding]
+    Retained --> Binding
+    CPU -. Native integration upload .-> Native[Explicit GPU block]
+    Native --> Binding
+    Frames[Frame controller and fences] --> Ring
+    Frames --> Retained
 ```
 
-The initial Debug build hit a shader-cache atomic-write access error; its retry succeeded without
-source changes or disabling shader generation. Keep that failed attempt separate from test failures:
-artifacts/uniform-phase6-debug-build.log and uniform-phase6-debug-build-retry.log.
-Final run logs are artifacts/uniform-phase6-debug.log and uniform-phase6-release.log, with matching
-TRX files under artifacts/TestResults. No game was launched and no live visual acceptance or
-frame-time claim is implied by these headless receipts.
+`CpuUniformBuffer` retains packed bytes, content revision and edit/capture guards. Its
+`UniformPublication` owns the usage policy and last successfully committed physical version.
+Named and prepared-slot binding paths share that publication authority.
+
+`GpuProgram.OwnUniformBuffer` registers explicit ownership and attaches the shader's mutation and
+terminal-lifetime guards. A binding source may borrow a block without owning it. The frame controller
+coordinates allocator epochs and fences; allocation, range identity and retirement stay with the
+storage owners. RHI performs resource binding through the backend state cache.
+
+`Capture` retains immutable bytes and their revision. Later edits cannot alter an already captured
+submission. Physical storage is selected when that snapshot executes.
+
+## Usage policies
+
+Usage is fixed for a logical buffer instance. It describes GPU reuse, not how frequently the CPU may
+edit the buffer.
+
+| Policy | Reuse rule |
+| --- | --- |
+| `SingleDraw` | Independent publication reserves a fresh transient range. Execution consumes the committed version; activation alone is not a draw. Scope restoration may conservatively reserve another range. |
+| `SingleFrame` | Unchanged contents may reuse a committed range in the same open allocation epoch. This is the default policy. |
+| `MultiFrame` | Unchanged contents retain a size-class storage version across frames until replacement or owner retirement. |
+
+Shared camera/light snapshots, liquid inputs, surface-shadow/composition parameters and most compute
+or debug inputs use `SingleFrame`. `LumOnWorldProbeResolveParamsUbo` uses `MultiFrame` for its retained
+atlas dimensions. Each concrete type declares its policy; shader longevity does not determine it.
+
+The native LumOn frame/world-probe and terrain chunk-slot paths use concrete CPU layout owners with
+explicitly managed `GpuUniformBuffer` uploads and bindings. Their GPU resources follow their owning
+integration's lifetime rather than the logical publication allocator.
+
+## Storage and frame boundaries
+
+The renderer's uniform frame controller owns the transient ring and retained storage. Allocations
+respect native uniform-buffer alignment. Transient ranges remain immutable until their allocation
+epoch retires. Retained pages group aligned slots by size; a new content version gets a separate
+range while an older version may still be in flight.
+
+Every `BeginFrame`, including a repeated frame index, opens a new epoch. If an earlier open epoch
+contains writes, it is sealed before another page is reused. `EndFrame` closes publication until the
+next begin. A transient page is recycled only after its fence completes; waits flush pending commands
+and reject failed fences.
+
+Retained storage has a bounded resident-byte budget. Exhaustion fails publication without overwriting
+a live range. Released slots become reusable only after their latest recorded use completes, and a
+completed fence does not release a still-owned current version. Retained pages remain resident for
+reuse until allocator teardown. Their collection polls fences without blocking for capacity.
+
+Both conventional uploads and persistent mapped storage use the same range ownership rules. Mapped
+writes use coherent access or explicit flushing. Alignment, page sizing and resident budgets are
+allocator policy, separate from the concrete UBO's layout size.
+
+## Commit and failure behavior
+
+A successful logical bind records latest use even when the backend suppresses a redundant native
+bind. Scope restoration republishes through the same owner. Rebinding a retained version extends its
+last-use protection.
+
+```text
+capture immutable bytes and revision
+validate the prepared interface
+prepare a reusable version or reserve and upload a candidate
+if binding succeeds:
+    commit the candidate and record its use
+    clear pending edits only if the captured revision is still current
+otherwise:
+    abort the candidate
+    preserve the previous committed version and pending CPU edits
+```
+
+An aborted transient reservation remains immutable until its epoch retires. Newly reserved retained
+ownership is released through its allocator's retirement rules. Successfully published blocks stay
+committed if a later block in the same submission fails; resource publication is not a transaction
+across all blocks.
+
+Prepared bindings reject undersized blocks before publication, including after shader reload.
+Compatible slot changes may rebind the same version. A semantically different layout requires the
+caller to supply correctly packed data even when its byte size happens to match.
+
+## Disposal and context ownership
+
+Disposing a `UniformPublication` is terminal for that publication and queues retained storage for safe
+retirement. `CpuUniformBuffer.Dispose` resets its publication while preserving CPU bytes, allowing a
+standalone block to capture a fresh logical publication later.
+
+A shader's terminal disposal retires its explicitly registered blocks. Executable reload and disposal
+of a borrowing shader do not transfer or release the owner's block. Attached shader guards still
+prevent reuse after the owning shader's terminal disposal.
+
+Allocators and physical ranges belong to their renderer/context lifetime. Dispose them while that
+context is current, before teardown. Storage references cannot be retargeted to a replacement
+allocator or context. See [shader ownership](GPU.ShaderDemandLoading.md#graphics-ownership) and
+[pipeline boundary lifetime](Rendering.AuthoritativePipelineState.md#shader-ownership-and-boundary-lifetime).
+
+## Diagnostics and validation
+
+Debug diagnostics count allocation, copied bytes, logical binding and fence polling/waits. Resident
+budgets, allocation epochs, pending retirement and completion serials remain functional bookkeeping
+in every configuration. Counter reductions alone do not establish frame-time improvement.
+
+Behavioral tests cover CPU mutation/capture guards, allocation and publication failure/retry, immutable
+GPU ranges, shared and borrowed ownership, retained last-use retirement, and native upload paths.
+Detailed commands, results and package/source identities are retained in the
+[ownership verification capture](../artifacts/ubo-ownership/20261114T022123Z-verification/verification-summary.json).
+Its separate cloud-traversal failure and retained-binary comparison are recorded there. Headless
+correctness and package checks do not establish live appearance or performance acceptance.

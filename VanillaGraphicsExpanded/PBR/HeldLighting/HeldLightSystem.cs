@@ -130,10 +130,12 @@ internal static class HeldLightSystem
     {
         if (!Enabled || game == null) { ProviderLight(effects, source.Color, source.Pos); return; }
         int before = game.shUniforms.PointLightsCount;
-        ProviderLight(effects, source.Color, source.Pos);
+        var position = source.Pos;
+        var worldPosition = new Numerics.Vector3d(position.X, position.Y, position.Z);
+        ProviderLight(effects, source.Color, position);
         if (game.shUniforms.PointLightsCount != before + 1) return;
         var identities = NativeShadowLightSources.For(game);
-        identities.Admit(game, before, identities.Provider(source, game.EntityPlayer.Pos.Dimension));
+        identities.Admit(game, before, identities.Provider(source, game.EntityPlayer.Pos.Dimension), worldPosition);
     }
 
     /// <summary>Aborts partial collection and suppresses only the exact exception raised inside held-light work.</summary>

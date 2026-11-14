@@ -9,7 +9,8 @@ namespace VanillaGraphicsExpanded.PBR;
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
 [ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings), Defaults = true)]
-internal interface IPBRDirectLightingShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings, VanillaGraphicsExpanded.PBR.Materials.Energy.IMicrofacetEnergyBindings
+[ShaderBindingSet(typeof(Shadows.ISurfaceShadowBindings), Defaults = true)]
+internal interface IPBRDirectLightingShaderProgramBindings : Shadows.ISurfaceShadowBindings, VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings, VanillaGraphicsExpanded.PBR.Materials.Energy.IMicrofacetEnergyBindings
 {
     #region Public API
     /// <summary>Supplies the shared dynamic-light list without effect-specific copies.</summary>
@@ -18,9 +19,6 @@ internal interface IPBRDirectLightingShaderProgramBindings : VanillaGraphicsExpa
     /// <summary>Supplies the shared camera snapshot.</summary>
     [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
     CpuUniformBuffer FrameInputs { get; }
-    /// <summary>Declares the VgePbrDirectLightingParamsUBO UniformBlock slot.</summary>
-    [ShaderBinding("VgePbrDirectLightingParamsUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the primaryScene Sampler slot.</summary>
     [ShaderBinding("primaryScene", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
     GpuTextureRef PrimaryScene { set; }
@@ -33,11 +31,5 @@ internal interface IPBRDirectLightingShaderProgramBindings : VanillaGraphicsExpa
     /// <summary>Declares the normal, material and environment surface array sampler.</summary>
     [ShaderBinding("gBufferSurface", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTextureRef GBufferSurface { set; }
-    /// <summary>Declares the shadowMapNear Sampler slot.</summary>
-    [ShaderBinding("shadowMapNear", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.ShadowCompareLinearClamp, Required = false)]
-    GpuTextureRef ShadowMapNear { set; }
-    /// <summary>Declares the shadowMapFar Sampler slot.</summary>
-    [ShaderBinding("shadowMapFar", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.ShadowCompareLinearClamp, Required = false)]
-    GpuTextureRef ShadowMapFar { set; }
     #endregion
 }

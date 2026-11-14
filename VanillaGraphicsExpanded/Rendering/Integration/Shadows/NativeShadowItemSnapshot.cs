@@ -54,13 +54,8 @@ internal sealed class NativeShadowItemSnapshot
     internal void Apply(ShadowStaticShader shader, ShadowDrawView view)
     {
         if (Mesh is null || !IsCurrent) throw new InvalidOperationException("Native dropped-item snapshot changed.");
-        Span<byte> data = stackalloc byte[208]; data.Clear();
-        for (int index = 0; index < 16; index++) UboPacking.WriteFloat(data, index * 4, model[index]);
-        warp.Pack(data);
-        for (int diagonal = 0; diagonal < 4; diagonal++) UboPacking.WriteFloat(data, 144 + diagonal * 20, 1);
-        var offset = origin - view.Origin;
-        UboPacking.WriteFloat(data, 192, (float)offset.X); UboPacking.WriteFloat(data, 196, (float)offset.Y);
-        UboPacking.WriteFloat(data, 200, (float)offset.Z);
+        Span<byte> data = stackalloc byte[ShadowMaterialParameters.BlockSize];
+        ShadowMaterialParameters.PackObject(data, model.AsSpan(), warp.Deformation, origin - view.Origin);
         shader.CaptureMaterial(data); shader.CaptureFlags(flags, 0);
     }
     #endregion

@@ -162,26 +162,13 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
         using var position = new BorrowedTexture(gBufferManager.PositionTextureId);
         shader.GBufferPosition = position;
 
-        // Shadow maps (depth textures)
-        var shadowNearFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapNear];
-        var shadowFarFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapFar];
-        using var shadowNear = shadowNearFb is null ? null : new BorrowedTexture(shadowNearFb.DepthTextureId);
-        using var shadowFar = shadowFarFb is null ? null : new BorrowedTexture(shadowFarFb.DepthTextureId);
-        shader.ShadowMapNear = shadowNear;
-        shader.ShadowMapFar = shadowFar;
-
         // Matrices
         using var frameCamera = TestFrameCamera.CreateFromInverseView(invProjectionMatrix, invModelViewMatrix, target.Width, target.Height,
             capi.Render.ShaderUniforms.ZNear, capi.Render.ShaderUniforms.ZFar);
         shader.FrameInputs = frameCamera;
-        shader.ToShadowMapSpaceMatrixNear = capi.Render.ShaderUniforms.ToShadowMapSpaceMatrixNear;
-        shader.ToShadowMapSpaceMatrixFar = capi.Render.ShaderUniforms.ToShadowMapSpaceMatrixFar;
 
         // Lighting
-        shader.RgbaAmbientIn = capi.Render.AmbientColor;
-        var atmosphere = ModSystems.AtmosphereModSystem.Lighting;
-        shader.SetSolarLighting(atmosphere?.Sun ?? System.Numerics.Vector3.UnitY,
-            atmosphere?.Solar ?? System.Numerics.Vector3.Zero);
+        // The comparison fixture owns an explicit shadow-disabled snapshot that both renderers share.
 
         // Vanilla supplies view-space point lights; the shader compares them with view-space receivers.
         using var sharedLights = new VgeLightsUniformBuffer();
@@ -191,12 +178,6 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
             capi.Render.ShaderUniforms.PointLightColors3);
         shader.LightsInputs = sharedLights;
 
-        // Shadow params
-        shader.ShadowRangeNear = capi.Render.ShaderUniforms.ShadowRangeNear;
-        shader.ShadowRangeFar = capi.Render.ShaderUniforms.ShadowRangeFar;
-        shader.ShadowZExtendNear = capi.Render.ShaderUniforms.ShadowZExtendNear;
-        shader.ShadowZExtendFar = capi.Render.ShaderUniforms.ShadowZExtendFar;
-        shader.DropShadowIntensity = capi.Render.ShaderUniforms.DropShadowIntensity;
 
         using var cpuScope = Profiler.BeginScope("PBR.DirectLighting", "Render");
         using (GlGpuProfiler.Instance.Scope("PBR.DirectLighting"))

@@ -296,7 +296,10 @@ the sun reuses the engine quad with atmospheric disk shading, while the moon ret
 draw afterward. See [solar disk integration](PBR.Atmosphere.SolarDisk.md). Solar and lunar
 transport share the existing backend and medium table. A complete publication retains separate
 solar and lunar Mie bands, their directions, and a calibrated unresolved moonless background.
-The selected direct emitter also drives the existing shadow cascades. See
+Surface lighting evaluates both direct emitters independently through the shared virtual shadow
+provider. Selected-emitter compatibility properties remain for existing GI, fog and native
+particle/decal lighting; they do not select the PBR surface source. Native compatibility consumers
+retain their existing shadow cascades. See
 [nighttime source calibration](PBR.PhotometricLighting.Proposal.md#calibrated-nighttime-celestial-lighting)
 and [publication contract](PBR.Atmosphere.Publication.md). Lunar texture photometry remains
 an artistic raster compatibility input; live acceptance of the nighttime extension is pending.
@@ -396,11 +399,12 @@ completion-only publication, stable-input reuse, latest-input/resolution admissi
 disposal and the GPU transition from a 1x1 placeholder to a computed LUT. The production shader
 catalog rebuilt successfully. No live game verification was performed.
 
-- Deferred direct lighting receives attenuated solar RGB; existing shadow visibility and point lights
-  remain unchanged. Physical sunlight uses normalized Lambert diffuse (`1/pi`) in both forward and
-  deferred shading; the existing helper's legacy point-light calibration remains unchanged.
+- Deferred and forward surface lighting evaluate independent solar and lunar RGB from the same current
+  atmosphere frame. Each source's direct term receives its own admitted virtual-shadow visibility.
+  Celestial diffuse uses normalized Lambert response (`1/pi`); the existing helper's point-light
+  calibration remains unchanged.
 - Terrain and entity capture use the atmosphere's sky response times local engine sky availability.
-  Forward PBR uses the same response and solar RGB. Block illumination remains independently supplied.
+  Forward PBR uses the same response and independent celestial RGB. Block illumination remains independently supplied.
 - LumOn frame/world-probe inputs receive the same sky response. Screen-probe sky misses use its
   hemispherical approximation, replacing the former fabricated solar halo. These probe paths do not
   yet sample the angular sky table; their lighting is a coarse angular approximation of the new sky.

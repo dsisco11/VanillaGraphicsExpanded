@@ -17,4 +17,7 @@ internal interface IShadowReadinessDebugBindings
     /// <summary>Physical residency, assignment generation, invalidation and receiving coverage per page slot.</summary>
     [ShaderBinding("PageEntries",ShaderBindingKind.StorageBlock,2,ShaderStageKind.Fragment)]
     GpuShaderStorageBuffer? Pages { set; }
+    /// <summary>Per-light unexpected fragment lookup failures, retained and visualized entirely on GPU.</summary>
+    [ShaderBinding("SurfaceShadowDiagnostics",ShaderBindingKind.StorageBlock,3,ShaderStageKind.Fragment,Required=false)]
+    GpuShaderStorageBuffer? SampleFailures { set; }
 }

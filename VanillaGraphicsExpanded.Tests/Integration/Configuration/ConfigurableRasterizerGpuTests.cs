@@ -2,6 +2,7 @@ using TestUniformRing = VanillaGraphicsExpanded.Tests.Support.GPU.Native.TestUni
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using ErrorCode = OpenTK.Graphics.OpenGL.ErrorCode;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Desktop;
@@ -245,7 +246,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             bytes.Clear();
             UboPacking.WriteInt32(bytes, 0, lines ? 1 : 0);
             UboPacking.WriteInt32(bytes, 4, zeroToOne ? 1 : 0);
-            inputs.SetBytes(bytes);
+            inputs.SetPayload(bytes);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
             GL.DrawArrays(lines ? PrimitiveType.Lines : PrimitiveType.Triangles, 0, lines ? 2 : 3);
             lastImage?.Dispose();lastImage=null;

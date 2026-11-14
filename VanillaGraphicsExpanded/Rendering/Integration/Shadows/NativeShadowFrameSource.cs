@@ -114,17 +114,10 @@ internal sealed class NativeShadowFrameSource:IShadowFrameSource,IDisposable
             var work=new ShadowDemandWorkQueue(settings.Scheduling.LightCapacity);
             double now=clock();
             AddDirectional(lights.Sun);AddDirectional(lights.Moon);
-            if(lights.WorldToView.Length!=16)throw new InvalidOperationException("Current light coordinate convention is missing.");
-            var inverse=Mat4d.Invert(new double[16],lights.WorldToView.ToArray());
-            if(inverse is null)throw new InvalidOperationException("Current light transform is singular.");
             foreach(var point in lights.Points)
             {
-                if(!point.Source.IsKnown || point.Source.Dimension!=lights.Dimension || point.Radius<=settings.Pages.PointNear)continue;
-                var v=point.ViewPosition;
-                double x=inverse[0]*v.X+inverse[4]*v.Y+inverse[8]*v.Z+inverse[12];
-                double y=inverse[1]*v.X+inverse[5]*v.Y+inverse[9]*v.Z+inverse[13];
-                double z=inverse[2]*v.X+inverse[6]*v.Y+inverse[10]*v.Z+inverse[14];
-                var position=origin+new Vector3d(x,y,z);
+                if(!point.Source.IsKnown || point.Source.Dimension!=lights.Dimension || point.Radius<=settings.Pages.PointNear ||
+                    point.WorldPosition is not { } position || !double.IsFinite(position.X) || !double.IsFinite(position.Y) || !double.IsFinite(position.Z))continue;
                 double contribution=Contribution(surface.Regions,origin,position,point.Radius,
                     Math.Max(0,point.Payload.X)+Math.Max(0,point.Payload.Y)+Math.Max(0,point.Payload.Z),budget);
                 Add(point.Source,contribution,point.Source.Kind==ShadowSourceKind.Hand,
@@ -219,7 +212,7 @@ internal sealed class NativeShadowFrameSource:IShadowFrameSource,IDisposable
                 /// <summary>Generates every layer with the selected rendered mapping and the unchanged current illumination.</summary>
                 ShadowSurfaceDemand Demand(ShadowProjectionHistory.Entry rendered,ShadowProjectionHistory.Entry current,int quality)
                 {
-                    var demand=new ShadowSurfaceDemand(budget,settings.Pages,settings.Scheduling.DemandRequests);
+                    var demand=new ShadowSurfaceDemand(budget,settings.Pages,settings.Scheduling.DemandRequests,origin);
                     foreach(var region in surface.Regions)
                     {
                         if(rendered.Point is { } point)demand.AddPoint(region,point,current.Point!,radius,publication.Generation,scene.Epoch,scene.Sequence);

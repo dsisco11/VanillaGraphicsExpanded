@@ -69,8 +69,8 @@ internal sealed class BloomRenderer : IDisposable
             shader!.SourceImage = i == 0 ? scene : levels[i - 1].Texture;
             shader.SecondaryImage = scene;
             shader.ExposureBuffer = exposure.Buffer;
-            shader.Capture(new(0, 0, i == 0 ? 0 : 1, exposure.Buffer is not null ? 1 : 0),
-                new(settings.BloomThreshold, settings.BloomKnee, settings.BloomStrength, exposure.ManualLogGain));
+            shader.CaptureExtraction(i == 0, exposure.Buffer is not null,
+                settings.BloomThreshold, settings.BloomKnee, settings.BloomStrength, exposure.ManualLogGain);
             draw.Submit(commands, pipeline!, levels[i].Pass,shader!.CaptureBindings());
         }
         float totalEnergy = 0;
@@ -92,8 +92,7 @@ internal sealed class BloomRenderer : IDisposable
             shader!.SourceImage = levels[i].Texture;
             bool hasCoarser = i + 1 < levels.Count;
             shader.SecondaryImage = hasCoarser ? scratch[i + 1].Texture : scene;
-            shader.Capture(new(0, 0, 4, hasCoarser ? 1 : 0),
-                new(Scales[i].Tint * (Scales[i].Energy / totalEnergy), 0));
+            shader.CaptureAccumulation(Scales[i].Tint * (Scales[i].Energy / totalEnergy), hasCoarser);
             draw.Submit(commands, pipeline!, scratch[i].Pass,shader!.CaptureBindings());
         }
     }

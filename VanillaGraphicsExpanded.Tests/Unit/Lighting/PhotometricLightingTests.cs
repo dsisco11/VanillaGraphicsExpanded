@@ -165,19 +165,19 @@ public sealed class PhotometricLightingTests
     {
         // Arrange: retain the existing frame bytes and calibration before replacement.
         using var frame = new VgeFrameUniformBuffer();
-        Vector4 initial = MemoryMarshal.Read<Vector4>(frame.Bytes.Slice(544, 16));
+        Vector4 initial = MemoryMarshal.Read<Vector4>(frame.Bytes.Slice(VgeFrameUniformBuffer.LightingCalibrationOffset, 16));
         Assert.Equal(LightingCalibration.Default.BlockReferenceLux, initial.X);
         Assert.Equal(LightingCalibration.Default.BlockNeutralFloor, initial.Y);
         Assert.Equal(32, initial.Z);
         LightingCalibration initialCalibration = frame.LightingCalibration;
         // Act and assert: invalid partial replacement preserves old bytes, while a valid update publishes the full value.
         Assert.Throws<ArgumentOutOfRangeException>(() => frame.SetLightingCalibration(new(float.NaN, 0)));
-        Assert.Equal(initial, MemoryMarshal.Read<Vector4>(frame.Bytes.Slice(544, 16)));
+        Assert.Equal(initial, MemoryMarshal.Read<Vector4>(frame.Bytes.Slice(VgeFrameUniformBuffer.LightingCalibrationOffset, 16)));
         Assert.Equal(initialCalibration, frame.LightingCalibration);
         frame.SetLightingCalibration(new(10, .1f));
         Assert.Equal(new LightingCalibration(10, .1f), frame.LightingCalibration);
         Assert.Equal(new Vector4(10, .1f, 32, LightingCalibration.EnginePointCandelaPerUnit),
-            MemoryMarshal.Read<Vector4>(frame.Bytes.Slice(544, 16)));
+            MemoryMarshal.Read<Vector4>(frame.Bytes.Slice(VgeFrameUniformBuffer.LightingCalibrationOffset, 16)));
     }
 
     /// <summary>Persistent generations ignore exposure while calibration and fixed encoding remain authoritative.</summary>

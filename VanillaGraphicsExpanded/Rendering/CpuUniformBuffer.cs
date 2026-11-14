@@ -25,17 +25,85 @@ public abstract class CpuUniformBuffer : IDisposable
     private UniformPublication? publication;
     private RHIUniformSnapshot? snapshot;
 
+    #region Public API
+    /// <summary>Fixed publication lifetime; replacement requires a new logical instance.</summary>
+    public UniformBufferUsage Usage { get; }
+
+    /// <summary>
+    /// Immutable size of the concrete std140 layout, available before base construction.
+    /// </summary>
+    public abstract int SizeBytes { get; }
+
+    /// <summary>
+    /// Whether the CPU buffer has pending changes that need to be uploaded to GPU.
+    /// </summary>
+    public bool IsDirty => isDirty;
+
+    /// <summary>
+    /// Read-only view of the full packed buffer.
+    /// </summary>
+    public ReadOnlySpan<byte> Bytes => data;
+
+    /// <summary>Captures one immutable logical version without allocating GPU storage or clearing pending edits.</summary>
+    public RHIUniformSnapshot Capture()
+    {
+        captureGuard?.Invoke();
+        var owner = publication ??= new UniformPublication(Usage);
+        if (snapshot is null || snapshot.ContentRevision != contentRevision || !ReferenceEquals(snapshot.Publication, owner))
+            snapshot = new RHIUniformSnapshot(this, owner, data, contentRevision, Usage);
+        return snapshot;
+    }
+
+    /// <summary>Retires captured logical versions while allowing the CPU packing object to be reused.</summary>
+    public void Dispose()
+    {
+        publication?.Dispose();
+        publication = null;
+        snapshot = null;
+    }
+    #endregion
+
+    #region Internal API
+    #region Ownership guards
     /// <summary>Attaches an owning shader's edit contract without affecting standalone packed buffers.</summary>
     internal void SetWriteGuard(Action guard) => writeGuard = guard ?? throw new ArgumentNullException(nameof(guard));
     /// <summary>Attaches logical owner retirement checks independently of the edit-during-capture guard.</summary>
     internal void SetCaptureGuard(Action guard) => captureGuard = guard ?? throw new ArgumentNullException(nameof(guard));
+    #endregion
 
-    #region Public API
-    /// <summary>Fixed publication lifetime; replacement requires a new logical instance.</summary>
-    public UniformBufferUsage Usage { get; }
-    /// <summary>Allocates zero-initialized packed bytes with no pending changes.</summary>
-    protected CpuUniformBuffer(int sizeBytes, UniformBufferUsage usage = UniformBufferUsage.SingleFrame)
+    #region Publication
+    /// <summary>Clears dirty work only when successful execution published the current captured CPU version.</summary>
+    internal void CommitCaptured(RHIUniformSnapshot captured)
     {
+        if (!ReferenceEquals(publication, captured.Publication) || contentRevision != captured.ContentRevision) return;
+        isDirty = false;
+        dirtyStartBytes = int.MaxValue;
+        dirtyEndExclusiveBytes = 0;
+    }
+    #endregion
+    #endregion
+
+    #region Protected API
+    #region Complete packed edits
+    /// <summary>Publishes a concrete layout's complete packed edit without bypassing capture guards.</summary>
+    protected void SetBytes(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length != data.Length) throw new ArgumentException("Packed block size must remain fixed.", nameof(bytes));
+        // Enter guarded storage before comparison: capture guards reject unchanged edits as well.
+        var destination = DataWritable;
+        if (bytes.SequenceEqual(destination)) return;
+        bytes.CopyTo(destination);
+        MarkDirty();
+    }
+    #endregion
+
+    #region Construction and packed storage
+    /// <summary>Allocates the concrete layout's zero-initialized packed bytes with no pending changes.</summary>
+    protected CpuUniformBuffer(UniformBufferUsage usage = UniformBufferUsage.SingleFrame)
+    {
+        // Layout declarations are immutable. Fixed layouts return their own constant;
+        // variable layouts initialize their size property before base construction.
+        int sizeBytes = SizeBytes;
         if (sizeBytes <= 0 || sizeBytes > 65536)
         {
             throw new ArgumentOutOfRangeException(nameof(sizeBytes), "UBO size must be between 1 and 65536 bytes");
@@ -48,21 +116,6 @@ public abstract class CpuUniformBuffer : IDisposable
         dirtyStartBytes = int.MaxValue;
         dirtyEndExclusiveBytes = 0;
     }
-
-    /// <summary>
-    /// Size of the UBO in bytes (std140 layout).
-    /// </summary>
-    public int SizeBytes => data.Length;
-
-    /// <summary>
-    /// Whether the CPU buffer has pending changes that need to be uploaded to GPU.
-    /// </summary>
-    public bool IsDirty => isDirty;
-
-    /// <summary>
-    /// Read-only view of the full packed buffer.
-    /// </summary>
-    public ReadOnlySpan<byte> Bytes => data;
 
     /// <summary>
     /// Direct access to the underlying byte array for advanced packing scenarios.
@@ -80,25 +133,7 @@ public abstract class CpuUniformBuffer : IDisposable
     /// Callers must call <see cref="MarkDirty"/> after modifying the span.
     /// </summary>
     protected Span<byte> DataWritable { get { writeGuard?.Invoke(); return data; } }
-
-    /// <summary>Captures one immutable logical version without allocating GPU storage or clearing pending edits.</summary>
-    public RHIUniformSnapshot Capture()
-    {
-        captureGuard?.Invoke();
-        var owner = publication ??= new UniformPublication(Usage);
-        if (snapshot is null || snapshot.ContentRevision != contentRevision || !ReferenceEquals(snapshot.Publication, owner))
-            snapshot = new RHIUniformSnapshot(this, owner, data, contentRevision, Usage);
-        return snapshot;
-    }
-
-    /// <summary>Clears dirty work only when successful execution published the current captured CPU version.</summary>
-    internal void CommitCaptured(RHIUniformSnapshot captured)
-    {
-        if (!ReferenceEquals(publication, captured.Publication) || contentRevision != captured.ContentRevision) return;
-        isDirty = false;
-        dirtyStartBytes = int.MaxValue;
-        dirtyEndExclusiveBytes = 0;
-    }
+    #endregion
 
     #region Typed parameter writes
     // An unchanged write leaves every previously dirty byte pending.
@@ -169,6 +204,7 @@ public abstract class CpuUniformBuffer : IDisposable
     }
     #endregion
 
+    #region Dirty tracking
     /// <summary>
     /// Marks the buffer as dirty, requiring an upload before the next draw/dispatch.
     /// Called automatically by property setters; manual invocation only needed for direct Data access.
@@ -213,14 +249,6 @@ public abstract class CpuUniformBuffer : IDisposable
         if (byteOffset < dirtyStartBytes) dirtyStartBytes = byteOffset;
         if (endExclusive > dirtyEndExclusiveBytes) dirtyEndExclusiveBytes = endExclusive;
     }
-
-    /// <summary>Retires captured logical versions while allowing the CPU packing object to be reused.</summary>
-    public void Dispose()
-    {
-        publication?.Dispose();
-        publication = null;
-        snapshot = null;
-    }
     #endregion
-
+    #endregion
 }

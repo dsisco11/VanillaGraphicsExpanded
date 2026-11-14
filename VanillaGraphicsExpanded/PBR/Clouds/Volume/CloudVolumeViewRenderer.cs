@@ -73,7 +73,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
             if(selection.TraceDivisor!=1&&!temporal.EnsureReady())throw new InvalidOperationException("Cloud temporal executable unavailable.",temporal.PreparationFailure);
             var caps=GpuSupport.Graphics;
             if(caps.MaxDrawBuffers<6||GpuSupport.MaxColorAttachments<6||caps.MaxFragmentShaderStorageBlocks<3||caps.MaxTextureImageUnits<11||caps.MaxCombinedTextureImageUnits<11||
-                caps.MaxUniformBufferBindings<=GpuBindingRegistry.Ubo.Frame||caps.MaxUniformBlockSize<240)
+                caps.MaxUniformBufferBindings<=GpuBindingRegistry.Ubo.Frame||caps.MaxUniformBlockSize < CloudVolumeViewParameters.BlockSize)
                 throw new NotSupportedException("Stored cloud view exceeds rendering capabilities.");
             geometry??=new(Layout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
             settings=selection;revision=program.ExecutableRevision;
@@ -97,7 +97,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
         if (surfacePass is not null && surfacePass.Surface != target.SurfaceReference) surfacePass = null;
         if(!prepared||failed||!current())return Reject("Stored cloud publication unavailable.");
         if(scene.Camera.FrameIndex!=input.Frame||scene.Atmosphere.CalibrationGeneration==0)return Reject("Stored cloud camera or atmosphere publication unavailable.");
-        Vector2 extent=MemoryMarshal.Read<Vector2>(scene.Camera.Bytes.Slice(384,8));
+        Vector2 extent=scene.Camera.ScreenSize;
         if(extent.X!=target.Width||extent.Y!=target.Height)return Reject("Stored cloud camera/OIT extent mismatch.");
         try
         {

@@ -1,5 +1,8 @@
 using System;
+using System.Diagnostics;
 using HarmonyLib;
+using VanillaGraphicsExpanded.PBR.Shadows;
+using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Integration.Shadows;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -8,7 +11,7 @@ using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.ModSystems;
 
-/// <summary>Owns native shadow inputs without enabling shadow rendering or replacing native shading.</summary>
+/// <summary>Composes native world inputs and the opt-in shared surface shadow provider through the client rendering lifetime.</summary>
 public sealed class VirtualShadowModSystem : ClientRenderingModSystem, ILiveConfigurable
 {
     private const string PatchId = Constants.ModId + ".shadowinputs";
@@ -16,6 +19,8 @@ public sealed class VirtualShadowModSystem : ClientRenderingModSystem, ILiveConf
     private Harmony? hooks;
     private NativeShadowWorldAdapter? world;
     private ClientWorldMap? attachedMap;
+    private ShadowFrameRenderer? frames;
+    private (nint Handle,long Generation) context;
     /// <summary>Exposes the input owner to the shared coordinator; capture remains explicitly bounded.</summary>
     internal NativeShadowWorldAdapter? World => world;
 
@@ -30,6 +35,7 @@ public sealed class VirtualShadowModSystem : ClientRenderingModSystem, ILiveConf
         client.Event.LevelFinalize += Attach;
         client.Event.LeaveWorld += Release;
         ((ICoreAPI)client).Event.ChunkDirty += Dirty;
+        RenderContextRegistry.Retiring += OnContextRetiring;
         Attach();
     }
 
@@ -42,13 +48,16 @@ public sealed class VirtualShadowModSystem : ClientRenderingModSystem, ILiveConf
             api.Event.LeaveWorld -= Release;
             ((ICoreAPI)api).Event.ChunkDirty -= Dirty;
         }
-        Release(); api = null;
+        try{Release();}
+        finally{api=null;RenderContextRegistry.Retiring-=OnContextRetiring;}
     }
 
     /// <summary>Withdraws the previous publication while preserving pending native work at the render-thread boundary.</summary>
     public void OnConfigReloaded(ICoreAPI changedApi)
     {
         if (world == null || !ReferenceEquals(api, changedApi)) return;
+        frames?.ApplyPolicy(ConfigModSystem.Config.VirtualShadows);
+        SurfaceShadowBindings.Attach(()=>frames?.Current?.Publication,ConfigModSystem.Config.VirtualShadows.Pages);
         var expected = world;
         api!.Event.EnqueueMainThreadTask(() =>
         {
@@ -74,6 +83,14 @@ public sealed class VirtualShadowModSystem : ClientRenderingModSystem, ILiveConf
         {
             NativeShadowWorldHooks.Install(hooks, game.WorldMap, next);
             attachedMap = game.WorldMap; world = next;
+            context=RenderContextRegistry.Current();
+            var settings=ConfigModSystem.Config.VirtualShadows;
+            frames=new(api,policy=>NativeShadowFrameFactory.Create(api,game,next,policy,Clock),settings,Clock);
+            SurfaceShadowBindings.Attach(()=>frames?.Current?.Publication,settings.Pages);
+            // Compatibility particle/decal shaders still own native cascade
+            // sampling. Migrated physical surface shaders never consume those
+            // textures, including when shared shadow readiness is unavailable.
+            api.Logger.Notification("[VGE Shadows] Shared surface provider registered; native cascades remain owned by compatibility particles and decals.");
         }
         catch (Exception error)
         {
@@ -96,10 +113,18 @@ public sealed class VirtualShadowModSystem : ClientRenderingModSystem, ILiveConf
     /// <summary>Withdraws callbacks before retiring metadata and this owner's patches.</summary>
     private void Release()
     {
-        NativeShadowWorldHooks.Detach();
-        world?.Dispose(); world = null;
-        attachedMap = null;
-        hooks?.UnpatchAll(PatchId); hooks = null;
+        var retiringFrames=frames;frames=null;
+        var retiringWorld=world;world=null;
+        var retiringHooks=hooks;hooks=null;attachedMap=null;
+        context=default;
+        RenderingCleanup.Run(()=>retiringFrames?.Dispose(),SurfaceShadowBindings.Retire,
+            NativeShadowWorldHooks.Detach,()=>retiringWorld?.Dispose(),()=>retiringHooks?.UnpatchAll(PatchId));
     }
+
+    /// <summary>Withdraws every borrower before its originating context and resource namespace are replaced.</summary>
+    private void OnContextRetiring((nint Handle,long Generation) retiring){if(retiring==context)Release();}
+
+    /// <summary>Uses a monotonic time origin for finite temporal eligibility without depending on world simulation time.</summary>
+    private static double Clock()=>Stopwatch.GetTimestamp()/(double)Stopwatch.Frequency;
     #endregion
 }

@@ -1,6 +1,7 @@
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shadows.Pages;
+using VanillaGraphicsExpanded.Rendering.Shadows.Projections;
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering.Shadows.Sampling;
@@ -15,7 +16,7 @@ internal sealed class ShadowSampler : IDisposable
     /// <summary>Visibility, failure mask, tap count, stale-tap mask and nine face/page/reference-depth records.</summary>
     internal GpuShaderStorageBuffer Results { get; }
     /// <summary>Charges all owned query/output storage to its scheduling owner.</summary>
-    internal long AllocatedBytes => 640 + 160;
+    internal long AllocatedBytes => ShadowCoordinates.SamplingWords * sizeof(uint) + 160;
     #region Public API
     /// <summary>Creates the bounded query/output buffers through RHI.</summary>
     internal ShadowSampler(ICoreAPI api)
@@ -23,7 +24,7 @@ internal sealed class ShadowSampler : IDisposable
         shader = ShadowSamplingShader.Create(api); executable = shader.Shader;
         try
         {
-            inputs = Buffer(640, "Inputs"); Results = Buffer(160, "Results");
+            inputs = Buffer(ShadowCoordinates.SamplingWords * sizeof(uint), "Inputs"); Results = Buffer(160, "Results");
         }
         catch { shader.Dispose(); inputs?.Dispose(); Results?.Dispose(); throw; }
     }

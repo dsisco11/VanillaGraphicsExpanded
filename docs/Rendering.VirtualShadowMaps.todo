@@ -6,7 +6,9 @@ Status: Phases 1–4 retain receipts for their original contracts. Phase 5's com
 has been refactored and qualified within Phase 7's controlled foundation scope. Phase 6's history
 investigation and support assessment and Phase 7 are complete. Phase 8A's native geometry and Phase 8B's
 fixed-capacity texture-array migration are qualified within their controlled scope; Phase 8 is complete.
-Shadows remain disabled. Phase 9 and all later implementation work remain open.
+Phase 9's controlled current-frame gate is complete. Phase 10's production surface migration and
+headless implementation qualification are complete; Phase 11's runtime qualification and all later
+work remain open. Shadows remain opt-in.
 The baseline uses the system's established OpenGL 4.5 plus
 GL_ARB_gl_spirv requirement; shader ingestion is not a new VSM platform decision.
 Authority: the user's approved atomic rendering and bounded temporal reuse decisions below
@@ -920,33 +922,131 @@ Phase 10: Migrate all participating surface lighting coherently
   Depends on Phase 9.
   Outcome: surface consumers use the shared virtual shadow system for simultaneous celestial and local
   lights, with one provider per light/consumer and complete current demand/readiness.
+  Implementation status: the surface migration, review corrections and TinyAst 0.12.0 transaction
+  migration are implemented and headless-qualified. Combined/native regressions and the canonical
+  Release package pass. The second review and independent completion audit found no remaining
+  implementation, evidence or documentation gap. Live appearance and performance remain for Phase 11.
 
-  ☐ Integrate shared shadow lookup and the same current light/readiness snapshot into deferred direct
+  ☑ Address the surface-integration review decisions before completing the migration.
+    ☑ Discuss large-world coordinates in shadow sampling before choosing further implementation changes.
+      Explain the current coordinate flow and evaluate page-relative, chunk-relative or light-relative
+      FP32 sampling, with integer coordinates/origins retaining global page identity where needed.
+      Establish which operations actually require additional precision rather than assuming global
+      positions must be reconstructed or FP64 retained throughout sampling. Reconcile the affected
+      projection/sampling contracts with the agreed decision.
+    ☑ After the coordinate discussion above, discuss whether NativeShadowLightSources.NormalizeView
+      and the associated world-position reconstruction remain necessary. Explain how virtual pages
+      currently relate to world coordinates, how their identity/origin and rendered projection metadata
+      could support relative sampling, and whether a different coordinate contract could eliminate
+      this transformation fundamentally. Distinguish virtual page coordinates from physical pool slots;
+      retain correct moving-light and retained-projection behavior in any agreed approach.
+    ☑ Refactor shadow coordinates to the approved translated-world architecture after the discussions above.
+      ☑ Keep receivers in camera-relative FP32 coordinates and convert directly into each shadow
+        projection's relative frame using an origin difference. Use FP32 shadow matrices, projection,
+        bias and filtering calculations without reconstructing large absolute positions per sample.
+      ☑ Preserve high-precision origin information at coordinate-frame boundaries using high/low FP32
+        origin components and appropriate CPU setup precision. Demote origin differences to FP32 only
+        after cancellation, with explicit numerical bounds; do not subtract rounded absolute FP32 origins.
+      ☑ Give point-light projections a light-relative origin shared across their cube faces. Give each
+        directional clipmap level a suitable snapped origin, retaining integer page-space locations and
+        relative offsets for stable addressing and cached-page scrolling independently of physical slots.
+      ☑ Associate the origin, relative transforms and depth convention with the rendered projection
+        generation. Convert current receivers into that generation's frame for permitted retained
+        sampling; camera rebasing must not reinterpret cached depth through a different mapping.
+      ☑ Capture original light positions at the existing collection boundary where available, retaining
+        the native illumination payload. Migrate candidate/projection consumers coherently and eliminate
+        unnecessary view-space inversion, absolute-position round trips and NormalizeView bookkeeping;
+        do not introduce a parallel light or mesh-pool registry.
+      ☑ Reconcile CPU/GPU interfaces, demand, coverage, rasterization, sampling and maintained coordinate
+        contracts. Verify large positive/negative origins, camera and chunk-boundary crossings, clipmap
+        scrolling, cube-face seams and current/retained moving-light behavior through domain regressions;
+        rely on existing UBO/shader machinery rather than adding feature-specific layout/packing tests.
+      Verification: Rendering.VirtualShadowMaps.Qualification.md#translated-surface-coordinate-correctness-receipts.
+      Second review and independent completion audit passed for this block. The historical translated
+      checkpoint retained 440 distinct passes; the later relative-compute/native-surface receipt below
+      closes its four native-forward fixture gaps using the native submission owner.
+    ☑ Unify the remaining GPU shadow geometry under relative FP32 coordinates.
+      ☑ Replace global floating-point coverage certificates with exact integer chunk identities and
+        bounded FP32 endpoints. Canonicalize receiving enclosures outward before projection/selection;
+        migrate page containment, accumulated demand and replacement publication together.
+      ☑ Prepare source-relative motion at the CPU coordinate boundary; retain precise inclusive reuse
+        limits and immutable rendered-mapping checks. Use integer clocks for long-uptime expiry,
+        rollback rejection and first-invalidation preservation.
+      ☑ Migrate conservative candidate traversal, chunk draw selection and raster page addressing;
+        retain integer domain/page identity and budgeted conservative coverage without FP64 shaders.
+      ☑ Verify large signed worlds, boundary containment, retained moving lights, clock deadlines,
+        candidate completeness and affected surface consumers; reconcile maintained contracts and
+        qualification evidence after independent test review.
+    ☑ Extract celestial-light evaluation into subfunctions in pbr_direct_lighting.fsh, pbr_liquid.fsh,
+      includes/pbr_liquid.glsl and pbr_forward_surface.glsl, including water-boundary capture.
+      Invoke the functions explicitly for sun and moon, passing their direction, irradiance and
+      shadow-source slot, plus angular radius for disk-lighting evaluation, instead of selecting values
+      through a celestial loop and ternary operators. Preserve each consumer's distinct lighting behavior.
+      Correction verification: Rendering.VirtualShadowMaps.Qualification.md#liquid-boundary-celestial-extraction-correction
+      records the separate water-boundary path's source review and fresh affected GPU regressions.
+    ☑ Correct the surface-shadow registration added to ShaderPatchCompilationHook. Follow the existing
+      shader compilation, capability and linked-interface lifecycle; keep feature-specific registration
+      out of the general recovery hook and verify successful compilation, failure and reload behavior.
+    ☑ Remove SurfaceNativeShadowIntensityHook and its supporting tests/integration. Treat the shader
+      patching system as the sole authority for migrated shader behavior, including reapplying patches
+      on source reload/recovery; do not intercept the general Uniform() setter to enforce ownership.
+      Reconcile affected documentation and preserve explicitly retained compatibility consumers.
+    ☑ Reconsider SurfaceShadowPrograms' ConditionalWeakTable and cached program-ID tracking against
+      the existing shader capability and executable-lifetime owners. Determine whether it supplies
+      necessary independent information or duplicates established state; retain or remove it based on
+      that assessment and preserve correct executable replacement/invalidation behavior.
+  ☑ Integrate shared shadow lookup and the same current light/readiness snapshot into deferred direct
     lighting, forward surfaces, entities/foliage, water/liquids and other participating transparent paths.
-    ☐ Use the published rendered projection for permitted stale shadow lookup while direct illumination
+    ☑ Use the published rendered projection for permitted stale shadow lookup while direct illumination
       uses the current light. All surface paths must agree on temporal eligibility, coverage and expiry;
       never substitute current projection matrices for retained depth metadata.
-    ☐ Use the refactored integer-pool depth decode and virtual PCF lookup everywhere; remove D32F/layer
+    ☑ Use the refactored integer-pool depth decode and virtual PCF lookup everywhere; remove D32F/layer
       assumptions. Revalidate integer sampler/image/view-resource capacities against every completed
       consumer's bindings without introducing a hidden optional extension.
-    ☐ Update AtmosphereLighting publication, direct-light evaluation/intensity bounds and all forward
+    ☑ Update AtmosphereLighting publication, direct-light evaluation/intensity bounds and all forward
       consumers to retain independent solar and lunar contributions. Preserve calibration and storage units.
-    ☐ Attenuate each light's direct term only; preserve ambient/emissive terms and unshadowed illumination
+    ☑ Attenuate each light's direct term only; preserve ambient/emissive terms and unshadowed illumination
       for excluded lights. Keep illumination-list capacity independent from shadow admission settings.
-    ☐ Exercise moving/carried lights as normal paths immediately, not as later stationary-cache extensions.
-  ☐ Switch native/VSM ownership coherently for participating consumers and remove superseded sampling,
+    ☑ Exercise moving/carried lights as normal paths immediately, not as later stationary-cache extensions.
+  ☑ Switch native/VSM ownership coherently for participating consumers and remove superseded sampling,
     shadow work and temporary integration scaffolding within the migrated scope.
-    ☐ Audit native ShadowFar/ShadowNear scheduling and consumer bindings for duplicate work/attenuation.
+    ☑ Audit native ShadowFar/ShadowNear scheduling and consumer bindings for duplicate work/attenuation.
       Retain native rendering only for explicitly selected remaining consumers, with recorded ownership;
       never use it as an undisclosed fallback for missing VSM data.
-    ☐ Validate disabled/unconfigured behavior, source/dimension removal, world leave, context/resource
+    ☑ Validate disabled/unconfigured behavior, source/dimension removal, world leave, context/resource
       recreation and shader/config reload without stale publications or leaked borrowed ownership.
-  ☐ Delegate focused end-to-end surface integration and appropriate regressions, including all surface
+  ☑ Delegate focused end-to-end surface integration and appropriate regressions, including all surface
     categories, two celestial sources, independent light failure, new receivers and transparent seams.
-    ☐ Run canonical shader/build/package verification on the coherent migrated batch and reconcile package
+    ☑ Validate native forward attenuation through the native shader and mesh submission owners inside
+      an admitted RHI boundary. Preserve the owned numeric-uniform policy and avoid raw GL draws.
+      Execute all four native families' lit, occluded and zero-solar assertions, preserving non-solar
+      illumination; family compilation/link/interface checks alone do not establish draw coverage.
+      Evidence: all four draw cases pass in the relative-compute/native-surface receipt below.
+    ☑ Run canonical shader/build/package verification on the coherent migrated batch and reconcile package
       assets with the tested shaders/binary. Do not equate this evidence with live appearance/performance.
-  ☐ Update permanent rendering/configuration documentation and source-to-consumer ownership records.
-  ☐ Completion: every required surface path uses consistent current or permitted stale shadows with one
+  ☑ Update permanent rendering/configuration documentation and source-to-consumer ownership records.
+    Verification: Rendering.VirtualShadowMaps.Qualification.md#relative-compute-and-native-surface-correctness-receipts
+    and #frame-owner-lifecycle-correctness-receipts retain 431 distinct composed passes, including all
+    267 shadow cases, four native-forward draws and actual frame-owner world-leave/context-registration/
+    reload callbacks. The final focused run passes all 16 cases. Strict Debug builds, final canonical
+    Release identity (1,191 members/795 shader-interface pairs) and 34 shadow modules without Float64
+    are retained with per-run provenance. Context testing replaces the registered generation on the
+    same physical handle; native adapter and runtime visual/performance qualification remain distinct.
+    Second review and independent source/event reviews found no remaining runtime discrepancy.
+    Current uniform ownership and AST transaction receipts are recorded in
+    Rendering.VirtualShadowMaps.Qualification.md#uniform-input-ownership-verification and
+    #native-surface-ast-transaction-verification; their overlapping counts remain separate.
+  ☑ Update TinyAst to 0.12.0 and remove NormalizeCoreSource's separate-commit workaround.
+    ☑ Verify the updated package resolves the same-boundary replacement/insertion defect using the
+      [retained reproduction and expected results](../artifacts/ast-editor-overlap-audit/20261113T230632Z/evidence.md).
+    ☑ Remove NormalizeCoreSource and its separate transaction; queue the required GLSL 4.5 compatibility
+      edits through the normal AST shader patch transaction using the corrected editor. Preserve extension
+      cleanup and explicitly floating-point clamp bounds; keep surviving leading extensions before generated
+      declarations and remove workaround-specific comments and call sites.
+    ☑ Verify combined edits and patched native shader compilation with the updated dependency, then
+      reconcile affected tests and documentation without relying on queue-order workarounds.
+    Verification: Rendering.VirtualShadowMaps.Qualification.md#native-surface-ast-transaction-verification.
+  ☑ Completion: every required surface path uses consistent current or permitted stale shadows with one
     provider; native migration, disabled behavior and resource restoration are verified. Runtime
     qualification remains explicitly open until Phase 11.
 

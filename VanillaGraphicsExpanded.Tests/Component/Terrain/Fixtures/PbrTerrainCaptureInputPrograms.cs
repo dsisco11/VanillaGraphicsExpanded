@@ -2,6 +2,7 @@ using System;
 using ShaderBuildTool.Spirv;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
@@ -36,7 +37,7 @@ internal abstract class PbrTerrainCaptureInputProgram : GpuProgram
         RequireInputMutation();
         Array.Clear(bytes, 0, bytes.Length);
         write(bytes);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
 
     /// <summary>Supplies one optional, already-prepared variant sampler with the retained input block.</summary>

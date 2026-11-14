@@ -7,8 +7,13 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 internal sealed class SunInputs : CpuUniformBuffer
 {
     #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 64;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+
     /// <summary>Allocates four std140 vectors for disk geometry, horizon and radiance.</summary>
-    internal SunInputs() : base(64) { }
+    internal SunInputs() : base() { }
 
     /// <summary>Uses one completed atmosphere snapshot without engine meshes, textures or artistic sun uniforms.</summary>
     internal void Capture(AtmosphereLighting lighting, float maximumStorageScale)

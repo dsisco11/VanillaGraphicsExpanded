@@ -107,6 +107,18 @@ stale names produce a build error at the attribute.
 Owned numeric inputs use explicit std140 uniform blocks. Typed setters write
 `CpuUniformBuffer` storage, supplied through a `ShaderBinding` uniform-block getter.
 Stages sharing numeric data use one block declaration and publication.
+Each concrete UBO owns its size and field-offset/array-stride constants and implements the required
+`CpuUniformBuffer.SizeBytes` property. Fixed layouts return their own size constant; the base
+constructor takes publication usage and allocates that declared extent. A size override must be
+immutable and available before base construction. The UBO owns field packing and its validation;
+renderers and shader wrappers pass semantic inputs to its setters instead of writing its bytes.
+Semantic inputs name the values and operations: callers must not preassemble unrelated controls,
+operation selectors or flags into shader-specific vector components. Natural vectors such as
+positions, directions, colors and rectangles remain appropriate inputs.
+Read shared values through typed accessors, and use owner constants for capability checks or byte
+inspection. Do not duplicate layout numbers in callers. Complete-block edits use the protected
+`SetBytes` operation inside the owning UBO, sharing guarded storage and publication tracking with
+typed field writes. Arbitrary-payload fixture APIs belong to test utilities.
 The generator rejects numeric `UniformLocation` properties, and owned executables reject
 active standalone numeric uniforms during interface preparation.
 
@@ -223,6 +235,11 @@ Both Debug and Release use performance optimization (`-O`). Debug requests debug
 receipt. Source preprocessing uses TinyAst and `ShaderSyntaxTreePreprocessor`, with explicit
 typed fixed/structural values and stable specialization IDs. Imported guarded defaults stay
 in GLSL for compiler evaluation. `ShaderSourceLayout` owns resource/interface layout editing.
+
+Native forward patching selects GLSL 4.5 through the existing preprocessing path. Its material
+patch queues extension cleanup, explicitly floating-point clamp bounds and declaration insertions
+in one AST editor transaction. Related edits use the same parsed tree and commit together. Material
+declarations follow surviving unconditional leading extensions, keeping the GLSL header legal.
 
 ## Build and validate changes
 

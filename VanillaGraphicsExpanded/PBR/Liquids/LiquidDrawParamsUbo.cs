@@ -9,13 +9,18 @@ internal sealed class LiquidDrawParamsUbo : CpuUniformBuffer
 {
     internal const string BlockName = "VgeLiquidDrawParams";
 
-    private const int ModelOffset = 0;
-    private const int OriginOffset = 64;
-    private const int TransparencyOffset = 76;
+    internal const int ModelOffset = 0;
+    internal const int OriginOffset = 64;
+    internal const int TransparencyOffset = 76;
 
     #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 80;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+
     /// <summary>Allocates a std140 matrix followed by origin and preview transparency.</summary>
-    internal LiquidDrawParamsUbo() : base(80, Rendering.Uniforms.UniformBufferUsage.SingleFrame)
+    internal LiquidDrawParamsUbo() : base(Rendering.Uniforms.UniformBufferUsage.SingleFrame)
     { WriteMatrix4(ModelOffset, Matrix4x4.Identity); }
 
     /// <summary>Extracts only the object transform from the engine combined camera/object matrix.</summary>

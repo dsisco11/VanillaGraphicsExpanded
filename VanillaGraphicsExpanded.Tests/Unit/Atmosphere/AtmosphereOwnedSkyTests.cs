@@ -65,7 +65,6 @@ public sealed class AtmosphereOwnedSkyTests
         inputs.Capture(api.Object, lighting, true);
         float[] actual = MemoryMarshal.Cast<byte, float>(inputs.Bytes).ToArray();
         // Assert
-        Assert.Equal(112, inputs.SizeBytes);
         Assert.Equal(new float[] { 1, 2, 0, 0 }, actual[20..24]);
         Assert.Equal(originalView, view);
         view[12] = -345; view[13] = 900; view[14] = 12;

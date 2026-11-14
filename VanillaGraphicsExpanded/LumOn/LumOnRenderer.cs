@@ -684,7 +684,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         var hierarchy=DepthHierarchyRenderer.Texture??throw new InvalidOperationException("LumOn requires the current corrected-depth hierarchy.");
         if(!ReferenceEquals(DepthHierarchyRenderer.View,VgeFrameRenderer.Current) ||
-            DepthHierarchyRenderer.FrameIndex!=UboPacking.ReadUInt32(VgeFrameRenderer.Current.Bytes,396)) throw new InvalidOperationException("LumOn hierarchy view mismatch.");
+            DepthHierarchyRenderer.FrameIndex!=VgeFrameRenderer.Current.FrameIndex) throw new InvalidOperationException("LumOn hierarchy view mismatch.");
         // Define-backed knobs must be set before Use() so the correct variant is bound.
         // Publish trace settings together so reloads cannot install an intermediate combination.
         shader.ConfigureOptions(() =>

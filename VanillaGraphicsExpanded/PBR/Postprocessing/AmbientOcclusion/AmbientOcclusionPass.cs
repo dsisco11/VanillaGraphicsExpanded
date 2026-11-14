@@ -46,21 +46,17 @@ internal sealed class AmbientOcclusionPass : IDisposable
     /// <summary>Samples the shared hierarchy, integrates horizons and reconstructs visibility without feedback or history.</summary>
     internal void Render(RHICommandContext commands,PostprocessDraw draw,GpuTexture depth,GpuTexture surface,DynamicTexture2D hierarchy,VgeFrameUniformBuffer camera)
     {
-        var frame=new System.Numerics.Vector4(0,0,quality.Divisor,0);
-        // Release one quarter of retained cosine-space occlusion per weaker radial observation; this is not a world-space thickness.
-        var sampling=new System.Numerics.Vector4(1.25f,0.25f,quality.Directions,quality.Steps);
-        var distance=new System.Numerics.Vector4(64,96,0,0);
         minimumChildren.Render(commands,draw,hierarchy);
         horizon!.DepthImage=depth;horizon.SurfaceImage=surface;
         horizon.DepthHierarchy=hierarchy;
         horizon.MinimumChildren=minimumChildren.Texture;
-        horizon.Capture(camera,frame,sampling,distance);
+        horizon.Capture(camera,quality.Divisor,quality.Directions,quality.Steps);
         draw.Submit(commands,horizonPipeline!,rawTarget!,horizon!.CaptureBindings());
         filter!.DepthImage=depth;filter.SurfaceImage=surface;filter.SourceImage=raw;
-        filter.Capture(camera,frame,sampling,distance);
+        filter.Capture(camera,quality.Divisor,quality.Directions,quality.Steps);
         draw.Submit(commands,filterPipeline!,filteredTarget!,filter!.CaptureBindings());
-        filter.SourceImage=filtered;frame.W=1;
-        filter.Capture(camera,frame,sampling,distance);
+        filter.SourceImage=filtered;
+        filter.Capture(camera,quality.Divisor,quality.Directions,quality.Steps,reconstruct:true);
         draw.Submit(commands,filterPipeline!,outputTarget!,filter!.CaptureBindings());
     }
     /// <summary>Withdraws all resources together; no prior-frame image survives retirement.</summary>

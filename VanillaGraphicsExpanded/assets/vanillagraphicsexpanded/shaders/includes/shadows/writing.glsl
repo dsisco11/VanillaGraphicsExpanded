@@ -18,12 +18,19 @@ bool shadowAtomicDepth(ShadowWriteView view, ivec2 viewTexel, float depth) {
         view.capacity>uint(shadowWritableAssignments.length())) return false;
     // A signed page origin plus small local texels preserves the whole page-key
     // range without optional integer-64 arithmetic or overflowing absolute texels.
-    dvec2 relativePage=floor(dvec2(viewTexel)/double(view.pageSize));
-    dvec2 absolutePage=dvec2(ivec2(view.key[15],view.key[16]))+relativePage;
-    if(any(lessThan(absolutePage,dvec2(-2147483648.0lf))) ||
-        any(greaterThan(absolutePage,dvec2(2147483647.0lf)))) return false;
-    ivec2 page=ivec2(absolutePage);
-    ivec2 local=ivec2(dvec2(viewTexel)-relativePage*double(view.pageSize));
+    ivec2 origin=ivec2(view.key[15],view.key[16]),page,local;
+    for(int axis=0;axis<2;axis++) {
+        // Baseline GLSL leaves negative remainder operands undefined. Unsigned
+        // magnitude division also handles INT_MIN without signed negation.
+        bool negative=viewTexel[axis]<0;
+        uint magnitude=negative?0u-uint(viewTexel[axis]):uint(viewTexel[axis]);
+        uint quotient=magnitude/view.pageSize,remainder=magnitude%view.pageSize;
+        int delta=negative?int(0u-quotient):int(quotient),base=origin[axis];
+        local[axis]=int(remainder);
+        if(negative && remainder!=0u) { delta--;local[axis]=int(view.pageSize-remainder); }
+        if((delta>0 && base>2147483647-delta) || (delta<0 && base<(-2147483647-1)-delta)) return false;
+        page[axis]=base+delta;
+    }
     uint hash=2166136261u;
     for(uint i=0u;i<17u;i++) {
         uint value=i==15u?uint(page.x):i==16u?uint(page.y):view.key[i];

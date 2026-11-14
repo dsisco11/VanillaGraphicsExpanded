@@ -49,7 +49,7 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
         using var regions=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();using var scratch=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();using var commands=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = BufferRole.IndirectDraw, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         regions.UploadData(data);scratch.UploadData(header);commands.UploadData(new uint[45]);
         using var occupancy=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
-        using var inputs=new PackedUniformBuffer(208);var submission=new CloudVolumeSubmission();
+        using var inputs=new CloudVolumeWorkParameters();var submission=new CloudVolumeSubmission();
         var programs=Enumerable.Range(0,11).Select(op=>CloudVolumeWorkProgram.Create(Programs.Api,op,CloudVolumeLightingBudget.Candidates(rays,true)>64,inputs)).ToArray();
         try
         {

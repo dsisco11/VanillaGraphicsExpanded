@@ -29,6 +29,46 @@ public sealed class PhotometricFramePublicationTests
         Assert.Throws<ArgumentException>(() => FrameLightingBounds.FromPublications(night with { MoonAngularRadius = .001f },
             lights, LightingCalibration.Default, false, 1, Vector3.One, 0, 0));
     }
+
+    /// <summary>Concurrent sun and moon bounds preserve both lux contributions and equivalent finite-disk radiance.</summary>
+    [Fact]
+    public void ConcurrentCelestialSourcesRetainSummedIlluminanceAndDiskRadiance()
+    {
+        // Arrange both emitters as visible red sources so sum, max, or selected-emitter policies produce distinct bounds.
+        using var lights = new VgeLightsUniformBuffer();
+        var solar = Snapshot() with
+        {
+            Sun = Vector3.UnitY, Solar = new(100, 0, 0), Moon = Vector3.UnitY, Lunar = Vector3.Zero,
+            Environment = Vector3.Zero, HorizonElevation = 0, HasNightSources = true
+        };
+        var lunar = solar with { Solar = Vector3.Zero, Lunar = new(40, 0, 0) };
+        var both = solar with { Lunar = new(40, 0, 0) };
+        var calibration = new LightingCalibration(120, .1f);
+
+        // Act: assemble separate source bounds and the concurrent publication under the same calibrated block reference.
+        var sunBounds = FrameLightingBounds.FromPublications(solar, lights, calibration, false, 1, Vector3.One, 0, 0);
+        var moonBounds = FrameLightingBounds.FromPublications(lunar, lights, calibration, false, 1, Vector3.One, 0, 0);
+        var combinedBounds = FrameLightingBounds.FromPublications(both, lights, calibration, false, 1, Vector3.One, 0, 0);
+        double guard = 1 + 256.0 / (1 << 23);
+        double blockDiffuse = calibration.BlockReferenceLux * (1 - calibration.BlockNeutralFloor) / (4 * Math.PI) * guard;
+        double expectedDirectScattering = (2 / .0722) * (64 * (100 + 40) * guard + blockDiffuse);
+        double solarDisk = 100 / (Math.PI * Math.Pow(Math.Sin(AtmosphereSolarDisk.AngularRadius), 2));
+        double lunarDisk = 40 / (Math.PI * Math.Pow(Math.Sin(both.MoonAngularRadius), 2));
+        double expectedReflection = 3 * (solarDisk + lunarDisk) * guard;
+
+        // Assert: lux remains independent of block calibration, disk response adds both finite sources,
+        // and compatibility ambient follows Environment + (Solar + Lunar) / pi in the documented display mapping.
+        // The analytical disk oracle uses double precision while production radiance and source RGB are Float32;
+        // this relative tolerance covers their rounding and remains far below the omitted lunar contribution.
+        Assert.InRange(Math.Abs(combinedBounds.SurfaceScattering - expectedDirectScattering), 0, .0001);
+        Assert.True(combinedBounds.SurfaceScattering > Math.Max(sunBounds.SurfaceScattering, moonBounds.SurfaceScattering));
+        Assert.InRange(Math.Abs(combinedBounds.WaterReflection - expectedReflection), 0, expectedReflection * 2e-6);
+        Assert.True(combinedBounds.WaterReflection > Math.Max(sunBounds.WaterReflection, moonBounds.WaterReflection));
+        double ambientLinear = (100 + 40) / Math.PI;
+        double ambientMapped = ambientLinear / (1 + ambientLinear);
+        double expectedAmbientRed = 1.055 * Math.Pow(ambientMapped, 1 / 2.4) - .055;
+        Assert.InRange(Math.Abs(AtmosphereLegacyLighting.From(both).Ambient.X - expectedAmbientRed), 0, .000001);
+    }
     /// <summary>Indirect mode, gain and tint enter once, while source peaks and both decoder endpoints remain explicit.</summary>
     [Theory]
     [InlineData(false, 0f)] [InlineData(false, 2f)]

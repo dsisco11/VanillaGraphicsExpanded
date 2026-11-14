@@ -4,6 +4,7 @@ out vec4 outColor;
 layout(std430,binding=0) readonly buffer ShadowReadinessResults { uint readiness[]; };
 layout(std430,binding=1) readonly buffer ShadowCandidateHeaders { uint candidateHeaders[]; };
 layout(std430,binding=2) readonly buffer PageEntries { uint pageEntries[]; };
+layout(std430,binding=3) readonly buffer SurfaceShadowDiagnostics { uint sampleFailures[]; };
 /// Shows fixed source columns; rows encode readiness, detail, misses, stale fraction and recovery progress.
 void main() {
 #if VGE_SHADOW_DEBUG_PAGES == 1
@@ -27,7 +28,7 @@ void main() {
 #else
     uint capacity=uint(readiness.length())/32u;
     uint light=min(uint(clamp(uv.x,0.0,0.999999)*float(capacity)),max(1u,capacity)-1u);
-    uint at=light*32u,row=uint(clamp(uv.y,0.0,0.999999)*11.0);
+    uint at=light*32u,row=uint(clamp(uv.y,0.0,0.999999)*12.0);
     uint state=readiness[at+12u];
     vec3 color=state==1u?vec3(0.1,0.8,0.2):state==2u?vec3(1.0,0.6,0.05):vec3(0.65,0.08,0.08);
     if(row==1u)color=vec3(float(readiness[at+14u]%16u)/15.0,0.2,0.5);
@@ -40,6 +41,7 @@ void main() {
     if(row==8u)color=vec3(0.1,float(readiness[at+28u])/float(max(1u,readiness[at+27u])),0.3);
     if(row==9u)color=vec3(float(readiness[at+29u])/float(max(1u,readiness[at+27u])),0.5,0.1);
     if(row==10u)color=vec3(float(readiness[at+13u])/13.0,0.1,0.8);
+    if(row==11u)color=vec3(min(1.0,log2(1.0+float(sampleFailures[light*4u]))/16.0),0.0,0.0);
     if(readiness[at]==0u && readiness[at+1u]==0u)color=vec3(0.03);
     outColor=vec4(color,1.0);
 #endif

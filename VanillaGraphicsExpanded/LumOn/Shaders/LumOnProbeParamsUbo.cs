@@ -10,6 +10,10 @@ namespace VanillaGraphicsExpanded.LumOn.Shaders;
 /// </summary>
 public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
 {
+    #region Public API
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => UboSizeBytes;
+
     public const string BlockName = "VgeLumOnProbeParamsUBO";
     public const int UboSizeBytes = 64;
 
@@ -19,7 +23,7 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
     private const int OffsetProbeInts0 = 32;
     private const int OffsetAnchorFloats0 = 48;
 
-    public LumOnProbeParamsUbo() : base(UboSizeBytes)
+    public LumOnProbeParamsUbo() : base()
     {
     }
 
@@ -154,4 +158,5 @@ public sealed class LumOnProbeParamsUbo : CpuUniformBuffer
         }
     }
 
+    #endregion
 }

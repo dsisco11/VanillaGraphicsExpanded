@@ -8,11 +8,15 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// </summary>
 public sealed class VgeDebugLinesParamsUbo : CpuUniformBuffer
 {
+    #region Public API
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => UboSizeBytes;
+
     public const string BlockName = "VgeDebugLinesParamsUBO";
     public const int UboSizeBytes = 16;
 
     /// <summary>Allocates only the line-specific origin offset.</summary>
-    public VgeDebugLinesParamsUbo() : base(UboSizeBytes)
+    public VgeDebugLinesParamsUbo() : base()
     {
     }
 
@@ -24,4 +28,5 @@ public sealed class VgeDebugLinesParamsUbo : CpuUniformBuffer
             WriteVector4(0, new(value.X, value.Y, value.Z, 0f));
         }
     }
+    #endregion
 }

@@ -2,6 +2,7 @@ using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using ShaderBuildTool.Spirv;
 
@@ -40,7 +41,7 @@ internal sealed class PhotometricLightingProbeProgram : GpuProgram
         UboPacking.WriteInt32(bytes, 4, selector);
         UboPacking.WriteVec4(bytes, 16, limits0.X, limits0.Y, limits0.Z, limits0.W);
         UboPacking.WriteVec4(bytes, 32, limits1.X, limits1.Y, limits1.Z, limits1.W);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
     #endregion
 

@@ -10,6 +10,10 @@ namespace VanillaGraphicsExpanded.LumOn.Shaders;
 /// </summary>
 public sealed class LumOnCombineParamsUbo : CpuUniformBuffer
 {
+    #region Public API
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => UboSizeBytes;
+
     public const string BlockName = "VgeLumOnCombineParamsUBO";
     public const int UboSizeBytes = 32;
 
@@ -17,7 +21,7 @@ public sealed class LumOnCombineParamsUbo : CpuUniformBuffer
     private const int OffsetIndirectTintIntensity = 0;
     private const int OffsetAoStrengths = 16;
 
-    public LumOnCombineParamsUbo() : base(UboSizeBytes)
+    public LumOnCombineParamsUbo() : base()
     {
     }
 
@@ -76,4 +80,5 @@ public sealed class LumOnCombineParamsUbo : CpuUniformBuffer
             WriteVector4(OffsetAoStrengths, new(diff, value, 0f, 0f));
         }
     }
+    #endregion
 }

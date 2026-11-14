@@ -44,9 +44,16 @@ internal sealed class ShadowDrawView
         words[23] = (uint)(Uncached.Y - Region.Y + Uncached.Height);
         var key = new ShadowPageKey(Projection.Source, Projection.Generation, Projection.FaceOrLevel, x.Page, y.Page);
         ShadowPageRequest.WriteKey(words[24..41], key);
-        ShadowPageRequest.Put(words, 44, BitConverter.DoubleToInt64Bits(Origin.X));
-        ShadowPageRequest.Put(words, 46, BitConverter.DoubleToInt64Bits(Origin.Y));
-        ShadowPageRequest.Put(words, 48, BitConverter.DoubleToInt64Bits(Origin.Z));
+        // Native Y includes the dimension offset. Remove it once, at setup, so
+        // selection only subtracts exact chunk identities and local remainders.
+        double yOffset = Projection.Source.Dimension == 1 ? 0 : (double)Projection.Source.Dimension * 32768;
+        ReadOnlySpan<double> origin = [Origin.X, Origin.Y - yOffset, Origin.Z];
+        for (int axis = 0; axis < 3; axis++)
+        {
+            var split = ShadowCoverageBounds.Split(origin[axis]);
+            words[44 + axis * 2] = unchecked((uint)split.Cell);
+            words[45 + axis * 2] = BitConverter.SingleToUInt32Bits(split.Local);
+        }
         words[52] = (uint)capacity; words[53] = (uint)probes; words[54] = (uint)Projection.PageSize;
         words[55] = (uint)arrayLayers; ShadowPageRequest.Put(words, 56, batch);
         words[58] = Projection.IsPoint ? 1u : 0u;

@@ -16,7 +16,7 @@ internal sealed class EngineShaderPlatformScope : IDisposable
     private readonly ShaderProgramBase? previousShader=ShaderProgramBase.CurrentShaderProgram;
 
     #region Engine shader boundary
-    /// <summary>Initializes only the uniform property; the fixture never invokes platform rendering, audio or window methods.</summary>
+    /// <summary>Supplies the engine uniform service without constructing window or audio subsystems.</summary>
     public EngineShaderPlatformScope()
     {
         // The concrete engine getter only reads this property. Avoid its constructor, which starts native subsystems.

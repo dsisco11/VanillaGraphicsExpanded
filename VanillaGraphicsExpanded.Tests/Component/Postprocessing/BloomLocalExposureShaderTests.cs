@@ -41,7 +41,7 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
         program.SourceImage = source; program.SecondaryImage = source; program.LocalBase = spatial;
         program.ExposureBuffer = history;
         program.CaptureLocal(Settings(enabled), MathF.Log2(.18f));
-        program.Capture(new(0, 0, 0, automatic ? 1 : 0), new(.06f, 0, 1, automatic ? -10 : 0));
+        program.CaptureExtraction(true, automatic, .06f, 0, 1, automatic ? -10 : 0);
         // Act: Draw the production bloom shader with correction enabled or bypassed before highlight selection.
         Draw(program, target);
         float expected = enabled ? MathF.Sqrt(.04f * .18f) : 0;
@@ -65,13 +65,13 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
         using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         program.SourceImage = source; program.SecondaryImage = source; program.LocalBase = spatial;
         program.CaptureLocal(Settings(true), MathF.Log2(.18f));
-        program.Capture(Vector4.Zero, new(0, 0, 1, 0));
+        program.CaptureExtraction(true, false, 0, 0, 1, 0);
         // Act: Reduce the source after applying a separate correction to each sample.
         Draw(program, target);
         // Unequal sources distinguish averaging corrected samples from correcting the averaged source.
         float expected = values.Average(v => MathF.Sqrt(v * .18f));
         Assert.InRange(target[0].ReadTexel()[0], expected - .00002f, expected + .00002f);
-        program.Capture(new(0, 0, 1, 0), Vector4.Zero);
+        program.CaptureExtraction(false, false, 0, 0, 0, 0);
         // Assert: The corrected case averages per-sample gains; the bypass case returns the raw mean.
         Draw(program, target);
         float unchanged = values.Average();

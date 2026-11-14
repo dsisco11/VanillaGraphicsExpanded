@@ -1,7 +1,9 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using Moq;
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
@@ -45,9 +47,10 @@ public sealed class VgeFrameRendererTests
             CameraExposureRenderer.LightingDiagnostics.BlockReferenceLux);
         Assert.Contains("calibrated sources", CameraExposureRenderer.LightingDiagnosticText);
         Assert.DoesNotContain("inactive", CameraExposureRenderer.LightingDiagnosticText);
-        Assert.Equal(1u, MemoryMarshal.Read<uint>(published.AsSpan(396)));
-        Assert.Equal(new float[] { .125f, 2048, .016f }, MemoryMarshal.Cast<byte, float>(published.AsSpan(496, 12)).ToArray());
-        Assert.Equal(1u, MemoryMarshal.Read<uint>(published.AsSpan(508)));
+        Assert.Equal(1u, VgeFrameRenderer.Current.FrameIndex);
+        Assert.Equal(new Vector2(.125f, 2048), VgeFrameRenderer.Current.ClipPlanes);
+        Assert.Equal(.016f, UboPacking.ReadFloat(published, VgeFrameUniformBuffer.DeltaTimeOffset));
+        Assert.True(VgeFrameRenderer.Current.CameraCut);
         renderer.OnRenderFrame(.016f, EnumRenderStage.Before);
         Assert.Equal(published, VgeFrameRenderer.Current.Bytes.ToArray());
         renderer.BeginFrame();
@@ -57,7 +60,7 @@ public sealed class VgeFrameRendererTests
         Mock.Get(api.Object.Event).Raise(e => e.LeaveWorld += null);
         Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
         renderer.OnRenderFrame(.016f, EnumRenderStage.Before);
-        Assert.Equal(VgeFrameRenderer.Current.Bytes[..64].ToArray(), VgeFrameRenderer.Current.Bytes.Slice(256, 64).ToArray());
+        Assert.Equal(VgeFrameRenderer.Current.Projection.ToArray(), VgeFrameRenderer.Current.PreviousViewProjection.ToArray());
         renderer.Dispose();
         Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
         api.Verify(a => a.Event.UnregisterRenderer(renderer, EnumRenderStage.Before), Times.Once);
@@ -82,8 +85,8 @@ public sealed class VgeFrameRendererTests
         renderer.BeginFrame();
         renderer.OnRenderFrame(.016f, EnumRenderStage.Before);
         // Assert: same-frame callbacks preserve bytes and the next generation captures the new transform.
-        Assert.Equal(2f, MemoryMarshal.Read<float>(VgeFrameRenderer.Current.Bytes));
-        Assert.Equal(2u, MemoryMarshal.Read<uint>(VgeFrameRenderer.Current.Bytes[396..]));
+        Assert.Equal(2f, VgeFrameRenderer.Current.Projection[0]);
+        Assert.Equal(2u, VgeFrameRenderer.Current.FrameIndex);
     }
 
     /// <summary>Previous clip transforms include the small current-origin displacement before world coordinates lose float precision.</summary>
@@ -101,13 +104,11 @@ public sealed class VgeFrameRendererTests
         renderer.BeginFrame();
         renderer.OnRenderFrame(.016f, EnumRenderStage.Before);
         // Assert: history keeps the precise delta before encoding the large origin.
-        float[] previous = MemoryMarshal.Cast<byte, float>(VgeFrameRenderer.Current.Bytes.Slice(256, 64)).ToArray();
+        float[] previous = VgeFrameRenderer.Current.PreviousViewProjection.ToArray();
         Assert.Equal(new float[] { .25f, .5f, .125f, 1 }, previous[12..]);
         Assert.Equal(new float[] { 1, 0, 0, 0 }, previous[..4]);
-        Assert.Equal(new int[] { 524288, 1, -524289, 0 },
-            MemoryMarshal.Cast<byte, int>(VgeFrameRenderer.Current.Bytes.Slice(512, 16)).ToArray());
-        Assert.Equal(new float[] { .5f, .5f, 31.875f, 0 },
-            MemoryMarshal.Cast<byte, float>(VgeFrameRenderer.Current.Bytes.Slice(528, 16)).ToArray());
+        Assert.Equal(new VectorInt3(524288, 1, -524289), VgeFrameRenderer.Current.RenderOriginChunk);
+        Assert.Equal(new System.Numerics.Vector3(.5f, .5f, 31.875f), VgeFrameRenderer.Current.RenderOriginRemainder);
     }
     /// <summary>A teleport withdraws matrix history for one camera generation while ordinary motion retains it.</summary>
     [Fact]
@@ -121,16 +122,16 @@ public sealed class VgeFrameRendererTests
         entity.CameraPos.X = 1;
         renderer.BeginFrame();
         renderer.OnRenderFrame(.016f, EnumRenderStage.Before);
-        Assert.Equal(0u, MemoryMarshal.Read<uint>(VgeFrameRenderer.Current.Bytes[508..]));
+        Assert.False(VgeFrameRenderer.Current.CameraCut);
         // Act: publish the discontinuous camera generation.
         projection[0] = 2;
         entity.CameraPos.X = 100;
         renderer.BeginFrame();
         renderer.OnRenderFrame(.016f, EnumRenderStage.Before);
         // Assert: the camera-cut flag is set and previous transform equals current transform.
-        Assert.Equal(1u, MemoryMarshal.Read<uint>(VgeFrameRenderer.Current.Bytes[508..]));
-        Assert.Equal(VgeFrameRenderer.Current.Bytes.Slice(320, 64).ToArray(),
-            VgeFrameRenderer.Current.Bytes.Slice(256, 64).ToArray());
+        Assert.True(VgeFrameRenderer.Current.CameraCut);
+        Assert.Equal(VgeFrameRenderer.Current.CurrentViewProjection.ToArray(),
+            VgeFrameRenderer.Current.PreviousViewProjection.ToArray());
     }
     /// <summary>Engine scratch aliasing and later shadow matrices cannot replace the captured world projection or view.</summary>
     [Fact]
@@ -176,8 +177,9 @@ public sealed class VgeFrameRendererTests
         Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
         renderer.OnRenderFrame(.032f, EnumRenderStage.Before);
         // Assert: a new generation captures updated source values without aliasing caller buffers.
-        Assert.Equal(2u, MemoryMarshal.Read<uint>(VgeFrameRenderer.Current.Bytes[396..]));
-        Assert.Equal(first.AsSpan(320, 64).ToArray(), VgeFrameRenderer.Current.Bytes.Slice(256, 64).ToArray());
+        Assert.Equal(2u, VgeFrameRenderer.Current.FrameIndex);
+        Assert.Equal(MemoryMarshal.Cast<byte, float>(first.AsSpan(VgeFrameUniformBuffer.CurrentViewProjectionOffset, VgeFrameUniformBuffer.MatrixSizeBytes)).ToArray(),
+            VgeFrameRenderer.Current.PreviousViewProjection.ToArray());
         Assert.Equal(projection, VgeFrameRenderer.Current.Projection.ToArray());
         Assert.Equal(dedicatedView, VgeFrameRenderer.Current.View.ToArray());
     }

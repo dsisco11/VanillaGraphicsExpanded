@@ -13,7 +13,7 @@ internal static class CelestialDrawAdmission
     internal static float MaximumNits(CelestialSource source, VgeFrameUniformBuffer frame)
     {
         var p = frame.Projection;
-        Vector2 size = MemoryMarshal.Read<Vector2>(frame.Bytes.Slice(384, 8));
+        Vector2 size = frame.ScreenSize;
         if (size.X < 32 || size.Y < 32 || p[0] <= 0 || p[5] <= 0 || p[11] != -1 || p[15] != 0
             || p[1] != 0 || p[4] != 0 || p[3] != 0 || p[7] != 0 || p[12] != 0 || p[13] != 0)
             throw new ArgumentException("Celestial billboards require a finite conventional perspective viewport.");

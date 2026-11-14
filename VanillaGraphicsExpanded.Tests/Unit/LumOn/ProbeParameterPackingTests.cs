@@ -1,4 +1,3 @@
-using System.Buffers.Binary;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.LumOn;
@@ -15,7 +14,7 @@ public sealed class ProbeParameterPackingTests
     {
         // Arrange
         var parameters = new LumOnProbeParamsUbo();
-        // These values exercise the actual setters; getter round-trips could share the same wrong offset.
+        // Reverse order exposes setters that overwrite neighboring values in the shared vector.
         Action[] writes = [
             () => parameters.TemporalAlpha = 0.125f,
             () => parameters.HitDistanceRejectThreshold = 2.5f,
@@ -24,9 +23,11 @@ public sealed class ProbeParameterPackingTests
         ];
         foreach (var write in reverse ? writes.Reverse() : writes) write();
         float[] expected = [0.125f, 2.5f, 7.25f, 0.75f];
-        // Act and Assert
-        for (int component = 0; component < expected.Length; component++)
-            Assert.Equal(expected[component], BinaryPrimitives.ReadSingleLittleEndian(parameters.Bytes.Slice(16 + (component << 2), 4)));
+        // Act and Assert: each setting remains independently observable after writes in either order.
+        Assert.Equal(expected[0], parameters.TemporalAlpha);
+        Assert.Equal(expected[1], parameters.HitDistanceRejectThreshold);
+        Assert.Equal(expected[2], parameters.HitDistanceSigma);
+        Assert.Equal(expected[3], parameters.LeakThreshold);
     }
     #endregion
 }

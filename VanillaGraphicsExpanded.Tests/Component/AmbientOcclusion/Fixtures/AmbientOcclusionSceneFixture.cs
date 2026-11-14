@@ -131,8 +131,8 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
         var quality = AmbientOcclusionQuality.FromNative(nativeQuality);
         horizon.DepthImage = Depth; horizon.SurfaceImage = Surface; horizon.DepthHierarchy = hierarchy.Texture;
         horizon.MinimumChildren=comparisonMasks.Texture;
-        horizon.Capture(Camera, new(0, 0, quality.Divisor, 0),
-            new(1.25f, .25f, quality.Directions, quality.Steps), new(64, 96, 0, 0));
+        horizon.Capture(Camera, quality.Divisor, quality.Directions, quality.Steps,
+            radius: 1.25f, relaxation: .25f, fadeStart: 64, fadeEnd: 96);
         var referencePipeline = draw.Prepare(reference,referenceTarget.PostprocessPass());
         var currentPipeline = draw.Prepare(horizon,currentTarget.PostprocessPass());
         // Preparation, hierarchy/mask generation and descriptor mutation are excluded from horizon-only timing.

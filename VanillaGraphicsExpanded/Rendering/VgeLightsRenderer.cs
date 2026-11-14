@@ -51,10 +51,9 @@ internal sealed class VgeLightsRenderer : IRenderer
         // Other API world providers still publish illumination, with unknown shadow identity.
         var captured = api.World is ClientMain game
             ? NativeShadowLightSources.For(game).Capture(source.PointLightsCount) : default;
-        inputs.Capture(source.PointLightsCount, source.PointLights3, source.PointLightColors3, captured.Keys.Span);
+        inputs.Capture(source.PointLightsCount, source.PointLights3, source.PointLightColors3, captured.Keys.Span, captured.Positions.Span);
         var atmosphere = ModSystems.AtmosphereModSystem.Lighting;
-        var origin = captured.Origin;
-        if (!captured.Complete || !ValidOrigin(origin.X) || !ValidOrigin(origin.Y) || !ValidOrigin(origin.Z))
+        if (!captured.Complete || !VgeFrameRenderer.TryGetCurrentFrame(api, out _))
         {
             snapshot = null;
             published = true;
@@ -63,17 +62,19 @@ internal sealed class VgeLightsRenderer : IRenderer
             previousUnknown = source.PointLightsCount + 1;
             return;
         }
-        var split = FrameWorldSpaceBridge.Compute(origin.X, origin.Y, origin.Z);
+        var camera = VgeFrameRenderer.Current;
+        var origin = camera.RenderOriginChunk;
+        var view = ImmutableArray.CreateBuilder<double>(16);
+        foreach (float value in camera.View) view.Add(value);
         int dimension = captured.Dimension;
         snapshot = new(checked(++frame), captured.World, dimension, inputs.Lights,
             new(new(captured.World, dimension, ShadowSourceKind.Sun, 0, 1, 0), atmosphere?.Sun ?? System.Numerics.Vector3.UnitY, atmosphere?.Solar ?? default),
-            new(new(captured.World, dimension, ShadowSourceKind.Moon, 0, 1, 1), atmosphere?.Moon ?? System.Numerics.Vector3.UnitY, atmosphere?.Lunar ?? default),
-            ImmutableArray.Create(captured.View.ToArray()), split.ChunkOffset.X, split.ChunkOffset.Y, split.ChunkOffset.Z,
-            new((float)split.BlockOffsetRemainder.X, (float)split.BlockOffsetRemainder.Y, (float)split.BlockOffsetRemainder.Z));
+            new(new(captured.World, dimension, ShadowSourceKind.Moon, 0, 1, 1), atmosphere?.Moon ?? System.Numerics.Vector3.UnitY, atmosphere?.Lunar ?? default, atmosphere?.MoonAngularRadius??.03252f),
+            view.MoveToImmutable(), origin.X, origin.Y, origin.Z, camera.RenderOriginRemainder);
         if (snapshot.UnknownSources != previousUnknown)
         {
             previousUnknown = snapshot.UnknownSources;
-            if (previousUnknown != 0) api.Logger.Warning("[VGE Shadows] {0} illuminated sources lack stable identity; cached shadows unavailable.", previousUnknown);
+            if (previousUnknown != 0) api.Logger.Warning("[VGE Shadows] {0} illuminated sources lack complete identity or world position; cached shadows unavailable.", previousUnknown);
         }
         published = true;
     }
@@ -97,8 +98,5 @@ internal sealed class VgeLightsRenderer : IRenderer
     /// <summary>Prevents a light generation from surviving into another frame or world.</summary>
     private void Reset() { published = false; snapshot = null; }
 
-    /// <summary>Rejects origins outside the integer grid instead of allowing float/integer overflow.</summary>
-    private static bool ValidOrigin(double coordinate) => double.IsFinite(coordinate)
-        && Math.Floor(coordinate / 32) >= int.MinValue && Math.Floor(coordinate / 32) <= int.MaxValue;
     #endregion
 }

@@ -9,7 +9,7 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Owns fair lighting queues while separating selection, completed work and compatible retained history.</summary>
-internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVolumeWorkProgram> createProgram,CloudVolumeSubmission? submission=null,int quality=2):IDisposable
+internal sealed class CloudVolumeWork(Func<int,bool,CloudVolumeWorkParameters?,CloudVolumeWorkProgram> createProgram,CloudVolumeSubmission? submission=null,int quality=2):IDisposable
 {
     private int directions=CloudVolumeQuality.Resolve(quality).Directions;
     private readonly CloudVolumeSubmission submission=submission??new();
@@ -22,7 +22,7 @@ internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVo
     private readonly ulong[] executable=new ulong[11];
     private readonly Vector4[] planes=new Vector4[6];
     private GpuIndirectBuffer? commands;
-    private PackedUniformBuffer? inputs;
+    private CloudVolumeWorkParameters? inputs;
     private CloudVolumeWorkBatch? batch;
     private CloudVolumeFields? retainedFields;
     private int retainedSources;
@@ -169,13 +169,13 @@ internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVo
             }
         }
         var caps=GpuSupport.Graphics;
-        if(caps.MaxUniformBlockSize<208||caps.MaxComputeShaderStorageBlocks<4||caps.MaxShaderStorageBufferBindings<4||
+        if(caps.MaxUniformBlockSize < CloudVolumeWorkParameters.BlockSize||caps.MaxComputeShaderStorageBlocks<4||caps.MaxShaderStorageBufferBindings<4||
             caps.MaxComputeWorkGroupInvocations<256||caps.MaxComputeWorkGroupSize.Length<1||caps.MaxComputeWorkGroupSize[0]<256||
             caps.MaxComputeSharedMemorySize<(largeBudget?12304:3088))
             throw new NotSupportedException("Cloud work requires four storage bindings, 256 lanes and shared selection storage.");
         for(int i=0;i<programs.Length;i++)
         {
-            var p=programs[i]??=createProgram(i,largeBudget,inputs??=new PackedUniformBuffer(208));if(!p.EnsureReady())throw new InvalidOperationException(p.PreparationLog);
+            var p=programs[i]??=createProgram(i,largeBudget,inputs??=new CloudVolumeWorkParameters());if(!p.EnsureReady())throw new InvalidOperationException(p.PreparationLog);
             ulong next=((IGpuProgram)p).ExecutableRevision;
             if(batch is not null&&executable[i]!=0&&executable[i]!=next)throw new InvalidOperationException("Cloud work executable changed; reset required.");
             executable[i]=next;

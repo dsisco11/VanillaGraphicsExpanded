@@ -92,7 +92,7 @@ internal sealed class ShadowPriorityFeedback:IDisposable
         long count=0;
         foreach(var alternative in source.Alternatives)
             count=checked(count+alternative.Pages.Length+(alternative.RetainedPages.IsDefault?0:alternative.RetainedPages.Length));
-        if(!budget.TryCharge(new(Inputs:checked(1+count*160))))return string.Empty;
+        if(!budget.TryCharge(new(Inputs:checked(1+count*192))))return string.Empty;
         using var hash=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         foreach(var alternative in source.Alternatives)
         {

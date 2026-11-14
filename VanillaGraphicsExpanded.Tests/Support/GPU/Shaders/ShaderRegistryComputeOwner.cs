@@ -2,6 +2,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;

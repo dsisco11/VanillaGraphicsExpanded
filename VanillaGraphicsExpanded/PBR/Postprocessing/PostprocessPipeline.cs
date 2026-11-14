@@ -124,7 +124,7 @@ internal sealed class PostprocessPipeline : IRenderer
         shader.LocalBase=localSettings.Enabled ? local.BaseTexture : null;
         shader.CaptureLocal(localSettings);
         shader.GradingLookup=grading.Prepare(api,display.Grading);
-        shader.Capture(frameEffects.Fxaa,display,new(exposure.ManualLogGain,exposure.Buffer is null?0:1,0,CameraExposureRenderer.DisplayLogMiddleGray));
+        shader.Capture(frameEffects.Fxaa,display,exposure.ManualLogGain,exposure.Buffer is not null,CameraExposureRenderer.DisplayLogMiddleGray);
         var pipeline=draw!.Prepare(shader,finalPass!);
         var commands=RHICommandContext.Current;
         using var boundary=commands.EnterBoundary(new("Postprocess.Final",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses));

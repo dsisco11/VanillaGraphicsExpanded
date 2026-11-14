@@ -32,7 +32,6 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
     private const int LavaCase = 1;
     private const int FullAlphaCase = 2;
     private const int FogCase = 3;
-    private const int ShadowCase = 4;
     private const int FlowCase = 5;
     #region Public API
     /// <summary>Accepted opaque hits replace OIT transmission while invalid sources retain straight-through behavior.</summary>
@@ -63,7 +62,6 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
     [InlineData(0, true, 0, 1, 3, LavaCase)]
     [InlineData(0, true, 0, 1, 3, FullAlphaCase)]
     [InlineData(0, true, 0, 1, 3, FogCase)]
-    [InlineData(9, true, 1, 1, 3, ShadowCase)]
     [InlineData(0, true, 0, 1, 3, FlowCase)]
     [InlineData(0, true, 0, 1, 0, 0, true)]
     [InlineData(0, true, 0, 2, 0, 0, true)]
@@ -167,7 +165,6 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
     [InlineData(0, true, 0, 1, 3, LavaCase)]
     [InlineData(0, true, 0, 1, 3, FullAlphaCase)]
     [InlineData(0, true, 0, 1, 3, FogCase)]
-    [InlineData(9, true, 1, 1, 3, ShadowCase)]
     [InlineData(0, true, 0, 1, 3, FlowCase)]
     [InlineData(0, true, 0, 1, 0, 0, true)]
     [InlineData(0, true, 0, 2, 0, 0, true)]
@@ -260,12 +257,14 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         program.DepthTexture = depth;
         program.AerialRadianceTexture = aerial;
         program.AerialAttenuationTexture = aerial;
-        program.ShadowRanges = Vector4.Zero;
-        program.SunDirection = new(Vector3.UnitY, 0);
-        program.SolarIrradiance = Vector4.Zero;
-        program.EnvironmentIrradiance = Vector4.Zero;
+        using var noShadowLighting = SurfaceShadowTestInputs.Create(Vector3.UnitY, Vector3.Zero);
+        program.ShadowInputs = noShadowLighting;
+        using var sourceLighting = scatteringSource == 1
+            ? SurfaceShadowTestInputs.Create(new(0, 0, -1), new(100))
+            : null;
+        program.SetEnvironmentIrradiance(Vector3.Zero);
 
-        program.AtlasMetrics = Vector4.One;
+        program.SetAtlasMetrics(Vector2.One, 1, 1);
         program.SetFogSphereCount(0);
         if (compatibility == FogCase)
         {
@@ -278,23 +277,10 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                 sphere[channel] = Encode(Decode(sphere[channel]) / LightingCalibration.EmissionReferenceNits);
             for (int index = 0; index < sphere.Length; index++) program.SetFogSphereComponent(index, sphere[index]);
         }
-        using var shadow = compatibility == ShadowCase ? new DepthTexture(1, 1, TextureFormat.DepthComponent32f) : null;
-        if (shadow is not null)
-        {
-            // Constant cascade coordinates and depth zero establish complete solar occlusion.
-            shadow.UploadDataImmediate(new float[] { 0 });
-            program.ShadowMapNear = shadow;
-            program.ShadowMapFar = shadow;
-            program.ShadowRanges = new(100, 100, 0, 0);
-            float[] matrix = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, .5f, .5f, .5f, 1];
-            program.ShadowMatrixNear = matrix;
-            program.ShadowMatrixFar = matrix;
-        }
-        if (compatibility == FlowCase) program.AtlasMetrics = new(1, 1, 8, 8);
+        if (compatibility == FlowCase) program.SetAtlasMetrics(Vector2.One, 8, 8);
         if (scatteringSource == 1)
         {
-            program.SunDirection = new(0, 0, -1, 0);
-            program.SolarIrradiance = new(100, 100, 100, 0);
+            program.ShadowInputs = sourceLighting!;
         }
         if (scatteringSource == 2)
         {
@@ -303,7 +289,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             sharedLights.CaptureAuthored([new PunctualLight(new(0, 0, -12), Vector3.One, 4 * MathF.PI * 10000, 25)]);
         }
         program.MediumLookupEnabled = scenario == 9 || scenario >= 14;
-        program.AerialParameters = new(0, 0, scenario is >= 6 and <= 8 ? 1 : 0, 0);
+        program.SetAerialParameters(0, 0, scenario is >= 6 and <= 8 ? 1 : 0, float.PositiveInfinity);
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 1, near, far);
         projection.M33 = -(far + near) / (far - near);
         projection.M43 = -2 * far * near / (far - near);
@@ -389,9 +375,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         var baseline = target[1].ReadPixelsRegion(center, center, 1, 1);
         var baselineAccumulation = target[3].ReadPixelsRegion(center, center, 1, 1);
 
-        if (compatibility == FlowCase) program.Animation = new(0, 1, 0, 0);
+        if (compatibility == FlowCase) program.SetAnimation(0, 1, 0);
         program.RefractionEnabled = true;
-        Assert.Equal(1f, BitConverter.ToSingle(((ILiquidShaderProgramBindings)program).FrameParameters.Bytes.Slice(1352, 4)));
         FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0);
         // Act: capture the configured refraction/composition output for comparison with the baseline.
         DrawBoundary(2, true);
@@ -419,16 +404,6 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             for (int channel = 0; channel < 3; channel++)
                 Assert.InRange(MathF.Abs(accumulation[channel] / accumulation[3] - Decode(fog[channel])), 0, .0001f);
             Assert.InRange(actual[0], 0, .00001f);
-        }
-        else if (compatibility == ShadowCase)
-        {
-            var accumulation = target[3].ReadPixelsRegion(center, center, 1, 1);
-            Assert.All(accumulation.Take(3), value => Assert.InRange(MathF.Abs(value), 0, .00001f));
-            // Restore sunlight and verify its independent Beer-Lambert/Henyey-Greenstein prediction.
-            shadow!.UploadDataImmediate(new float[] { 1 });
-            FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0);
-            DrawBoundary(2, true);
-            AssertReceiverGradient(target[3].ReadPixelsRegion(center, center, 1, 1), true, 1, refractionQuality);
         }
         else if (scenario >= 14)
         {
@@ -510,7 +485,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         {
             // The normal scenario assertions run first. This optional comparison
             // then records actual production outputs with nonzero atmospheric LUTs.
-            program.AerialParameters = new(100, 100, scenario is >= 6 and <= 8 ? 1 : 0, 0);
+            program.SetAerialParameters(100, 100, scenario is >= 6 and <= 8 ? 1 : 0, float.PositiveInfinity);
             aerial.UploadDataImmediate([.05f, .1f, .2f, .1f], 0, 0, 0, 1, 1, 1, 0);
             foreach (float sky in new[] { 0f, .4f, 1f })
                 foreach (bool enabled in new[] { false, true })
@@ -530,14 +505,14 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             // Matched production binaries exercise independent solar and point
             // sources through both fallback and selected receiver composition.
             program.MediumLookupEnabled = true;
-            program.EnvironmentIrradiance = Vector4.Zero;
+            program.SetEnvironmentIrradiance(Vector3.Zero);
             foreach (int light in new[] { 1, 2 })
                 foreach (float anisotropy in new[] { 0f, .7f, -.7f, 1e-7f, -1e-7f, 2f, -2f })
                     foreach (bool enabled in new[] { false, true })
                     {
                         mediumRecord.UploadDataImmediate([.1f, .2f, .3f, anisotropy, .2f, .3f, .4f, 0]);
-                        program.SunDirection = new(0, 0, -1, 0);
-                        program.SolarIrradiance = light == 1 ? new(100, 100, 100, 0) : Vector4.Zero;
+                        using var phaseLighting = SurfaceShadowTestInputs.Create(new(0, 0, -1), light == 1 ? new(100) : Vector3.Zero);
+                        program.ShadowInputs = phaseLighting;
                         program.SetFogSphereCount(0);
                         sharedLights.Capture(light == 2 ? 1 : 0, [0, 0, -12], [10000, 10000, 10000]);
                         program.RefractionEnabled = enabled;
@@ -565,11 +540,12 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                 program.WaterMediumIndicesTexture = phaseIndices!; program.WaterMediumRecordsTexture = phaseRecords;
             }
             program.MediumLookupEnabled = true;
-            program.SolarIrradiance = new(10, 10, 10, 0);
-            program.EnvironmentIrradiance = new(2, 2, 2, 0);
+            using var measurementLighting = SurfaceShadowTestInputs.Create(new(0, 0, -1), new(10));
+            program.ShadowInputs = measurementLighting;
+            program.SetEnvironmentIrradiance(new(2, 2, 2));
             program.SetFogSphereCount(0);
             sharedLights.Capture(1, [0, 0, -12], [100, 100, 100]);
-            program.AerialParameters = new(100, 100, 0, 0);
+            program.SetAerialParameters(100, 100, 0, float.PositiveInfinity);
             aerial.UploadDataImmediate([.05f, .05f, .05f, .1f], 0, 0, 0, 1, 1, 1, 0);
             float[]? isotropicPixels = null, anisotropicPixels = null;
             foreach (string workload in phaseMeasurement ? new[] { "isotropic", "anisotropic", "checker" } : new[] { "valid", "invalid", "checker" })

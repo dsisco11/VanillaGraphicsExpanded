@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -207,7 +208,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         bytes.Clear();
         UboPacking.WriteVec4(bytes, 0, red, green, 0f, alpha);
         UboPacking.WriteFloat(bytes, 16, depth);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
         Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
     }

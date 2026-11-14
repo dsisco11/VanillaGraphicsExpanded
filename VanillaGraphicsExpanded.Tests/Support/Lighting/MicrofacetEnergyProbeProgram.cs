@@ -2,6 +2,7 @@ using ShaderBuildTool.Spirv;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Tests.Support.Lighting;
@@ -42,7 +43,7 @@ internal sealed class MicrofacetEnergyProbeProgram : GpuProgram
         coordinateSampler = sampler;
         Array.Clear(bytes);
         UboPacking.WriteInt32(bytes, 28, 1);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
 
     /// <summary>Captures the seven scalar controls in the shader block's declared order and std140 offsets.</summary>
@@ -60,7 +61,7 @@ internal sealed class MicrofacetEnergyProbeProgram : GpuProgram
         UboPacking.WriteInt32(bytes, 20, grazing);
         UboPacking.WriteFloat(bytes, 24, waterAngle);
         UboPacking.WriteInt32(bytes, 28, 0);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
     #endregion
 

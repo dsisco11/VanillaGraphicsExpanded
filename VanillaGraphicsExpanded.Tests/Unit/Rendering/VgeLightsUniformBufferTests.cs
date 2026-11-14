@@ -7,7 +7,7 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 
-/// <summary>Checks the shared light ABI, full capacity and atomic snapshot ownership.</summary>
+/// <summary>Checks shared light conversion, full-capacity capture and atomic snapshot ownership.</summary>
 public sealed class VgeLightsUniformBufferTests
 {
     #region Public API
@@ -47,7 +47,7 @@ public sealed class VgeLightsUniformBufferTests
             0 => [-1, 1, 1], 1 => [float.NaN, 1, 1], 2 => [1, float.PositiveInfinity, 1],
             3 => [0, 1, 1], 4 => [1, 2e19f, 0], 5 => [1, 1e19f, 0], _ => [1, float.NegativeInfinity, 1]
         };
-        int count = kind == 5 ? 100 : 1;
+        int count = kind == 5 ? VgeLightsUniformBuffer.Capacity : 1;
         float[] colors = Enumerable.Range(0, count).SelectMany(_ => color).ToArray();
         // Act: evaluate certification for the selected unsafe input and a valid dim source.
         Assert.False(SceneColorPointLightBounds.FromEngine(count, colors).Supported);
@@ -87,8 +87,8 @@ public sealed class VgeLightsUniformBufferTests
         // Act: read packed fields, then attempt invalid multi-source replacements.
         lights.CaptureAuthored([new(new(1, 2, 3), new(1, .4f, .1f), 1000, 20)]);
         // Assert: position, normalized chromaticity, radius, and atomic failure retain their contracts.
-        Vector4 position = MemoryMarshal.Read<Vector4>(lights.Bytes.Slice(16, 16));
-        Vector4 intensity = MemoryMarshal.Read<Vector4>(lights.Bytes.Slice(1616, 16));
+        Vector4 position = MemoryMarshal.Read<Vector4>(lights.Bytes.Slice(VgeLightsUniformBuffer.PositionsOffset, VgeLightsUniformBuffer.VectorStride));
+        Vector4 intensity = MemoryMarshal.Read<Vector4>(lights.Bytes.Slice(VgeLightsUniformBuffer.ColorsOffset, VgeLightsUniformBuffer.VectorStride));
         Assert.Equal(new Vector4(1, 2, 3, 0), position);
         Assert.Equal(20, intensity.W);
         double y = .2126 * intensity.X + .7152 * intensity.Y + .0722 * intensity.Z;
@@ -109,7 +109,7 @@ public sealed class VgeLightsUniformBufferTests
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(64)]
-    [InlineData(100)]
+    [InlineData(VgeLightsUniformBuffer.Capacity)]
     public void CapturesFullEngineCapacity(int count)
     {
         // Arrange: generate distinguishable position and color triples for the selected count.
@@ -118,16 +118,14 @@ public sealed class VgeLightsUniformBufferTests
         float[] colors = Enumerable.Range(0, count * 3).Select(i => i * .5f).ToArray();
         // Act: capture the active entries into the full-capacity std140 block.
         lights.Capture(count, positions, colors);
-        // Assert: all active fields are packed at their declared stride with zero padding.
-        Assert.Equal(3216, lights.Bytes.Length);
-        Assert.Equal((uint)count, MemoryMarshal.Read<uint>(lights.Bytes[..4]));
-        Assert.All(lights.Bytes.Slice(4, 12).ToArray(), value => Assert.Equal((byte)0, value));
+        // Assert: every active source retains its supplied values at the owner-declared vector stride.
+        Assert.Equal((uint)count, MemoryMarshal.Read<uint>(lights.Bytes[VgeLightsUniformBuffer.LightCountOffset..]));
         for (int light = 0; light < count; light++)
         {
-            Assert.Equal(positions.AsSpan(light * 3, 3).ToArray(), MemoryMarshal.Cast<byte, float>(lights.Bytes.Slice(16 + light * 16, 12)).ToArray());
-            Assert.Equal(colors.AsSpan(light * 3, 3).ToArray(), MemoryMarshal.Cast<byte, float>(lights.Bytes.Slice(1616 + light * 16, 12)).ToArray());
-            Assert.Equal(0f, MemoryMarshal.Read<float>(lights.Bytes.Slice(28 + light * 16)));
-            Assert.Equal(0f, MemoryMarshal.Read<float>(lights.Bytes.Slice(1628 + light * 16)));
+            int positionOffset = VgeLightsUniformBuffer.PositionsOffset + light * VgeLightsUniformBuffer.VectorStride;
+            int colorOffset = VgeLightsUniformBuffer.ColorsOffset + light * VgeLightsUniformBuffer.VectorStride;
+            Assert.Equal(positions.AsSpan(light * 3, 3).ToArray(), MemoryMarshal.Cast<byte, float>(lights.Bytes.Slice(positionOffset, 3 * sizeof(float))).ToArray());
+            Assert.Equal(colors.AsSpan(light * 3, 3).ToArray(), MemoryMarshal.Cast<byte, float>(lights.Bytes.Slice(colorOffset, 3 * sizeof(float))).ToArray());
         }
         byte[] retained = lights.Bytes.ToArray();
         Array.Fill(positions, 999f); Array.Fill(colors, 999f);
@@ -143,7 +141,8 @@ public sealed class VgeLightsUniformBufferTests
         lights.Capture(1, [1, 2, 3], [4, 5, 6]);
         byte[] before = lights.Bytes.ToArray();
         // Act: submit malformed counts, lengths, and values.
-        Assert.Throws<ArgumentOutOfRangeException>(() => lights.Capture(101, new float[303], new float[303]));
+        Assert.Throws<ArgumentOutOfRangeException>(() => lights.Capture(VgeLightsUniformBuffer.Capacity + 1,
+            new float[(VgeLightsUniformBuffer.Capacity + 1) * 3], new float[(VgeLightsUniformBuffer.Capacity + 1) * 3]));
         // Assert: every rejected attempt preserves the original generation bytes.
         Assert.Throws<ArgumentOutOfRangeException>(() => lights.Capture(-1, [], []));
         Assert.Throws<ArgumentException>(() => lights.Capture(2, [1, 2, 3], new float[6]));

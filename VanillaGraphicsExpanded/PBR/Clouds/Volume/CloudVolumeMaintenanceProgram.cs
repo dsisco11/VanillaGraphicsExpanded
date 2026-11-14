@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 [ShaderStage("Contract", ShaderStageKind.Compute, "cloud_volume/maintenance.csh")]
 internal sealed partial class CloudVolumeMaintenanceProgram : GpuComputeProgram, ICloudVolumeMaintenanceBindings
 {
-    private readonly PackedUniformBuffer inputs = new(80);
+    private readonly CloudVolumeMaintenanceParameters inputs = new();
     #region Public API
     /// <summary>Loads only the independently owned maintenance executable.</summary>
     internal static CloudVolumeMaintenanceProgram Create(ICoreAPI api)
@@ -25,13 +25,8 @@ internal sealed partial class CloudVolumeMaintenanceProgram : GpuComputeProgram,
     /// <summary>Captures one finite block range and an optional old material window for retention.</summary>
     internal void Capture(CloudVolumeDomain target, CloudVolumeDomain? source, Vector3 fallback, int start, int count)
     {
-        RequireInputMutation(); Span<byte> data = stackalloc byte[80]; data.Clear();
-        UboPacking.WriteIVec4(data, 0, target.Size, CloudVolumeDomain.Height, target.Size, source is null ? 0 : 1);
-        UboPacking.WriteIVec4(data, 16, target.SlotX, 0, target.SlotZ, 0);
-        UboPacking.WriteIVec4(data, 32, source is null ? 0 : checked((int)(target.FirstX-source.FirstX)), 0,
-            source is null ? 0 : checked((int)(target.FirstZ-source.FirstZ)), 0);
-        UboPacking.WriteIVec4(data, 48, start, count, target.BlocksX, target.BlocksY);
-        UboPacking.WriteVec4(data, 64, fallback.X, fallback.Y, fallback.Z, 0); inputs.SetBytes(data);
+        RequireInputMutation();
+        inputs.Capture(target, source, fallback, start, count);
     }
     #endregion
     #region Private

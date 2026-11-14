@@ -8,9 +8,9 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Owns an isolated drawable snapshot, updated only from fenced and validated solver results.</summary>
-internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudVolumePublishProgram> createProgram):IDisposable
+internal sealed class CloudVolumePublication(Func<int,CloudVolumePublishParameters,CloudVolumePublishProgram> createProgram):IDisposable
 {
-    private PackedUniformBuffer? inputs;
+    private CloudVolumePublishParameters? inputs;
     private readonly CloudVolumePublishProgram?[] programs=new CloudVolumePublishProgram?[3];
     private GpuIndirectBuffer? commands;
     private GpuResourceCollection? resources;
@@ -35,7 +35,7 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
             caps.MaxComputeWorkGroupSize[0]<256||
             caps.MaxComputeWorkGroupCount[0]<281||caps.MaxComputeWorkGroupCount[1]<1123||caps.MaxComputeWorkGroupCount[2]<65)
             throw new NotSupportedException("Cloud publication bindings unavailable.");
-        var shared=inputs??=new PackedUniformBuffer(16);
+        var shared=inputs??=new CloudVolumePublishParameters();
         for(int i=0;i<programs.Length;i++)
         {
             programs[i]??=createProgram(i,shared);

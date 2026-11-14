@@ -125,7 +125,7 @@ public static class EngineShaderProcessingHook
     //}
 
     /// <summary>Prepares stage edits together and retains the engine source before publishing them.</summary>
-    private static void ProcessShaderProgram(ShaderProgram shaderProgram)
+    internal static void ProcessShaderProgram(ShaderProgram shaderProgram, bool retainRecoverySource = true)
     {
         var candidates = new List<(IShader Shader, string Source)>();
 
@@ -161,7 +161,8 @@ public static class EngineShaderProcessingHook
         }
 
         if (candidates.Count == 0) return;
-        ShaderPatchRecovery.Capture(shaderProgram);
+        // A recovery retry must not create another recovery opportunity and recurse indefinitely.
+        if (retainRecoverySource) ShaderPatchRecovery.Capture(shaderProgram);
 
         foreach (var candidate in candidates)
         {
@@ -199,7 +200,7 @@ public static class EngineShaderProcessingHook
         var tree = ShaderImportsSystem.Instance.CreateSyntaxTree(shader.Code, shaderName);
         if (tree is null)
         {
-            return true;
+            throw new InvalidOperationException($"Failed to parse required shader source '{shaderName}'.");
         }
 
         bool hasChanges = false;

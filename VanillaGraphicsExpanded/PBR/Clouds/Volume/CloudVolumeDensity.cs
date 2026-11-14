@@ -8,7 +8,7 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Owns certified descriptor observation, bounded density jobs and barrier-complete occupancy publication.</summary>
-internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolumeDensityProgram> createProgram,CloudVolumeSubmission? submission=null) : IDisposable
+internal sealed class CloudVolumeDensity(Func<int,CloudVolumeDensityParameters?,CloudVolumeDensityProgram> createProgram,CloudVolumeSubmission? submission=null) : IDisposable
 {
     private readonly CloudVolumeSubmission submission=submission??new();
     /// <summary>Exposes prepared executable footprints to the enclosing update boundary.</summary>
@@ -20,7 +20,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     private CloudVolumeIdentity? identity;
     private uint frame;
     private bool observed,failed,disposed;
-    private PackedUniformBuffer? selectionInputs;
+    private CloudVolumeDensityParameters? selectionInputs;
     private GpuFence? fence;
     private DynamicTexture2D? nativeSnapshot;
     private CloudMapInput frozenInput;
@@ -98,11 +98,11 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
         ObjectDisposedException.ThrowIf(disposed,this);
         if(failed)throw new InvalidOperationException(Failure);
         var caps=GpuSupport.Graphics;
-        if(caps.MaxComputeShaderStorageBlocks<5||caps.MaxShaderStorageBufferBindings<5||caps.MaxUniformBlockSize<128||
+        if(caps.MaxComputeShaderStorageBlocks<5||caps.MaxShaderStorageBufferBindings<5||caps.MaxUniformBlockSize < CloudVolumeDensityParameters.BlockSize||
             caps.MaxComputeWorkGroupInvocations<256||caps.MaxComputeWorkGroupSize.Length<3||
             caps.MaxComputeWorkGroupSize[0]<256||caps.MaxComputeSharedMemorySize<1040||caps.MaxComputeWorkGroupCount.Length<3||caps.MaxComputeWorkGroupCount[0]<4096)
             throw new NotSupportedException("Cloud density generation exceeds context capabilities.");
-        selectionInputs??=new PackedUniformBuffer(128);
+        selectionInputs??=new CloudVolumeDensityParameters();
         for(int i=0;i<programs.Length;i++)
         {
             var p=programs[i]??=createProgram(i,i==2||i>=6?selectionInputs:null);

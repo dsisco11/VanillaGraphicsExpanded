@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 [ShaderStage("Contract", ShaderStageKind.Compute, "tests/cloud-volume-storage.csh")]
 internal sealed partial class CloudVolumeProbeProgram : GpuComputeProgram, ICloudVolumeProbeBindings
 {
-    private readonly PackedUniformBuffer inputs = new(16);
+    private readonly CloudVolumeProbeParameters inputs = new();
     #region Public API
     /// <summary>Loads the small test fixture shader independently of the live cloud consumers.</summary>
     internal static CloudVolumeProbeProgram Create(ICoreAPI api)
@@ -28,8 +28,8 @@ internal sealed partial class CloudVolumeProbeProgram : GpuComputeProgram, IClou
     /// <summary>Captures the same lookup against an isolated drawable publication.</summary>
     internal void Capture(CloudVolumeViewFields fields, Vector3 native)
     {
-        RequireInputMutation(); var uv = fields.Domain.TexturePosition(native); Span<byte> data = stackalloc byte[16];
-        UboPacking.WriteVec4(data, 0, uv.X, uv.Y, uv.Z, fields.Encoding.Scale); inputs.SetBytes(data);
+        RequireInputMutation();
+        inputs.Capture(fields, native);
     }
     #endregion
     #region Private

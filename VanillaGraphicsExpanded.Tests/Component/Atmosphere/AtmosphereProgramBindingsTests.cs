@@ -15,12 +15,12 @@ public sealed class AtmosphereProgramBindingsTests
     {
         // Arrange a fixture program whose linked interface can be changed independently of compilation hooks.
         var program = new FixtureProgram();
-        // Act and Assert: publish the solar interface, replace linked inputs, and verify cache changes only at compilation.
-        program.SetInputs("vge_atmosphereSolar");
+        // Act and Assert: publish the atmosphere-owned aerial interface, replace linked inputs, and verify cache changes only at compilation.
+        program.SetInputs("vge_atmosphereAerialRadiance");
         AtmosphereShaderCompilationHook.Postfix(program, true);
-        Assert.Equal(AtmosphereBindings.Solar, AtmosphereProgramBindings.Get(program));
+        Assert.Equal(AtmosphereBindings.AerialRadiance, AtmosphereProgramBindings.Get(program));
         program.SetInputs("vge_atmosphereEnvironment");
-        Assert.Equal(AtmosphereBindings.Solar, AtmosphereProgramBindings.Get(program));
+        Assert.Equal(AtmosphereBindings.AerialRadiance, AtmosphereProgramBindings.Get(program));
         AtmosphereShaderCompilationHook.Prefix(program);
         AtmosphereShaderCompilationHook.Postfix(program, false);
         Assert.Equal(AtmosphereBindings.None, AtmosphereProgramBindings.Get(program));

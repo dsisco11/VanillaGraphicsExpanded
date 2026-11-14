@@ -350,7 +350,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             GL.ClearBuffer(ClearBuffer.Color,0,handedOff.Take(4).ToArray());
             post.OnRenderFrame(0, EnumRenderStage.Before);
             post.Render(new(false, false, ssaoQuality > 0, false, ssaoQuality));
-            var displayParameters = new FinalDisplayParameters(new(1,1,1,0),Vector4.Zero,Vector4.Zero);
+            var displayParameters = new FinalDisplayParameters(new(1,1,1,0),0,0,0,0,0,0);
             FramebufferTestSetup.BindForEngineRendering(engine);
             GL.GetInteger(GetPName.DrawBuffer0, out int beforeDrawRoute);
             using (var textureScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 15, postStorage.TextureId))
@@ -374,7 +374,9 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             var manualPolicy=ConfigModSystem.Config.CameraExposure.Snapshot();
             double manualGain=Math.Clamp(manualPolicy.ManualLogGain+manualPolicy.Compensation,manualPolicy.MinLogGain,manualPolicy.MaxLogGain);
             double correction=Math.Clamp(.5*(Math.Log2(manualPolicy.MiddleGray)-manualGain-Math.Log2(physicalY)),-4,4);
-            Vector3 encoded = FilmicGradingReference.Lookup(physical*(float)Math.Pow(2,manualGain+correction),displayParameters.Grading);
+            var grading = displayParameters.Grading;
+            Vector3 encoded = FilmicGradingReference.Lookup(physical*(float)Math.Pow(2,manualGain+correction),
+                new(grading.Gamma, grading.ExtraGamma, grading.Brightness, grading.Contrast));
             for (int channel = 0; channel < 3; channel++)
             {
                 float expected = FilmicGradingReference.Quantize(encoded[channel]);

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Immutable;
 using VanillaGraphicsExpanded.Rendering.Shadows.Lights;
+using VanillaGraphicsExpanded.Numerics;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -8,12 +9,22 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
 {
     #region Public API
+    #region Layout
+    internal const int LightCountOffset = 0;
+    internal const int PositionsOffset = 16;
+    internal const int VectorStride = 16;
+    internal const int ColorsOffset = PositionsOffset + Capacity * VectorStride;
+    #endregion
+
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => PackedSize;
+
     /// <summary>Preserves the engine's full supported dynamic-light capacity.</summary>
     internal const int Capacity = 100;
     /// <summary>One unsigned count with std140 alignment padding followed by two padded vector arrays.</summary>
-    internal const int PackedSize = 16 + Capacity * 32;
+    internal const int PackedSize = ColorsOffset + Capacity * VectorStride;
     /// <summary>Allocates retained packing with immutable versioned GPU slices.</summary>
-    internal VgeLightsUniformBuffer() : base(PackedSize) { }
+    internal VgeLightsUniformBuffer() : base() { }
     /// <summary>Bounds summed active directional RGB intensity in candela for the matching immutable light list.</summary>
     internal float SummedCandelaMaximum { get; private set; }
     /// <summary>Matches native effect color/normalization admission to the same immutable engine payload.</summary>
@@ -23,12 +34,13 @@ internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
 
     /// <summary>Captures a complete light list without publishing partially validated input.</summary>
     internal void Capture(int count, ReadOnlySpan<float> positions, ReadOnlySpan<float> colors,
-        ReadOnlySpan<ShadowSourceKey> sources = default)
+        ReadOnlySpan<ShadowSourceKey> sources = default, ReadOnlySpan<Vector3d?> worldPositions = default)
     {
         if ((uint)count > Capacity) throw new ArgumentOutOfRangeException(nameof(count));
         if (positions.Length < count * 3 || colors.Length < count * 3)
             throw new ArgumentException("Every active light requires a position and a color.");
         if (!sources.IsEmpty && sources.Length != count) throw new ArgumentException("Source count must match the light payload.", nameof(sources));
+        if (!worldPositions.IsEmpty && worldPositions.Length != count) throw new ArgumentException("World positions must match the light payload.", nameof(worldPositions));
         // Retain engine calibration and coordinates exactly. Reject malformed active components
         // before touching the previous snapshot; inactive storage is never exposed by the count.
         for (int component = 0; component < count * 3; component++)
@@ -47,15 +59,18 @@ internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
         float candelaMaximum = PBR.LightingStorage.UpperBound(Math.Max(red, Math.Max(green, blue)) * (1 + 256.0 / (1 << 23)));
         var nativeBounds = PBR.SceneColor.SceneColorPointLightBounds.FromEngine(count, colors);
         var snapshot = ImmutableArray.CreateBuilder<ShadowPointLight>(count);
-        WriteUInt32(0, (uint)count);
+        WriteUInt32(LightCountOffset, (uint)count);
         for (int light = 0; light < count; light++)
         {
             int source = light * 3;
-            WriteVector4(16 + light * 16, new(positions[source], positions[source + 1], positions[source + 2], 0));
-            WriteVector4(16 + Capacity * 16 + light * 16, new(colors[source], colors[source + 1], colors[source + 2], 0));
+            var worldPosition = worldPositions.IsEmpty ? null : worldPositions[light];
+            if (worldPosition is { } world && (!double.IsFinite(world.X) || !double.IsFinite(world.Y) || !double.IsFinite(world.Z)))
+                worldPosition = null;
+            WriteVector4(PositionsOffset + light * VectorStride, new(positions[source], positions[source + 1], positions[source + 2], 0));
+            WriteVector4(ColorsOffset + light * VectorStride, new(colors[source], colors[source + 1], colors[source + 2], 0));
             snapshot.Add(new(sources.IsEmpty ? default : sources[light],
                 new(positions[source], positions[source + 1], positions[source + 2]),
-                new(colors[source], colors[source + 1], colors[source + 2], 0)));
+                new(colors[source], colors[source + 1], colors[source + 2], 0), worldPosition));
         }
         SummedCandelaMaximum = candelaMaximum;
         NativeEffectBounds = nativeBounds;
@@ -74,13 +89,13 @@ internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
             red += payload.X; green += payload.Y; blue += payload.Z;
         }
         float candelaMaximum = PBR.LightingStorage.UpperBound(Math.Max(red, Math.Max(green, blue)) * (1 + 256.0 / (1 << 23)));
-        WriteUInt32(0, (uint)sources.Length);
+        WriteUInt32(LightCountOffset, (uint)sources.Length);
         var snapshot = ImmutableArray.CreateBuilder<ShadowPointLight>(sources.Length);
         for (int i = 0; i < sources.Length; i++)
         {
-            WriteVector4(16 + i * 16, new(sources[i].Position, 0));
-            WriteVector4(16 + Capacity * 16 + i * 16, payloads[i]);
-            snapshot.Add(new(sources[i].Source, sources[i].Position, payloads[i]));
+            WriteVector4(PositionsOffset + i * VectorStride, new(sources[i].Position, 0));
+            WriteVector4(ColorsOffset + i * VectorStride, payloads[i]);
+            snapshot.Add(new(sources[i].Source, sources[i].Position, payloads[i], null));
         }
         SummedCandelaMaximum = candelaMaximum;
         // Authored candela carry a different payload convention and do not certify

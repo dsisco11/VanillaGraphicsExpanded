@@ -2,6 +2,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using System.Numerics;
 
 namespace VanillaGraphicsExpanded.Tests.Support.Lighting;
@@ -31,7 +32,7 @@ internal sealed class OitOwnedWriterProbeProgram : GpuProgram
         RequireInputMutation();
         UboPacking.WriteVec4(bytes, 0, color.X, color.Y, color.Z, color.W);
         UboPacking.WriteFloat(bytes, 16, glow);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
     #endregion
 

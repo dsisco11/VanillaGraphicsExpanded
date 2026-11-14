@@ -8,8 +8,13 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 internal sealed class UniformStateBuffer : CpuUniformBuffer
 {
     #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 128;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+
     /// <summary>Creates zero defaults for all numeric values, including both array elements.</summary>
-    internal UniformStateBuffer() : base(128) { }
+    internal UniformStateBuffer() : base() { }
     /// <summary>Retains the scalar independently of its array neighbors.</summary>
     internal float Scalar { get => MemoryMarshal.Read<float>(Bytes); set => WriteFloat(0, value); }
     /// <summary>Copies both scalar array elements on assignment and returns independent snapshots.</summary>

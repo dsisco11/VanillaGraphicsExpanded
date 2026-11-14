@@ -8,21 +8,21 @@ layout(std430,binding=4) buffer ShadowPriorityResults { uvec4 priority[]; };
 layout(binding=0) uniform usampler2DArray shadowDepthPool;
 uint requestBase;
 #define S(i) sampleInputs[requestBase+uint(i)]
-@import "../includes/shadows/sampling.glsl"
+@import "../includes/shadows/coverage.glsl"
 /// Checks one coherent current or retained generation for the entire light, without mixing projection sets.
 uint coverageSet(uint h,uint first,uint count,out uint staleCount,out uint misses,out vec3 metrics,out uint reason) {
     staleCount=0u;misses=0u;metrics=vec3(0);reason=4u;
     if(count==0u || first>sampleInputs[1] || count>sampleInputs[1]-min(first,sampleInputs[1])) return 0u;
     uint status=1u;
     for(uint r=0u;r<count;r++) {
-        requestBase=sampleInputs[2]+(first+r)*160u;
+        requestBase=sampleInputs[2]+(first+r)*192u;
         bool identity=true;
         for(uint i=0u;i<12u;i++) if(S(i)!=sampleInputs[h+i]) identity=false;
         if(r>0u) {
-            uint anchor=sampleInputs[2]+first*160u;
+            uint anchor=sampleInputs[2]+first*192u;
             // One coherent rendered generation and one current-light generation across all cube faces/levels.
             for(uint i=12u;i<14u;i++) if(S(i)!=sampleInputs[anchor+i]) identity=false;
-            for(uint i=138u;i<146u;i++) if(S(i)!=sampleInputs[anchor+i]) identity=false;
+            for(uint i=138u;i<140u;i++) if(S(i)!=sampleInputs[anchor+i]) identity=false;
         }
         uint hash=2166136261u;
         for(uint i=0u;i<17u;i++) hash=(hash^S(i))*16777619u;
@@ -34,6 +34,7 @@ uint coverageSet(uint h,uint first,uint count,out uint staleCount,out uint misse
             for(uint i=0u;i<17u;i++) if(PE(slot,i)!=S(i)) match=false;
             if(match) {
                 failed=shadowCoverageReason(slot,stale);
+                if(S(191)==0u)failed=14u;
                 if(failed==0u && !shadowPhysicalAddress(slot))failed=11u;
                 if(failed==0u) { found=true;selected=slot;break; }
             }
@@ -41,12 +42,13 @@ uint coverageSet(uint h,uint first,uint count,out uint staleCount,out uint misse
         if(!found) { status=0u;misses++;reason=max(reason,failed); }
         else if(stale) { staleCount++; if(status!=0u) status=2u; }
         if(found) {
-            double rendered=packDouble2x32(uvec2(PE(selected,46),PE(selected,47)));
-            double invalidated=packDouble2x32(uvec2(PE(selected,60),PE(selected,61)));
-            double now=shadowNumber(128u);
-            dvec3 light=shadowVector(140u),old=S(64)==1u?shadowVector(92u):shadowVector(80u);
-            float motion=S(64)==1u?float(length(light-old)):degrees(acos(clamp(float(dot(light,old)),-1.0,1.0)));
-            metrics=max(metrics,vec3(float(max(0.0lf,now-rendered)),stale?float(max(0.0lf,now-invalidated)):0.0,motion));
+            uvec2 now=uvec2(S(128),S(129)),rendered=uvec2(PE(selected,46),PE(selected,47));
+            uvec2 invalidated=uvec2(PE(selected,60),PE(selected,61));
+            float age=shadowPairLeq(rendered,now)?shadowTickSeconds(shadowTicksSubtract(now,rendered)):0.0;
+            float staleAge=stale?shadowTickSeconds(shadowTicksSubtract(now,invalidated)):0.0;
+            vec3 delta=uintBitsToFloat(uvec3(S(140),S(141),S(142)));
+            float motion=S(64)==1u?length(delta):degrees(2.0*asin(clamp(length(delta)*0.5,0.0,1.0)));
+            metrics=max(metrics,vec3(age,staleAge,motion));
         }
     }
     if(status!=0u)reason=0u;
@@ -76,9 +78,9 @@ void main() {
         if((status==0u || refining) && sampleInputs[h+19u]>0u) {
             uint oldFirst=sampleInputs[h+18u],end=oldFirst+sampleInputs[h+19u];
             while(oldFirst<end) {
-                uint anchor=sampleInputs[2]+oldFirst*160u,oldCount=1u;
+                uint anchor=sampleInputs[2]+oldFirst*192u,oldCount=1u;
                 while(oldFirst+oldCount<end) {
-                    uint at=sampleInputs[2]+(oldFirst+oldCount)*160u;
+                    uint at=sampleInputs[2]+(oldFirst+oldCount)*192u;
                     if(sampleInputs[at+12u]!=sampleInputs[anchor+12u] || sampleInputs[at+13u]!=sampleInputs[anchor+13u] ||
                         sampleInputs[at+147u]!=sampleInputs[anchor+147u]) break;
                     oldCount++;

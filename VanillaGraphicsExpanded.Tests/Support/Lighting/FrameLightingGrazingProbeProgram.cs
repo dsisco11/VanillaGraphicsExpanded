@@ -2,6 +2,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 
 namespace VanillaGraphicsExpanded.Tests.Support.Lighting;
 
@@ -36,7 +37,7 @@ internal sealed class FrameLightingGrazingProbeProgram : GpuProgram
         energyLookup = lookup;
         energySampler = sampler;
         UboPacking.WriteInt32(bytes, 0, highlight);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
     #endregion
 

@@ -11,8 +11,10 @@ internal sealed class LumOnWorldProbeResolveParamsUbo : CpuUniformBuffer
 {
     public const string BlockName = "VgeLumOnWorldProbeResolveParamsUBO";
     public const int UboSizeBytes = 16;
+    /// <summary>Reports the fixed std140 block size used to allocate the CPU storage.</summary>
+    public override int SizeBytes => UboSizeBytes;
 
-    public LumOnWorldProbeResolveParamsUbo() : base(UboSizeBytes)
+    public LumOnWorldProbeResolveParamsUbo() : base()
     {
     }
 

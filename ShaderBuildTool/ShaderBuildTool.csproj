@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="TinyAst" Version="0.11.3" />
+    <PackageReference Include="TinyAst" Version="0.12.0" />
     <PackageReference Include="TinyAst.Preprocessor" Version="0.4.3" />
     <PackageReference Include="TinyPreprocessor" Version="0.4.0" />
     <PackageReference Include="Silk.NET.SPIRV.Cross" Version="2.23.0" />

@@ -212,12 +212,12 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         var receipt = Result(pool);
         var deadline = EntryWords(pool, slot, 60, 2);
         var invalidated = EntryWords(pool, slot, 110, 1);
-        var invalidationTime = BitConverter.Int64BitsToDouble(((long)deadline[1] << 32) | deadline[0]);
+        ulong invalidationTicks = ((ulong)deadline[1] << 32) | deadline[0];
 
         // Assert: the compact GPU command receipt still identifies the old slot and its first stale timestamp.
         Assert.Equal((uint)slot, receipt[1]);
         Assert.Equal(1u, invalidated[0]);
-        Assert.Equal(2, invalidationTime);
+        Assert.Equal(2_000_000_000UL, invalidationTicks);
         Assert.True(pool.Execute(Request(ShadowPageOperation.Lookup, key, Small)));
         // Changed dependencies make the old complete page non-current; temporal sampling may use it only as stale.
         Assert.Equal(2u, Result(pool)[0]);
@@ -255,11 +255,11 @@ public sealed class ShadowPagePoolTests(HeadlessGLFixture fixture, ITestOutputHe
         Assert.True(pool.Execute(later));
         var invalidated = EntryWords(pool, slot, 110, 1);
         var deadline = EntryWords(pool, slot, 60, 2);
-        var invalidationTime = BitConverter.Int64BitsToDouble(((long)deadline[1] << 32) | deadline[0]);
+        ulong invalidationTicks = ((ulong)deadline[1] << 32) | deadline[0];
 
         // Assert: the source-level operation marks the prior complete page once and keeps its original stale deadline.
         Assert.Equal(1u, invalidated[0]);
-        Assert.Equal(2, invalidationTime);
+        Assert.Equal(2_000_000_000UL, invalidationTicks);
         pool.SealBatch();
     }
 

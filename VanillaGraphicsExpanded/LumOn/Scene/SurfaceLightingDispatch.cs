@@ -17,8 +17,7 @@ internal sealed class SurfaceLightingDispatch : IDisposable
 {
     private readonly LumonSceneSurfaceLightingShader pipeline;
 
-    private readonly PackedUniformBuffer parameters = new(144);
-    private readonly byte[] bytes = new byte[144];
+    private readonly SurfaceLightingParamsUbo parameters = new();
     private readonly GpuShaderStorageBuffer disabledFallback = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "SurfaceLighting.DisabledFallback" }).RequireResource();
     public SurfaceWorkDiagnostics Diagnostics { get; } = new();
     /// <summary>Supplies isolated frame calibration for fixture submission; runtime uses the shared world publication.</summary>
@@ -52,21 +51,13 @@ internal sealed class SurfaceLightingDispatch : IDisposable
         bool measured = Diagnostics.Begin(stage, count);
         try
         {
-            UboPacking.WriteUVec4(bytes, 0, (uint)input.TileSize, (uint)input.TilesPerAxis, (uint)input.TilesPerAtlas, operation);
-            UboPacking.WriteUVec4(bytes, 16, texels, rays, steps, frame);
-            UboPacking.WriteIVec4(bytes, 32, input.Origin.X, input.Origin.Y, input.Origin.Z, Math.Clamp(maxTraceDistance, 1, 512));
-            UboPacking.WriteIVec4(bytes, 48, input.Dimensions.X, input.Dimensions.Y, input.Dimensions.Z, captureHitRetries ? 1 : 0);
-            UboPacking.WriteIVec4(bytes, 64, input.Ring.X, input.Ring.Y, input.Ring.Z, 0);
-            // Use geometry's authoritative boundary, never the moving local coverage height.
-            UboPacking.WriteUVec4(bytes, 80, emission ? 1u : 0u, (uint)Math.Max(0, scene.Coverage?.WorldHeight ?? 0), (uint)Math.Clamp(maxFramesAccumulated, 1, 255), measured ? 1u : 0u);
             var atmosphere = ModSystems.AtmosphereModSystem.Lighting;
             var environment = atmosphere?.Environment ?? System.Numerics.Vector3.Zero;
             var solar = atmosphere?.DirectIrradiance ?? System.Numerics.Vector3.Zero;
             var sun = atmosphere?.DirectDirection ?? System.Numerics.Vector3.UnitY;
-            UboPacking.WriteVec4(bytes, 96, environment.X, environment.Y, environment.Z, 0f);
-            UboPacking.WriteVec4(bytes, 112, solar.X, solar.Y, solar.Z, 0f);
-            UboPacking.WriteVec4(bytes, 128, sun.X, sun.Y, sun.Z, 0f);
-            parameters.SetBytes(bytes);
+            parameters.SetDispatch(input, operation, texels, rays, steps, frame, emission,
+                scene.Coverage?.WorldHeight ?? 0, maxFramesAccumulated, measured,
+                maxTraceDistance, captureHitRetries, environment, solar, sun);
             pipeline.SurfaceLightingParameters = parameters;
             pipeline.BindSharedGeometry(scene);
             pipeline.NormalizedLight = scene.Light;

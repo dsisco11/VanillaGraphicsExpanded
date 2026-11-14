@@ -573,8 +573,6 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         programId.GBufferPosition = position;
         programId.PrimaryScene = primaryScene;
         programId.PrimaryDepth = primaryDepth;
-        programId.ShadowMapNear = shadowNear;
-        programId.ShadowMapFar = shadowFar;
 
         // Identity matrices
         float[] identity =
@@ -611,13 +609,10 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
         using var frameCamera = TestFrameCamera.CreateFromInverseView(identity, inverseView);
         programId.FrameInputs = frameCamera;
-        programId.ToShadowMapSpaceMatrixNear = identity;
-        programId.ToShadowMapSpaceMatrixFar = identity;
-        programId.ShadowRanges = (1f, 1f);
-        programId.ShadowZExtendNear = 1; programId.ShadowZExtendFar = 1; programId.DropShadowIntensity = 0;
-        programId.LightDirection = new(lightDirection.x, lightDirection.y, lightDirection.z);
-        programId.SetSolarIrradiance(new(rgbaLightIn.r, rgbaLightIn.g, rgbaLightIn.b));
-        programId.RgbaAmbientIn = new(0,0,0);
+        using var surfaceShadows = SurfaceShadowTestInputs.Create(
+            new(lightDirection.x, lightDirection.y, lightDirection.z),
+            new(rgbaLightIn.r, rgbaLightIn.g, rgbaLightIn.b));
+        programId.ShadowInputs = surfaceShadows;
         using var sharedLights = new VgeLightsUniformBuffer();
         if (authored is null) sharedLights.Capture(pointLightCount, pointLightPositions3, pointLightColors3);
         else sharedLights.CaptureAuthored(authored);

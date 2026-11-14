@@ -1,4 +1,3 @@
-using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -46,7 +45,12 @@ internal sealed partial class FinalDisplayShaderProgram : GpuProgram, IFinalDisp
         set { RequireInputMutation(); frameInputs = value; }
     }
     /// <summary>Stages native grading, antialiasing and published camera exposure.</summary>
-    internal void Capture(bool antialias,FinalDisplayParameters display,Vector4 exposure)=>inputs.Capture(antialias,display,exposure);
+    internal void Capture(bool antialias, FinalDisplayParameters display, float manualLogGain,
+        bool automaticExposure, float logMiddleGray)
+    {
+        RequireInputMutation();
+        inputs.Capture(antialias, display, manualLogGain, automaticExposure, logMiddleGray);
+    }
     /// <summary>Supplies the generated block binding.</summary>
     CpuUniformBuffer IFinalDisplayShaderProgramBindings.Inputs=>inputs;
     /// <summary>Reuses the existing shared view publication for full-resolution pixel spacing.</summary>

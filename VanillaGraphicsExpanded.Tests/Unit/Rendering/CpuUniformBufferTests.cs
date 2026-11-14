@@ -11,6 +11,21 @@ public sealed class CpuUniformBufferTests
 {
     #region Public API
 
+    #region Declared storage
+    /// <summary>The base allocation uses the fixed size declared by the concrete block type.</summary>
+    [Fact]
+    public void AllocationUsesDeclaredBlockSize()
+    {
+        // Arrange
+        using var buffer = new TestBuffer();
+        // Act
+        int sizeBytes = buffer.SizeBytes;
+        // Assert
+        Assert.Equal(TestBuffer.BlockSizeBytes, sizeBytes);
+        Assert.Equal(sizeBytes, buffer.Bytes.Length);
+    }
+    #endregion
+
     #region Dirty tracking
     /// <summary>Zero-valued typed setters leave a newly allocated zero buffer clean.</summary>
     [Fact]
@@ -118,11 +133,15 @@ public sealed class CpuUniformBufferTests
     /// <summary>Exposes protected operations for tests without changing the production public API.</summary>
     private sealed class TestBuffer : CpuUniformBuffer
     {
+        internal const int BlockSizeBytes = 64;
+        /// <summary>Reports the test block's fixed allocation size.</summary>
+        public override int SizeBytes => BlockSizeBytes;
+
         #region Internal API
 
         #region Zero-value initialization
         /// <summary>Allocates one matrix-sized block.</summary>
-        internal TestBuffer() : base(64) { }
+        internal TestBuffer() : base() { }
         /// <summary>Exercises every typed writer against the initial stored zero representation.</summary>
         internal void ZeroValues()
         {

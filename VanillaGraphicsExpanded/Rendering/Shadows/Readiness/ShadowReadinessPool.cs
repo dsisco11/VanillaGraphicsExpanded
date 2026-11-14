@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Collections.Immutable;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shadows.Configuration;
 using VanillaGraphicsExpanded.Rendering.Shadows.Pages;
+using VanillaGraphicsExpanded.Rendering.Shadows.Projections;
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering.Shadows.Readiness;
@@ -22,6 +24,8 @@ internal sealed class ShadowReadinessPool:IDisposable
     private readonly Dictionary<Lights.ShadowSourceKey,int> historySlots=new();
     internal GpuShaderStorageBuffer Results { get; }
     internal GpuShaderStorageBuffer Priority { get; }
+    internal GpuShaderStorageBuffer SampleFailures { get; }
+    internal ImmutableDictionary<Lights.ShadowSourceKey,int> SourceIndices { get; private set; }=ImmutableDictionary<Lights.ShadowSourceKey,int>.Empty;
     /// <summary>Read-only consumer binding for the projection/request interval selected by GPU readiness.</summary>
     internal GpuShaderStorageBuffer Requests=>inputs;
     internal long AllocatedBytes { get; }
@@ -32,17 +36,17 @@ internal sealed class ShadowReadinessPool:IDisposable
     internal ShadowReadinessPool(ICoreAPI api,ShadowSchedulingSettings settings,ShadowTemporalSettings temporal)
     {
         policy=settings.Freeze();this.temporal=temporal.Freeze();
-        long inputBytes=checked(64+policy.LightCapacity*128L+policy.DemandRequests*640L);
-        AllocatedBytes=checked(inputBytes*2+policy.LightCapacity*528L);
+        long inputBytes=checked(64+policy.LightCapacity*128L+policy.DemandRequests*(long)ShadowCoordinates.SamplingWords*sizeof(uint));
+        AllocatedBytes=checked(inputBytes*2+policy.LightCapacity*544L);
         var caps=GpuSupport.Graphics;
         if(inputBytes>int.MaxValue || inputBytes>caps.MaxShaderStorageBlockSize || caps.MaxComputeShaderStorageBlocks<5 ||
             caps.MaxShaderStorageBufferBindings<5 || AllocatedBytes>policy.MemoryMiB*1048576L)
             throw new InvalidOperationException("Whole-light readiness storage exceeds effective capacity.");
         packed=new uint[checked((int)(inputBytes/4))];
         shader=ShadowReadinessShader.Create(api);executable=shader.Shader;
-        try { inputs=Buffer((int)inputBytes,"Inputs");Results=Buffer(policy.LightCapacity*128,"Results");history=Buffer(policy.LightCapacity*128,"History");Priority=Buffer(policy.LightCapacity*16,"Priority");
+        try { inputs=Buffer((int)inputBytes,"Inputs");Results=Buffer(policy.LightCapacity*128,"Results");history=Buffer(policy.LightCapacity*128,"History");Priority=Buffer(policy.LightCapacity*16,"Priority");SampleFailures=Buffer(policy.LightCapacity*16,"SamplingFailures");
             history.UploadSubData<uint>(new uint[policy.LightCapacity*32],0);Withdraw(); }
-        catch { shader.Dispose();inputs?.Dispose();Results?.Dispose();history?.Dispose();Priority?.Dispose();throw; }
+        catch { shader.Dispose();inputs?.Dispose();Results?.Dispose();history?.Dispose();Priority?.Dispose();SampleFailures?.Dispose();throw; }
     }
 
     /// <summary>Orders page visibility and complete current demand reduction; statuses remain GPU-owned.</summary>
@@ -82,7 +86,7 @@ internal sealed class ShadowReadinessPool:IDisposable
             if(valid) foreach(var page in light.Pages)
             {
                 if(page.Request.Key.Source!=light.Source) throw new ArgumentException("Demand source disagrees with light.");
-                page.Pack(now,temporal,pool.Capacity,pool.ProbeLimit,pool.ArrayLayers).CopyTo(words,(int)words[2]+count*160);count++;
+                page.Pack(now,temporal,pool.Capacity,pool.ProbeLimit,pool.ArrayLayers).CopyTo(words,(int)words[2]+count*ShadowCoordinates.SamplingWords);count++;
             }
             words[at+13]=(uint)(count-(int)words[at+12]);
             words[at+18]=(uint)count;
@@ -90,14 +94,15 @@ internal sealed class ShadowReadinessPool:IDisposable
             if(retained)foreach(var page in light.RetainedPages)
             {
                 if(page.Request.Key.Source!=light.Source)throw new ArgumentException("Retained demand source disagrees with light.");
-                page.Pack(now,temporal,pool.Capacity,pool.ProbeLimit,pool.ArrayLayers).CopyTo(words,(int)words[2]+count*160);count++;
+                page.Pack(now,temporal,pool.Capacity,pool.ProbeLimit,pool.ArrayLayers).CopyTo(words,(int)words[2]+count*ShadowCoordinates.SamplingWords);count++;
             }
             words[at+19]=(uint)(count-(int)words[at+18]);
         }
         words[1]=(uint)count;
-        inputs.UploadSubData<uint>(words.AsSpan(0,checked((int)words[2]+count*160)),0);
+        inputs.UploadSubData<uint>(words.AsSpan(0,checked((int)words[2]+count*ShadowCoordinates.SamplingWords)),0);
         // Clear absent slots too; a consumer cannot inherit a disappeared source from a previous frame.
         Results.UploadSubData<uint>(new uint[policy.LightCapacity*32],0);
+        SampleFailures.UploadSubData<uint>(new uint[policy.LightCapacity*4],0);
         var binding=(IShadowReadinessBindings)shader;binding.Inputs=inputs;binding.Entries=pool.Entries;
         binding.Results=Results;binding.History=history;binding.Depth=pool.DepthArray;
         binding.Priority=Priority;
@@ -106,6 +111,7 @@ internal sealed class ShadowReadinessPool:IDisposable
         boundary.Run(()=> { rhi.Barrier(new(ResourceAccess.ShaderStorage|ResourceAccess.Image|ResourceAccess.TextureFetch|ResourceAccess.BufferUpdate));
             if(lights.Count>0) shader.Dispatch(lights.Count);
             rhi.Barrier(new(ResourceAccess.ShaderStorage|ResourceAccess.TextureFetch|ResourceAccess.BufferUpdate)); });
+        SourceIndices=lights.Select((light,index)=>(light.Source,index)).ToImmutableDictionary(pair=>pair.Source,pair=>pair.index);
         this.frame=frame;
     }
 
@@ -113,8 +119,13 @@ internal sealed class ShadowReadinessPool:IDisposable
     internal void Withdraw(bool resetHistory=true)
     {
         if(disposed)return;
+        // Shader/config withdrawal may occur before the ordinary frame end.
+        // Order preceding fragment diagnostic writes before clearing their buffer.
+        RHICommandContext.Current.Barrier(new(ResourceAccess.BufferUpdate));
         Results.UploadSubData<uint>(new uint[policy.LightCapacity*32],0);
         Priority.UploadSubData<uint>(new uint[policy.LightCapacity*4],0);
+        SampleFailures.UploadSubData<uint>(new uint[policy.LightCapacity*4],0);
+        SourceIndices=ImmutableDictionary<Lights.ShadowSourceKey,int>.Empty;
         if(resetHistory)
         {history.UploadSubData<uint>(new uint[policy.LightCapacity*32],0);frame=0;historySlots.Clear();}
     }
@@ -124,7 +135,7 @@ internal sealed class ShadowReadinessPool:IDisposable
     {
         if(disposed)return;disposed=true;frame=0;historySlots.Clear();
         // Terminal context teardown cannot issue uploads into a retiring namespace.
-        shader.Dispose();inputs.Dispose();Results.Dispose();history.Dispose();Priority.Dispose();
+        shader.Dispose();inputs.Dispose();Results.Dispose();history.Dispose();Priority.Dispose();SampleFailures.Dispose();
     }
     #endregion
 

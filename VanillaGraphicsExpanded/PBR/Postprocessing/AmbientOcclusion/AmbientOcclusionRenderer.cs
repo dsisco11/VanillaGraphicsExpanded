@@ -58,7 +58,7 @@ internal sealed class AmbientOcclusionRenderer : IRenderer
         var receiverDepth=SceneColor.SceneColorParticleCapture.ReceiverDepthTexture(api)??depth;
         var hierarchy=DepthHierarchyRenderer.Texture??throw new InvalidOperationException("AO requires the current corrected-depth hierarchy.");
         if(!ReferenceEquals(DepthHierarchyRenderer.View,VgeFrameRenderer.Current) ||
-            DepthHierarchyRenderer.FrameIndex!=UboPacking.ReadUInt32(VgeFrameRenderer.Current.Bytes,396)) throw new InvalidOperationException("AO hierarchy view mismatch.");
+            DepthHierarchyRenderer.FrameIndex!=VgeFrameRenderer.Current.FrameIndex) throw new InvalidOperationException("AO hierarchy view mismatch.");
         var pipelines=pass.Prepare(draw,primary.Width,primary.Height,settings.SsaoQuality,horizon,filter,masks);
         var commands=RHICommandContext.Current;
         using var boundary=commands.EnterBoundary(new("AmbientOcclusion",true,graphics:pipelines.Select(value=>(RHIGraphicsPipelineRef)value),operations:BoundaryOperations.RenderPasses));

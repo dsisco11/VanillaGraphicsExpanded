@@ -24,7 +24,8 @@ internal static class ShaderPatchCompilationHook
         {
             if (ShaderPatchRecovery.TryRecover(__instance, __instance.Compile,
                 detail => EngineShaderProcessingHook.ReportFailure(__instance.PassName,
-                    __exception is null ? detail : detail + "\n" + __exception), out bool recovered))
+                    __exception is null ? detail : detail + "\n" + __exception), out bool recovered,
+                program => EngineShaderProcessingHook.ProcessShaderProgram(program, retainRecoverySource: false)))
             {
                 __result = recovered;
                 if (recovered) return null;

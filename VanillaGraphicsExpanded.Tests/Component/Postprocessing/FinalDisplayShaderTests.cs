@@ -45,7 +45,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         shader.FrameInputs = camera; shader.GradingLookup = lookup;
         shader.SceneImage=scene; shader.BloomImage=bloom; shader.ShaftImage=shafts;
         shader.ExposureBuffer=history;
-        shader.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),new(automatic?-ev:ev,automatic?1:0,0,0));
+        shader.Capture(false,new(new(1,1,1,0),0,0,0,0,0,0),automatic?-ev:ev,automatic,0);
         Draw(shader,target);
         float radiance=(4f+3f)*MathF.Pow(2,ev);
         float expected=Display(radiance);
@@ -74,7 +74,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         using var camera = TestFrameCamera.CreateIdentity(width, height);
         shader.FrameInputs = camera; shader.GradingLookup = lookup;
         shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureBuffer=neutralExposure;
-        shader.Capture(true,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
+        shader.Capture(true,new(new(1,1,1,0),0,0,0,0,0,0),0,false,0);
         // Act: Warm and time repeated complete owned final-pass submissions at the requested target extent.
         Draw(shader,target);
         var samples=new List<double>();
@@ -105,14 +105,14 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         using var camera = TestFrameCamera.CreateIdentity(17, 9);
         shader.FrameInputs = camera; shader.GradingLookup = lookup;
         shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureBuffer=neutralExposure;
-        shader.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);Draw(shader,target);
+        shader.Capture(false,new(new(1,1,1,0),0,0,0,0,0,0),0,false,0);Draw(shader,target);
         using var baseline=new GpuImageSnapshot(target[0]);
-        var controls=treatment==0?new FinalDisplayParameters(new(2,1,1,0),Vector4.Zero,Vector4.Zero):
-            treatment==1?new FinalDisplayParameters(new(1,1,1,0),Vector4.Zero,new(1,.5f,0,0)):
-            new FinalDisplayParameters(new(1,1,1,0),new(0,2,.5f,0),new(0,0,1,0));
+        var controls=treatment==0?new FinalDisplayParameters(new(2,1,1,0),0,0,0,0,0,0):
+            treatment==1?new FinalDisplayParameters(new(1,1,1,0),0,0,0,1,.5f,0):
+            new FinalDisplayParameters(new(1,1,1,0),0,2,.5f,0,0,1);
         shader.GradingLookup=grading.Prepare(Programs.Api,controls.Grading);
         // Act: Submit the selected control change through the production final shader.
-        shader.Capture(false,controls,Vector4.Zero);Draw(shader,target);
+        shader.Capture(false,controls,0,false,0);Draw(shader,target);
         // Preserve every RGB witness and every finite/range/alpha assertion over the full 17x9 domain.
         // Assert: Output changes while remaining finite and opaque, and the original scene pixels stay untouched.
         Assert.True(ImageAssertions.Predicates.Predicate(target[0], MaterialPredicates.FinalDisplayShaderTests_DisplayControlsAffectOutputWithoutChangingScene,baseline.Texture).MatchingTexels>0);

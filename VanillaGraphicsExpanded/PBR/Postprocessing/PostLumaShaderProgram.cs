@@ -1,4 +1,3 @@
-using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -24,8 +23,11 @@ internal sealed partial class PostLumaShaderProgram : GpuProgram, IPostLumaShade
     /// <summary>Stages the published exposure buffer.</summary>
     public partial GpuShaderStorageBuffer? ExposureBuffer { set; }
     /// <summary>Captures the complete draw parameters for the shader contract.</summary>
-    internal void Capture(Vector4 pass, Vector4 effect, Vector4 sun = default, Vector4 solar = default)
-        => inputs.Capture(pass, effect, sun, solar);
+    internal void Capture(bool antialias, bool automaticExposure, float manualLogGain)
+    {
+        RequireInputMutation();
+        inputs.CaptureLuma(antialias, automaticExposure, manualLogGain);
+    }
     /// <summary>Publishes the retained input block.</summary>
     CpuUniformBuffer IPostLumaShaderProgramBindings.Inputs => inputs;
     #endregion

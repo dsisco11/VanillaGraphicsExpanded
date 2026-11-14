@@ -4,6 +4,7 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using Moq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.Shadows;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
@@ -24,7 +25,7 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     private readonly VgeFrameUniformBuffer frameCamera;
     private readonly VgeLightsUniformBuffer frameLights = new();
     private readonly EngineTerrainBuffers terrain;
-    private readonly DepthTexture shadow, shadowFar;
+    private readonly SurfaceShadowInputSet surfaceShadows;
     private readonly DirectLightingBufferManager buffers;
     private readonly DirectLightingReferenceRenderer reference;
     private readonly GBufferManager gbuffer;
@@ -47,16 +48,8 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
         Width = width; Height = height;
         atmosphere.Publish(new VanillaGraphicsExpanded.PBR.Atmosphere.AtmosphereLighting(System.Numerics.Vector3.UnitZ, System.Numerics.Vector3.One, System.Numerics.Vector3.Zero, System.Numerics.Vector3.Zero, System.Numerics.Vector3.Zero, System.Collections.Immutable.ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1 });
         terrain = new(width, height);
-        shadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f); shadow.UploadDataImmediate([1f]);
-        shadowFar = new DepthTexture(1, 1, TextureFormat.DepthComponent32f); shadowFar.UploadDataImmediate([1f]);
         var frames = Enumerable.Repeat<FrameBufferRef>(null!, 25).ToList(); frames[0] = terrain.Primary;
-        frames[(int)EnumFrameBuffer.ShadowmapNear] = new() { DepthTextureId = shadow.TextureId };
-        frames[(int)EnumFrameBuffer.ShadowmapFar] = new() { DepthTextureId = shadowFar.TextureId };
         float[] identity = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
-        float[] shadowMatrix = [0,0,0,0,0,0,0,0,0,0,0,0,.5f,.5f,.5f,1];
-        Uniforms.ToShadowMapSpaceMatrixNear = shadowMatrix; Uniforms.ToShadowMapSpaceMatrixFar = shadowMatrix;
-        Uniforms.ShadowRangeNear = 10; Uniforms.ShadowRangeFar = 100;
-        Uniforms.ShadowZExtendNear = Uniforms.ShadowZExtendFar = 1;
         var render = RuntimeEngineServices.Render(width, frames, () => identity, () => identity, () =>
         {
             if (FailDraw) throw new ArithmeticException("Controlled native draw failure.");
@@ -81,6 +74,8 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
         frameCamera = TestFrameCamera.CreateFromInverseView(identity, identity, width, height, Uniforms.ZNear, Uniforms.ZFar);
         shader.FrameInputs = frameCamera;
         shader.LightsInputs = frameLights;
+        surfaceShadows = SurfaceShadowTestInputs.Create(System.Numerics.Vector3.UnitZ, System.Numerics.Vector3.One);
+        shader.ShadowInputs = surfaceShadows;
         frameLighting.Attach(shader);
     }
 
@@ -101,11 +96,7 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     {
         Uniforms.PointLightsCount = kind is 3 or 6 ? 1 : 0;
         Uniforms.PointLights3 = [0, 0, 2]; Uniforms.PointLightColors3 = [intensity * 2, intensity, intensity * .5f];
-        Uniforms.DropShadowIntensity = kind is 3 or 6 ? 1 : 0;
         frameLights.Capture(Uniforms.PointLightsCount, Uniforms.PointLights3, Uniforms.PointLightColors3);
-        Uniforms.ShadowRangeNear = kind == 6 ? 0 : 100;
-        shadow.UploadDataImmediate([kind == 3 ? .25f : 1f]);
-        shadowFar.UploadDataImmediate([kind == 6 ? .25f : 1f]);
         // With the fixture's identity projection, depth zero places the receiver at
         // z=-1. Depth .5 placed it in the camera plane, giving no valid facing view.
         terrain.UploadTerrain(gbuffer, Enumerable.Repeat(kind == 0 ? 1f : 0f, Width * Height).ToArray(),
@@ -147,7 +138,7 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     {
         drawCapture.UnpatchAll(drawCapture.Id); activeDrawCapture=null;
         Neutral(); Candidate.Dispose(); reference.Dispose(); Actual.Dispose(); Expected.Dispose();
-        buffers.Dispose(); gbuffer.Dispose(); shadowFar.Dispose(); shadow.Dispose(); terrain.Dispose(); programs.Dispose();
+        buffers.Dispose(); gbuffer.Dispose(); surfaceShadows.Dispose(); terrain.Dispose(); programs.Dispose();
         frameCamera.Dispose(); frameLights.Dispose(); frameLighting.Dispose();
         assets.Dispose(); atmosphere.Dispose(); platform.Dispose();
     }

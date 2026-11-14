@@ -1,5 +1,6 @@
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 
 namespace VanillaGraphicsExpanded.Tests.Component.Rendering;
 
@@ -44,7 +45,7 @@ public sealed class GpuProgramWorkflowTests
 
         // Assert retirement blocks future preparation, capture, and uniform registration.
         Assert.False(program.Prepare());
-        Assert.Throws<ObjectDisposedException>(()=>owner.Block.SetBytes(new byte[16]));
+        Assert.Throws<ObjectDisposedException>(()=>owner.Block.SetPayload(new byte[16]));
         Assert.Throws<ObjectDisposedException>(()=>owner.Block.Capture());
         Assert.Throws<ObjectDisposedException>(()=>program.RegisterUniform(new PackedUniformBuffer(16)));
     }

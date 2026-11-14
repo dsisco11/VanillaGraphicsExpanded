@@ -12,6 +12,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
 using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Lighting;
 namespace VanillaGraphicsExpanded.Tests.Component.Water;
 
 /// <summary>Checks production liquid outputs against the captured six-target bucket OIT blend contract.</summary>
@@ -66,17 +67,12 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         program.TerrainTexture = terrain;
         program.MaterialParamsTexture = material;
         program.DepthTexture = depth;
-        using var shadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
-        shadow.UploadDataImmediate([1f]);
-        program.ShadowMapNear = shadow;
-        program.ShadowMapFar = shadow;
+        using var surfaceShadows = SurfaceShadowTestInputs.Create(Vector3.Normalize(new(0, 1, -5)), new(.1f));
+        program.ShadowInputs = surfaceShadows;
         program.AerialRadianceTexture = aerial;
         program.AerialAttenuationTexture = aerial;
-        program.ShadowRanges = Vector4.Zero;
-        program.SunDirection = new(Vector3.Normalize(new(0, 1, -5)), 0);
-        program.SolarIrradiance = new(.1f, .1f, .1f, 0);
-        program.EnvironmentIrradiance = Vector4.Zero;
-        program.AtlasMetrics = new(1, 1, 1, 1);
+        program.SetEnvironmentIrradiance(Vector3.Zero);
+        program.SetAtlasMetrics(Vector2.One, 1, 1);
 
         program.SetFogSphereCount(0);
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 1, .1f, 100);

@@ -1,4 +1,4 @@
-#version 330 core
+#version 450 core
 #extension GL_ARB_separate_shader_objects : require
 #extension GL_ARB_shading_language_420pack : require
 @import "./includes/liquids/params.glsl"
@@ -23,8 +23,6 @@ layout(binding = 1) uniform sampler2D depthTex;
 layout(binding = 2) uniform sampler2D vge_materialParamsTex;
 layout(binding = 7) uniform sampler2D vge_waterMediumIndices;
 layout(binding = 8) uniform sampler2D vge_waterMediumRecords;
-layout(binding = 3) uniform sampler2DShadow shadowMapNear;
-layout(binding = 4) uniform sampler2DShadow shadowMapFar;
 @import "./includes/vertex_flags.glsl"
 @import "./includes/colormap_fragment.glsl"
 @import "./includes/texture_animation.glsl"
@@ -41,7 +39,6 @@ layout(location = 0) out vec4 outSpecularCapture;
 @import "./includes/pbr_color.glsl"
 @import "./includes/pbr_common.glsl"
 @import "./includes/liquids/waves.glsl"
-@import "./includes/pbr_shadowcoords.glsl"
 @import "./includes/atmosphere_aerial.glsl"
 @import "./includes/pbr_liquid.glsl"
 /** Samples the animated material before PBR optics and engine-compatible OIT accumulation. */
@@ -114,17 +111,15 @@ void main()
     // illumination or shadow samples when every scattering channel is zero.
     if (any(greaterThan(medium.scattering, vec3(0))))
     {
-        float phase = 1.0 / 12.56637061436;
-        // Boundary orientation still needs toEye, but isotropic illumination
-        // needs neither its world transform nor a normalized solar direction.
-        if (medium.anisotropy != 0.0)
-        {
-            vec3 eyeWorld = transpose(mat3(modelViewMatrix)) * toEye;
-            phase = VgeWaterAnisotropicPhase(dot(-normalize(vge_atmosphereSunDirection), eyeWorld), medium.anisotropy);
-        }
-        source = max(vge_atmosphereSolar, vec3(0)) * vge_skyVisibility * VgeLiquidVisibility()
-            * phase
-            + max(vge_blockIrradiance + 3.14159265359 * vge_atmosphereEnvironment * vge_skyVisibility, vec3(0)) / 12.56637061436;
+        vec3 receiver = (vgeFrame.invViewMatrix * vec4(vge_viewPosition, 1)).xyz;
+        vec3 receiverNormal = normalize(transpose(inverse(mat3(modelMatrix))) * outward);
+        vec3 eyeWorld = mat3(vgeFrame.invViewMatrix) * toEye;
+        source += VgeLiquidBoundaryCelestialSource(0, vgeSurfaceSunDirection, vgeSurfaceSolar,
+            vge_skyVisibility, receiver, receiverNormal, eyeWorld, medium.anisotropy);
+        source += VgeLiquidBoundaryCelestialSource(1, vgeSurfaceMoonDirection, vgeSurfaceLunar,
+            vge_skyVisibility, receiver, receiverNormal, eyeWorld, medium.anisotropy);
+        source += max(vge_blockIrradiance + 3.14159265359 * vge_atmosphereEnvironment * vge_skyVisibility,
+            vec3(0)) / 12.56637061436;
     }
     outWaterOpticalDepth = vec4((medium.absorption + medium.scattering) * remaining, remaining) * orientation;
     // Lighting alone uses the frozen frame scale. Signed boundary integration

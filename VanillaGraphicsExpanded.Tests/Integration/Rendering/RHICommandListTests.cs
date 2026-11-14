@@ -1,4 +1,5 @@
 using TestUniformRing = VanillaGraphicsExpanded.Tests.Support.GPU.Native.TestUniformRing;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using System.Runtime.InteropServices;
@@ -67,7 +68,7 @@ public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestB
         // Arrange: capture dirty uniform bytes and record buffer, readback, fence, and query work.
         Start(); var context = RHICommandContext.Current;
         using var buffer = Buffer(context, 16); using var uniform = new PackedUniformBuffer(16);
-        uniform.SetBytes(Enumerable.Repeat((byte)9, 16).ToArray());
+        uniform.SetPayload(Enumerable.Repeat((byte)9, 16).ToArray());
         using var query = context.CreateQuery(new(QueryKind.Timestamp)).RequireResource();
         using var list = context.CreateCommandList();
         list.ClearBuffer(buffer, 0, 16, 33); list.BindUniformSnapshot(0, uniform.Capture());
@@ -157,9 +158,9 @@ public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestB
     {
         // Arrange: capture one dirty uniform revision and then publish newer bytes before dispatch.
         Start(); var context = RHICommandContext.Current; using var uniform = new PackedUniformBuffer(16);
-        uniform.SetBytes(Enumerable.Repeat((byte)7, 16).ToArray());
+        uniform.SetPayload(Enumerable.Repeat((byte)7, 16).ToArray());
         using var list = context.CreateCommandList(); list.BindUniformSnapshot(0, uniform.Capture()); list.Close(true);
-        uniform.SetBytes(Enumerable.Repeat((byte)9, 16).ToArray());
+        uniform.SetPayload(Enumerable.Repeat((byte)9, 16).ToArray());
         TestUniformRing.BeginFrame();
         // Act: submit the older capture and verify only its captured revision is committed.
         using (var boundary = context.EnterBoundary(list.Boundary))
@@ -307,7 +308,7 @@ public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestB
     {
         // Arrange: record a uniform snapshot and retain the allocator that owns its publication epoch.
         Start(); var context = RHICommandContext.Current; using var uniform = new PackedUniformBuffer(16);
-        uniform.SetBytes(Enumerable.Repeat((byte)3, 16).ToArray());
+        uniform.SetPayload(Enumerable.Repeat((byte)3, 16).ToArray());
         using var list = context.CreateCommandList(); list.BindUniformSnapshot(0, uniform.Capture()); list.Close();
         Assert.True(RHIUniformRingSystem.TryGetCurrent(out var allocator));
         RHIUniformRingSystem.ClearCurrent();

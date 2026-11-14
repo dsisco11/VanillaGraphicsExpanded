@@ -7,8 +7,13 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 internal sealed class CelestialDrawInputs : CpuUniformBuffer
 {
     #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 80;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+
     /// <summary>Allocates a std140 matrix and source metadata vector.</summary>
-    internal CelestialDrawInputs() : base(80) { }
+    internal CelestialDrawInputs() : base() { }
     /// <summary>Uses column-major GPU packing for the row-vector CPU rotation.</summary>
     internal void Capture(Matrix4x4 rotation, float inverseEncoding, float horizon)
     {

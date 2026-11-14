@@ -48,7 +48,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
             using var camera = TestFrameCamera.CreateIdentity(1, 1);
             shader.FrameInputs = camera; shader.GradingLookup = lookup;
             shader.SceneImage = source; shader.BloomImage = zero; shader.ShaftImage = zero; shader.ExposureBuffer=neutralExposure;
-            shader.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), Vector4.Zero);
+            shader.Capture(false, new(new(1, 1, 1, 0), 0, 0, 0, 0, 0, 0), 0, false, 0);
             ulong revision = 0;
             // Visit cold compile, binary hit, corrupt-binary recovery, then warm batch preload in a fixed order.
             // Act: Visit cold compile, binary hit, corrupt-binary recovery, and warm batch preload in fixed order.

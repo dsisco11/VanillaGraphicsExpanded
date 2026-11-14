@@ -2,6 +2,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 
 namespace VanillaGraphicsExpanded.Tests.Support.Lighting;
 
@@ -29,7 +30,7 @@ internal sealed class SolarSegmentProgram : GpuProgram
     {
         RequireInputMutation();
         UboPacking.WriteFloat(bytes, 0, elevation);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
     #endregion
 

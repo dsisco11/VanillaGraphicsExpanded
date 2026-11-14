@@ -8,14 +8,14 @@ public sealed class AtmosphereLinkedInterfaceRulesTests
 {
 
     #region Public API
-    /// <summary>The solar draw contract is enabled only when all four linked uniforms are present.</summary>
+    /// <summary>The atmosphere-owned sun-disk contract requires every linked draw uniform.</summary>
     [Theory]
     [InlineData(null, true)]
     [InlineData("vge_atmosphereSunDraw", false)]
     [InlineData("vge_atmosphereSun", false)]
     [InlineData("vge_atmosphereDisk", false)]
     [InlineData("vge_atmosphereDiskStorageScale", false)]
-    public void SolarContractRequiresCompleteLinkedInterface(string? missing, bool expected)
+    public void SunDiskContractRequiresCompleteLinkedInterface(string? missing, bool expected)
     {
         // Arrange: each theory row identifies one missing uniform while all other names remain linkable.
         // Act by resolving linked uniforms while omitting the name selected by this theory row.
@@ -31,10 +31,10 @@ public sealed class AtmosphereLinkedInterfaceRulesTests
     [InlineData("sky", AtmosphereBindings.None)]
     [InlineData("chunkopaque", AtmosphereBindings.Environment)]
     [InlineData("chunktopsoil", AtmosphereBindings.Environment)]
-    [InlineData("standard", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk | AtmosphereBindings.DirectRadius)]
-    [InlineData("entityanimated", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection | AtmosphereBindings.DirectRadius)]
-    [InlineData("instanced", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection | AtmosphereBindings.DirectRadius)]
-    [InlineData("chunktransparent", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection | AtmosphereBindings.DirectRadius)]
+    [InlineData("standard", AtmosphereBindings.Environment | AtmosphereBindings.Aerial | AtmosphereBindings.SunDisk)]
+    [InlineData("entityanimated", AtmosphereBindings.Environment | AtmosphereBindings.Aerial)]
+    [InlineData("instanced", AtmosphereBindings.Environment | AtmosphereBindings.Aerial)]
+    [InlineData("chunktransparent", AtmosphereBindings.Environment | AtmosphereBindings.Aerial)]
     public void PatchedFamiliesDeclareExpectedInputs(string family, object expected)
     {
         // Arrange: each theory row supplies a patched engine family and its expected linked binding set.
@@ -55,21 +55,31 @@ public sealed class AtmosphereLinkedInterfaceRulesTests
         Assert.Equal(AtmosphereBindings.None, AtmosphereProgramBindings.Resolve(family, _ => throw new InvalidOperationException("Unexpected discovery")));
     }
 
-    /// <summary>Linker-eliminated inputs are omitted and each expected name is inspected once.</summary>
+    /// <summary>Linker-eliminated inputs are omitted while discovery stays within the owned interface.</summary>
     [Fact]
     public void ResolveRetainsOnlyLinkedInputs()
     {
-        // Arrange: define one active aerial input and isolate linker discovery to that exact name.
+        // Arrange: link only aerial radiance and record the allowlisted names inspected by the resolver.
         var inspected = new List<string>();
-        // Act by resolving the standard family while reporting only the solar input as linked.
+        // Act by resolving the standard family while reporting only aerial radiance as linked.
         var active = AtmosphereProgramBindings.Resolve("standard", name =>
         {
             inspected.Add(name);
-            return name is "vge_atmosphereSolar";
+            return name is "vge_atmosphereAerialRadiance";
         });
-        // Assert only solar is retained and the resolver inspected each declared input once in order.
-        Assert.Equal(AtmosphereBindings.Solar, active);
-        Assert.Equal(new[] { "vge_atmosphereEnvironment", "vge_atmosphereSolar", "vge_atmosphereAerialParams", "vge_atmosphereAerialRadiance", "vge_atmosphereAerialAttenuation", "vge_atmosphereSunDirection", "vge_atmosphereDirectRadius", "vge_atmosphereSunDraw", "vge_lightShaftOcclusion", "vge_atmosphereScatteringSun" }, inspected);
+        // Assert only linked bits survive, names belong to this family's interface, and no name is queried twice.
+        // Complete sun-disk and scattering groups may stop discovery at their first inactive sibling.
+        Assert.Equal(AtmosphereBindings.AerialRadiance, active);
+        var standardInputs = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "vge_atmosphereEnvironment", "vge_atmosphereAerialParams", "vge_atmosphereAerialRadiance",
+            "vge_atmosphereAerialAttenuation", "vge_atmosphereSunDraw", "vge_atmosphereSun",
+            "vge_atmosphereDisk", "vge_atmosphereDiskStorageScale", "vge_lightShaftOcclusion",
+            "vge_atmosphereScatteringSun", "vge_atmosphereScatteringMoon"
+        };
+        Assert.Contains("vge_atmosphereAerialRadiance", inspected);
+        Assert.Equal(inspected.Count, inspected.Distinct(StringComparer.Ordinal).Count());
+        Assert.All(inspected, name => Assert.Contains(name, standardInputs));
     }
 
     /// <summary>A missing parameter or sibling sampler cannot suppress another active aerial input.</summary>

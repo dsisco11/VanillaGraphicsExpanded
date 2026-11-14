@@ -5,13 +5,13 @@ using VanillaGraphicsExpanded.Rendering;
 namespace VanillaGraphicsExpanded.Tests.Support.GPU.Native;
 
 /// <summary>Publishes test-owned controls alongside runtime engine GLSL compatibility interfaces.</summary>
-internal sealed class FixtureUniformInputs : CpuUniformBuffer
+internal sealed class FixtureUniformInputs(int size) : CpuUniformBuffer
 {
+    /// <summary>Reports the controlled fixture block size before base storage allocation.</summary>
+    public override int SizeBytes { get; } = size;
+
     #region Public API
     #region Interface setup
-    /// <summary>Creates inputs for a binary fixture with its block binding authored in source.</summary>
-    internal FixtureUniformInputs(int size) : base(size) { }
-
     /// <summary>Assigns the linked test block once without changing engine-owned numeric inputs.</summary>
     internal FixtureUniformInputs(int program, int size) : this(size)
     {

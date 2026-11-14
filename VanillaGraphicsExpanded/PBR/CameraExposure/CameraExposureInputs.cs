@@ -5,8 +5,13 @@ namespace VanillaGraphicsExpanded.PBR.CameraExposure;
 internal sealed class CameraExposureInputs : CpuUniformBuffer
 {
     #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 64;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+
     /// <summary>Reserves four vec4 slots for metering, bounds, timing and percentile policy.</summary>
-    internal CameraExposureInputs() : base(64) { }
+    internal CameraExposureInputs() : base() { }
     /// <summary>Stages one coherent settings snapshot and history validity for the submitted frame.</summary>
     internal void Capture(CameraExposureParameters settings, bool reset, bool localExposureEnabled=false)
     {

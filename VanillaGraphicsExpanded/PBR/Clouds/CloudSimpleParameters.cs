@@ -13,8 +13,36 @@ internal sealed class CloudSimpleParameters : CpuUniformBuffer
     private readonly float[] modelView = new float[16];
 
     #region Public API
+    #region Layout
+    internal const int ProjectionOffset = 0;
+    internal const int ViewOffset = 64;
+    internal const int OffsetLengthOffset = 128;
+    internal const int TileClockAlphaOffset = 144;
+    internal const int PerceptionOffset = 160;
+    internal const int PlayerOffset = 176;
+    internal const int SolarOffset = 192;
+    internal const int LunarOffset = 208;
+    internal const int EnvironmentOffset = 224;
+    internal const int SunDirectionOffset = 240;
+    internal const int MoonDirectionOffset = 256;
+    internal const int AerialParametersOffset = 272;
+    internal const int FogOffset = 288;
+    internal const int FogColorOffset = 304;
+    internal const int MurkOffset = 320;
+    internal const int ReservedOffset = 336;
+    internal const int FogSpheresOffset = 352;
+    internal const int FogMediaOffset = 368;
+    internal const int FogSphereStride = 32;
+    internal const int FogSphereCapacity = 3;
+    #endregion
+
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 448;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+
     /// <summary>Allocates matrices, fourteen vectors and three compact local fog records.</summary>
-    internal CloudSimpleParameters() : base(448) { }
+    internal CloudSimpleParameters() : base() { }
 
     /// <summary>Copies post-tick placement with the current camera; native artistic lighting is never captured.</summary>
     internal void Capture(ICoreClientAPI api, CloudSimpleInput input, AtmosphereLighting lighting)
@@ -43,7 +71,7 @@ internal sealed class CloudSimpleParameters : CpuUniformBuffer
             Vector4 medium = new(u.FogSpheres[start+4], u.FogSpheres[start+5], u.FogSpheres[start+6], u.FogSpheres[start+7]);
             Validate(sphere); Validate(medium);
             if (sphere.W <= 0 || medium.X < 0) throw new ArgumentException("Unsupported local cloud fog sphere.");
-            WriteVector4(352 + i * 32, sphere); WriteVector4(368 + i * 32, medium);
+            WriteVector4(FogSpheresOffset + i * FogSphereStride, sphere); WriteVector4(FogMediaOffset + i * FogSphereStride, medium);
         }
     }
 
@@ -65,9 +93,9 @@ internal sealed class CloudSimpleParameters : CpuUniformBuffer
         foreach (float value in projection) if (!float.IsFinite(value)) throw new ArgumentException("Invalid cloud projection.");
         foreach (float value in view) if (!float.IsFinite(value)) throw new ArgumentException("Invalid cloud view.");
         Validate(offsetLength); Validate(tileClockAlpha); Validate(perception); Validate(player);
-        WriteMatrix4(0, projection); WriteMatrix4(64, view);
-        WriteVector4(128, offsetLength); WriteVector4(144, tileClockAlpha);
-        WriteVector4(160, perception); WriteVector4(176, player);
+        WriteMatrix4(ProjectionOffset, projection); WriteMatrix4(ViewOffset, view);
+        WriteVector4(OffsetLengthOffset, offsetLength); WriteVector4(TileClockAlphaOffset, tileClockAlpha);
+        WriteVector4(PerceptionOffset, perception); WriteVector4(PlayerOffset, player);
     }
 
     /// <summary>Copies both extinguished celestial sources, E/pi environment and matching aerial decoding.</summary>
@@ -77,15 +105,15 @@ internal sealed class CloudSimpleParameters : CpuUniformBuffer
         Validate(fog); Validate(new(0, 0, 0, underwater));
         if (fog.X < 0 || !LightingCalibration.FiniteNonnegative(fogColor) || !LightingCalibration.FiniteNonnegative(murk))
             throw new ArgumentException("Unsupported Simple cloud medium.");
-        WriteVector4(192, new(lighting.Solar, 0)); WriteVector4(208, new(lighting.Lunar, 0));
-        WriteVector4(224, new(lighting.Environment, 0));
-        WriteVector4(240, new(Vector3.Normalize(lighting.Sun), 0)); WriteVector4(256, new(Vector3.Normalize(lighting.Moon), 0));
-        WriteVector4(272, new(lighting.Altitude, lighting.HorizonElevation, underwater, 1 / lighting.LookupStorageScale));
-        WriteVector4(288, fog);
-        WriteVector4(304, new(fogColor, 0));
-        WriteVector4(320, new(murk, 0));
+        WriteVector4(SolarOffset, new(lighting.Solar, 0)); WriteVector4(LunarOffset, new(lighting.Lunar, 0));
+        WriteVector4(EnvironmentOffset, new(lighting.Environment, 0));
+        WriteVector4(SunDirectionOffset, new(Vector3.Normalize(lighting.Sun), 0)); WriteVector4(MoonDirectionOffset, new(Vector3.Normalize(lighting.Moon), 0));
+        WriteVector4(AerialParametersOffset, new(lighting.Altitude, lighting.HorizonElevation, underwater, 1 / lighting.LookupStorageScale));
+        WriteVector4(FogOffset, fog);
+        WriteVector4(FogColorOffset, new(fogColor, 0));
+        WriteVector4(MurkOffset, new(murk, 0));
         // Last vector is reserved, keeping future layout changes explicit.
-        WriteVector4(336, Vector4.Zero);
+        WriteVector4(ReservedOffset, Vector4.Zero);
     }
     #endregion
 

@@ -28,17 +28,17 @@ namespace VanillaGraphicsExpanded.Tests.Integration.Rendering.Shadows;
 public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
-    /// <summary>Writes only surviving fragments into the exact cleared and frozen GPU-selected page tile.</summary>
+    /// <summary>Writes surviving fragments across a negative local texel into its exact frozen neighboring page.</summary>
     [Fact]
     public void ClippedFragmentsAtomicallyWriteOnlyTheirAssignedDepthTile()
     {
-        // Arrange: prepare a one-tile page pool and the precompiled test program that imports the production writer.
+        // Arrange: prepare two adjacent writable page assignments and the packaged production writer fixture.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         Assert.SkipWhen(GpuSupport.Graphics.MaxClipDistances < 4, "The context cannot execute the four-output clipped writer fixture.");
         using var assets = new BinaryShaderApiFixture();
         using var pool = ShadowPagePool.Create(assets.Api, new ShadowPageSettings
         {
-            MemoryMiB = 4, PageSize = 8, TileColumns = 1, TileRows = 1, ArrayLayers = 1,
+            MemoryMiB = 4, PageSize = 8, TileColumns = 2, TileRows = 1, ArrayLayers = 1,
             ProbeLimit = 1, OperationsPerBatch = 16
         });
         var source = new ShadowSourceKey(71, 0, ShadowSourceKind.Sun, 3, 9, 0);
@@ -48,6 +48,7 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
         var snapshot = ShadowProjectionSnapshot.Directional(projection, 0);
         var request = new ShadowPageRequest(ShadowPageOperation.Allocate, key,
             new ShadowBounds(-4, -4, -4, 4, 4, 4), 1, 1, 0, Projection: snapshot);
+        var negativeRequest = request with { Key = key with { X = -1 } };
         Assert.True(pool.BeginBatch());
         Assert.Equal(1, pool.Batch);
         Assert.True(pool.Execute(request));
@@ -56,6 +57,11 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
         int slot = checked((int)allocation[1]);
         Assert.NotEqual(0u, allocation[2]);
         PhysicalPage physical = ReadPhysical(pool, slot);
+        Assert.True(pool.ClearReplacement());
+        Assert.True(pool.Execute(negativeRequest));
+        var negativeAllocation = Read(pool.Results, 8);
+        Assert.Equal(0u, negativeAllocation[0]);
+        PhysicalPage negativePhysical = ReadPhysical(pool, checked((int)negativeAllocation[1]));
         Assert.True(pool.ClearReplacement());
         Assert.True(pool.FreezeWritableAssignments());
 
@@ -72,8 +78,9 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
         using var pipeline = commands.CreateGraphicsPipeline(new(shader, vertexLayout,
             commands.DescribeRenderTargets(pass), DynamicPipelineState.Viewport)).RequireResource();
 
-        // The small std140 block supplies the exact virtual key; the two SSBOs and all four images are real pool storage.
-        using var pageKey = WriterKeyBuffer(commands, pool, request);
+        // The test block supplies the virtual key and offset; both SSBOs and the single array image are real pool storage.
+        // Shift the surviving right half five texels left so its first pixel addresses page X=-1.
+        using var pageKey = WriterKeyBuffer(commands, pool, request, texelOffsetX: -5);
         var bindings = WriterBindings(shader, pool, pageKey);
 
         // Act: clip the left side in fixed-function rasterization, then run the shared production imageAtomicMin helper.
@@ -91,12 +98,16 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
                 commands.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureUpdate | ResourceAccess.TextureFetch));
             });
         }
-        // Assert: the clipped half retained the far clear value, while a surviving fragment atomically lowered depth.
+        // Assert: negative division selects the previous page's last column, and nearby fragments write page zero.
         var layer = pool.DepthArray;
         Assert.Equal(ShadowDepthEncoding.Clear, GpuLocalRead.UInt32(layer,
-            physical.TileX * pool.PageSize + 1, physical.TileY * pool.PageSize + 4, physical.Layer));
+            physical.TileX * pool.PageSize + 4, physical.TileY * pool.PageSize + 4, physical.Layer));
         Assert.Equal(ShadowDepthEncoding.Encode(0.25f), GpuLocalRead.UInt32(layer,
-            physical.TileX * pool.PageSize + 6, physical.TileY * pool.PageSize + 4, physical.Layer));
+            physical.TileX * pool.PageSize + 1, physical.TileY * pool.PageSize + 4, physical.Layer));
+        Assert.Equal(ShadowDepthEncoding.Clear, GpuLocalRead.UInt32(layer,
+            negativePhysical.TileX * pool.PageSize + 3, negativePhysical.TileY * pool.PageSize + 4, negativePhysical.Layer));
+        Assert.Equal(ShadowDepthEncoding.Encode(0.25f), GpuLocalRead.UInt32(layer,
+            negativePhysical.TileX * pool.PageSize + 7, negativePhysical.TileY * pool.PageSize + 4, negativePhysical.Layer));
         pool.SealBatch();
     }
 
@@ -262,26 +273,29 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
     }
 
     /// <summary>Allocates the exact std140 key/configuration block consumed by the packaged writer fixture.</summary>
-    private static GpuUniformBuffer WriterKeyBuffer(RHICommandContext commands, ShadowPagePool pool, ShadowPageRequest request)
+    private static GpuUniformBuffer WriterKeyBuffer(RHICommandContext commands, ShadowPagePool pool,
+        ShadowPageRequest request, int texelOffsetX = 0, int texelOffsetY = 0)
     {
         var buffer = commands.CreateUniformBuffer(new RHIBufferDescription
         {
             Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0,
             Usage = BufferUsage.DynamicDraw, Label = "Tests.Shadows.AtomicWriterKey"
         }).RequireResource();
-        buffer.Allocate(28 * sizeof(uint));
-        buffer.UploadSubData<uint>(WriterInputs(pool, request), 0);
+        buffer.Allocate(32 * sizeof(uint));
+        buffer.UploadSubData<uint>(WriterInputs(pool, request, texelOffsetX, texelOffsetY), 0);
         return buffer;
     }
 
     /// <summary>Packs the key, bounded lookup configuration and current batch in four-word uniform vectors.</summary>
-    private static uint[] WriterInputs(ShadowPagePool pool, ShadowPageRequest request)
+    private static uint[] WriterInputs(ShadowPagePool pool, ShadowPageRequest request,
+        int texelOffsetX = 0, int texelOffsetY = 0)
     {
-        uint[] words = new uint[28];
+        uint[] words = new uint[32];
         Array.Copy(request.Pack(), words, 17);
         words[20] = (uint)pool.Capacity; words[21] = (uint)pool.ProbeLimit;
         words[22] = (uint)pool.PageSize; words[23] = (uint)pool.ArrayLayers;
         words[24] = (uint)pool.Batch; words[25] = (uint)(pool.Batch >> 32);
+        words[28] = unchecked((uint)texelOffsetX); words[29] = unchecked((uint)texelOffsetY);
         return words;
     }
 
@@ -299,7 +313,7 @@ public sealed class ShadowAtomicWriteTests(HeadlessGLFixture fixture) : RenderTe
                 new(GpuBindingEntry.Identity(ShaderBindingKind.StorageBlock, "ShadowWritableAssignments"),
                     BufferRole.ShaderStorage, pool.WritableAssignments),
                 new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock, "ShadowAtomicWriterInputs"),
-                    BufferRole.Uniform, pageKey, Length: 28 * sizeof(uint), Whole: false)
+                    BufferRole.Uniform, pageKey, Length: 32 * sizeof(uint), Whole: false)
             ]);
 
     /// <summary>Uploads one synthetic far-to-near test value into only the nominated physical page tile.</summary>

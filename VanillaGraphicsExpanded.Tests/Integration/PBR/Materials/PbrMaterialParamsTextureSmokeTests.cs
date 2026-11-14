@@ -93,7 +93,7 @@ public sealed class PbrMaterialParamsTextureSmokeTests : RenderTestBase
         var program = programs.Create<BloomShaderProgram>();
         program.SourceImage = materialTex;
         program.SecondaryImage = materialTex;
-        program.Capture(System.Numerics.Vector4.Zero, System.Numerics.Vector4.Zero);
+        program.CaptureExtraction(true, false, 0, 0, 0, 0);
         var commands = RHICommandContext.Current;
         using var draw = new PostprocessDraw();
         var pipeline = draw.Prepare(program, output.PostprocessPass());

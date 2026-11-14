@@ -2,6 +2,7 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
@@ -32,7 +33,7 @@ internal sealed class AerialLookupProgram : GpuProgram
     internal void Capture(Vector3 displacement,float visibility)
     {
         RequireInputMutation();Array.Clear(bytes);UboPacking.WriteVec3(bytes,0,displacement.X,displacement.Y,displacement.Z);
-        UboPacking.WriteFloat(bytes,12,visibility);inputs.SetBytes(bytes);
+        UboPacking.WriteFloat(bytes,12,visibility);inputs.SetPayload(bytes);
     }
     /// <summary>Captures the direct three-band solar/lunar decode observation without another fixture executable.</summary>
     internal void CaptureCelestialDecoder(Vector3 ray)
@@ -45,7 +46,7 @@ internal sealed class AerialLookupProgram : GpuProgram
         UboPacking.WriteVec4(bytes, 48, 0, 1, 0, 0);
         UboPacking.WriteVec4(bytes, 64, 0, 0, 16, 0);
         UboPacking.WriteInt32(bytes, 80, 1);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
     #endregion
     #region Protected API

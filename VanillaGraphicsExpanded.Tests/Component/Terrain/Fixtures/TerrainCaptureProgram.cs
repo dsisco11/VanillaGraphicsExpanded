@@ -2,6 +2,7 @@ using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 
 namespace VanillaGraphicsExpanded.Tests.Component.Terrain.Fixtures;
 
@@ -27,7 +28,7 @@ internal abstract class TerrainCaptureProgram : GpuProgram
         RequireInputMutation();
         UboPacking.WriteVec4(bytes, 0, material.X, material.Y, material.Z, material.W);
         UboPacking.WriteVec4(bytes, 16, cutoff, 0, 0, 0);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
     #endregion
     #region Protected API

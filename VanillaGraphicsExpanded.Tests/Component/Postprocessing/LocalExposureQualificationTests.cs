@@ -36,7 +36,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
         using var lighting = new TestFrameLightingPublication(); lighting.Capture(scale);
         using var owner = new LocalExposureRenderer(); owner.FrameLightingInputs = lighting.Buffer;
         using var grading = new ColorGradingLut(); Vector4 controls = new(1, 1, 1, 0);
-        var lookup = grading.Prepare(Programs.Api, controls);
+        var lookup = grading.Prepare(Programs.Api, new(controls.X, controls.Y, controls.Z, controls.W));
         using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         using var zero = Scene([Vector3.Zero], 1, 1, scale);
         using var camera = TestFrameCamera.CreateIdentity(width, height);
@@ -59,7 +59,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
             double[] reference = ReferenceBase(pixels, width, height, 8, 4);
             ImageAssertions.Comparisons.CompareComponentDoubles(baseImage,reference,.00003,1).AssertEqual();
             final.SceneImage = source; final.LocalBase = baseImage;
-            final.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(ev, 1, 0, MathF.Log2(.18f))); final.CaptureLocal(policy);
+            final.Capture(false, new(new(controls.X, controls.Y, controls.Z, controls.W), 0, 0, 0, 0, 0, 0), ev, true, MathF.Log2(.18f)); final.CaptureLocal(policy);
             var pipeline = draw.Prepare(final,target.PostprocessPass());
             Submit(draw, pipeline, target,final.CaptureBindings());
             double minStops = 0, maxStops = 0;
@@ -118,7 +118,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
             program.FrameInputs = camera; program.FrameLightingInputs = lighting.Buffer; program.SceneImage = source;
             program.BloomImage = zero; program.ShaftImage = zero; program.GradingLookup = lookup; program.ExposureBuffer = history;
             program.LocalBase = spatial;
-            program.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(6, 1, 0, MathF.Log2(.18f))); program.CaptureLocal(policy);
+            program.Capture(false, new(new(1, 1, 1, 0), 0, 0, 0, 0, 0, 0), 6, true, MathF.Log2(.18f)); program.CaptureLocal(policy);
         }
         var globalPipeline = draw.Prepare(baseline,target.PostprocessPass()); var localPipeline = draw.Prepare(final,target.PostprocessPass());
         Action global = () => Submit(draw, globalPipeline, target,final.CaptureBindings());

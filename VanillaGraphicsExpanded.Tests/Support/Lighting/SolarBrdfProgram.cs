@@ -2,6 +2,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 
 namespace VanillaGraphicsExpanded.Tests.Support.Lighting;
 
@@ -35,7 +36,7 @@ internal sealed class SolarBrdfProgram : GpuProgram
         UboPacking.WriteFloat(bytes, 48, roughness);
         UboPacking.WriteFloat(bytes, 52, radius);
         UboPacking.WriteInt32(bytes, 56, mode);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
     #endregion
 

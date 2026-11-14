@@ -1,260 +1,74 @@
-using VanillaGraphicsExpanded.Rendering.Contracts;
-using System;
-
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
-
 using Vintagestory.API.Client;
-using Vintagestory.API.Common;
-using Vintagestory.API.MathTools;
-using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.PBR;
 
-/// <summary>
-/// Shader program for the PBR direct lighting pass.
-/// Renders a fullscreen pass that outputs split radiance buffers:
-/// - MRT0: Direct diffuse
-/// - MRT1: Direct specular
-/// - MRT2: Emissive
-/// </summary>
+/// <summary>Evaluates deferred surface lighting with shared current light and virtual-shadow inputs.</summary>
 [ShaderProgram("Contract", "pbr_direct_lighting", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_direct_lighting.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_direct_lighting.fsh")]
 public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDirectLightingShaderProgramBindings
 {
+    private VgeFrameUniformBuffer? frameInputs;
+    private VgeLightsUniformBuffer? lightsInputs;
+    private Shadows.SurfaceShadowInputSet? shadowInputs;
 
-
-    /// <summary>Uses the immutable declaration owned by this shader class.</summary>
-    internal override GpuShaderContract ProgramContract => Contract;
-
-    // Cached state for compound properties
-    private float _shadowRangeNear, _shadowRangeFar;
-    private float _shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity;
-
-    protected override GpuProgramLayout CreateLayout() => new PbrDirectLightingProgramLayout();
-
-    private PbrDirectLightingProgramLayout Layout => (PbrDirectLightingProgramLayout)ProgramLayout;
-
-    #region Static
-
+    #region Public API
+    /// <summary>Declares the independently prepared production SPIR-V program.</summary>
     public static void Register(ICoreClientAPI api)
     {
         GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new PBRDirectLightingShaderProgram
-        {
-            PassName = Contract.Identity,
-            AssetDomain = "vanillagraphicsexpanded"
-        });
-
+        { PassName = Contract.Identity, AssetDomain = Constants.ModId });
     }
 
-    #endregion
-
-    /// <summary>Exposes retained parameters with an owner mutation guard.</summary>
-    private PbrDirectLightingParamsUbo Params
-    {
-        get
-        {
-            var parameters = Layout.Params;
-            parameters.SetWriteGuard(RequireInputMutation);
-            return parameters;
-        }
-    }
-
-#region Texture Samplers
-
-    /// <summary>
-    /// Primary scene color (baseColor) texture (texture unit 0).
-    /// </summary>
+    /// <summary>Supplies the deferred base-color texture.</summary>
     public partial GpuTextureRef PrimaryScene { set; }
-
-    /// <summary>
-    /// Primary depth texture (texture unit 1).
-    /// </summary>
+    /// <summary>Supplies visibility depth for terrain and unbiased first-person reconstruction.</summary>
     public partial GpuTextureRef PrimaryDepth { set; }
-
-    /// <summary>Unbiased first-person view-space positions, independent of visibility depth.</summary>
+    /// <summary>Supplies explicitly retained first-person view positions.</summary>
     public partial GpuTextureRef GBufferPosition { set; }
-
-    /// <summary>Normal, material and environmental-irradiance layers for deferred lighting.</summary>
+    /// <summary>Supplies packed normal, material and environment layers.</summary>
     public partial GpuTextureRef GBufferSurface { set; }
 
-    /// <summary>
-    /// Near shadow map (texture unit 4).
-    /// Expected to be the depth texture of EnumFrameBuffer.ShadowmapNear.
-    /// </summary>
-    public partial GpuTextureRef ShadowMapNear { set; }
-
-    /// <summary>
-    /// Far shadow map (texture unit 5).
-    /// Expected to be the depth texture of EnumFrameBuffer.ShadowmapFar.
-    /// </summary>
-    public partial GpuTextureRef ShadowMapFar { set; }
-
-    #endregion
-
-    #region Matrices
-
-    /// <summary>Borrows a common frame snapshot for alternate views and fixtures.</summary>
-    private VgeFrameUniformBuffer? frameInputs;
+    /// <summary>Borrows a coherent alternate camera for independently owned views and fixtures.</summary>
     internal VgeFrameUniformBuffer? FrameInputs
     {
         get => frameInputs;
         set { RequireInputMutation(); frameInputs = value; }
     }
 
-    public float[] ToShadowMapSpaceMatrixNear
-    {
-        set
-        {
-            RequireInputMutation();
-            Params.ToShadowMapSpaceMatrixNear = value;
-        }
-    }
-
-    public float[] ToShadowMapSpaceMatrixFar
-    {
-        set
-        {
-            RequireInputMutation();
-            Params.ToShadowMapSpaceMatrixFar = value;
-        }
-    }
-
-    #endregion
-
-    #region Shadow ranges
-
-    /// <summary>Sets the effect-specific cascade ranges without republishing camera clip planes.</summary>
-    public (float near, float far) ShadowRanges
-    {
-        set
-        {
-            RequireInputMutation();
-            _shadowRangeNear = value.near;
-            _shadowRangeFar = value.far;
-            Params.ShadowRanges = value;
-        }
-    }
-
-    /// <summary>Sets the near cascade range while retaining the far cascade range.</summary>
-    public float ShadowRangeNear
-    {
-        set
-        {
-            RequireInputMutation();
-            _shadowRangeNear = value;
-            Params.ShadowRanges = (_shadowRangeNear, _shadowRangeFar);
-        }
-    }
-
-    /// <summary>Sets the far cascade range while retaining the near cascade range.</summary>
-    public float ShadowRangeFar
-    {
-        set
-        {
-            RequireInputMutation();
-            _shadowRangeFar = value;
-            Params.ShadowRanges = (_shadowRangeNear, _shadowRangeFar);
-        }
-    }
-
-    #endregion
-
-    #region Lighting
-
-    public Vec3f LightDirection
-    {
-        set
-        {
-            RequireInputMutation();
-            Params.LightDirection = new System.Numerics.Vector3(value.X, value.Y, value.Z);
-        }
-    }
-
-    public Vec3f RgbaAmbientIn
-    {
-        set
-        {
-            RequireInputMutation();
-            Params.RgbaAmbientIn = new System.Numerics.Vector3(value.X, value.Y, value.Z);
-        }
-    }
-
-    /// <summary>Supplies physical solar irradiance without changing the engine's point-light calibration.</summary>
-    internal void SetSolarIrradiance(System.Numerics.Vector3 value)
-    {
-        Params.RgbaLightIn = value;
-    }
-
-    /// <summary>Publishes direction and irradiance together from the same atmospheric generation.</summary>
-    internal void SetSolarLighting(System.Numerics.Vector3 direction, System.Numerics.Vector3 irradiance,
-        float angularRadius = Atmosphere.AtmosphereSolarDisk.AngularRadius)
-    {
-        Params.LightDirection = direction;
-        Params.RgbaLightIn = irradiance;
-        Params.DirectAngularRadius = angularRadius;
-    }
-
-    /// <summary>Sets physical solar irradiance using the engine vector API.</summary>
-    public Vec3f RgbaLightIn
-    {
-        set
-        {
-            RequireInputMutation();
-            Params.RgbaLightIn = new System.Numerics.Vector3(value.X, value.Y, value.Z);
-        }
-    }
-
-    #endregion
-
-    #region Shadows
-
-    public float ShadowZExtendNear
-    {
-        set
-        {
-            RequireInputMutation();
-            _shadowZExtendNear = value;
-            Params.ShadowExtendAndDrop = (_shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity);
-        }
-    }
-
-    public float ShadowZExtendFar
-    {
-        set
-        {
-            RequireInputMutation();
-            _shadowZExtendFar = value;
-            Params.ShadowExtendAndDrop = (_shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity);
-        }
-    }
-
-    public float DropShadowIntensity
-    {
-        set
-        {
-            RequireInputMutation();
-            _dropShadowIntensity = value;
-            Params.ShadowExtendAndDrop = (_shadowZExtendNear, _shadowZExtendFar, _dropShadowIntensity);
-        }
-    }
-
-    #endregion
-    private VgeLightsUniformBuffer? lightsInputs;
-    /// <summary>Borrows a caller-owned light snapshot for explicit alternate views.</summary>
+    /// <summary>Borrows the matching alternate illumination list without changing its ownership.</summary>
     internal VgeLightsUniformBuffer? LightsInputs
     {
         get => lightsInputs;
         set { RequireInputMutation(); lightsInputs = value; }
     }
 
-    #region Binding sources
-    /// <summary>Supplies packed parameters for one publication per use.</summary>
-    CpuUniformBuffer IPBRDirectLightingShaderProgramBindings.Parameters => Params;
-    /// <summary>Reuses the published camera block across direct and composite passes.</summary>
-    CpuUniformBuffer IPBRDirectLightingShaderProgramBindings.FrameInputs => FrameInputs ?? VgeFrameRenderer.Current;
-    /// <summary>Reuses the same shared engine list as forward and liquid shading.</summary>
-    CpuUniformBuffer IPBRDirectLightingShaderProgramBindings.LightsInputs => LightsInputs ?? VgeLightsRenderer.Current;
+    /// <summary>Borrows a matching light/shadow interval for an explicitly owned alternate view.</summary>
+    internal Shadows.SurfaceShadowInputSet? ShadowInputs
+    {
+        get => shadowInputs;
+        set { RequireInputMutation(); shadowInputs = value; }
+    }
+
+    /// <inheritdoc />
+    internal override GpuShaderContract ProgramContract => Contract;
+
+    /// <inheritdoc />
+    protected override GpuProgramLayout CreateLayout()
+    {
+        var layout = new GpuProgramLayout();
+        layout.RegisterContract(GpuShaderContracts.Create(Contract.Identity));
+        return layout;
+    }
+
+    /// <summary>Reuses the same camera block as surface reconstruction and other lighting passes.</summary>
+    CpuUniformBuffer IPBRDirectLightingShaderProgramBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
+    /// <summary>Reuses the shared illumination list independently of shadow admission.</summary>
+    CpuUniformBuffer IPBRDirectLightingShaderProgramBindings.LightsInputs => lightsInputs ?? VgeLightsRenderer.Current;
+    /// <summary>Uses the optional exact alternate shadow interval or the current shared frame set.</summary>
+    Shadows.SurfaceShadowInputSet? Shadows.ISurfaceShadowBindings.ShadowInputs => shadowInputs;
     #endregion
 }

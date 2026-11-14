@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 [ShaderStage("Contract",ShaderStageKind.Compute,"tests/cloud-volume-traversal.csh")]
 internal sealed partial class CloudVolumeTraversalProbeProgram:GpuComputeProgram,ICloudVolumeTraversalProbeBindings
 {
-    private readonly PackedUniformBuffer inputs=new(128);
+    private readonly CloudVolumeTraversalProbeParameters inputs=new();
     #region Public API
     /// <summary>Loads the one diagnostic traversal shader.</summary>
     internal static CloudVolumeTraversalProbeProgram Create(ICoreAPI api)
@@ -25,16 +25,8 @@ internal sealed partial class CloudVolumeTraversalProbeProgram:GpuComputeProgram
     /// <summary>Captures native-local geometry and optional deliberately reduced test operation cap.</summary>
     internal void Capture(CloudVolumeDomain d,Vector3 origin,Vector3 direction,float length,int limit=0)
     {
-        RequireInputMutation();Span<byte> data=stackalloc byte[128];data.Clear();
-        UboPacking.WriteIVec4(data,0,d.Size,CloudVolumeDomain.Height,d.Size,limit);
-        UboPacking.WriteIVec4(data,16,d.SlotX,d.SlotZ,d.BlocksX,d.BlocksY);
-        UboPacking.WriteVec4(data,32,(float)(d.FirstX*CloudVolumeDomain.HorizontalCell-d.AnchorX),(float)(d.Bottom-d.VerticalCell),
-            (float)(d.FirstZ*CloudVolumeDomain.HorizontalCell-d.AnchorZ),0);
-        UboPacking.WriteVec4(data,48,(float)CloudVolumeDomain.HorizontalCell,d.VerticalCell,(float)CloudVolumeDomain.HorizontalCell,0);
-        UboPacking.WriteVec4(data,64,0,(float)d.Bottom,0,0);
-        UboPacking.WriteVec4(data,80,50*d.Width,(float)(d.Bottom+d.Band),50*d.Width,0);
-        UboPacking.WriteVec4(data,96,origin.X,origin.Y,origin.Z,length);
-        UboPacking.WriteVec4(data,112,direction.X,direction.Y,direction.Z,0);inputs.SetBytes(data);
+        RequireInputMutation();
+        inputs.Capture(d, origin, direction, length, limit);
     }
     #endregion
     #region Private

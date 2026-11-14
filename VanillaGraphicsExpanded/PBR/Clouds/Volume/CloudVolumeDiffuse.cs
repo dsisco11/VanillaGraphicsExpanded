@@ -101,7 +101,7 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
     internal CloudVolumeDiffuseProgram Prepare(bool shadows)
     {
         var caps=GpuSupport.Graphics;
-        if(caps.MaxUniformBlockSize<208||caps.MaxComputeTextureImageUnits<(shadows?3:2)||
+        if(caps.MaxUniformBlockSize < CloudVolumeDiffuseParameters.BlockSize||caps.MaxComputeTextureImageUnits<(shadows?3:2)||
             caps.MaxCombinedTextureImageUnits<(shadows?3:2)||caps.MaxComputeShaderStorageBlocks<2||caps.MaxShaderStorageBufferBindings<2||
             caps.MaxComputeWorkGroupInvocations<256||caps.MaxComputeWorkGroupSize.Length<3||
             caps.MaxComputeWorkGroupSize[0]<256||caps.MaxComputeSharedMemorySize<6144||caps.MaxComputeWorkGroupSize[1]<4||caps.MaxComputeWorkGroupSize[2]<8)

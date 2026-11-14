@@ -15,6 +15,13 @@ internal sealed class ShadowProjectionSnapshot
     internal bool IsPoint { get; }
     internal Vector3d PositionOrForward { get; }
     internal int PageSize => checked((int)words[1]);
+    internal int FaceResolution => checked((int)words[2]);
+    internal Vector3d Right => ReadVector(4);
+    internal Vector3d Up => ReadVector(10);
+    internal Vector3d Forward => ReadVector(16);
+    internal double Near => ReadNumber(22);
+    internal double Far => ReadNumber(24);
+    internal double TexelWidth => ReadNumber(26);
 
     #region Public API
     /// <summary>Retains one directional level's exact basis, depth range and world texel width.</summary>
@@ -49,6 +56,10 @@ internal sealed class ShadowProjectionSnapshot
     #endregion
 
     #region Private
+    /// <summary>Reads immutable CPU projection scalars used to prepare translated shader frames.</summary>
+    private double ReadNumber(int offset) => BitConverter.Int64BitsToDouble(unchecked((long)(((ulong)words[offset + 1] << 32) | words[offset])));
+    /// <summary>Reads one immutable high-precision CPU basis vector.</summary>
+    private Vector3d ReadVector(int offset) => new(ReadNumber(offset), ReadNumber(offset + 2), ReadNumber(offset + 4));
     /// <summary>Freezes source identity while factories construct the only supported projection forms.</summary>
     private ShadowProjectionSnapshot(ShadowSourceKey source, long generation, int faceOrLevel, bool point, Vector3d positionOrForward)
     { Source = source; Generation = generation; FaceOrLevel = faceOrLevel; IsPoint = point; PositionOrForward = positionOrForward; }

@@ -113,7 +113,7 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         ((ILumOnFrameShader)program).FrameInputs = frameCamera;
         using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
-        frame.Allocate(112);
+        frame.Allocate(LumOnFrameParameters.BlockSize);
         program.FrameUniformBuffer = frame;
         AssignRequiredTextures(program, texture);
         using var scene = new TraceGeometryGpuScene(32);

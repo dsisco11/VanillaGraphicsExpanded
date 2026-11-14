@@ -40,7 +40,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         shader.SourceImage=source; shader.SecondaryImage=source; shader.ExposureBuffer=exposure;
         // Act and assert: Draw at each selected EV/mode and verify threshold weight without changing source radiance.
-        shader.Capture(new(0,0,0,automatic?1:0),new(2,.5f,1,automatic?-8:ev)); Draw(shader,target);
+        shader.CaptureExtraction(true, automatic, 2, .5f, 1, automatic ? -8 : ev); Draw(shader,target);
         Assert.InRange(target[0].ReadTexel()[0],weight-.00001f,weight+.00001f);
         Assert.Equal(new[]{1f,1f,1f,.3f},source.ReadPixels());
     }
@@ -57,17 +57,17 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         // Act and assert: Render colored threshold cases, bypass, and three knee positions through the production shader.
         shader.SecondaryImage=red;
-        shader.SourceImage=red; shader.Capture(Vector4.Zero,new(1,0,1,0)); Draw(shader,target);
+        shader.SourceImage=red; shader.CaptureExtraction(true, false, 1, 0, 1, 0); Draw(shader,target);
         Assert.Equal(0,target[0].ReadTexel()[0]);
         shader.SourceImage=green; Draw(shader,target);
         Assert.Equal(4,Assertions.GpuLocalRead.Scalar(target[0], 1));
-        shader.SourceImage=red; shader.Capture(Vector4.Zero,new(0,.5f,.25f,-20)); Draw(shader,target);
+        shader.SourceImage=red; shader.CaptureExtraction(true, false, 0, .5f, .25f, -20); Draw(shader,target);
         Assert.Equal(new[]{1f,0f,0f,1f},target[0].ReadPixels());
         using var knee=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[1f,1f,1f,1f]);
         shader.SourceImage=knee;
         foreach(float threshold in new[]{.999f,1f,1.001f})
         {
-            shader.Capture(Vector4.Zero,new(threshold,.5f,1,0)); Draw(shader,target);
+            shader.CaptureExtraction(true, false, threshold, .5f, 1, 0); Draw(shader,target);
             float t=Math.Clamp((1-threshold*.5f)/threshold,0,1);
             float expected=t*t*(3-2*t);
             Assert.InRange(target[0].ReadTexel()[0],expected-.00001f,expected+.00001f);
@@ -84,7 +84,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         shader.SourceImage=source;shader.SecondaryImage=source;
         // Act and assert: Select each source before reduction and require the lone highlight to survive the 2x2 average.
-        shader.Capture(Vector4.Zero,new(2,0,1,0));Draw(shader,target);
+        shader.CaptureExtraction(true, false, 2, 0, 1, 0);Draw(shader,target);
         Assert.Equal(new[]{1f,1f,1f,1f},target[0].ReadPixels());
     }
 
@@ -103,7 +103,8 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         foreach(int mode in new[]{1,2,3,4})
         {
             if(mode is 2 or 3)shader.CaptureGaussian(4,mode==3);
-            else shader.Capture(new(4,0,mode,mode==4?1:0),mode==4?new(.25f,.25f,.25f,0):Vector4.Zero);
+            else if (mode == 4) shader.CaptureAccumulation(new(.25f), true);
+            else shader.CaptureExtraction(false, false, 0, 0, 0, 0);
             Draw(shader,target);
             ImageAssertions.Predicates.Predicate(target[0], LightingPredicates.OwnedPostprocessShaderTests_BloomThresholdAndConstantEnergyAreDefined).AssertEqual();
         }

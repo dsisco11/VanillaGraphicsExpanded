@@ -14,34 +14,68 @@ internal static class TestFrameCamera
     /// <summary>Recaptures a complete exported frame through the owner's validation while preserving every AO camera field.</summary>
     internal static VgeFrameUniformBuffer CreateFromPacked(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.Length != 544 && bytes.Length != 560 && bytes.Length != 576 && bytes.Length != VgeFrameUniformBuffer.PackedSize)
+        if (bytes.Length != VgeFrameUniformBuffer.LightingCalibrationOffset
+            && bytes.Length != VgeFrameUniformBuffer.SkyCalibrationOffset
+            && bytes.Length != VgeFrameUniformBuffer.AccessorBlockCalibrationOffset
+            && bytes.Length != VgeFrameUniformBuffer.PackedSize)
             throw new ArgumentException("Captured camera prefix must match a supported frame layout.", nameof(bytes));
         var values = MemoryMarshal.Cast<byte, float>(bytes);
-        var origin = UboPacking.ReadIVec4(bytes, 512);
+        var origin = UboPacking.ReadIVec4(bytes, VgeFrameUniformBuffer.RenderOriginChunkOffset);
+        int matrixFloatCount = VgeFrameUniformBuffer.MatrixSizeBytes / sizeof(float);
         var camera = new VgeFrameUniformBuffer();
         // Decode typed scalars instead of mutating protected storage. Capture recomputes only
         // the inverse view-projection matrix; AO borrows the exact view and inverse projection.
-        camera.Capture(values[..16], values.Slice(16, 16), values.Slice(32, 16), values.Slice(48, 16),
-            values.Slice(64, 16), values.Slice(80, 16), new(values[96], values[97]), values[98],
-            UboPacking.ReadUInt32(bytes, 396), new(values[100], values[101], values[102]),
-            new(values[104], values[105], values[106]), values[107], new(values[124], values[125]),
-            new VectorInt3(origin.x, origin.y, origin.z), new(values[132], values[133], values[134]),
-            values[126], (UboPacking.ReadUInt32(bytes, 508) & 1u) != 0, values[103]);
-        if (bytes.Length == 560)
-            camera.SetLightingCalibration(new(values[136], values[137]));
-        else if (bytes.Length == 576)
-            camera.SetLightingCalibration(new(values[136], values[137], values[139], values[140],
-                values[141], values[142], values[143]));
+        camera.Capture(values.Slice(FloatIndex(VgeFrameUniformBuffer.ProjectionOffset), matrixFloatCount),
+            values.Slice(FloatIndex(VgeFrameUniformBuffer.ViewOffset), matrixFloatCount),
+            values.Slice(FloatIndex(VgeFrameUniformBuffer.InverseProjectionOffset), matrixFloatCount),
+            values.Slice(FloatIndex(VgeFrameUniformBuffer.InverseViewOffset), matrixFloatCount),
+            values.Slice(FloatIndex(VgeFrameUniformBuffer.PreviousViewProjectionOffset), matrixFloatCount),
+            values.Slice(FloatIndex(VgeFrameUniformBuffer.CurrentViewProjectionOffset), matrixFloatCount),
+            new(values[FloatIndex(VgeFrameUniformBuffer.ScreenSizeOffset)], values[FloatIndex(VgeFrameUniformBuffer.ScreenSizeOffset) + 1]),
+            values[FloatIndex(VgeFrameUniformBuffer.TimeSecondsOffset)],
+            UboPacking.ReadUInt32(bytes, VgeFrameUniformBuffer.FrameIndexOffset),
+            new(values[FloatIndex(VgeFrameUniformBuffer.CameraPositionOffset)], values[FloatIndex(VgeFrameUniformBuffer.CameraPositionOffset) + 1],
+                values[FloatIndex(VgeFrameUniformBuffer.CameraPositionOffset) + 2]),
+            new(values[FloatIndex(VgeFrameUniformBuffer.FogColorOffset)], values[FloatIndex(VgeFrameUniformBuffer.FogColorOffset) + 1],
+                values[FloatIndex(VgeFrameUniformBuffer.FogColorOffset) + 2]),
+            values[FloatIndex(VgeFrameUniformBuffer.FogColorOffset) + 3],
+            new(values[FloatIndex(VgeFrameUniformBuffer.ClipPlanesOffset)], values[FloatIndex(VgeFrameUniformBuffer.ClipPlanesOffset) + 1]),
+            new VectorInt3(origin.x, origin.y, origin.z),
+            new(values[FloatIndex(VgeFrameUniformBuffer.RenderOriginRemainderOffset)], values[FloatIndex(VgeFrameUniformBuffer.RenderOriginRemainderOffset) + 1],
+                values[FloatIndex(VgeFrameUniformBuffer.RenderOriginRemainderOffset) + 2]),
+            values[FloatIndex(VgeFrameUniformBuffer.DeltaTimeOffset)],
+            (UboPacking.ReadUInt32(bytes, VgeFrameUniformBuffer.FrameFlagsOffset) & 1u) != 0,
+            values[FloatIndex(VgeFrameUniformBuffer.CameraPositionOffset) + 3]);
+        if (bytes.Length == VgeFrameUniformBuffer.SkyCalibrationOffset)
+            camera.SetLightingCalibration(new(values[FloatIndex(VgeFrameUniformBuffer.LightingCalibrationOffset)],
+                values[FloatIndex(VgeFrameUniformBuffer.LightingCalibrationOffset) + 1]));
+        else if (bytes.Length == VgeFrameUniformBuffer.AccessorBlockCalibrationOffset)
+            camera.SetLightingCalibration(new(values[FloatIndex(VgeFrameUniformBuffer.LightingCalibrationOffset)],
+                values[FloatIndex(VgeFrameUniformBuffer.LightingCalibrationOffset) + 1],
+                values[FloatIndex(VgeFrameUniformBuffer.LightingCalibrationOffset) + 3],
+                values[FloatIndex(VgeFrameUniformBuffer.SkyCalibrationOffset)],
+                values[FloatIndex(VgeFrameUniformBuffer.SkyCalibrationOffset) + 1],
+                values[FloatIndex(VgeFrameUniformBuffer.SkyCalibrationOffset) + 2],
+                values[FloatIndex(VgeFrameUniformBuffer.SkyCalibrationOffset) + 3]));
         else if (bytes.Length == VgeFrameUniformBuffer.PackedSize)
-            camera.SetLightingCalibration(new(values[136], values[137], values[139], values[140],
-                values[141], values[142], values[143], values[144], values[145]));
+            camera.SetLightingCalibration(new(values[FloatIndex(VgeFrameUniformBuffer.LightingCalibrationOffset)],
+                values[FloatIndex(VgeFrameUniformBuffer.LightingCalibrationOffset) + 1],
+                values[FloatIndex(VgeFrameUniformBuffer.LightingCalibrationOffset) + 3],
+                values[FloatIndex(VgeFrameUniformBuffer.SkyCalibrationOffset)],
+                values[FloatIndex(VgeFrameUniformBuffer.SkyCalibrationOffset) + 1],
+                values[FloatIndex(VgeFrameUniformBuffer.SkyCalibrationOffset) + 2],
+                values[FloatIndex(VgeFrameUniformBuffer.SkyCalibrationOffset) + 3],
+                values[FloatIndex(VgeFrameUniformBuffer.AccessorBlockCalibrationOffset)],
+                values[FloatIndex(VgeFrameUniformBuffer.AccessorBlockCalibrationOffset) + 1]));
         return camera;
     }
     #endregion
 
     #region Analytic camera construction
     /// <summary>Inverts the supplied transforms and captures a consistent current and previous camera generation.</summary>
-    internal static VgeFrameUniformBuffer Create(float[] inverseProjection, float[] view, int width = 1, int height = 1, float near = .1f, float far = 100, Vector3 fogColor = default, float fogDensity = 0, float fogMinimum = 0)
+    internal static VgeFrameUniformBuffer Create(float[] inverseProjection, float[] view, int width = 1, int height = 1,
+        float near = .1f, float far = 100, Vector3 fogColor = default, float fogDensity = 0, float fogMinimum = 0,
+        VectorInt3 renderOriginChunkCoord = default, Vector3 renderOriginBlockRemainder = default)
     {
         // Fixtures supply inverse projection because they author depth analytically; derive its matching forward matrix.
         float[] projection = new float[16], inverseView = new float[16], viewProjection = new float[16];
@@ -50,7 +84,8 @@ internal static class TestFrameCamera
         Mat4f.Mul(viewProjection, projection, view);
         var camera = new VgeFrameUniformBuffer();
         camera.Capture(projection, view, inverseProjection, inverseView, viewProjection, viewProjection,
-            new Vector2(width, height), 0, 0, Vector3.Zero, fogColor, fogDensity, new(near, far), fogMinimum: fogMinimum);
+            new Vector2(width, height), 0, 0, Vector3.Zero, fogColor, fogDensity, new(near, far),
+            renderOriginChunkCoord, renderOriginBlockRemainder, fogMinimum: fogMinimum);
         return camera;
     }
     /// <summary>Provides a neutral camera for screen-space fixtures while retaining the actual output dimensions.</summary>
@@ -97,12 +132,20 @@ internal static class TestFrameCamera
     }
 
     /// <summary>Matches direct-lighting fixtures that author the inverse view transform of their receiver geometry.</summary>
-    internal static VgeFrameUniformBuffer CreateFromInverseView(float[] inverseProjection, float[] inverseView, int width = 1, int height = 1, float near = .1f, float far = 100)
+    internal static VgeFrameUniformBuffer CreateFromInverseView(float[] inverseProjection, float[] inverseView,
+        int width = 1, int height = 1, float near = .1f, float far = 100,
+        VectorInt3 renderOriginChunkCoord = default, Vector3 renderOriginBlockRemainder = default)
     {
         float[] view = new float[16];
         Mat4f.Invert(view, inverseView);
-        return Create(inverseProjection, view, width, height, near, far);
+        return Create(inverseProjection, view, width, height, near, far,
+            renderOriginChunkCoord: renderOriginChunkCoord, renderOriginBlockRemainder: renderOriginBlockRemainder);
     }
     #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Converts an owner-declared byte offset to a float index for the captured std140 payload.</summary>
+    private static int FloatIndex(int offsetBytes) => offsetBytes / sizeof(float);
     #endregion
 }

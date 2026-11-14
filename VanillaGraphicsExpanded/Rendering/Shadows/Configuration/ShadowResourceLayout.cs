@@ -17,7 +17,7 @@ internal static class ShadowResourceLayout
         int lookup=2;
         while(lookup<settings.Inputs.ChunkCapacity*2L)lookup=checked(lookup*2);
         long world=checked(lookup*64L+Math.Max(32,settings.Inputs.RangeCapacity*32L));
-        long readiness=checked(128+s.LightCapacity*(784L+1152L)+s.DemandRequests*1280L);
+        long readiness=checked(128+s.LightCapacity*(800L+1152L)+s.DemandRequests*1536L);
         long history=checked(s.ProjectionHistoryCapacity*1024L);
         long fixedBytes=checked(pages+candidates+world+readiness+history+4096);
         long drawing=settings.Drawing.MemoryMiB*1048576L,requested=s.MemoryMiB*1048576L;

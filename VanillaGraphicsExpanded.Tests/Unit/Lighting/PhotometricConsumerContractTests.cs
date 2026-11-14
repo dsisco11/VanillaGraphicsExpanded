@@ -23,7 +23,7 @@ public sealed class PhotometricConsumerContractTests
         // Act and assert: identical values are no-ops, valid changes advance identity, and invalid values preserve the last payload.
         frame.SetLightingCalibration(calibration);
         uint original = frame.CalibrationGeneration;
-        Assert.Equal(original, MemoryMarshal.Read<uint>(frame.Bytes[584..]));
+        Assert.Equal(original, MemoryMarshal.Read<uint>(frame.Bytes[VgeFrameUniformBuffer.CalibrationGenerationOffset..]));
         ulong content = (ulong)revision.GetValue(frame)!;
         byte[] payload = frame.Bytes.ToArray();
         frame.SetLightingCalibration(calibration);
@@ -32,7 +32,7 @@ public sealed class PhotometricConsumerContractTests
         Assert.Equal(payload, frame.Bytes.ToArray());
         frame.SetLightingCalibration(calibration with { AccessorBlockReferenceLux = 120 });
         Assert.Equal(original + 1, frame.CalibrationGeneration);
-        Assert.Equal(original + 1, MemoryMarshal.Read<uint>(frame.Bytes[584..]));
+        Assert.Equal(original + 1, MemoryMarshal.Read<uint>(frame.Bytes[VgeFrameUniformBuffer.CalibrationGenerationOffset..]));
         payload = frame.Bytes.ToArray();
         content = (ulong)revision.GetValue(frame)!;
         Assert.Throws<ArgumentOutOfRangeException>(() => frame.SetLightingCalibration(calibration with { BlockReferenceLux = float.NaN }));

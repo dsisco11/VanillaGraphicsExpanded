@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shadows.Geometry;
 [ShaderUse("Contract", ShaderStageKind.Vertex, nameof(Waving))]
 internal sealed partial class ShadowStaticShader : ShadowNativeMaterialShader, IShadowStaticBindings
 {
-    private readonly PackedUniformBuffer flags = new(16);
+    private readonly ShadowObjectParameters flags = new();
     /// <inheritdoc />
     internal override GpuShaderContract ProgramContract => Contract;
 
@@ -34,10 +34,8 @@ internal sealed partial class ShadowStaticShader : ShadowNativeMaterialShader, I
     /// <summary>Freezes exact native renderer flags before resource capture.</summary>
     internal void CaptureFlags(int addedFlags, int dontWarpVertices)
     {
-        if (dontWarpVertices is < 0 or > 2) throw new ArgumentOutOfRangeException(nameof(dontWarpVertices));
-        Span<byte> data = stackalloc byte[16]; data.Clear();
-        UboPacking.WriteInt32(data, 0, addedFlags); UboPacking.WriteInt32(data, 4, dontWarpVertices);
-        RequireInputMutation(); flags.SetBytes(data);
+        RequireInputMutation();
+        flags.SetFlags(addedFlags, dontWarpVertices);
     }
 
     /// <summary>Loads an exact precompiled native material variant without runtime source compilation.</summary>

@@ -7,8 +7,13 @@ namespace VanillaGraphicsExpanded.PBR.CameraExposure;
 internal sealed class FrameLightingInputs : CpuUniformBuffer
 {
     #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 32;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+
     /// <summary>Allocates two std140 vectors under the existing program-owned input allocator.</summary>
-    internal FrameLightingInputs() : base(32) { }
+    internal FrameLightingInputs() : base() { }
     /// <summary>Validates the entire selection domain before changing the retained publication.</summary>
     internal void Capture(float physicalBound, float manualMultiplier, bool automaticHistory, uint frame, uint calibrationGeneration)
     {

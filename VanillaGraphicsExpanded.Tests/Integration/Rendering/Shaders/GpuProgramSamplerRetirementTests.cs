@@ -10,6 +10,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
 using Vintagestory.API.Client;
 using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+using VanillaGraphicsExpanded.Tests.Support.Lighting;
 
 namespace VanillaGraphicsExpanded.Tests.Integration.Rendering.Shaders;
 
@@ -22,14 +23,14 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
 
     #region Public API
     #region Engine handoff
-    /// <summary>Disposing the boundary retires shadow comparison samplers before engine texture reuse.</summary>
+    /// <summary>Disposing the boundary retires the shared shadow-array sampler before engine texture reuse.</summary>
     [Fact]
     public void DirectLightingBoundaryRestoresContractSamplers()
     {
         // Arrange
         EnsureContextValid();
-        int[] priorSamplers = new int[3];
-        int[] samplerUnits = [4, 5, 9];
+        int[] samplerUnits = [33, 9];
+        int[] priorSamplers = new int[samplerUnits.Length];
         for (int index = 0; index < samplerUnits.Length; index++)
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, samplerUnits[index], out priorSamplers[index]);
         try
@@ -37,8 +38,10 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         using var programs = new ComponentShaderPrograms();
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
         using var lights = new VgeLightsUniformBuffer();
+        using var shadowInputs = SurfaceShadowTestInputs.Create(System.Numerics.Vector3.UnitY, System.Numerics.Vector3.Zero);
         TestUniformRing.EnsureFrame();
         var program = programs.Create<PBRDirectLightingShaderProgram>(owner => { owner.FrameInputs = camera; owner.LightsInputs = lights; });
+            program.ShadowInputs = shadowInputs;
         using var depth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.DepthComponent32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var input = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var unrelated = RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource();
@@ -48,26 +51,28 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
             program.GBufferPosition = input;
             using var surfaceInput1 = LayeredTestTexture.Create(ImageAssertions.Programs, input, null, null);
             program.GBufferSurface = surfaceInput1;
-            program.ShadowMapNear = depth;
-            program.ShadowMapFar = depth;
             using var pipeline = ShaderBindingTestPipeline.Create(program);
             var context=RHICommandContext.Current;
+            // Emulate the engine's default sampler on the VSM slot while retaining a distinct sampler on an unrelated unit.
+            var state = OpenGlStateCache.Current;
+            OpenGLImageBindings.BindSampler(state, 33, 0);
+            int[] incomingSamplers = new int[samplerUnits.Length];
+            for (int index = 0; index < samplerUnits.Length; index++)
+                GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, samplerUnits[index], out incomingSamplers[index]);
+            Assert.Equal(0, incomingSamplers[0]);
+            Assert.Equal(unrelated.SamplerId, incomingSamplers[1]);
             using var boundary=context.EnterBoundary(new("Tests.ShadowSampler.Restoration",true,graphics:[pipeline]));
             // Act
             context.SetPipeline(pipeline);context.BindResources(program.CaptureBindings());
-            GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 4, out int nearSampler);
-            GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 5, out int farSampler);
+            GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 33, out int shadowSampler);
             // Assert
-            Assert.NotEqual(0, nearSampler);
-            Assert.NotEqual(0, farSampler);
+            Assert.NotEqual(0, shadowSampler);
             // The concrete VGE facade withdraws the generated sampler footprint.
             boundary.Dispose();
-            GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 4, out nearSampler);
-            GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 5, out farSampler);
-            Assert.Equal(0, nearSampler);
-            Assert.Equal(0, farSampler);
+            GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 33, out shadowSampler);
+            Assert.Equal(incomingSamplers[0], shadowSampler);
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 9, out int retained);
-            Assert.Equal(unrelated.SamplerId, retained);
+            Assert.Equal(incomingSamplers[1], retained);
             AssertPlainTextureHandoff();
         }
         finally

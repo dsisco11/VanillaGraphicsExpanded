@@ -37,8 +37,8 @@ the same transport backend and retained medium table. A complete publication als
 separately budgeted airglow and the diffuse integral of the owned stars/galaxy. Cloud-volume
 transport remains outside this model.
 
-The compatibility ambient reference is `Environment + DirectIrradiance / pi`, representing a
-white surface facing the selected celestial source, with no additional visibility or incidence factor. Apply
+The compatibility ambient reference is `Environment + (Solar + Lunar) / pi`, representing a
+white reference under both celestial contributions, with no additional visibility or incidence factor. Apply
 the shared unit-exposure peak-preserving shoulder and sRGB transfer for legacy color consumers.
 Fog uses the same transfer on `Horizon`. Compatibility daylight is clamped Rec.709-weighted
 luminance of that encoded ambient reference; it is an artistic visibility scalar, not physical
@@ -102,7 +102,7 @@ Engine ambient RGB is a combined sunlight tint/brightness multiplier: installed
 `fogandlight.vsh` multiplies it by voxel sunlight brightness. Ambient blending linearly mixes
 ordered modifiers, then scales ambient by scene brightness and fog by scene and fog brightness;
 it does not apply a color transfer. Therefore do not assign diffuse-only `Environment` directly.
-Derive a documented compatibility response from `DirectIrradiance` and `Environment`, accounting for the
+Derive a documented compatibility response from `Solar + Lunar` and `Environment`, accounting for the
 consumer's existing sunlight factor and avoiding double lighting in patched PBR paths. Derive
 fog approximation from `Horizon` or a documented directional sky sample.
 Never reinterpret irradiance as display RGB. The engine adapter must

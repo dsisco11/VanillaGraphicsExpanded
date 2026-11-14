@@ -6,8 +6,9 @@ layout(std430,binding=2) buffer PageResults { uint results[]; };
 layout(std430,binding=3) buffer WritableAssignments { uvec4 writable[]; };
 // Command prefix: capacity, reserved, probes, reserved, batch low/high, completed low/high.
 // Each 128-word entry has key[0..16], state[20], assignment[21..22], retirement[23..24],
-// required batch[25..26], coverage doubles[28..39], world/scene epoch/sequence[40..45].
+// required batch[25..26], chunk/local coverage pairs[28..39], world/scene epoch/sequence[40..45].
 // Rendered time[46..47], first invalidation[60..61], projection[64..97], invalidated flag[110].
+@import "../includes/shadows/certificates.glsl"
 #define C(i) commands[16u+uint(i)]
 #define E(s,i) entries[(s)*128u+uint(i)]
 /// Compares low/high unsigned pairs without requiring 64-bit integer shader extensions.
@@ -22,11 +23,11 @@ bool dependenciesEqual(uint s) {
 /// Tests bounded depth-inclusive enclosure plus exact applied scene dependencies.
 bool covers(uint s) {
     for(uint i=0u;i<3u;i++) {
-        double lo=packDouble2x32(uvec2(E(s,28u+2u*i),E(s,29u+2u*i)));
-        double hi=packDouble2x32(uvec2(E(s,34u+2u*i),E(s,35u+2u*i)));
-        double a=packDouble2x32(uvec2(C(28u+2u*i),C(29u+2u*i)));
-        double b=packDouble2x32(uvec2(C(34u+2u*i),C(35u+2u*i)));
-        if(isnan(a)||isnan(b)||isinf(a)||isinf(b)||a>b||a<lo||b>hi) return false;
+        uint a=28u+2u*i,b=34u+2u*i;
+        uvec2 lo=uvec2(E(s,a),E(s,a+1u)),hi=uvec2(E(s,b),E(s,b+1u));
+        uvec2 x=uvec2(C(a),C(a+1u)),y=uvec2(C(b),C(b+1u));
+        if(!shadowEndpointValid(lo)||!shadowEndpointValid(hi)||!shadowEndpointValid(x)||!shadowEndpointValid(y)||!shadowEndpointLeq(x,y)||
+            !shadowEndpointLeq(lo,x)||!shadowEndpointLeq(y,hi)) return false;
     }
     return E(s,110)==0u && dependenciesEqual(s);
 }
@@ -36,9 +37,13 @@ void retire(uint s) { E(s,20)=3u; E(s,23)=commands[4]; E(s,24)=commands[5]; }
 void requireRegion(uint s) {
     bool first=E(s,25)!=commands[4] || E(s,26)!=commands[5];
     for(uint i=0u;i<6u;i++) {
-        double value=packDouble2x32(uvec2(C(28u+2u*i),C(29u+2u*i)));
-        if(!first) { double old=packDouble2x32(uvec2(E(s,48u+2u*i),E(s,49u+2u*i))); value=i<3u?min(old,value):max(old,value); }
-        uvec2 bits=unpackDouble2x32(value); E(s,48u+2u*i)=bits.x; E(s,49u+2u*i)=bits.y;
+        uvec2 value=uvec2(C(28u+2u*i),C(29u+2u*i));
+        if(!first) {
+            uvec2 old=uvec2(E(s,48u+2u*i),E(s,49u+2u*i));
+            bool oldFirst=shadowEndpointLeq(old,value);
+            if(i<3u?oldFirst:!oldFirst) value=old;
+        }
+        E(s,48u+2u*i)=value.x; E(s,49u+2u*i)=value.y;
     }
     E(s,25)=commands[4]; E(s,26)=commands[5];
 }
@@ -46,9 +51,9 @@ void requireRegion(uint s) {
 bool containsRequired(uint s) {
     if(E(s,25)!=commands[4] || E(s,26)!=commands[5]) return true;
     for(uint i=0u;i<6u;i++) {
-        double required=packDouble2x32(uvec2(E(s,48u+2u*i),E(s,49u+2u*i)));
-        double proposed=packDouble2x32(uvec2(C(28u+2u*i),C(29u+2u*i)));
-        if(i<3u?proposed>required:proposed<required) return false;
+        uvec2 required=uvec2(E(s,48u+2u*i),E(s,49u+2u*i));
+        uvec2 proposed=uvec2(C(28u+2u*i),C(29u+2u*i));
+        if(i<3u?!shadowEndpointLeq(proposed,required):!shadowEndpointLeq(required,proposed)) return false;
     }
     return true;
 }
@@ -78,21 +83,21 @@ uint retainedFor(uint building) {
 bool enclosesDemand(uint building,uint required) {
     if(required>=commands[0] || E(required,25)!=commands[4] || E(required,26)!=commands[5]) return true;
     for(uint i=0u;i<6u;i++) {
-        double bound=packDouble2x32(uvec2(E(building,28u+2u*i),E(building,29u+2u*i)));
-        double demand=packDouble2x32(uvec2(E(required,48u+2u*i),E(required,49u+2u*i)));
-        if(i<3u?bound>demand:bound<demand) return false;
+        uvec2 bound=uvec2(E(building,28u+2u*i),E(building,29u+2u*i));
+        uvec2 demand=uvec2(E(required,48u+2u*i),E(required,49u+2u*i));
+        if(i<3u?!shadowEndpointLeq(bound,demand):!shadowEndpointLeq(demand,bound)) return false;
     }
     return true;
 }
 /// Validates the entire batch before publishing any member, then retires incomplete replacements on failure.
 void finishReplacements() {
     bool complete=C(27)==1u && commands[12]!=0u;
-    double when=packDouble2x32(uvec2(C(46),C(47)));
+    uvec2 when=uvec2(C(46),C(47));
     for(uint s=0u;s<commands[0];s++) {
         if(belongsToBatch(s)) {
-            double started=packDouble2x32(uvec2(E(s,46),E(s,47)));
+            uvec2 started=uvec2(E(s,46),E(s,47));
             if(E(s,27)!=1u || any(notEqual(writable[s],uvec4(E(s,21),E(s,22),commands[4],commands[5]))) ||
-                !dependenciesEqual(s) || isnan(when) || isinf(when) || when<started ||
+                !dependenciesEqual(s) || !shadowPairLeq(started,when) ||
                 !enclosesDemand(s,s) || !enclosesDemand(s,retainedFor(s))) complete=false;
         }
     }
@@ -122,8 +127,7 @@ void main() {
         any(notEqual(uvec2(C(126),C(127)),uvec2(commands[4],commands[5]))))) return;
     if(op==12u) { finishReplacements(); return; }
     if(op==15u) {
-        double when=packDouble2x32(uvec2(C(46),C(47)));
-        if(isnan(when)||isinf(when)||when<0.0lf) return;
+        uvec2 when=uvec2(C(46),C(47));
         for(uint s=0u;s<capacity;s++) {
             if(E(s,20)!=2u || !keyEqual(s,12u)) continue;
             bool same=C(27)==1u && dependenciesEqual(s) && E(s,64)==C(64) && E(s,65)==C(65);
@@ -131,19 +135,18 @@ void main() {
             uint start=C(64)==1u?92u:80u;
             for(uint i=start;i<start+6u;i++)if(E(s,i)!=C(i))same=false;
             if(same)continue;
-            double rendered=packDouble2x32(uvec2(E(s,46),E(s,47)));
-            double previous=packDouble2x32(uvec2(E(s,60),E(s,61)));
-            if(when<rendered)continue;
-            if(E(s,110)==0u || when<previous){E(s,60)=C(46);E(s,61)=C(47);E(s,110)=1u;}
+            uvec2 rendered=uvec2(E(s,46),E(s,47));
+            uvec2 previous=uvec2(E(s,60),E(s,61));
+            if(!shadowPairLeq(rendered,when))continue;
+            if(E(s,110)==0u || !shadowPairLeq(previous,when)){E(s,60)=C(46);E(s,61)=C(47);E(s,110)=1u;}
         }
         answer(0u,capacity);return;
     }
     if(op==1u || op==2u) {
-        double nearDepth=packDouble2x32(uvec2(C(86),C(87)));
-        double farDepth=packDouble2x32(uvec2(C(88),C(89)));
-        if(C(64)>1u || C(65)!=commands[10] || C(65)==0u || isnan(nearDepth)||isinf(nearDepth)||
-            isnan(farDepth)||isinf(farDepth)||farDepth<=nearDepth ||
-            (C(64)==1u && (nearDepth<=0.0lf || C(66)<C(65) || C(66)%C(65)!=0u))) return;
+        uvec2 nearDepth=uvec2(C(86),C(87)),farDepth=uvec2(C(88),C(89));
+        if(C(64)>1u || C(65)!=commands[10] || C(65)==0u || !shadowScalarFinite(nearDepth)||
+            !shadowScalarFinite(farDepth)||!shadowScalarLess(nearDepth,farDepth) ||
+            (C(64)==1u && (!shadowScalarLess(uvec2(0),nearDepth) || C(66)<C(65) || C(66)%C(65)!=0u))) return;
     }
     if(op==10u) {
         if(commands[12]!=0u) return;
@@ -185,12 +188,12 @@ void main() {
         if(oldSlot==capacity) return;
         if(op==14u && C(27)==1u && dependenciesEqual(oldSlot) && E(oldSlot,12)==C(126) && E(oldSlot,13)==C(127))
             { answer(0u,oldSlot);return; }
-        double when=packDouble2x32(uvec2(C(46),C(47)));
-        double rendered=packDouble2x32(uvec2(E(oldSlot,46),E(oldSlot,47)));
-        if(isnan(when)||isinf(when)||when<rendered) { answer(4u,capacity); return; }
+        uvec2 when=uvec2(C(46),C(47));
+        uvec2 rendered=uvec2(E(oldSlot,46),E(oldSlot,47));
+        if(!shadowPairLeq(rendered,when)) { answer(4u,capacity); return; }
         // Repeated scene edits or motion cannot extend the original invalidation deadline.
-        double previous=packDouble2x32(uvec2(E(oldSlot,60),E(oldSlot,61)));
-        if(E(oldSlot,110)==0u || when<previous) { E(oldSlot,60)=C(46); E(oldSlot,61)=C(47); E(oldSlot,110)=1u; }
+        uvec2 previous=uvec2(E(oldSlot,60),E(oldSlot,61));
+        if(E(oldSlot,110)==0u || !shadowPairLeq(previous,when)) { E(oldSlot,60)=C(46); E(oldSlot,61)=C(47); E(oldSlot,110)=1u; }
         answer(0u,oldSlot); return;
     }
     if(op==9u) {
@@ -216,9 +219,9 @@ void main() {
         for(uint i=0u;i<12u;i++) if(E(building,28u+i)!=C(28u+i)) { answer(4u,capacity); return; }
         if(!dependenciesEqual(building)) { answer(4u,capacity); return; }
         for(uint i=64u;i<98u;i++) if(E(building,i)!=C(i)) { answer(4u,capacity); return; }
-        double timestamp=packDouble2x32(uvec2(C(46),C(47)));
-        double started=packDouble2x32(uvec2(E(building,46),E(building,47)));
-        if(isnan(timestamp)||isinf(timestamp)||timestamp<started) { answer(4u,capacity); return; }
+        uvec2 timestamp=uvec2(C(46),C(47));
+        uvec2 started=uvec2(E(building,46),E(building,47));
+        if(!shadowPairLeq(started,timestamp)) { answer(4u,capacity); return; }
         if(!containsRequired(building) || (oldSlot<capacity && !containsRequired(oldSlot))) { answer(6u,capacity); return; }
         E(building,20)=2u; E(building,27)=0u; E(building,25)=commands[4]; E(building,26)=commands[5];
         E(building,46)=C(46); E(building,47)=C(47); E(building,110)=0u;

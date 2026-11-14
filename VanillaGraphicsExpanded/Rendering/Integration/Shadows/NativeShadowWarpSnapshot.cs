@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Shadows.Geometry;
 using System;
 using Vintagestory.API.Client;
 
@@ -33,15 +34,10 @@ internal sealed class NativeShadowWarpSnapshot
         }
     }
 
-    /// <summary>Writes the frozen shared native warp fields while preserving material-specific origin and padding.</summary>
-    internal void Pack(Span<byte> data, float? windIntensity = null)
-    {
-        UboPacking.WriteVec4(data, 80, values[0], values[1], values[2], BitConverter.ToSingle(data.Slice(92, 4)));
-        UboPacking.WriteVec4(data, 96, values[3], values[4], values[5], values[6]);
-        UboPacking.WriteVec4(data, 112, values[7], values[8], values[9], windIntensity ?? values[10]);
-        UboPacking.WriteVec4(data, 128, values[11], 0, values[12], 0);
-        UboPacking.WriteInt32(data, 132, perception);
-    }
+    /// <summary>Exposes frozen semantic deformation values without leaking the material byte layout.</summary>
+    internal ShadowDeformationInputs Deformation => new(
+        new(values[0], values[1], values[2]), new(values[3], values[4], values[5], values[6]),
+        new(values[7], values[8], values[9], values[10]), values[11], perception, values[12]);
     #endregion
 
     #region Private

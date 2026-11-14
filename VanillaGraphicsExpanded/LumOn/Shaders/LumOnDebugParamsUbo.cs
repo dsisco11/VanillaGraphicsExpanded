@@ -11,6 +11,11 @@ namespace VanillaGraphicsExpanded.LumOn.Shaders;
 /// </summary>
 public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
 {
+    #region Public API
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => UboSizeBytes;
+    #endregion
+
     public const string BlockName = "VgeLumOnDebugParamsUBO";
     public const int UboSizeBytes = 128;
 
@@ -21,7 +26,7 @@ public sealed class LumOnDebugParamsUbo : CpuUniformBuffer
     private const int OffsetCompositeTintIntensity = 96;
     private const int OffsetAoStrengths = 112;
 
-    public LumOnDebugParamsUbo() : base(UboSizeBytes)
+    public LumOnDebugParamsUbo() : base()
     {
     }
 

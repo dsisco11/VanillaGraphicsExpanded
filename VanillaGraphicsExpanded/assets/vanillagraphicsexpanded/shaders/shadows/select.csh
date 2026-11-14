@@ -10,6 +10,8 @@ layout(std430, binding=3) readonly buffer SelectionCoordinates { ivec4 coordinat
 layout(std430, binding=4) readonly buffer SelectionRanges { uint ranges[]; };
 layout(std430, binding=5) buffer SelectionOutput { uint outputWords[]; };
 
+@import "../includes/shadows/certificates.glsl"
+
 uint visits, pairs, instances, triangles, samples, failure;
 
 /// Charges all candidate, native-range and lookup visits, including duplicates and rejected inputs.
@@ -44,33 +46,31 @@ bool findChunk(ivec4 coordinate,out uint index) {
 /// Rejects only a complete fixed partition outside one homogeneous XY clipping plane.
 bool intersects(ivec4 coordinate,uint view) {
     uint v=32u+view*64u;
-    // Whole-column construction avoids a driver SPIR-V ingestion defect for
-    // dynamically indexed writes to double-precision matrix components.
-    dmat4 matrix=dmat4(mat4(
+    if(coordinate.w!=int(inputs[v+26u])) return false;
+    mat4 matrix=mat4(
         uintBitsToFloat(uvec4(inputs[v],inputs[v+1u],inputs[v+2u],inputs[v+3u])),
         uintBitsToFloat(uvec4(inputs[v+4u],inputs[v+5u],inputs[v+6u],inputs[v+7u])),
         uintBitsToFloat(uvec4(inputs[v+8u],inputs[v+9u],inputs[v+10u],inputs[v+11u])),
-        uintBitsToFloat(uvec4(inputs[v+12u],inputs[v+13u],inputs[v+14u],inputs[v+15u]))));
-    dvec3 origin=dvec3(packDouble2x32(uvec2(inputs[v+44u],inputs[v+45u])),
-        packDouble2x32(uvec2(inputs[v+46u],inputs[v+47u])),
-        packDouble2x32(uvec2(inputs[v+48u],inputs[v+49u])));
-    dvec2 size=dvec2(inputs[v+18u],inputs[v+19u]);
-    dvec4 rectangle=dvec4(inputs[v+20u],inputs[v+21u],inputs[v+22u],inputs[v+23u]);
-    rectangle=rectangle/dvec4(size,size)*2.0lf-1.0lf;
+        uintBitsToFloat(uvec4(inputs[v+12u],inputs[v+13u],inputs[v+14u],inputs[v+15u])));
+    vec3 relative;
+    for(uint axis=0u;axis<3u;axis++)
+        relative[axis]=shadowCellDelta(coordinate[axis],int(inputs[v+44u+2u*axis]))*32.0-
+            uintBitsToFloat(inputs[v+45u+2u*axis]);
+    vec2 size=vec2(inputs[v+18u],inputs[v+19u]);
+    vec4 rectangle=vec4(inputs[v+20u],inputs[v+21u],inputs[v+22u],inputs[v+23u]);
+    rectangle=rectangle/vec4(size,size)*2.0-1.0;
     bvec4 outside=bvec4(true);
-    double padding=double(uintBitsToFloat(inputs[19]));
+    float padding=float(uintBitsToFloat(inputs[19]));
     for(uint corner=0u;corner<8u;corner++) {
-        dvec3 p=dvec3(coordinate.xyz)*32.0lf-origin+
-            dvec3((corner&1u)!=0u?32.0lf+padding:-padding,(corner&2u)!=0u?32.0lf+padding:-padding,
-                (corner&4u)!=0u?32.0lf+padding:-padding);
-        if(coordinate.w!=1) p.y+=double(coordinate.w)*32768.0lf;
-        dvec4 clip=matrix*dvec4(p,1.0lf);
+        vec3 p=relative+vec3((corner&1u)!=0u?32.0+padding:-padding,
+            (corner&2u)!=0u?32.0+padding:-padding,(corner&4u)!=0u?32.0+padding:-padding);
+        vec4 clip=matrix*vec4(p,1.0);
         // Scale the forward error by the projection coefficients as well as position:
         // fine virtual texels can amplify even a small float position rounding error.
-        dvec4 magnitude=abs(matrix[0])*(abs(p.x)+64.0lf)+abs(matrix[1])*(abs(p.y)+64.0lf)+
-            abs(matrix[2])*(abs(p.z)+64.0lf)+abs(matrix[3]);
-        dvec4 error=(dvec4(magnitude.xy,magnitude.xy)+abs(rectangle)*magnitude.w+1.0lf)*1.0e-5lf;
-        dvec4 planes=dvec4(clip.x-rectangle.x*clip.w,clip.y-rectangle.y*clip.w,
+        vec4 magnitude=abs(matrix[0])*(abs(p.x)+64.0)+abs(matrix[1])*(abs(p.y)+64.0)+
+            abs(matrix[2])*(abs(p.z)+64.0)+abs(matrix[3]);
+        vec4 error=(vec4(magnitude.xy,magnitude.xy)+abs(rectangle)*magnitude.w+1.0)*1.0e-5;
+        vec4 planes=vec4(clip.x-rectangle.x*clip.w,clip.y-rectangle.y*clip.w,
             rectangle.z*clip.w-clip.x,rectangle.w*clip.w-clip.y);
         outside=bvec4(outside.x&&planes.x < -error.x,outside.y&&planes.y < -error.y,
             outside.z&&planes.z < -error.z,outside.w&&planes.w < -error.w);

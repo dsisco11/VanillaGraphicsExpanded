@@ -1,4 +1,4 @@
-#version 330 core
+#version 450 core
 @import "./includes/pbr_scene_storage.glsl"
 @import "./includes/gbuffer_layers.glsl"
 
@@ -16,14 +16,9 @@ uniform sampler2D gBufferPosition; // Unbiased first-person view position, selec
 // VGE G-buffer inputs
 uniform sampler2DArray gBufferSurface;
 
-@import "./includes/pbr_direct_lighting_params_ubo.glsl"
-
-// Shadows (wired in Phase 16.3/16.4; shader defines the surface now)
-uniform sampler2DShadow shadowMapNear;
-uniform sampler2DShadow shadowMapFar;
+@import "./includes/pbr_direct_lighting_inputs.glsl"
 
 @import "./includes/pbr_common.glsl"
-@import "./includes/pbr_shadowmaps.glsl"
 
 const float PI = 3.141592653589793;
 
@@ -43,6 +38,7 @@ vec3 reconstructViewPos(vec2 texCoord, float depth)
 }
 
 @import "./includes/pbr_direct_brdf.glsl"
+@import "./includes/pbr_celestial_direct.glsl"
 
 void main()
 {
@@ -83,34 +79,20 @@ void main()
     vec3 accumDiffuse = vec3(0.0);
     vec3 accumSpecular = vec3(0.0);
 
-    // Directional (sun)
-    vec3 Lsun = normalize(lightDirection);
-    float sunVis;
-    float sunPcfVis;
-    pbrComputeSunShadowVisibility(worldPosRel, sunVis, sunPcfVis);
-    // Match forward lighting: propagated sunlight supplements geometric shadow visibility.
+    // Both celestial sources use the current illumination snapshot; their shadows may
+    // use independently retained rendered mappings selected by the shared readiness gate.
     float skyVisibility = texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).a;
-    addFiniteDiskDirectLight(
-        baseColor,
-        N,
-        V,
-        Lsun,
-        rgbaLightIn * skyVisibility,
-        roughness,
-        metallic,
-        vgePbrDirect.lightDir0.w > 0.0 ? vgePbrDirect.lightDir0.w : VGE_SOLAR_ANGULAR_RADIUS,
-        accumDiffuse,
-        accumSpecular);
-
-    accumDiffuse *= sunVis;
-    accumSpecular *= sunPcfVis;
-
-    vec3 transmission = VgeTransmission(baseColor, N, V, Lsun, rgbaLightIn * skyVisibility,
-        metallic, m.a, sunPcfVis, roughness);
+    vec3 transmission = vec3(0.0);
+    VgeAccumulateCelestialDirect(0, vgeSurfaceSunDirection, vgeSurfaceSolar, vgeSurfaceSunRadius,
+        worldPosRel, baseColor, N, V, skyVisibility, roughness, metallic, m.a,
+        accumDiffuse, accumSpecular, transmission);
+    VgeAccumulateCelestialDirect(1, vgeSurfaceMoonDirection, vgeSurfaceLunar, vgeSurfaceMoonRadius,
+        worldPosRel, baseColor, N, V, skyVisibility, roughness, metallic, m.a,
+        accumDiffuse, accumSpecular, transmission);
 
     // Vanilla passes camPos into applyLight: its point-light array is in view space.
     // Measure distance there, then rotate the direction into the world space of N and V.
-    int count = clamp(pointLightsCount, 0, 100);
+    int count = clamp(pointLightsCount, 0, vgeLights.positions.length());
     for (int i = 0; i < count; i++)
     {
         vec3 lp = vgeLights.positions[i].xyz;
@@ -125,7 +107,8 @@ void main()
             N,
             V,
             L,
-            VgePointIlluminance(vgeLights.colors[i], distSq),
+            VgePointIlluminance(vgeLights.colors[i], distSq)
+                * vgeSurfaceShadowVisibility(2 + i, worldPosRel, N),
             roughness,
             metallic,
             accumDiffuse,

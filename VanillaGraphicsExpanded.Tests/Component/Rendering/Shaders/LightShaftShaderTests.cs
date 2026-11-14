@@ -43,7 +43,8 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         using var history = ExposureTestStorage.Create(ev);
         using var target=TestFramework.CreateTestGBuffer(65,33,TextureFormat.Rgba32f);
         shader.SourceImage=scene;shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureBuffer=history;
-        shader.Capture(new(0,0,0,automatic?1:0),new(1,2,.5f,automatic?-ev:ev),new(.5f,.5f,1,65f/33),new(1,1,1,10));
+        shader.CaptureExtraction(false, automatic, 1, 2, .5f, automatic ? -ev : ev,
+            new(new(.5f, .5f), 1, 65f / 33, Vector3.One, 10));
         Draw(shader,target);
         float[] actual=target[0].ReadPixelsRegion(32, 16, 1, 1);float expected=MathF.Pow(2,-ev)*scale;
         Assert.InRange(actual[0],expected-.0001f,expected+.0001f);
@@ -70,14 +71,14 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         using var bloom=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         using var visibility=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         shader.SourceImage=scene;shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureBuffer=neutralExposure;
-        var sun=new Vector4(.5f,.5f,daylight,65f/33);
-        shader.Capture(new(0,0,0,0),new(1,2,.5f,0),sun,new(1,1,1,10));Draw(shader,extracted);
+        var sun=new LightShaftSource(new(.5f,.5f),daylight,65f/33,Vector3.One,10);
+        shader.CaptureExtraction(false,false,1,2,.5f,0,sun);Draw(shader,extracted);
         float[] source=extracted[0].ReadPixelsRegion(32, 16, 1, 1);
         if(depthValue==1&&daylight==1)Assert.True(source[0]>.9f);
         if(daylight==0)Assert.Equal(0,source[0]);
         if(depthValue<1) {Assert.Equal(0,source[0]);Assert.InRange(source[3],0,.01f);} else if(daylight>0) Assert.Equal(1,source[3]);
-        shader.SourceImage=extracted[0];shader.Capture(new(0,0,2,0),Vector4.Zero,sun);Draw(shader,bloom);
-        shader.Capture(new(0,0,3,0),Vector4.Zero,sun);Draw(shader,visibility);
+        shader.SourceImage=extracted[0];shader.CaptureResolve(false,sun);Draw(shader,bloom);
+        shader.CaptureResolve(true,sun);Draw(shader,visibility);
         float[] light=bloom[0].ReadPixels(),maskResult=visibility[0].ReadPixels();
         Assert.Equal(source[..3],light[..3]);Assert.Equal(1,light[3]);
         float expected=daylight==0?0:1-source[3];
@@ -96,9 +97,9 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         using var neutralExposure = ExposureTestStorage.Create(0);
         using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         shader.SourceImage=source;shader.VisibilityImage=source;shader.DepthImage=source;shader.ExposureBuffer=neutralExposure;
-        shader.Capture(new(0,0,1,3),new(1,0,0,0),new(.5f,.5f,1,2));Draw(shader,target);
+        shader.CaptureFilter(3,1,new(new(.5f,.5f),1,2,Vector3.One));Draw(shader,target);
         Assert.Equal(new[]{4f,2f,1f,.25f},target[0].ReadPixels());
-        shader.Capture(new(0,0,1,3),new(1,0,0,0),new(3,.5f,1,2));Draw(shader,target);
+        shader.CaptureFilter(3,1,new(new(3,.5f),1,2,Vector3.One));Draw(shader,target);
         float[] outside=target[0].ReadPixels();Assert.InRange(outside[0],4f/3-.00001f,4f/3+.00001f);Assert.Equal(.75f,outside[3]);
     }
 
@@ -115,7 +116,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         using var neutralExposure = ExposureTestStorage.Create(0);
         using var target=TestFramework.CreateTestGBuffer(width,height,TextureFormat.Rgba32f);
         shader.SourceImage=source;shader.VisibilityImage=source;shader.DepthImage=source;shader.ExposureBuffer=neutralExposure;
-        shader.Capture(new(0,0,1,32),new(.75f,0,0,0),new(.5f,.5f,1,(float)width/height));Draw(shader,target);
+        shader.CaptureFilter(32,.75f,new(new(.5f,.5f),1,(float)width/height,Vector3.One));Draw(shader,target);
         Assert.True(target[0].ReadPixelsRegion(38,16,1,1)[0]>0);
         Assert.True(target[0].ReadPixelsRegion(32,22,1,1)[0]>0);
         ImageAssertions.Predicates.Predicate(target[0], LightingPredicates.LightShaftShaderTests_RadialFilterProducesBoundedSpatialHalo).AssertEqual();
@@ -136,14 +137,14 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         using var b=TestFramework.CreateTestGBuffer(320,180,TextureFormat.Rgba16f);
         using var published=TestFramework.CreateTestGBuffer(320,180,TextureFormat.Rgba16f);
         shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureBuffer=neutralExposure;
-        var sun=new Vector4(.5f,.5f,1,16f/9);var solar=new Vector4(1,1,1,128);var timings=new List<double>();
+        var sun=new LightShaftSource(new(.5f,.5f),1,16f/9,Vector3.One,128);var timings=new List<double>();
         for(int sample=-1;sample<5;sample++)
         {
             using var timer=GpuTimerQuery.Create();timer.Begin();
-            shader.SourceImage=source;shader.Capture(new(0,0,0,0),new(1,2,.5f,0),sun,solar);Draw(shader,a);
-            shader.SourceImage=a[0];shader.Capture(new(0,0,1,16),new(.12f,0,0,0),sun,solar);Draw(shader,b);
-            shader.SourceImage=b[0];shader.Capture(new(0,0,1,16),new(.36f,0,0,0),sun,solar);Draw(shader,a);
-            shader.SourceImage=a[0];shader.Capture(new(0,0,2,0),Vector4.Zero,sun,solar);Draw(shader,published);
+            shader.SourceImage=source;shader.CaptureExtraction(false,false,1,2,.5f,0,sun);Draw(shader,a);
+            shader.SourceImage=a[0];shader.CaptureFilter(16,.12f,sun);Draw(shader,b);
+            shader.SourceImage=b[0];shader.CaptureFilter(16,.36f,sun);Draw(shader,a);
+            shader.SourceImage=a[0];shader.CaptureResolve(false,sun);Draw(shader,published);
             timer.End();double ms=timer.GetResultNanoseconds()/1e6;if(sample>=0)timings.Add(ms);
         }
         // Report the warmed synthetic pass timings and payload; no live-frame performance threshold is asserted.

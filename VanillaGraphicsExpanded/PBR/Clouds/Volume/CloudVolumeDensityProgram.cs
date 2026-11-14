@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 [ShaderUse("Contract",ShaderStageKind.Compute,nameof(Quality))]
 internal sealed partial class CloudVolumeDensityProgram : GpuComputeProgram, ICloudVolumeDensityBindings
 {
-    private readonly PackedUniformBuffer inputs;
+    private readonly CloudVolumeDensityParameters inputs;
     #region Public API
     /// <summary>Selects one compiled workload profile for the entire executable lifetime.</summary>
     [ShaderOptionReference(typeof(CloudVolumeQualityOptions),nameof(CloudVolumeQualityOptions.Level))]
@@ -26,7 +26,7 @@ internal sealed partial class CloudVolumeDensityProgram : GpuComputeProgram, ICl
     [ShaderOption("VGE_VOLUME_DENSITY_DETAIL",true)]
     internal static partial ShaderOption<bool> Detail { get; }
     /// <summary>Loads only the selected structural operation and density variant.</summary>
-    internal static CloudVolumeDensityProgram Create(ICoreAPI api,int operation,bool detail,PackedUniformBuffer? shared=null,int quality=2)
+    internal static CloudVolumeDensityProgram Create(ICoreAPI api,int operation,bool detail,CloudVolumeDensityParameters? shared=null,int quality=2)
     {
         var layout=new GpuProgramLayout();layout.RegisterContract(Contract.Stages[0].Bindings);
         if(!ComputeShaderAsset.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation).With(Detail,detail).With(Quality,quality),
@@ -36,24 +36,14 @@ internal sealed partial class CloudVolumeDensityProgram : GpuComputeProgram, ICl
     /// <summary>Captures relative keys and physical units without persisting a native map handle.</summary>
     internal void Capture(CloudVolumeDomain domain,long x,long z,CloudVolumeDensityState state,uint frame,bool initial,int radixShift=0)
     {
-        RequireInputMutation();Span<byte> data=stackalloc byte[128];data.Clear();
-        bool history=state.SnapshotValid && Math.Abs(x-state.WindowX)<domain.Width && Math.Abs(z-state.WindowZ)<domain.Width;
-        UboPacking.WriteIVec4(data,0,domain.Size,CloudVolumeDomain.Height,domain.Width,domain.BlocksX);
-        UboPacking.WriteIVec4(data,16,domain.SlotX,domain.SlotZ,CloudVolumeDomain.Mod(x,domain.Width),CloudVolumeDomain.Mod(z,domain.Width));
-        UboPacking.WriteIVec4(data,32,history?checked((int)(state.WindowX-x)):0,history?checked((int)(state.WindowZ-z)):0,history?1:0,state.LayoutChanged?1:0);
-        UboPacking.WriteVec4(data,48,(float)(domain.FirstX*CloudVolumeDomain.HorizontalCell-domain.AnchorX),
-            (float)(domain.Bottom-domain.VerticalCell),(float)(domain.FirstZ*CloudVolumeDomain.HorizontalCell-domain.AnchorZ),0);
-        UboPacking.WriteVec4(data,64,(float)CloudVolumeDomain.HorizontalCell,domain.VerticalCell,(float)CloudVolumeDomain.HorizontalCell,0);
-        UboPacking.WriteIVec4(data,80,unchecked((int)frame),unchecked((int)state.Revision),domain.Blocks,initial?1:0);
-        UboPacking.WriteIVec4(data,96,4096,domain.BlocksY,unchecked((int)state.SnapshotFrame),radixShift);
-        UboPacking.WriteVec4(data,112,(float)((domain.AnchorX%12800+12800)%12800),0,
-            (float)((domain.AnchorZ%12800+12800)%12800),0);inputs.SetBytes(data);
+        RequireInputMutation();
+        inputs.Capture(domain, x, z, state, frame, initial, radixShift);
     }
     #endregion
     #region Private
     /// <summary>Adopts the pipeline and its bounded uniform record.</summary>
-    private CloudVolumeDensityProgram(ComputeShaderAsset pipeline,PackedUniformBuffer? shared):base(pipeline)
-    {inputs=shared??OwnUniformBuffer(new PackedUniformBuffer(128));}
+    private CloudVolumeDensityProgram(ComputeShaderAsset pipeline,CloudVolumeDensityParameters? shared):base(pipeline)
+    {inputs=shared??OwnUniformBuffer(new CloudVolumeDensityParameters());}
     /// <summary>Publishes the captured generation identity.</summary>
     CpuUniformBuffer ICloudVolumeDensityBindings.Inputs=>inputs;
     #endregion

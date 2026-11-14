@@ -1,10 +1,17 @@
 using System;
-using System.Numerics;
 using Vintagestory.API.Client;
 using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 /// <summary>Captures native display grading independently of effect and texture ownership.</summary>
-internal readonly record struct FinalDisplayParameters(Vector4 Grading,Vector4 Effects,Vector4 Vignette)
+/// <param name="Grading">Color transform controls shared by display and lookup admission.</param>
+/// <param name="Sepia">Combined sepia strength.</param>
+/// <param name="WindPhase">Animation phase of authored display effects.</param>
+/// <param name="GlitchStrength">Authored glitch strength.</param>
+/// <param name="DamageVignette">Damage vignette intensity.</param>
+/// <param name="SideDamageVignette">Directional damage vignette intensity.</param>
+/// <param name="FrostVignette">Frost vignette intensity.</param>
+internal readonly record struct FinalDisplayParameters(ColorGradingParameters Grading, float Sepia,
+    float WindPhase, float GlitchStrength, float DamageVignette, float SideDamageVignette, float FrostVignette)
 {
     // Native gamma is centered at 3; linear grading uses that relative control before display encoding.
     private const float NativeNeutralGamma = 3f;
@@ -17,8 +24,8 @@ internal readonly record struct FinalDisplayParameters(Vector4 Grading,Vector4 E
         // Preserve native controls while keeping gamma, gain and contrast in exposed linear light.
         return new(new(ClientSettings.GammaLevel / NativeNeutralGamma,ClientSettings.ExtraGammaLevel,
             ClientSettings.BrightnessLevel+Math.Max(0,uniforms.DropShadowIntensity*2-1.66f)/3,uniforms.ExtraContrastLevel),
-            new(uniforms.SepiaLevel+uniforms.ExtraSepia,uniforms.WindWaveCounter,uniforms.GlitchStrength,0),
-            new(uniforms.DamageVignetting,uniforms.DamageVignettingSide,uniforms.FrostVignetting,0));
+            uniforms.SepiaLevel+uniforms.ExtraSepia,uniforms.WindWaveCounter,uniforms.GlitchStrength,
+            uniforms.DamageVignetting,uniforms.DamageVignettingSide,uniforms.FrostVignetting);
     }
     #endregion
 }

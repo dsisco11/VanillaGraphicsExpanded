@@ -71,6 +71,7 @@ internal sealed class NativeShadowFrameGate:IDisposable
         ShadowDiagnostics.LightCapacity=this.settings.Scheduling.LightCapacity;
         ShadowDiagnostics.CandidateHeaders=()=>disposed?null:currentCandidates?.Headers;
         ShadowDiagnostics.PageEntries=()=>disposed||!pages.IsAvailable?null:pages.Entries;
+        ShadowDiagnostics.SampleFailures=()=>disposed||!pages.IsAvailable?null:readiness.SampleFailures;
     }
 
     /// <summary>Starts accounting before scene preparation or demand, including all retained native/private allocations.</summary>
@@ -227,7 +228,7 @@ internal sealed class NativeShadowFrameGate:IDisposable
             bool current=input.SurfacePrograms.All(p=>ShaderCapabilities.Has(p,ShaderCapability.SharedVertexDeformation));
             readiness.Publish(pages,input.Lights.Frame,now,demand.ToImmutable(),current);
             priorityFeedback.Capture(readiness.Priority,prioritySources.ToImmutable(),now);
-            publication=new(input.Lights,pages,readiness.Requests,readiness.Results);published=true;
+            publication=new(input.Lights,pages,readiness.Requests,readiness.Results,readiness.SampleFailures,readiness.SourceIndices);published=true;
         }
         catch(Exception error)
         {
@@ -247,6 +248,9 @@ internal sealed class NativeShadowFrameGate:IDisposable
 
     #endregion
     #region Publication and retirement
+    /// <summary>Invalidates borrowed packets synchronously without submitting GPU work or retiring their pool.</summary>
+    internal void WithdrawPublication(){publication?.Withdraw();publication=null;}
+
     /// <summary>Withdraws all consumer eligibility immediately at shader, world, policy or capability loss.</summary>
     internal void Withdraw() { WithdrawPublication();timings.End();readiness.Withdraw();priorityFeedback.Invalidate();pages.Withdraw(); }
 
@@ -286,7 +290,13 @@ internal sealed class NativeShadowFrameGate:IDisposable
     internal void EndFrame()
     {
         WithdrawPublication();
-        if(!disposed && pages.CanSubmit)pages.SealBatch();
+        if(!disposed && pages.CanSubmit)
+        {
+            // Surface fragments append diagnostic atomics after readiness.
+            // Publish them before overlays and the next frame's buffer reset.
+            RHI.RHICommandContext.Current.Barrier(new(RHI.ResourceAccess.ShaderStorage|RHI.ResourceAccess.BufferUpdate));
+            pages.SealBatch();
+        }
     }
 
     /// <summary>Terminates ownership through existing RHI retirement; native storage remains borrowed.</summary>
@@ -295,6 +305,7 @@ internal sealed class NativeShadowFrameGate:IDisposable
         if(disposed)return;disposed=true;WithdrawPublication();readiness.Dispose();
         timings.Dispose();priorityFeedback.Dispose();reloadRegistration?.Dispose();ShaderCapabilities.Changed-=OnSurfaceChanged;RenderContextRegistry.Retiring-=OnContextRetiring;
         ShadowDiagnostics.Snapshot=null;ShadowDiagnostics.Readiness=null;ShadowDiagnostics.LightCapacity=0;
+        ShadowDiagnostics.SampleFailures=null;
         ShadowDiagnostics.CandidateHeaders=null;ShadowDiagnostics.PageEntries=null;ShadowDiagnostics.Candidates=[];
         foreach(var flight in flights){foreach(var draw in flight.Draws)draw.Dispose();flight.Selection?.Dispose();flight.Views.Dispose();flight.Scene.Dispose();}
         flights.Clear();
@@ -329,8 +340,6 @@ internal sealed class NativeShadowFrameGate:IDisposable
         }
         return result.ToImmutable();
     }
-    /// <summary>Invalidates previously borrowed packets before another interval can reuse the same physical pool.</summary>
-    private void WithdrawPublication(){publication?.Withdraw();publication=null;}
     /// <summary>Withdraws readiness immediately when a participating surface shader recovers, loses capability or changes executable.</summary>
     private void OnSurfaceChanged(Vintagestory.Client.NoObf.ShaderProgramBase program)
     {if(surfacePrograms.Contains(program)){WithdrawPublication();readiness.Withdraw();priorityFeedback.Invalidate();}}

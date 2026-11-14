@@ -19,10 +19,9 @@ internal sealed partial class LumonSceneFeedbackMarkPagesComputeShader : GpuComp
 {
 
     public static string ShaderName => Contract.Identity;
-    private const int ParamsUboSizeBytes = 16; // uvec4
 
-    private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
-    private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
+
+    private readonly LumonSceneFeedbackMarkPagesParameters parameters = new();
 
     #region Public API
     /// <summary>Creates the executable before adopting its retained input owner.</summary>
@@ -56,21 +55,19 @@ internal sealed partial class LumonSceneFeedbackMarkPagesComputeShader : GpuComp
         return true;
     }
 
+    /// <summary>Stages the publication stamp used to mark requested pages.</summary>
     public uint FrameStamp
     {
         set
         {
             RequireInputMutation();
-            UboPacking.WriteUVec4(paramsBytes, 0, value, 0u, 0u, 0u);
-            StageParameters();
+            parameters.SetFrame(value);
         }
     }
 
     /// <summary>Retains DebugCounters for the next dispatch submission.</summary>
     public void BindDebugCounters(GpuAtomicCounterBuffer? debugCounters)
     { DebugCounters = debugCounters; }
-
-
 
     /// <summary>Retains PageUsageStampImage for the next dispatch submission.</summary>
     public void BindPageUsageStampImage(GpuTexture texture, ImageAccess access = ImageAccess.ReadWrite)
@@ -87,10 +84,5 @@ internal sealed partial class LumonSceneFeedbackMarkPagesComputeShader : GpuComp
         OwnUniformBuffer(parameters);
     }
 
-    /// <summary>Packs retained values for one complete publication at dispatch.</summary>
-    private void StageParameters()
-    {
-        parameters.SetBytes(paramsBytes);
-    }
     #endregion
 }

@@ -39,7 +39,8 @@ internal sealed class AoHorizonReferenceProgram : GpuProgram
         RequireInputMutation();
         this.depth = depth; this.surface = surface; this.hierarchy = hierarchy; this.camera = camera;
         var quality = AmbientOcclusionQuality.FromNative(nativeQuality);
-        inputs.Capture(new(0, 0, quality.Divisor, 0), new(1.25f, .25f, quality.Directions, quality.Steps), new(64, 96, 0, 0));
+        inputs.Capture(quality.Divisor, quality.Directions, quality.Steps,
+            radius: 1.25f, relaxation: .25f, fadeStart: 64, fadeEnd: 96);
     }
     #endregion
 

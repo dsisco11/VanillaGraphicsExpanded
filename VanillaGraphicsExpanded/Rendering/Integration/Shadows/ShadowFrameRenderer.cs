@@ -35,7 +35,7 @@ internal sealed class ShadowFrameRenderer:IRenderer
     /// <summary>Exposes only a published configuration generation; lifecycle withdrawal fails closed synchronously.</summary>
     internal NativeShadowFrameGate? Current=>eligible?active?.Gate:null;
 
-    /// <summary>Registers explicit controlled integration; ordinary startup does not install an incomplete surface provider.</summary>
+    /// <summary>Registers early frame execution and lifecycle withdrawal for the supplied configuration-generation factory.</summary>
     internal ShadowFrameRenderer(ICoreClientAPI api,Func<ShadowSettings,ShadowFrameInstance> create,ShadowSettings settings,
         Func<double> clock,Func<ShadowLightSnapshot?>? lights=null)
     {
@@ -56,6 +56,7 @@ internal sealed class ShadowFrameRenderer:IRenderer
         if(next.Scheduling.ValidationDiagnostic is { } diagnostic)Report(diagnostic);
         if(key==identity)return;
         requested=next;identity=key;pending=next;eligible=false;
+        active?.Gate.WithdrawPublication();
     }
 
     /// <summary>Drains changed generations, then runs demand and readiness before any participating consumer.</summary>
@@ -117,7 +118,7 @@ internal sealed class ShadowFrameRenderer:IRenderer
     }
 
     /// <summary>Queues shader/resource recreation without extending any temporal eligibility.</summary>
-    private void RequestRecreation(){if(disposed)return;eligible=false;pending=requested;}
+    private void RequestRecreation(){if(disposed)return;eligible=false;active?.Gate.WithdrawPublication();pending=requested;}
 
     /// <summary>Receives the existing sanitized configuration event and withdraws CPU publication before the next gate.</summary>
     private void OnConfigurationApplied(ICoreAPI changed)

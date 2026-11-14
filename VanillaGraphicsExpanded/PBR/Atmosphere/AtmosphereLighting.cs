@@ -21,15 +21,15 @@ internal sealed record AtmosphereLighting(Vector3 Sun, Vector3 Solar, Vector3 En
     internal ImmutableArray<float> SkyMoonMie { get; init; } = ImmutableArray<float>.Empty;
     /// <summary>Unweighted lunar Mie transport for finite aerial paths.</summary>
     internal ImmutableArray<float> AerialMoonMie { get; init; } = ImmutableArray<float>.Empty;
-    /// <summary>The sun owns direct lighting while visible; otherwise an illuminated visible moon takes over.</summary>
+    /// <summary>Selects the compatibility emitter for remaining native and volumetric consumers.</summary>
     internal bool MoonIsDirect => HasNightSources
         && AtmosphereSolarDisk.Visibility(MathF.Asin(Math.Clamp(Sun.Y, -1, 1)), HorizonElevation) <= 0
         && Lunar != Vector3.Zero;
-    /// <summary>Direction of the single direct emitter sharing the existing shadow map.</summary>
+    /// <summary>Compatibility direction; surface lighting consumes Sun and Moon independently.</summary>
     internal Vector3 DirectDirection => MoonIsDirect ? Moon : Sun;
-    /// <summary>Selected direct illuminance; other celestial contributions remain in the sky environment.</summary>
+    /// <summary>Compatibility illuminance; surface lighting consumes Solar and Lunar independently.</summary>
     internal Vector3 DirectIrradiance => MoonIsDirect ? Lunar : Solar;
-    /// <summary>Radius of the selected finite disk; the larger lunar disk retains conservative solar BRDF bounds.</summary>
+    /// <summary>Radius of the compatibility emitter retained by consumers with one source direction.</summary>
     internal float DirectAngularRadius => MoonIsDirect ? MoonAngularRadius : AtmosphereSolarDisk.AngularRadius;
     internal ImmutableArray<float> SkyMie { get; init; } = ImmutableArray<float>.Empty;
     internal ImmutableArray<float> AerialMie { get; init; } = ImmutableArray<float>.Empty;

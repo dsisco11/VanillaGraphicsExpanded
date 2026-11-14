@@ -12,8 +12,13 @@ internal sealed class AtmosphereSkyInputs : CpuUniformBuffer
     private static readonly AccessTools.FieldRef<DefaultShaderUniforms, float> ReadDaylight =
         AccessTools.FieldRefAccess<DefaultShaderUniforms, float>("SkyDaylight");
     #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 112;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+
     /// <summary>Allocates effect vectors and matching lookup-encoding metadata.</summary>
-    internal AtmosphereSkyInputs() : base(112) { }
+    internal AtmosphereSkyInputs() : base() { }
     /// <summary>Matches admitted authored sky additions to the current immutable effect input slice.</summary>
     internal float CompatibilityMaximumNits { get; private set; }
 

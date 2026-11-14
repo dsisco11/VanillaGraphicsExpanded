@@ -294,6 +294,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ClientRenderingModSystem,
             // Feature borrowers and compute owners retire before shared graphics declarations.
             if (capi is not null)
             {
+                TryCleanup(() => capi.ModLoader.GetModSystem<VirtualShadowModSystem>()?.Dispose(), cleanupFailures);
                 TryCleanup(() => capi.ModLoader.GetModSystem<PbrModSystem>()?.Dispose(), cleanupFailures);
                 TryCleanup(() => capi.ModLoader.GetModSystem<LumOnModSystem>()?.Dispose(), cleanupFailures);
                 TryCleanup(() => capi.ModLoader.GetModSystem<WorldProbeModSystem>()?.Dispose(), cleanupFailures);

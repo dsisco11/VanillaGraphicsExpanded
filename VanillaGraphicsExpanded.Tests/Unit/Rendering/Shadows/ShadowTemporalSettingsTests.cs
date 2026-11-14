@@ -1,6 +1,7 @@
 using Newtonsoft.Json;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering.Shadows.Configuration;
+using VanillaGraphicsExpanded.Rendering.Shadows.Pages;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering.Shadows;
@@ -66,6 +67,23 @@ public sealed class ShadowTemporalSettingsTests
         Assert.Equal(0.25, invalid.MaxDirectionalAngleDegrees);
         Assert.Equal(0, strict.MaxRenderedAgeSeconds);
         Assert.Equal(0, strict.MaxStaleAgeSeconds);
+    }
+
+    /// <summary>Integer clock transport keeps subsecond deadlines after a long-running session.</summary>
+    [Fact]
+    public void ShadowClockPreservesFractionalSecondsAtLongUptime()
+    {
+        // Arrange: use an uptime whose FP32 seconds representation would lose the quarter-second deadline.
+        const double uptime = 1_000_000_000.25;
+        var words = new uint[2];
+
+        // Act: encode the sample as integer nanoseconds and reconstruct the exact unsigned tick count.
+        ShadowClock.Write(words, 0, uptime);
+        ulong ticks = ((ulong)words[1] << 32) | words[0];
+
+        // Assert: the epoch remains exact at this scale and the fractional quarter second remains observable.
+        Assert.Equal(1_000_000_000_250_000_000UL, ticks);
+        Assert.Throws<ArgumentOutOfRangeException>(() => ShadowClock.Write(words, 0, double.PositiveInfinity));
     }
     #endregion
 }

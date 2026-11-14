@@ -257,7 +257,7 @@ public sealed class NativeShadowTerrainPlacementTests(HeadlessGLFixture fixture)
         // Act: capture once, then reject a mismatched view, nonfinite material and stale native camera before recapture.
         NativeShadowTerrainMaterial.Capture(shader, uniforms, placement, view, .25f, .5f);
         var parameters = ((IShadowTerrainBindings)shader).Parameters;
-        float[] captured = MemoryMarshal.Cast<byte, float>(parameters.Bytes).ToArray();
+        byte[] captured = parameters.Bytes.ToArray();
         Assert.Throws<InvalidOperationException>(() => NativeShadowTerrainMaterial.Capture(shader, uniforms,
             placement, ShadowDrawView.Directional(projection, 0, new(0, 0, 8, 8), new(0, 0, 8, 8), Vector3d.Zero), .25f, .5f));
         uniforms.GlobalWorldWarp = float.NaN;
@@ -265,23 +265,23 @@ public sealed class NativeShadowTerrainPlacementTests(HeadlessGLFixture fixture)
         uniforms.GlobalWorldWarp = 6.5f;
         camera.Entity.CameraPos.X += 1;
         Assert.Throws<InvalidOperationException>(() => NativeShadowTerrainMaterial.Capture(shader, uniforms, placement, view, .25f, .5f));
-        Assert.Equal(captured, MemoryMarshal.Cast<byte, float>(parameters.Bytes).ToArray());
+        Assert.Equal(captured, parameters.Bytes.ToArray());
 
         // Assert: the packed block retains virtual transform, native camera-relative origin, atlas padding and warp values.
-        Assert.Equal(-90f, captured[16]);
-        Assert.Equal(-50f, captured[17]);
-        Assert.Equal(60f, captured[18]);
-        Assert.Equal(.25f, captured[19]);
-        Assert.Equal(new float[] { 7, 8, 9, .5f }, captured[20..24]);
-        Assert.Equal(new float[] { 1.25f, 2.5f, 3.5f, 4.5f }, captured[24..28]);
-        Assert.Equal(new float[] { 5.5f, 6.5f, 7.5f, 8.5f }, captured[28..32]);
-        Assert.Equal(9.5f, captured[32]);
-        Assert.Equal(10.5f, captured[34]);
-        Assert.Equal(0f, captured[35]);
-        Assert.Equal(11, BitConverter.ToInt32(parameters.Bytes.Slice(132, sizeof(int))));
-        Assert.Equal(-100f, captured[48]);
-        Assert.Equal(-10f, captured[49]);
-        Assert.Equal(-20f, captured[50]);
+        Assert.Equal(new float[] { -90, -50, 60, .25f }, MemoryMarshal.Cast<byte, float>(parameters.Bytes.Slice(
+            ShadowMaterialParameters.ChunkOriginOffset, 4 * sizeof(float))).ToArray());
+        Assert.Equal(new float[] { 7, 8, 9, .5f }, MemoryMarshal.Cast<byte, float>(parameters.Bytes.Slice(
+            ShadowMaterialParameters.DeformationWorldOriginOffset, 4 * sizeof(float))).ToArray());
+        Assert.Equal(new float[] { 1.25f, 2.5f, 3.5f, 4.5f }, MemoryMarshal.Cast<byte, float>(parameters.Bytes.Slice(
+            ShadowMaterialParameters.AnimationOffset, 4 * sizeof(float))).ToArray());
+        Assert.Equal(new float[] { 5.5f, 6.5f, 7.5f, 8.5f }, MemoryMarshal.Cast<byte, float>(parameters.Bytes.Slice(
+            ShadowMaterialParameters.WindOffset, 4 * sizeof(float))).ToArray());
+        Assert.Equal(9.5f, UboPacking.ReadFloat(parameters.Bytes, ShadowMaterialParameters.PerceptionOffset));
+        Assert.Equal(10.5f, UboPacking.ReadFloat(parameters.Bytes, ShadowMaterialParameters.PerceptionOffset + 2 * sizeof(float)));
+        Assert.Equal(11, UboPacking.ReadInt32(parameters.Bytes, ShadowMaterialParameters.PerceptionModeOffset));
+        Assert.Equal(-100f, UboPacking.ReadFloat(parameters.Bytes, ShadowMaterialParameters.ShadowOriginTranslationOffset));
+        Assert.Equal(-10f, UboPacking.ReadFloat(parameters.Bytes, ShadowMaterialParameters.ShadowOriginTranslationOffset + sizeof(float)));
+        Assert.Equal(-20f, UboPacking.ReadFloat(parameters.Bytes, ShadowMaterialParameters.ShadowOriginTranslationOffset + 2 * sizeof(float)));
     }
     #endregion
 

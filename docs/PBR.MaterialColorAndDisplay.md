@@ -35,10 +35,9 @@ color; the scene-color allocation adapter now supplies RGBA16F storage for it.
 The capture patch checks its engine-source boundary and reports unsupported layouts instead of
 silently assuming the capture succeeded. It adds no per-pixel texture samples. Its preservation
 tests use the installed terrain sources, rather than an invented replacement main function.
-Restoration uses the AST's `main.InnerEnd("body")` boundary and does not depend on the final
-output statement or an `outGlow` assignment. TinyAst 0.11.3 replaces the 0.11.2 dependency whose
-binder duplicated block delimiters when recognizing directives inside a body. The former
-final-statement workaround and test normalization for those duplicate delimiters are removed.
+Restoration uses the AST's `main.InnerEnd("body")` boundary. The editor preserves block delimiters
+when recognizing directives inside a body, and preservation tests compare the resulting native
+shader structure and behavior.
 
 ## Lighting and display
 

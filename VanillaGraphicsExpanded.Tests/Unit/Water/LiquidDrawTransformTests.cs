@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.PBR.Liquids;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Water;
@@ -30,7 +31,7 @@ public sealed class LiquidDrawTransformTests
         draw.SetModelView(Pack(model * view), camera);
 
         // Assert the stored transform acts like the object transform, then verify unrelated draw fields survived.
-        var extracted = MemoryMarshal.Read<Matrix4x4>(draw.Bytes);
+        var extracted = MemoryMarshal.Read<Matrix4x4>(draw.Bytes.Slice(LiquidDrawParamsUbo.ModelOffset, VgeFrameUniformBuffer.MatrixSizeBytes));
         foreach (var point in new[] { Vector4.UnitX, Vector4.UnitY, Vector4.UnitZ, new Vector4(2, 3, 4, 1) })
         {
             Vector4 expected = Vector4.Transform(point, model);
@@ -38,20 +39,21 @@ public sealed class LiquidDrawTransformTests
             Assert.True(Vector4.Distance(expected, actual) < 1e-4f, $"Expected {expected}; received {actual}.");
         }
         Assert.Equal(originalCamera, camera.Bytes.ToArray());
-        Assert.Equal(new float[] { 9, 8, 7, .25f }, MemoryMarshal.Cast<byte, float>(draw.Bytes[64..]).ToArray());
+        Assert.Equal(new float[] { 9, 8, 7, .25f }, MemoryMarshal.Cast<byte, float>(draw.Bytes.Slice(
+            LiquidDrawParamsUbo.OriginOffset, 4 * sizeof(float))).ToArray());
 
         // Act by setting a camera-only model-view transform.
         draw.SetModelView(viewColumns, camera);
 
         // Assert a camera-only draw is identity.
-        Assert.Equal(Matrix4x4.Identity, MemoryMarshal.Read<Matrix4x4>(draw.Bytes));
+        Assert.Equal(Matrix4x4.Identity, MemoryMarshal.Read<Matrix4x4>(draw.Bytes.Slice(LiquidDrawParamsUbo.ModelOffset, VgeFrameUniformBuffer.MatrixSizeBytes)));
 
         // Act by applying an object transform and explicitly resetting it.
         draw.SetModelView(Pack(model * view), camera);
         draw.ResetModelTransform();
 
         // Assert explicit reset also erases the retained transform exactly.
-        Assert.Equal(Matrix4x4.Identity, MemoryMarshal.Read<Matrix4x4>(draw.Bytes));
+        Assert.Equal(Matrix4x4.Identity, MemoryMarshal.Read<Matrix4x4>(draw.Bytes.Slice(LiquidDrawParamsUbo.ModelOffset, VgeFrameUniformBuffer.MatrixSizeBytes)));
     }
     #endregion
 

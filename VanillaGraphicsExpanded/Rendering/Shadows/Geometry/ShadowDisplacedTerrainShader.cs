@@ -20,7 +20,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shadows.Geometry;
 [ShaderUse("Contract", ShaderStageKind.TessellationEvaluation, nameof(Waving))]
 internal sealed partial class ShadowDisplacedTerrainShader : ShadowNativeMaterialShader, IShadowDisplacedTerrainBindings
 {
-    private readonly PackedUniformBuffer subdivision = new(32);
+    private readonly ShadowSubdivisionParameters subdivision = new();
     /// <inheritdoc />
     internal override GpuShaderContract ProgramContract => Contract;
 
@@ -62,16 +62,12 @@ internal sealed partial class ShadowDisplacedTerrainShader : ShadowNativeMateria
         float focalPixels, bool enabled, GpuTextureRef indices, GpuTextureRef records, GpuTextureRef height)
     {
         RequireInputMutation();
-        if (!float.IsFinite(edgePixels) || edgePixels <= 0 || !float.IsFinite(maximumLevel) || maximumLevel is < 1 or > 8 ||
-            !float.IsFinite(fadeStart) || fadeStart < 0 || !float.IsFinite(fadeEnd) || fadeEnd <= fadeStart ||
-            !float.IsFinite(focalPixels) || focalPixels <= 0 || !indices.IsValid || !records.IsValid || !height.IsValid)
+        if (!indices.IsValid || !records.IsValid || !height.IsValid)
             throw new ArgumentException("Displacement requires current textures and finite native subdivision inputs.");
-        Span<byte> data = stackalloc byte[32]; data.Clear();
-        UboPacking.WriteVec4(data, 0, edgePixels, maximumLevel, fadeStart, fadeEnd);
-        UboPacking.WriteFloat(data, 16, focalPixels); UboPacking.WriteInt32(data, 20, enabled ? 1 : 0);
+        ShadowSubdivisionParameters.Validate(edgePixels, maximumLevel, fadeStart, fadeEnd, focalPixels);
         var bindings = (IShadowDisplacedTerrainBindings)this;
         bindings.DisplacementIndices = indices; bindings.DisplacementRecords = records; bindings.NormalDepth = height;
-        subdivision.SetBytes(data); HasSubdivision = true;
+        subdivision.SetValidated(edgePixels, maximumLevel, fadeStart, fadeEnd, focalPixels, enabled); HasSubdivision = true;
     }
     #endregion
 

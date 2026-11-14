@@ -1,4 +1,3 @@
-using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -27,11 +26,12 @@ internal sealed partial class AmbientOcclusionFilterShaderProgram : GpuProgram, 
     /// <summary>Stages surfaceImage without transferring ownership.</summary>
     public partial GpuTextureRef SurfaceImage { set; }
     /// <summary>Stages the complete operation parameters before submission.</summary>
-    internal void Capture(VgeFrameUniformBuffer camera, Vector4 frame, Vector4 sampling, Vector4 distance)
+    internal void Capture(VgeFrameUniformBuffer camera, int divisor, int directions, int steps,
+        float radius = 1.25f, float relaxation = .25f, float fadeStart = 64, float fadeEnd = 96, bool reconstruct = false)
     {
         RequireInputMutation();
         frameInputs = camera ?? throw new System.ArgumentNullException(nameof(camera));
-        inputs.Capture(frame, sampling, distance);
+        inputs.Capture(divisor, directions, steps, radius, relaxation, fadeStart, fadeEnd, reconstruct);
     }
     /// <summary>Publishes the retained uniform block through the generated binding layout.</summary>
     CpuUniformBuffer IAmbientOcclusionFilterShaderProgramBindings.Inputs => inputs;

@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Tests.Support.Rendering.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using HarmonyLib;
@@ -88,7 +89,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             Assert.Equal(0,Binding().Buffer);
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             using var foreign = new PackedUniformBuffer(VgeFrameUniformBuffer.PackedSize);
-            foreign.SetBytes(new byte[VgeFrameUniformBuffer.PackedSize]);
+            foreign.SetPayload(new byte[VgeFrameUniformBuffer.PackedSize]);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, foreign.Capture()));
             var unrelated = Binding();
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
@@ -143,10 +144,11 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
                 Assert.Equal(resizedBytes,ReadSnapshot(resized));
                 engine.Use();
                 Assert.Equal(resized,Binding());
-                Assert.Equal(2f,System.Runtime.InteropServices.MemoryMarshal.Read<float>(resizedBytes));
-                Assert.Equal(32f,System.Runtime.InteropServices.MemoryMarshal.Read<float>(resizedBytes.AsSpan(384)));
-                Assert.Equal(16f,System.Runtime.InteropServices.MemoryMarshal.Read<float>(resizedBytes.AsSpan(388)));
-                Assert.Equal(.032f,System.Runtime.InteropServices.MemoryMarshal.Read<float>(resizedBytes.AsSpan(504)));
+                Assert.Equal(2f,System.Runtime.InteropServices.MemoryMarshal.Read<float>(resizedBytes.AsSpan(VgeFrameUniformBuffer.ProjectionOffset)));
+                Assert.Equal(32f,System.Runtime.InteropServices.MemoryMarshal.Read<float>(resizedBytes.AsSpan(VgeFrameUniformBuffer.ScreenSizeOffset)));
+                Assert.Equal(16f,System.Runtime.InteropServices.MemoryMarshal.Read<float>(resizedBytes.AsSpan(
+                    VgeFrameUniformBuffer.ScreenSizeOffset + sizeof(float))));
+                Assert.Equal(.032f,System.Runtime.InteropServices.MemoryMarshal.Read<float>(resizedBytes.AsSpan(VgeFrameUniformBuffer.DeltaTimeOffset)));
             }
             finally { AtmosphereSunDrawHook.Finalizer(outer); }
             Assert.False(AtmosphereSunDrawHook.Active);

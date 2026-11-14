@@ -68,8 +68,10 @@ are not modeled. Atmospheric scattering sources still use the directional sun ap
 ## Shared generations and cost
 
 Disk centre, horizon, radiance and direct-lighting direction use the completed atmosphere snapshot.
-Deferred PBR, forward PBR, LumOn frame inputs and Surface Cache lighting therefore use its solar
-direction and irradiance together. Engine shadow maps retain their engine-owned scheduling.
+Deferred and forward PBR preserve separate solar and lunar direction/irradiance through the shared
+surface-light snapshot. LumOn and Surface Cache retain their existing source interpretation.
+Engine shadow maps retain native scheduling for compatibility particles and decals; migrated PBR
+surfaces use the shared virtual page array and per-source readiness.
 Pending atmospheric builds keep displaying the previous complete generation.
 
 The sun-direction admission threshold changes from 1/256 to 1/65536 per normalized component

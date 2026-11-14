@@ -18,15 +18,10 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : GpuCompute
 {
 
     public static string ShaderName => Contract.Identity;
-    private const int ParamsUboSizeBytes = 32; // uvec4 + uvec4
 
-    private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
-    private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
 
-    private uint maxRequests;
-    private uint sampleCount;
-    private uint screenWidth;
-    private uint screenHeight;
+    private readonly LumonSceneFeedbackGatherParameters parameters = new();
+
 
     private VgeFrameUniformBuffer? frameInputs;
 
@@ -75,13 +70,13 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : GpuCompute
     public void BindRequestsSsbo(GpuShaderStorageBuffer ssbo)
     { PageRequests = ssbo; }
 
+    /// <summary>Stages MaxRequests in the retained dispatch inputs.</summary>
     public uint MaxRequests
     {
         set
         {
             RequireInputMutation();
-            maxRequests = value;
-            StageParameters();
+            parameters.SetMaxRequests(value);
         }
     }
 
@@ -89,18 +84,16 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : GpuCompute
     public void SetScreenSize(uint width, uint height)
     {
         RequireInputMutation();
-        screenWidth = width;
-        screenHeight = height;
-        StageParameters();
+        parameters.SetScreenSize(width, height);
     }
 
+    /// <summary>Stages SampleCount in the retained dispatch inputs.</summary>
     public uint SampleCount
     {
         set
         {
             RequireInputMutation();
-            sampleCount = value;
-            StageParameters();
+            parameters.SetSampleCount(value);
         }
     }
 
@@ -115,12 +108,5 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : GpuCompute
         OwnUniformBuffer(parameters);
     }
 
-    /// <summary>Packs retained values for one complete publication at dispatch.</summary>
-    private void StageParameters()
-    {
-        UboPacking.WriteUVec4(paramsBytes, 0, maxRequests, 0u, sampleCount, 0u);
-        UboPacking.WriteUVec4(paramsBytes, 16, screenWidth, screenHeight, 0u, 0u);
-        parameters.SetBytes(paramsBytes);
-    }
     #endregion
 }

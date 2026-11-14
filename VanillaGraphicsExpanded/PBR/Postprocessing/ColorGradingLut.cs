@@ -1,7 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -14,16 +13,15 @@ internal sealed class ColorGradingLut : IDisposable
     private ColorGradingProgram? generator;
     private ColorGradingInputs? inputs;
     private DynamicTexture3D? completed,spare;
-    private Vector4? key;
+    private ColorGradingParameters? key;
     private (nint Handle,long Generation) context;
     /// <summary>Counts successful replacements without exposing storage ownership.</summary>
     internal long Generation { get; private set; }
     #region Public API
     /// <summary>Returns matching complete storage, rebuilding only for changed grading or an explicit invalidation.</summary>
-    internal DynamicTexture3D Prepare(ICoreAPI api,Vector4 controls)
+    internal DynamicTexture3D Prepare(ICoreAPI api,ColorGradingParameters controls)
     {
-        if(!float.IsFinite(controls.X)||!float.IsFinite(controls.Y)||!float.IsFinite(controls.Z)||!float.IsFinite(controls.W))
-            throw new ArgumentException("Display grading requires finite controls.");
+        ColorGradingInputs.Validate(controls);
         var current=RenderContextRegistry.Current();
         if(current==default) throw new InvalidOperationException("Display lookup requires a live rendering context.");
         if(context!=default&&context!=current) Dispose();

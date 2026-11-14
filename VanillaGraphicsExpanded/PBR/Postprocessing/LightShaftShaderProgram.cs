@@ -28,9 +28,25 @@ internal sealed partial class LightShaftShaderProgram : GpuProgram, ILightShaftS
     public partial GpuTextureRef SourceImage { set; }
     /// <summary>Stages the published camera exposure buffer.</summary>
     public partial GpuShaderStorageBuffer? ExposureBuffer { set; }
-    /// <summary>Captures the complete draw parameters for the shader contract.</summary>
-    internal void Capture(Vector4 pass, Vector4 effect, Vector4 sun = default, Vector4 solar = default)
-        => inputs.Capture(pass, effect, sun, solar);
+    /// <summary>Stages extraction inputs independently of their uniform representation.</summary>
+    internal void CaptureExtraction(bool occlusionOnly, bool automaticExposure, float threshold,
+        float limit, float strength, float manualLogGain, LightShaftSource source)
+    {
+        RequireInputMutation();
+        inputs.CaptureShaftExtraction(occlusionOnly, automaticExposure, threshold, limit, strength, manualLogGain, source);
+    }
+    /// <summary>Stages one radial filtering operation.</summary>
+    internal void CaptureFilter(int samples, float step, LightShaftSource source)
+    {
+        RequireInputMutation();
+        inputs.CaptureShaftFilter(samples, step, source);
+    }
+    /// <summary>Stages the final glare or occlusion publication.</summary>
+    internal void CaptureResolve(bool occlusionOnly, LightShaftSource source)
+    {
+        RequireInputMutation();
+        inputs.CaptureShaftResolve(occlusionOnly, source);
+    }
     /// <summary>Selects a retained alternate-view snapshot for controlled offscreen submissions.</summary>
     internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }
     /// <summary>Shares the world camera unless the submitting owner supplies a distinct view.</summary>

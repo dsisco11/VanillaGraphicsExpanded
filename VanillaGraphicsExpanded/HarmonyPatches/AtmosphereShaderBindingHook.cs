@@ -73,12 +73,6 @@ internal static class AtmosphereShaderBindingHook
         if (lighting is null) return;
         if ((bindings & AtmosphereBindings.Environment) != 0)
             __instance.Uniform("vge_atmosphereEnvironment", lighting.Environment.X, lighting.Environment.Y, lighting.Environment.Z);
-        if ((bindings & AtmosphereBindings.Solar) != 0)
-            __instance.Uniform("vge_atmosphereSolar", lighting.DirectIrradiance.X, lighting.DirectIrradiance.Y, lighting.DirectIrradiance.Z);
-        if ((bindings & AtmosphereBindings.SunDirection) != 0)
-            __instance.Uniform("vge_atmosphereSunDirection", lighting.DirectDirection.X, lighting.DirectDirection.Y, lighting.DirectDirection.Z);
-        if ((bindings & AtmosphereBindings.DirectRadius) != 0)
-            __instance.Uniform("vge_atmosphereDirectRadius", lighting.DirectAngularRadius);
         if ((bindings & AtmosphereBindings.ScatteringDirections) != 0)
         {
             __instance.Uniform("vge_atmosphereScatteringSun", lighting.Sun.X, lighting.Sun.Y, lighting.Sun.Z);

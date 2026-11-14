@@ -13,6 +13,7 @@ using VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
 
 using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
 using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Lighting;
 namespace VanillaGraphicsExpanded.Tests.Component.Water;
 
 /// <summary>Captures liquid specular output where two water triangles meet at a fold.</summary>
@@ -82,29 +83,25 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         program.TerrainTexture = terrain;
         program.MaterialParamsTexture = material;
         program.DepthTexture = depth;
-        using var shadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
-        shadow.UploadDataImmediate([1f]);
-        program.ShadowMapNear = shadow;
-        program.ShadowMapFar = shadow;
+        using var surfaceShadows = SurfaceShadowTestInputs.Create(Vector3.Normalize(new(0, .4f, -5)), Vector3.One);
+        program.ShadowInputs = surfaceShadows;
         program.AerialRadianceTexture = aerial;
         program.AerialAttenuationTexture = aerial;
-        program.ShadowRanges = Vector4.Zero;
         // A low solar elevation stretches the water highlight across the folded faces.
-        program.SunDirection = new(Vector3.Normalize(new(0, .4f, -5)), 0);
-        program.SolarIrradiance = new(1, 1, 1, 0);
-        program.EnvironmentIrradiance = Vector4.Zero;
-        program.AtlasMetrics = new(1, 1, 1, 1);
+        program.SetEnvironmentIrradiance(Vector3.Zero);
+        program.SetAtlasMetrics(Vector2.One, 1, 1);
 
         program.WaveFrame = new(Vector4.Zero, 1);
         program.SetFogSphereCount(0);
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 1, .1f, 100);
         projection.M33 = -(100 + .1f) / (100 - .1f);
         projection.M43 = -2 * 100 * .1f / (100 - .1f);
-        using var frameCamera = TestFrameCamera.CreateFromProjection(Flatten(projection), size, size, .1f, 100);
+        Matrix4x4.Invert(projection, out var inverseProjection);
         using var sharedLights = new VgeLightsUniformBuffer();
         program.LightsInputs = sharedLights;
-        program.FrameInputs = frameCamera;
         var view = Matrix4x4.CreateRotationX(18 * MathF.PI / 180);
+        using var frameCamera = TestFrameCamera.Create(Flatten(inverseProjection), Flatten(view), size, size, .1f, 100);
+        program.FrameInputs = frameCamera;
         program.ModelViewMatrix = Flatten(view);
 
 
@@ -149,8 +146,6 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
             program.TerrainTexture = terrain;
             program.MaterialParamsTexture = material;
             program.DepthTexture = depth;
-            program.ShadowMapNear = shadow;
-            program.ShadowMapFar = shadow;
 
             mesh.SetTopology(topology);
             Submit(wire: false);

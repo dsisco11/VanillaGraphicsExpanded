@@ -77,7 +77,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         using var owner = new ShaderRegistryComputeOwner(ComputeShaderAsset.DeclareFromAssets(assets.Api, settings));
         Assert.True(owner.EnsureReady());
         var block = owner.Block;
-        block.SetBytes(new byte[16]);
+        block.SetPayload(new byte[16]);
         int old = owner.ProgramId;
         ulong revision = ((IGpuProgram)owner).ExecutableRevision;
         // Act: Invalidate assets, attempt the selected replacement, and retry after clearing an injected failure.
@@ -94,11 +94,11 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
             Assert.True(owner.EnsureReady());
         }
         Assert.Same(block, owner.Block);
-        block.SetBytes(new byte[16]);
+        block.SetPayload(new byte[16]);
         Assert.Equal(revision + 1, ((IGpuProgram)owner).ExecutableRevision);
         Assert.False(GL.IsProgram(old));
         owner.Dispose(); owner.Dispose();
-        Assert.Throws<ObjectDisposedException>(() => block.SetBytes(new byte[16]));
+        Assert.Throws<ObjectDisposedException>(() => block.SetPayload(new byte[16]));
     }
 
 

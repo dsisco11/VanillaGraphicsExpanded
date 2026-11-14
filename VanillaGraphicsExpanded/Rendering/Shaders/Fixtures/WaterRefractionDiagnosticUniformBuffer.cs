@@ -11,8 +11,13 @@ internal sealed class WaterRefractionDiagnosticUniformBuffer : CpuUniformBuffer
     private const int BatchCapacity = 64;
 
     #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = BatchSurfaceOffset + BatchCapacity * 16;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+
     /// <summary>Creates zero-default scalar and bounded motion inputs with immutable single-frame publication.</summary>
-    internal WaterRefractionDiagnosticUniformBuffer() : base(BatchSurfaceOffset + BatchCapacity * 16) { }
+    internal WaterRefractionDiagnosticUniformBuffer() : base() { }
 
     /// <summary>Selects the independently authored optical geometry.</summary>
     internal int Scenario

@@ -45,6 +45,8 @@ internal sealed partial class ShadowPagePool : IDisposable
     internal long DrainingBytes => withdrawn ? AllocatedBytes : 0;
     /// <summary>Exposes the immutable page extent used by projection and sampling.</summary>
     internal int PageSize => policy.PageSize;
+    /// <summary>Exposes the frozen settings whose depth and bias conventions belong to this page generation.</summary>
+    internal ShadowPageSettings Settings => policy.Freeze();
     /// <summary>Reports tile capacity per array layer without querying GPU selection.</summary>
     internal int TilesPerLayer => (policy.TileColumns * policy.TileRows);
     /// <summary>Bounds every shader lookup, including sampling misses.</summary>

@@ -13,6 +13,7 @@ internal static class ShadowDiagnostics
     internal static int LightCapacity { get; set; }
     internal static Func<GpuShaderStorageBuffer?>? CandidateHeaders { get; set; }
     internal static Func<GpuShaderStorageBuffer?>? PageEntries { get; set; }
+    internal static Func<GpuShaderStorageBuffer?>? SampleFailures { get; set; }
     internal static ImmutableArray<ShadowCandidateDiagnostic> Candidates { get; set; }
     /// <summary>Formats CPU-known conservative costs separately from GPU current/stale/coverage records.</summary>
     internal static string Text
@@ -20,7 +21,7 @@ internal static class ShadowDiagnostics
         get
         {
             var s=Snapshot?.Invoke();
-            if(s is null)return "No controlled shadow frame owner. Production surface migration remains disabled.";
+            if(s is null)return "No active shadow frame owner. Surface lights remain illuminated without virtual shadow attenuation.";
             return $"Frame {s.Frame}; demand {s.RequestedPages}; admitted replacements {s.WritablePages}\n"+
                 $"Tracked bytes {s.ResidentBytes}; draining {s.DrainingBytes}; rejected reservations {s.BudgetRejections}; last ceiling {s.BudgetRejectionCause}\n"+
                 $"Conservative slots {s.Used.Slots}/{s.Limit.Slots}; views {s.Used.Instances}; draws {s.Used.Draws}\n"+
@@ -29,7 +30,7 @@ internal static class ShadowDiagnostics
                 $"Last completed GPU interval: {(s.LastGpuMilliseconds is { } ms?$"{ms:F3} ms (frame {s.LastGpuFrame})":"pending")}; missing timing samples {s.MissingTimingSamples}; missing priority samples {s.MissingPrioritySamples}\n"+
                 string.Join("; ",Candidates.IsDefault?Enumerable.Empty<string>():Candidates.Select(candidate=>$"{candidate.Source.Kind}:{candidate.Source.Owner}/{candidate.Source.Slot} candidate {candidate.AgeFrames} frames; motion {candidate.NormalizedMotion:F2} of covered interval; refresh {candidate.NeedsRefresh}"))+"\n"+
                 string.Join("; ",s.Decisions.Select(decision=>$"{decision.Source.Kind}:{decision.Source.Owner}/{decision.Source.Slot} detail {decision.Detail}; {decision.Reason}; waiting {decision.WaitingSeconds:F2}s; refresh attempt age {decision.SecondsSinceRefreshAttempt:F2}s"))+"\n"+
-                $"Whole-light GPU rows: readiness, detail, misses, stale fraction, recovery.\n{s.Failure}";
+                $"Whole-light GPU rows include readiness, detail, demand misses and unexpected surface sampling misses.\n{s.Failure}";
         }
     }
 }

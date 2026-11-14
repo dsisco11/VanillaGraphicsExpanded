@@ -4,6 +4,8 @@ using System.Threading;
 using HarmonyLib;
 using Moq;
 using VanillaGraphicsExpanded.Numerics;
+using VanillaGraphicsExpanded.PBR.Shadows;
+using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Integration.Shadows;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
@@ -13,6 +15,7 @@ using VanillaGraphicsExpanded.Rendering.Shadows.Configuration;
 using VanillaGraphicsExpanded.Rendering.Shadows.Geometry;
 using VanillaGraphicsExpanded.Rendering.Shadows.Lights;
 using VanillaGraphicsExpanded.Rendering.Shadows.Pages;
+using VanillaGraphicsExpanded.Rendering.Shadows.Readiness;
 using VanillaGraphicsExpanded.Rendering.Shadows.Scheduling;
 using VanillaGraphicsExpanded.Rendering.Shadows.World;
 using VanillaGraphicsExpanded.Tests.Support.GPU.Harness;
@@ -70,10 +73,17 @@ public sealed class ShadowFrameLifecycleGpuTests(HeadlessGLFixture fixture) : Re
             var first = Assert.Single(generations);
             Assert.Equal(2, first.Pages.Capacity);
             Assert.NotNull(renderer.Current);
-            renderer.OnRenderFrame(0, EnumRenderStage.Done);
+            var firstPublication = Assert.IsType<ShadowFramePublication>(first.Gate.Publication);
+            using var retainedSurfaceInputs = new SurfaceShadowInputSet(firstPublication.Lights, firstPublication, null, first.Pages.Settings);
+            Assert.True(retainedSurfaceInputs.IsCurrent);
             var changed = Settings();
             changed.Pages.TileColumns = 3;
             renderer.ApplyPolicy(changed);
+            // A consumer may still hold the exact old publication, so invalidate its eligibility synchronously
+            // while keeping the page owner available until the normal frame-end/drain sequence advances.
+            Assert.False(retainedSurfaceInputs.IsCurrent);
+            Assert.True(first.Pages.IsAvailable);
+            renderer.OnRenderFrame(0, EnumRenderStage.Done);
             Interlocked.Exchange(ref pendingFencePolls, 100);
             renderer.OnRenderFrame(0.016f, EnumRenderStage.Opaque);
 
@@ -125,9 +135,257 @@ public sealed class ShadowFrameLifecycleGpuTests(HeadlessGLFixture fixture) : Re
             ShaderCapabilities.Forget(surface);
         }
     }
+
+    /// <summary>LeaveWorld withdraws the retained publication, releases its generation, and permits a fresh world owner.</summary>
+    [Fact]
+    public void LeaveWorldEventWithdrawsRetainedPublicationAndAllowsFreshRenderer()
+    {
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        var surface = new ShaderProgram { PassName = "standard", ProgramId = 101 };
+        ShaderCapabilities.Publish(surface, ShaderCapability.SharedVertexDeformation);
+        var events = new Mock<IClientEventAPI>();
+        var client = CreateLifecycleClient(events, assets);
+        var generations = new List<ShadowFrameInstance>();
+        int creations = 0;
+        long frame = 0;
+        ShadowFrameInstance Create(ShadowSettings requested)
+        {
+            creations++;
+            var generation = CreateGeneration(assets, requested, surface);
+            generations.Add(generation);
+            return generation;
+        }
+
+        ShadowFrameRenderer? renderer = null;
+        ShadowFrameRenderer? nextWorld = null;
+        try
+        {
+            renderer = new(client.Object, Create, Settings(), () => 0.1, () => Snapshot(checked(++frame)));
+            renderer.OnRenderFrame(0.016f, EnumRenderStage.Opaque);
+            var first = Assert.Single(generations);
+            Assert.NotNull(renderer.Current);
+            using var retainedInputs = CreateRetainedInputs(first);
+            Assert.True(retainedInputs.IsCurrent);
+
+            // Act: deliver the actual client LeaveWorld event registered by the frame owner.
+            events.Raise(value => value.LeaveWorld += null);
+
+            // Assert: withdrawal and owner disposal happen synchronously at the world boundary.
+            Assert.Null(renderer.Current);
+            Assert.False(retainedInputs.IsCurrent);
+            Assert.False(first.Pages.IsAvailable);
+            Assert.True(((ControlledFrameSource)first.Source).IsDisposed);
+            Assert.Throws<InvalidOperationException>(() => _ = first.Gate.Readiness);
+            events.Verify(value => value.UnregisterRenderer(renderer, EnumRenderStage.Opaque), Times.Once);
+            DrainDeferredResources();
+
+            // A new world installs a fresh renderer and allocates fresh page/readiness owners.
+            nextWorld = new(client.Object, Create, Settings(), () => 0.1, () => Snapshot(checked(++frame)));
+            nextWorld.OnRenderFrame(0.016f, EnumRenderStage.Opaque);
+            var replacement = Assert.Single(generations.Skip(1));
+            Assert.NotSame(first, replacement);
+            Assert.NotSame(first.Pages, replacement.Pages);
+            Assert.NotNull(nextWorld.Current);
+            Assert.True(replacement.Pages.IsAvailable);
+            Assert.Equal(2, creations);
+        }
+        finally
+        {
+            nextWorld?.Dispose();
+            renderer?.Dispose();
+            ShaderCapabilities.Forget(surface);
+        }
+    }
+
+    /// <summary>Render-context retirement withdraws retained inputs and a replacement context admits fresh owners.</summary>
+    [Fact]
+    public void ContextRetirementWithdrawsAndReplacementContextRecreatesGeneration()
+    {
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        var surface = new ShaderProgram { PassName = "standard", ProgramId = 101 };
+        ShaderCapabilities.Publish(surface, ShaderCapability.SharedVertexDeformation);
+        var events = new Mock<IClientEventAPI>();
+        var client = CreateLifecycleClient(events, assets);
+        var generations = new List<ShadowFrameInstance>();
+        int creations = 0;
+        long frame = 0;
+        ShadowFrameInstance Create(ShadowSettings requested)
+        {
+            creations++;
+            var generation = CreateGeneration(assets, requested, surface);
+            generations.Add(generation);
+            return generation;
+        }
+
+        var originalContext = RenderContextRegistry.Current();
+        ShadowFrameRenderer? renderer = null;
+        ShadowFrameRenderer? replacementContext = null;
+        try
+        {
+            renderer = new(client.Object, Create, Settings(), () => 0.1, () => Snapshot(checked(++frame)));
+            renderer.OnRenderFrame(0.016f, EnumRenderStage.Opaque);
+            var first = Assert.Single(generations);
+            Assert.NotNull(renderer.Current);
+            using var retainedInputs = CreateRetainedInputs(first);
+            Assert.True(retainedInputs.IsCurrent);
+
+            // Act: retire the actual fixture context registration; the renderer and its gate receive that event.
+            RenderContextRegistry.Retire(fixture);
+
+            // Assert: prior context publications and their physical resources are no longer usable.
+            Assert.Equal(default, RenderContextRegistry.Current());
+            Assert.Null(renderer.Current);
+            Assert.False(retainedInputs.IsCurrent);
+            Assert.False(first.Pages.IsAvailable);
+            Assert.True(((ControlledFrameSource)first.Source).IsDisposed);
+            Assert.Throws<InvalidOperationException>(() => _ = first.Gate.Readiness);
+
+            fixture.RestoreContextRegistration();
+            fixture.InitializeResourceDisposal();
+            var newContext = RenderContextRegistry.Current();
+            Assert.Equal(originalContext.Handle, newContext.Handle);
+            Assert.NotEqual(originalContext.Generation, newContext.Generation);
+
+            replacementContext = new(client.Object, Create, Settings(), () => 0.1, () => Snapshot(checked(++frame)));
+            replacementContext.OnRenderFrame(0.016f, EnumRenderStage.Opaque);
+            var replacement = Assert.Single(generations.Skip(1));
+            Assert.NotSame(first.Pages, replacement.Pages);
+            Assert.True(replacement.Pages.IsAvailable);
+            Assert.NotNull(replacementContext.Current);
+            Assert.Equal(2, creations);
+        }
+        finally
+        {
+            if (RenderContextRegistry.Current() == default)
+            {
+                fixture.RestoreContextRegistration();
+                fixture.InitializeResourceDisposal();
+            }
+            replacementContext?.Dispose();
+            renderer?.Dispose();
+            ShaderCapabilities.Forget(surface);
+        }
+    }
+
+    /// <summary>Client reload callbacks withdraw an admitted publication before fenced generation recreation.</summary>
+    [Fact]
+    public void ClientRenderingReloadWithdrawsRetainedPublicationBeforeRecreation()
+    {
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        var surface = new ShaderProgram { PassName = "standard", ProgramId = 101 };
+        ShaderCapabilities.Publish(surface, ShaderCapability.SharedVertexDeformation);
+        var events = new Mock<IClientEventAPI>();
+        var client = CreateLifecycleClient(events, assets);
+        var registry = GpuShaderProgramLibraries.Create(client.Object);
+        var lifetime = ClientRenderingLifetime.Find(client.Object)!;
+        var generations = new List<ShadowFrameInstance>();
+        int creations = 0;
+        long frame = 0;
+        ShadowFrameInstance Create(ShadowSettings requested)
+        {
+            creations++;
+            var generation = CreateGeneration(assets, requested, surface);
+            generations.Add(generation);
+            return generation;
+        }
+
+        ShadowFrameRenderer? renderer = null;
+        lifetime.Attach(() => renderer?.Dispose());
+        var harmony = new Harmony("Tests.ShadowFrameLifecycle.NativeReload");
+        try
+        {
+            harmony.Patch(AccessTools.Method(typeof(OpenGLBackend), "WaitCpu"),
+                prefix: new HarmonyMethod(typeof(ShadowFrameLifecycleGpuTests), nameof(KeepNextFencePending)));
+            renderer = new(client.Object, Create, Settings(), () => 0.1, () => Snapshot(checked(++frame)));
+            renderer.OnRenderFrame(0.016f, EnumRenderStage.Opaque);
+            var first = Assert.Single(generations);
+            Assert.NotNull(renderer.Current);
+            using var retainedInputs = CreateRetainedInputs(first);
+            Assert.True(retainedInputs.IsCurrent);
+
+            // Act: invoke the client rendering lifetime's synchronous native-reload admission callbacks.
+            ClientRenderingLifetime.BeginNativeReload();
+
+            // Assert: eligibility is withdrawn before native reload completion, while owners remain until frame drain.
+            Assert.True(lifetime.Reloading);
+            Assert.Null(renderer.Current);
+            Assert.Null(first.Gate.Publication);
+            Assert.False(retainedInputs.IsCurrent);
+            Assert.True(first.Pages.IsAvailable);
+            Assert.False(((ControlledFrameSource)first.Source).IsDisposed);
+
+            ClientRenderingLifetime.CompleteNativeReload();
+            Assert.False(lifetime.Reloading);
+            Interlocked.Exchange(ref pendingFencePolls, 100);
+            renderer.OnRenderFrame(0.016f, EnumRenderStage.Opaque);
+            Assert.Null(renderer.Current);
+            Assert.False(first.Pages.IsAvailable);
+            Assert.False(((ControlledFrameSource)first.Source).IsDisposed);
+            Interlocked.Exchange(ref pendingFencePolls, -1);
+            RHICommandContext.Current.WaitIdle();
+            renderer.OnRenderFrame(0.016f, EnumRenderStage.Opaque);
+
+            // The renderer installs a distinct complete generation after the old one has drained.
+            var replacement = Assert.Single(generations.Skip(1));
+            Assert.NotSame(first.Pages, replacement.Pages);
+            Assert.True(((ControlledFrameSource)first.Source).IsDisposed);
+            Assert.True(replacement.Pages.IsAvailable);
+            Assert.NotNull(renderer.Current);
+            Assert.Equal(2, creations);
+            DrainDeferredResources();
+        }
+        finally
+        {
+            Interlocked.Exchange(ref pendingFencePolls, -1);
+            harmony.UnpatchAll(harmony.Id);
+            lifetime.Shutdown();
+            registry.Dispose();
+            ShaderCapabilities.Forget(surface);
+        }
+    }
     #endregion
 
     #region Private
+    #region Retirement helpers
+    /// <summary>Waits for submitted lifecycle work, then drains resources retired by their owning generation.</summary>
+    private static void DrainDeferredResources()
+    {
+        RHICommandContext.Current.WaitIdle();
+        VanillaGraphicsExpanded.Rendering.RHIResourceManagerSystem.CurrentManager?.ResourceDisposals?.DrainPending();
+    }
+    #endregion
+
+    #region Fixture construction and retained publication
+    /// <summary>Connects the event mock to the real fixture asset and logger services used by the frame owner.</summary>
+    private static Mock<ICoreClientAPI> CreateLifecycleClient(Mock<IClientEventAPI> events, BinaryShaderApiFixture assets)
+    {
+        var client = new Mock<ICoreClientAPI> { DefaultValue = DefaultValue.Mock };
+        client.SetupGet(value => value.Event).Returns(events.Object);
+        client.SetupGet(value => value.Assets).Returns(assets.Api.Assets);
+        client.SetupGet(value => value.Logger).Returns(assets.Api.Logger);
+        return client;
+    }
+
+    /// <summary>Creates real page, gate, and controlled source owners for an isolated lifecycle generation.</summary>
+    private static ShadowFrameInstance CreateGeneration(BinaryShaderApiFixture assets, ShadowSettings settings,
+        ShaderProgram surface)
+    {
+        var pages = ShadowPagePool.Create(assets.Api, settings.Pages);
+        var gate = new NativeShadowFrameGate(assets.Api, settings, pages);
+        var source = new ControlledFrameSource(assets.Api, settings, surface);
+        return new(source, gate, pages);
+    }
+
+    /// <summary>Retains a borrowed input set for checking synchronous invalidation at a producer lifecycle boundary.</summary>
+    private static SurfaceShadowInputSet CreateRetainedInputs(ShadowFrameInstance generation)
+    {
+        var publication = Assert.IsType<ShadowFramePublication>(generation.Gate.Publication);
+        return new(publication.Lights, publication, null, generation.Pages.Settings);
+    }
+
     /// <summary>Builds a compact valid allocation policy with enough memory for two non-overlapping generations.</summary>
     private static ShadowSettings Settings() => new()
     {
@@ -156,7 +414,9 @@ public sealed class ShadowFrameLifecycleGpuTests(HeadlessGLFixture fixture) : Re
     /// <summary>Creates an immutable no-light snapshot so the controlled source can exercise real gate admission without drawing.</summary>
     private static ShadowLightSnapshot Snapshot(long frame) => new(frame, 11, 2, [], default, default,
         ImmutableArray.CreateRange(new double[16]), 0, 0, 0, Vector3.Zero);
+    #endregion
 
+    #region Fence retirement helper
     /// <summary>Returns a pending completion to exercise nonblocking retirement without sleeping or replacing the fence.</summary>
     private static bool KeepNextFencePending(ref CompletionStatus __result)
     {
@@ -164,7 +424,9 @@ public sealed class ShadowFrameLifecycleGpuTests(HeadlessGLFixture fixture) : Re
         __result = CompletionStatus.Pending;
         return false;
     }
+    #endregion
 
+    #region Controlled frame source
     /// <summary>Captures no native scene while still publishing exact current world/candidate GPU owners.</summary>
     private sealed class ControlledFrameSource : IShadowFrameSource
     {
@@ -205,5 +467,6 @@ public sealed class ShadowFrameLifecycleGpuTests(HeadlessGLFixture fixture) : Re
             disposed = true; candidates.Dispose(); worldBuffers.Dispose();
         }
     }
+    #endregion
     #endregion
 }

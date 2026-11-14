@@ -60,12 +60,11 @@ internal sealed class LightShaftRenderer : IDisposable
         float peak=Math.Max(tint.X,Math.Max(tint.Y,tint.Z));
         tint=peak>1e-6f?tint/peak:Vector3.Zero;
         if(peak<=1e-6f) visibility=0;
-        var sun=new Vector4(screen,visibility,(float)scene.Width/scene.Height);
-        var solar=new Vector4(tint,128);
+        var sourceInputs=new LightShaftSource(screen,visibility,(float)scene.Width/scene.Height,tint);
         shader!.SourceImage=scene; shader.VisibilityImage=glow; shader.DepthImage=depth;
         shader.ExposureBuffer=exposure.Buffer;
-        shader.Capture(new(0,0,occlusionOnly?4:0,exposure.Buffer is null?0:1),
-            new(settings.BloomThreshold,settings.LightShaftLimit,settings.LightShaftStrength,exposure.ManualLogGain),sun,solar);
+        shader.CaptureExtraction(occlusionOnly,exposure.Buffer is not null,settings.BloomThreshold,
+            settings.LightShaftLimit,settings.LightShaftStrength,exposure.ManualLogGain,sourceInputs);
         draw.Submit(commands,pipeline!,first!.Pass,shader!.CaptureBindings());
         // Ping-pong keeps every sampling source distinct from the active draw attachment.
         PostprocessImage source=first,destination=second!;
@@ -73,12 +72,12 @@ internal sealed class LightShaftRenderer : IDisposable
         {
             float step=.04f*MathF.Pow(3,pass+3-passes);
             shader.SourceImage=source.Texture;
-            shader.Capture(new(0,0,1,samples),new(step,0,0,0),sun,solar);
+            shader.CaptureFilter(samples,step,sourceInputs);
             draw.Submit(commands,pipeline!,destination.Pass,shader!.CaptureBindings());
             (source,destination)=(destination,source);
         }
         shader.SourceImage=source.Texture;
-        shader.Capture(new(0,0,occlusionOnly?3:2,0),Vector4.Zero,sun,solar);
+        shader.CaptureResolve(occlusionOnly,sourceInputs);
         draw.Submit(commands,pipeline!,occlusionOnly?occlusion!.Pass:bloom!.Pass,shader!.CaptureBindings());
     }
     /// <summary>Retires all shaft-only storage and publication together.</summary>

@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using OpenTK.Graphics.OpenGL;
 using HarmonyLib;
 using VanillaGraphicsExpanded.LumOn;
@@ -174,10 +175,10 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         {
             byte[] bytes = new byte[16];
             BitConverter.TryWriteBytes(bytes, 1f);
-            block.SetBytes(bytes);
+            block.SetPayload(bytes);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(13, block.Capture()));
             BitConverter.TryWriteBytes(bytes, 2f);
-            block.SetBytes(bytes);
+            block.SetPayload(bytes);
             // Interrupt the upload itself; unrelated ambient GL errors are not command results.
             var fault = new Harmony("tests.uniform-upload-interruption." + Guid.NewGuid());
             var upload = usage == UniformBufferUsage.MultiFrame
@@ -221,7 +222,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         using var block = new PackedUniformBuffer(32, UniformBufferUsage.MultiFrame);
         byte[] bytes = new byte[32];
         BitConverter.TryWriteBytes(bytes, 0.25f);
-        block.SetBytes(bytes);
+        block.SetPayload(bytes);
         using var ring = new GpuUniformRingBuffer(65536, 3, mapped);
         ring.BeginFrame(0);
         RHIUniformRingSystem.SetCurrent(ring);
@@ -270,8 +271,15 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
             VanillaGraphicsExpanded.Rendering.Contracts.ShaderBindingKind.UniformBlock, LumOnWorldProbeResolveParamsUbo.BlockName)).Snapshot!;
 
     /// <summary>Exercises the supported direct-write path without typed packing setters.</summary>
-    private sealed class DirectWriteBlock() : CpuUniformBuffer(16)
+    private sealed class DirectWriteBlock : CpuUniformBuffer
     {
+        private const int BlockSizeBytes = 16;
+        /// <summary>Reports the fixed test block size used by the CPU allocation.</summary>
+        public override int SizeBytes => BlockSizeBytes;
+
+        /// <summary>Allocates the test-owned block using its type-declared size.</summary>
+        internal DirectWriteBlock() : base() { }
+
         #region Public API
         /// <summary>Writes CPU bytes directly and explicitly advances the publication revision.</summary>
         public void Write(float value)

@@ -9,6 +9,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\ShaderBuildTool\ShaderBuildTool.csproj" />
-    <PackageReference Include="TinyAst" Version="0.11.3" />
+    <PackageReference Include="TinyAst" Version="0.12.0" />
   </ItemGroup>
 </Project>

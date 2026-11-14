@@ -6,11 +6,18 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 /// <summary>Packs the shared SI-unit wave snapshot consumed by color and liquid-depth programs.</summary>
 internal sealed class LiquidWaveParamsUbo : CpuUniformBuffer
 {
+    #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 32;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+    #endregion
+
     internal const string BlockName = "VgeLiquidWaveParams";
 
     #region Frame inputs
     /// <summary>Allocates std140 phase and weather vectors.</summary>
-    internal LiquidWaveParamsUbo() : base(32, Rendering.Uniforms.UniformBufferUsage.SingleFrame) { }
+    internal LiquidWaveParamsUbo() : base(Rendering.Uniforms.UniformBufferUsage.SingleFrame) { }
 
     /// <summary>Writes four world-anchored wave phases in radians.</summary>
     internal Vector4 Phases { set => WriteVector4(0, value); }

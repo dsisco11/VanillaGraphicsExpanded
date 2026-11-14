@@ -24,7 +24,7 @@ internal static class CloudVolumeCoordinates
     {
         if(planes.Length!=6)throw new ArgumentException("Six scheduling planes required.",nameof(planes));
         Span<float> view=stackalloc float[16],clip=stackalloc float[16];
-        MemoryMarshal.Cast<byte,float>(camera.Bytes.Slice(64,64)).CopyTo(view);view[12]=view[13]=view[14]=0;
+        camera.View.CopyTo(view);view[12]=view[13]=view[14]=0;
         MatrixHelper.Multiply(camera.Projection,view,clip);
         for(int axis=0;axis<3;axis++)for(int side=0;side<2;side++)
         {

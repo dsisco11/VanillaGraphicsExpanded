@@ -3,8 +3,9 @@
 This is the implementation design for the [shared virtual shadow map proposal](Rendering.VirtualShadowMaps.Proposal.md).
 It specifies interfaces and invariants. Native input publication and the bounded dependency primitives
 described below, GPU candidate traversal, projection providers, page storage and shared sampling are implemented.
-Native shadow rendering is qualified through controlled integration. The current-frame admission gate
-is implemented for controlled integration; production lighting consumers remain disconnected.
+Native shadow rendering and the current-frame admission gate supply the shared surface-lighting interface.
+Deferred, forward and liquid consumers use independent celestial and local visibility. Production
+enablement remains opt-in; live appearance and workload qualification remain separate evidence gates.
 The [implementation plan](Rendering.VirtualShadowMaps.todo)
 controls delivery. Numerical profiles are provisional, not measured shipping defaults.
 The [qualification protocol](Rendering.VirtualShadowMaps.Qualification.md) defines the evidence needed
@@ -259,14 +260,16 @@ remaining proofs already exist.
 ## Implemented input boundaries
 
 `VgeLightsRenderer` freezes source keys with the existing illumination payload after held attachment
-resolution. `NativeShadowLightSources` records the actual entity/hand or registered `IPointLight` at
-admission, and retains the collection's world-to-view matrix, dimension and integer-origin inputs.
+resolution. `NativeShadowLightSources` records the actual entity/hand or registered `IPointLight` and
+its original world position at collection, before native view-space conversion. Source coordinates,
+dimension, view and render origin belong to the same frozen lighting frame; sampling uses translated
+projection frames rather than reconstructing source positions from the native view-space payload.
 Movement and list ordering do not define identity. Weak owner lifetimes, hand replacement tracking,
 provider removal and world reset prevent reuse by replacement sources. Authored `PunctualLight.Source`
 supplies equivalent identity. Block-entity providers additionally retain integer block position.
 Unknown keys or unavailable collection coordinates leave illumination intact without cached-shadow input.
-Independent solar/lunar direction and irradiance are retained from the coherent atmosphere publication;
-existing lighting consumers still use their current direct-light selection until consumer migration.
+Independent solar/lunar direction and irradiance are retained from the coherent atmosphere publication
+and evaluated separately by participating deferred, forward and liquid consumers.
 
 `NativeShadowWorldAdapter` bootstraps under `ClientWorldMap.chunksLock`, then drains bounded native
 dictionary-coordinate notifications. Load/replacement and unload interception observes writes in the
@@ -322,14 +325,15 @@ signed dominant-axis sectors supplies conservative slope bounds. Point requests 
 attenuation radius. Current demand remains responsible for using the lighting radius convention.
 
 `shadows/candidates.csh` executes the proposed whole-slab interval products and finite segment inequalities
-in double precision on the OpenGL 4.5 baseline. Closed boundary coverage includes both touching cells.
+in domain-relative FP32 on the OpenGL 4.5 baseline. Closed boundary coverage includes both touching cells.
 The existing packaged-SPIR-V compute loader owns this shader together with page allocation, tile clear
 and sampling. The canonical offline catalog compiles its generated contracts and packages matching
 interface metadata. Shadow owners use `ComputeShaderAsset.TryCreateFromAssets`, including the normal
 reload and cache path. There is no shadow-specific runtime GLSL factory or fallback.
 Arithmetic bounds expand outwards: local inputs are limited to 2^21 chunk units, domains to a 2^20
-index span, and the short arithmetic chains use an absolute 1e-7 plus relative 1e-11 allowance in chunk
-units. This intentionally admits boundary false positives. No mesh bounds, triangle inspection or
+index span. Inputs round outwards before narrowing; arithmetic allowances scale with the local
+domain and endpoint magnitudes, including cancellation and nearly parallel segment inequalities.
+This intentionally admits boundary false positives. No mesh bounds, triangle inspection or
 CPU candidate enumeration participates in production selection.
 
 `ShadowCandidatePool` allocates a fixed number of headers, each owning a fixed span of 64-coordinate
@@ -337,8 +341,9 @@ segments and a bounded hash table. The entire layout, including unused, building
 counts against `AllocatedBytes`. Old and replacement associations occupy separate slots in this same
 allocation. Retirement withdraws the handle and polls an RHI fence before slot reuse. Allocation checks
 cached SSBO limits and the configured memory allowance; it never silently reduces the declared domain.
-Native world buffers are borrowed input allocations and remain charged to their input owner. A later
-shared scheduler must account both owners within the total shadow budget.
+Native world buffers are borrowed input allocations and remain charged to their input owner.
+`ShadowFrameBudget` accounts live and retiring input, candidate, page and drawing allocations within
+the total shadow allowance shared by source preparation and the frame gate.
 
 The generated binding contract declares six SSBOs: persistent per-slot inputs, 128-byte headers,
 16-byte absolute coordinate entries, dedup storage, changed partitions and the current 64-byte native
@@ -354,20 +359,23 @@ receiver containment and history epoch, then queues bounded GPU checks. Repeated
 change cursor. Changed partitions are checked against conservative covered regions; native publication
 changes trigger bounded lookup validation over the retained coordinates. Missing or pending cells remain
 unresolved. Cached empty/connectivity metadata never removes coordinates; connectivity pruning is disabled.
-The future frame coordinator supplies the contiguous interval before consumers and may not use an
-association whose slice was not admitted or whose current GPU certificate is incomplete.
+`NativeShadowFrameSource` supplies the current world upload and complete candidate dependency interval
+before consumers. `NativeShadowFrameGate` admits only budgeted associations whose current GPU
+certificate is complete.
 
 Candidate coverage ignores projection generation deliberately. A different light basis/position still
 invalidates depth separately. `NeedsRefresh` and the GPU header's refresh flag expose the configured guard
-for replacement scheduling; predictions never extend validity. Later admission/rendering integration owns
-light selection, replacement scheduling and depth publication. Shader replacement requires a fresh pool.
+for replacement scheduling; predictions never extend validity. `ShadowScheduler` and
+`NativeShadowFrameGate` own light selection, replacement scheduling and depth publication. Shader
+replacement requires a fresh pool.
 
 The accepted `VirtualShadows.Candidates` controls are provisional: `MemoryMiB` 16, `HeaderCapacity` 32,
 `SegmentsPerAssociation` 64, `DedupCapacity` 8192, `ProbeLimit` 128 and `ChangeCapacity` 8192. Slice ceilings
 are 64 slabs, 4096 cells, 32768 probes and 256 changed partitions; corresponding whole-batch ceilings are
 1024, 65536, 524288 and 8192. `RefreshGuardFraction` defaults to 0.25. Invalid fields sanitize to finite
 defaults; incompatible aggregate memory/hardware layouts reject allocation. Pools freeze the policy at
-creation; live rendering reconfiguration and the total resource budget belong to the later coordinator.
+creation; `ShadowFrameRenderer` drains configuration generations on live reconfiguration, while
+`ShadowFrameBudget` enforces the total resource allowance.
 
 ## Projections, physical pages and sampling
 
@@ -380,7 +388,7 @@ extent times the corresponding tile count, and capacity is tile columns times ti
 array layers. These integer settings describe whole tiles and layers, so no partial-layer rounding
 or hidden capacity growth applies. Reject layouts exceeding texture dimensions, array-layer limits,
 bounded table indices or the memory allowance. Charge all allocated texels, metadata and in-flight
-retirement, including unoccupied tiles. One array sampler and one array image replace bank dispatch;
+retirement, including unoccupied tiles. The pool uses one array sampler and one array image;
 validate their availability in every participating consumer before allocation.
 
 Page-table words 17, 18 and 19 hold explicit array layer, tile X and tile Y respectively. Assignment
@@ -421,9 +429,24 @@ XY; snapping the camera's clipmap center changes selected pages without changing
 `Update` retains an unchanged mapping and advances projection generation for basis/depth changes.
 `PointShadowProjection` uses fixed +X, -X, +Y, -Y, +Z, -Z faces with deterministic X/Y/Z tie ownership.
 Position, near/far or face-resolution changes advance its generation. Both providers expose page-local
-normalized-device coordinates and retain double precision until bounded page/local-texel conversion.
-Sampling inputs split positions into signed integer 32-block chunk origins and relative double coordinates;
-origins outside the native signed coordinate range are rejected before packing.
+normalized-device coordinates. CPU projection setup retains high precision at coordinate boundaries.
+GPU geometry uses relative FP32 throughout candidate traversal, selection, coverage and sampling.
+Coverage certificates pair signed integer chunk identities with bounded FP32 endpoints; receiving
+enclosures round outward onto this grid before projection and draw preparation. Containment and
+accumulated-demand unions compare integer identities first, then local endpoints, without assembling
+global floating-point positions. Raster page addressing uses checked integer quotient/remainder and
+page addition. Canonical CPU projection words remain opaque immutable identity on GPU.
+Each selected request carries a derived sampling frame from its rendered projection: high/low FP32
+origin, local projection values and an integer directional page anchor plus within-page fraction.
+Directional receiving demand shares a snapped camera origin across its pages; choosing a different
+first page therefore cannot change the translation-error bound. The rendered basis and depth interval
+still determine that frame's mapping, including when current receivers reuse an older generation.
+Subtracting high/low origins converts camera-relative receivers directly into that frame. Origin
+subtraction retains intermediate FP32 rounding residuals until high and low components have
+cancelled, including when nearby origins straddle a high-component rounding boundary.
+Global directional texel coordinates are never assembled in FP32; integer page displacement handles scrolling.
+Point faces share their rendered light-position origin. Physical array slots remain independent.
+Signed world/page limits are checked before packing or integer addition.
 Out-of-range coordinates fail instead of wrapping. Source keys retain world, dimension and lifetime.
 
 Depth is conventional near=0/far=1, empty=1, with explicit less-or-equal comparisons. Point near distance
@@ -467,7 +490,7 @@ must still establish current consumer requirements before invoking it.
 
 Explicit capacity/layout configuration changes use `Reconfigure`, which withdraws all publications and
 drains the old allocation before creating the replacement, preventing two full pools. There is no
-incremental growth or bank shrink interface. `Withdraw` handles disable/world leave and cancels pending
+implicit capacity growth or shrinkage. `Withdraw` handles disable/world leave and cancels pending
 recreation; source/dimension retirement is a GPU operation. Allocation failure keeps publications
 unavailable. Report the old allocation's bytes until its fences drain. The existing client
 rendering lifetime's publication callback withdraws the pool synchronously on shader reload; context
@@ -483,8 +506,8 @@ is no depth averaging or implicit fallback level. The same tap resolver is avail
 The compute entry returns all nine page addresses plus visibility, a diagnosed invalid-tap mask and a
 separate permitted-stale tap mask. A query is current only when every tap is current; permitted stale
 requires every tap to be eligible and at least one retained tap.
-Any invalid tap returns unshadowed visibility for the query. Production per-light readiness, diagnostic
-aggregation and overlays remain owned by the later frame/consumer integration.
+Any invalid tap returns unshadowed visibility for the query. Surface consumers share whole-light GPU
+readiness and accumulate unexpected per-light query failures on GPU for the Virtual Shadows overlay.
 
 Accepted `VirtualShadows.Pages` controls are provisional: `MemoryMiB` 128, `PageSize` 128,
 `TileColumns` 16, `TileRows` 16, `ArrayLayers` 4, `ProbeLimit` 128 and `OperationsPerBatch` 256. Projection/bias
@@ -497,7 +520,8 @@ table data, 16 bytes of writable tokens and four bytes per depth texel, plus 608
 bytes per pool. Empty capacity costs the same allocated bytes as occupied capacity.
 The pool validates depth plus metadata/command/result storage against its allowance, integer and hardware
 limits; `AllocatedBytes` includes resident retirement storage. `ShadowSampler` separately reports its
-800-byte query/output allocation. Candidate, input, sampler and command storage remain charged to
+928-byte query/output allocation (192 request words plus 160 result bytes). Candidate, input,
+sampler and command storage remain charged to
 their owners and must all fit the eventual total budget. Driver overhead is outside these nominal counts.
 
 ### Retained projection and temporal eligibility
@@ -512,6 +536,12 @@ hard failures, independent of temporal policy.
 footprint. `WithTemporal` separately supplies the current light projection and clock. All demanded
 coverage must fit the rendered certificate. Both age limits and motion tolerance must pass: point
 motion uses Euclidean distance in metres; directional motion uses angular separation in degrees.
+CPU setup subtracts current and rendered source positions before narrowing to relative FP32 motion.
+It resolves the inclusive motion-limit decision at that boundary; GPU reuse accepts it only after
+matching the exact rendered mapping. Diagnostic motion uses the relative vector on GPU. Rendered,
+invalidation and query clocks are unsigned 64-bit nanosecond tick pairs, compared and subtracted with
+baseline integer operations. Input seconds round to nanoseconds; duration limits round down. This
+clock supports render uptimes below 18,446,744,073 seconds without an FP32 epoch or age subtraction.
 Current illumination is never reconstructed from the retained shadow projection.
 
 `VirtualShadows.Temporal` persists `MaxRenderedAgeSeconds` 0.25, `MaxStaleAgeSeconds` 0.1,
@@ -590,23 +620,25 @@ headless raster evidence do not qualify installed-game appearance or measured pe
 ## Ownership and source layout
 
 Keep shared storage, scheduling and validity independent of native scene classes and lighting consumers.
-The names below are intended steady-state responsibilities, not placeholder files to create now.
-Each named type gets its own file; directories provide context. No generic scene registry is needed.
+The following owners implement the shared contracts and their native integration. Directories provide
+domain context; each file has one responsibility. No generic scene registry is needed.
 
 | Location beneath `VanillaGraphicsExpanded/` | Responsibility and allowed dependencies |
 | --- | --- |
 | `Rendering/Shadows/Lights/ShadowLightSnapshot.cs`, `ShadowSourceKey.cs` | Immutable source identity, emission and influence contracts; no engine pool types |
 | `Rendering/Shadows/World/ShadowWorldPublication.cs`, `ShadowChunkIdentity.cs` | Fixed chunk coordinates, availability and publication revisions; no mesh ownership |
-| `Rendering/Shadows/Geometry/ShadowGeometryPublication.cs`, `ShadowSceneChanges.cs` | Borrowed range batches, material/transform revisions and bounded change streams |
+| `Rendering/Shadows/Geometry/ShadowGeometryRange.cs`, `ShadowSceneChanges.cs`, `ShadowGeometrySelection.cs`, `ShadowDepthSubmission.cs` | Borrowed range contracts, bounded change streams, GPU selection and atomic depth submission |
 | `Rendering/Shadows/Projections/DirectionalShadowProjection.cs`, `PointShadowProjection.cs` | Clipmaps and six faces, conservative coverage mapping and projected depth |
-| `Rendering/Shadows/Candidates/ShadowCandidateHeader.cs`, `ShadowCandidateTraversal.cs` | GPU spatial associations, bounded continuation and pruning dependencies |
-| `Rendering/Shadows/Pages/ShadowPageTable.cs`, `ShadowReceivingCoverage.cs`, `ShadowPagePool.cs` | Page lookup, certified receiving regions, allocation and retirement |
-| `Rendering/Shadows/Scheduling/ShadowAdmission.cs`, `ShadowReadiness.cs` | Complete page admission, aggregate budgets, stable light selection and consumer readiness |
-| `Rendering/Shadows/Configuration/ShadowSettings.cs`, `ShadowQualityProfile.cs`, `ShadowEffectiveCapacity.cs` | Persisted schema, finite policy data and validated effective limits |
-| `Rendering/Shadows/ShadowFrameCoordinator.cs` | Thin frame orchestration over those responsibilities, RHI and existing resource lifecycle |
-| `Rendering/Integration/Shadows/NativeShadowWorldAdapter.cs`, `NativeShadowTerrainAdapter.cs`, `NativeShadowEntityAdapter.cs` | Native world/geometry lifecycle translation, once-per-frame preparation; depend inward on shared contracts |
+| `Rendering/Shadows/Candidates/ShadowCandidateHeader.cs`, `ShadowCandidatePool.cs`, `ShadowCandidateSchedule.cs` | GPU spatial associations, bounded continuation and replacement scheduling |
+| `Rendering/Shadows/Pages/ShadowPageRequest.cs`, `ShadowReceivingCoverage.cs`, `ShadowPagePool.cs` | Page lookup, certified receiving regions, allocation and retirement |
+| `Rendering/Shadows/Scheduling/ShadowScheduler.cs`, `ShadowFrameBudget.cs`, `ShadowDemandWorkQueue.cs` | Stable light selection, aggregate budgets and bounded complete-page work |
+| `Rendering/Shadows/Readiness/ShadowReadinessPool.cs`, `ShadowFramePublication.cs` | Complete light readiness and revocable consumer publication |
+| `Rendering/Shadows/Configuration/ShadowSettings.cs`, `ShadowSchedulingSettings.cs`, `ShadowEffectiveCapacity.cs` | Persisted schema, finite policy data and validated effective limits |
+| `Rendering/Integration/Shadows/ShadowFrameRenderer.cs`, `ShadowFrameInstance.cs`, `NativeShadowFrameGate.cs`, `NativeShadowFrameSource.cs` | Frame orchestration, source preparation, admission and configuration-generation retirement through RHI and existing lifecycle owners |
+| `Rendering/Integration/Shadows/NativeShadowWorldAdapter.cs`, `NativeShadowTerrainAdapter.cs`, `NativeShadowEntityPreparation.cs`, `NativeShadowScene.cs` | Native world/geometry lifecycle translation, once-per-frame preparation and borrowed draw submission; depend inward on shared contracts |
 | Existing `Rendering/VgeLightsRenderer.cs`, `VgeLightsUniformBuffer.cs` and `PBR/HeldLighting/` owners | Collect and publish source keys alongside the existing illumination payload |
-| `PBR/Shadows/SurfaceShadowDemand.cs`, `SurfaceShadowBindings.cs` | Surface demand and consumer bindings; depend on shared contracts, not native pool internals |
+| `Rendering/Shadows/Demand/ShadowSurfaceDemand.cs`, `ShadowSurfacePublication.cs` | Bounded surface demand and complete current receiver publication |
+| `PBR/Shadows/SurfaceShadowBindings.cs`, `SurfaceShadowInputSet.cs`, `SurfaceShadowPrograms.cs` | Consumer bindings and executable eligibility; depend on shared contracts, not native pool internals |
 | `ModSystems/VirtualShadowModSystem.cs` | Config/lifetime composition only; implement existing live-reload boundary |
 | `assets/vanillagraphicsexpanded/shaders/shadows/` and `shaders/includes/shadows/` | Separate candidate, expansion, clear, depth, readiness and shared lookup assets; existing shader catalog/contract generation owns compilation |
 
@@ -651,7 +683,7 @@ Every operation returns a completion state with a reason; an empty result and un
 | Page lookup | Source/lifetime, projection generation, level/face and virtual XY; request receiving region | Mapping to layer/tile XY/assignment generation plus separately certified coverage and dependencies. Bounded probes; collision exhaustion cannot alias or silently drop entries. |
 | Page admission | Complete candidates, current terrain/non-terrain inputs, union of currently required receiving regions, remaining aggregate limits | Admit only complete updates before clearing. Count every preparation/expansion pass and repeated geometry cost. Unfinished selection produces no publishable page. |
 | Readiness publication | Complete current demand and valid covering page results for one light/consumer/frame | All surface paths share one result for that interval; sun and moon independent. Fog has separate readiness and cannot displace an admitted surface result. |
-| Shared sampling | Same light/readiness snapshot, world receiving position and bounded bias/filter parameters | Visibility in [0,1] attenuates only that light's direct term. Explicit virtual lookup for each tap; unexpected failure returns 1 and records a per-light failure. This guard does not satisfy the readiness contract. |
+| Shared sampling | Same light/readiness snapshot, camera-relative receiving position with its split origin and bounded bias/filter parameters | Visibility in [0,1] attenuates only that light's direct term. Explicit virtual lookup for each tap; unexpected failure returns 1 and records a per-light failure. This guard does not satisfy the readiness contract. |
 
 Stable keys comprise world session, dimension, source kind, native owner lifetime and emission slot.
 Sun and moon have distinct fixed slots in that world/dimension. Entity and player IDs need lifetime
@@ -660,10 +692,18 @@ emitter lifetime. Authored providers supply equivalent identity. Replacing an em
 position/hand advances its lifetime; moving it does not. Never infer keys by matching positions or
 frame-list indices. Required collector coverage remains a completion obligation.
 
-Retain the frame's world-to-view transform and integer origin with the snapshot. Convert native view-space
-positions using that same frame convention for world-space candidate/projection work; never combine a
-retained view-space light payload with a later camera transform. Direction, position and receiving-region
+Retain the frame's world-to-view transform and integer origin with the snapshot for receiver bounds.
+World-space candidate/projection work uses original captured source positions. Never combine a retained
+view-space illumination payload with a later camera transform. Direction, position and receiving-region
 coordinate spaces must be explicit in generated contracts.
+
+Native point collection retains each admitted source's original world position beside its exact
+illumination-list index. Attachment resolution updates both the existing native view-space payload
+and the captured source position. Shadow candidates/projections consume that original position without
+inverting the native light view. Illumination-only lists can omit world positions; those sources retain
+illumination without shadow admission. Camera view and split origin come from the same frozen frame
+publication. Surface sampling keeps the reconstructed receiver camera-relative and applies only the
+difference to the selected rendered shadow origin, including retained projections after camera motion.
 
 Retain the point influence convention in
 [VgePointIlluminance](../VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/pbr_photometric.glsl):
@@ -671,7 +711,7 @@ authored `payload.w > 0` gives radius; native radius is `min(25, length(max(payl
 before intensity calibration, and contribution is zero at or beyond that radius.
 Changes to emission/influence can invalidate candidate coverage independently of position.
 Keep independent solar and lunar contributions through atmosphere publication, intensity bounds,
-deferred and forward paths; current single-emitter properties are not the target contract.
+deferred and forward paths.
 
 World identity uses native dimension/Y encoding and fixed 32-block partitions. GPU arithmetic uses
 an integer origin plus a bounded remainder as in [FrameWorldSpaceBridge](../VanillaGraphicsExpanded/Rendering/FrameWorldSpaceBridge.cs).
@@ -829,7 +869,8 @@ explicitly owned remaining consumers.
 `ShadowFrameRenderer` runs at opaque order -9999, immediately after `VgeLightsRenderer`'s
 current capture at -10000. Its source receives that exact immutable light snapshot and
 the gate's shared ledger before preparation or demand work. Explicit construction requires
-a complete surface-receiver owner; ordinary startup does not install the new shadow provider.
+a complete surface-receiver owner; ordinary startup registers the opt-in provider through the existing
+virtual-shadow lifetime owner.
 Downstream visible draw order is unchanged.
 The Done-stage callback seals page users after surface submission. Each borrowed publication is
 permanently withdrawn at that boundary; beginning a later page batch cannot revive an older packet.
@@ -925,12 +966,118 @@ the page mode displays physical residency, invalidation, array/tile address, ass
 Readiness reason codes distinguish incomplete demand (1), recovery (3), missing/reassigned pages (4),
 receiver containment (5), mapping mismatch (6), unknown dependencies/invalidation (7), rendered-age
 expiry (8), stale-age expiry (9), source motion (10), physical-address loss (11), arbitration (12)
-and surface capability loss (13). Zero means eligible. The final readiness row displays that code.
+surface capability loss (13) and an unrepresentable translated sampling frame (14). Zero means eligible.
+The final readiness row displays that code.
 Its text panel reports source identity, candidate age/covered motion, CPU admission estimates,
 traversal allowances, tracked/draining bytes and rejected ceiling causes separately. Delayed GPU
 timings name their original frame and remain distinct from conservative estimates. Neither
 view downloads depth images or page tables. These counters do not establish live appearance or
 measured moving-light performance; the qualification protocol controls those claims.
+
+## Shared surface consumers
+
+`PBR/Shadows/ISurfaceShadowBindings` supplies one common interface to the owned deferred and liquid
+programs. Patched native forward materials import the same `shadows/surface.glsl` helper and bind its
+resources after native shader activation. Source edits use the existing GLSL syntax tree. Core-profile
+extension cleanup, floating-point clamp bounds and material/header declarations share the normal stage
+transaction. Declarations follow surviving unconditional leading extensions. Successful linking validates the shared interface and publishes `SharedSurfaceShadows`; failed replacement
+withdraws that capability and the participating frame's eligibility. A dedicated compilation hook
+owns surface-interface validation; the existing capability owner tracks executable identity without
+a second surface-specific program-ID table.
+
+| Resource | Slot | Ownership and purpose |
+| --- | --- | --- |
+| `SurfaceShadowParameters` | UBO 18 | Frozen current solar/lunar direction, irradiance and angular radius; high/low camera origin; FP32 bias; exact source-to-readiness indices |
+| `SurfaceShadowRequests` | SSBO 0 | The gate's current demand and GPU-selected rendered projection interval |
+| `PageEntries` | SSBO 1 | The same completed physical assignments, coverage and temporal dependencies checked by readiness |
+| `SurfaceShadowReadiness` | SSBO 2 | One whole-light current/permitted-stale/unavailable result shared by all surfaces |
+| `SurfaceShadowDiagnostics` | SSBO 5 | Bounded per-light unexpected query-failure count and tap mask; no image readback |
+| `shadowDepthPool` | Integer array sampler 33 | The sole resident R32UI page array; explicit per-tap addressing and comparison |
+
+The native packed-vertex face-data slot 3 and frozen photometric slot 4 remain independent.
+The shared array consumes one fragment sampler alongside each consumer's other declared resources;
+the material-energy sampler remains at 32. The baseline provides these binding namespaces without
+bindless access or a vertex-stage storage-block requirement. Real executable contracts and the shared
+capability owner validate slot and stage limits. Disabled consumers use an initialized small storage
+sentinel and an unused integer-array sentinel, rather than a native-shadow fallback.
+
+Source slots zero and one identify sun and moon; slots two through 101 identify the unchanged
+illumination-list indices. The CPU map comes from exact stable source keys in that frame's readiness
+submission, never spatial matching. A light excluded from admission retains its direct illumination.
+Each source attenuates its own direct reflection/transmission term. Ambient, block environment and
+emission are independent. Celestial intensity bounds include both sources in their existing physical
+units; shadow selection does not change illumination-list capacity or atmospheric calibration.
+Deferred and forward lighting pass each celestial source's direction, irradiance, angular radius
+and shadow slot explicitly to a shared direct-light helper. Liquid lighting uses its own helper
+to retain the same source's finite-disk reflection and medium-scattering inputs through composition.
+
+GPU readiness selects a coherent rendered generation and request interval. Sampling uses that
+interval's projection while direct lighting uses the current captured source. The native producer
+selects one directional level or one coherent six-face point mapping per quality alternative.
+Each fragment checks its conservative filter/bias enclosure in the page entry's translated coverage
+frame and performs bounded hash lookups directly, without scanning every demanded page. CPU demand
+includes a coordinate-rounding allowance based on receiver extent, camera-relative distance, the
+camera-to-shadow origin difference and high/low origin representation, including tight distant regions.
+Cube-edge taps retain their destination-face projection. Temporal eligibility and chunk/local
+receiving coverage are reduced once before drawing; the immutable publication interval protects that selection.
+Invalid coverage or physical-address checks return illumination and count an
+unexpected miss; the Virtual Shadows readiness view shows those counts on its final row.
+Frame-end barriers order fragment diagnostics before later shader reads and buffer resets. Immediate
+withdrawal also orders preceding fragment writes before clearing diagnostics. The debug
+draw also orders its read when AfterBlit precedes Done. Texture-update fixtures similarly order image
+writes before host texture uploads, following the [OpenGL memory-ordering contract](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_shader_image_load_store.txt).
+
+| Consumer | Shadow provider |
+| --- | --- |
+| Opaque/cutout terrain and deferred entity/foliage material capture | Owned deferred direct-lighting pass, shared surface VSM |
+| Forward standard, animated entity, instanced and transparent terrain | Patched forward material, shared surface VSM |
+| Water and other owned liquids, including optical-boundary capture | Owned liquid program, shared surface VSM |
+| Compatibility particles and decals | Explicitly retained native celestial cascades and native scheduling |
+| Existing GI and fog lighting | Their existing source/visibility contracts; volumetric VSM integration remains pending |
+
+Migrated surface code has no native cascade samplers. Native forward brightness and coordinate
+helpers are neutralized through AST edits, so an already evaluated native shadow cannot attenuate
+the shared result again. The patching system owns this behavior; uniform setters are not intercepted
+to override shadow intensity. A bounded recovery retry reapplies the patch transaction to restored
+source before compiling; it does not install an unpatched replacement when required patching fails.
+Native ShadowFar/ShadowNear work remains for the listed compatibility
+consumers. Their maps are never used as an implicit coarse or missing-page surface fallback.
+Opt-in surface integration and headless evidence do not establish live appearance, useful shadow
+availability, driver coverage or measured moving-light cost; those remain qualification obligations.
+
+`VirtualShadowModSystem` registers the early frame owner with `Scheduling.Enabled` initially false.
+Enabling constructs the configured fixed pool and only the native owner's active terrain storage
+layout, so unused packed variants do not add a vertex-storage requirement to the ordinary baseline.
+Per-generation preparation hooks and material executables retire after the gate's users; native
+world, mesh and texture ownership stays with the game. Configuration changes withdraw eligibility
+immediately and drain the prior generation before replacement. World/context teardown releases the
+frame owner before shared camera/light publications and RHI resources.
+
+`NativeShadowSurfaceReceivers` encloses both the current world projection and the independently
+configured first-person hand projection in the captured origin/view convention. The conservative
+clip-volume bounds cover all contributing transparent layers without transparent depth writes or a
+mesh-pool classification scan. Receiving bounds include the eye and outward homogeneous clipping
+allowances before inversion; singular or unbounded projections reject completeness. This may request
+empty space and is charged to the same frame budget. The qualified native standard callers use no
+positive clip-W offset; the owned liquid vertex's positive offset is enclosed by relaxing the
+projection's homogeneous W term by its maximum before inversion. Fragment depth offsets do not
+expand primitive clipping. Actual first-person
+item and hand shader instances participate in capability checks, alongside the ordinary programs.
+The [native projection/ownership inspection](../artifacts/virtual-shadow-maps/surface-consumers/20261112-native-projection-ownership/native-projection-ownership.txt)
+and [additional matrix/setter contracts](../artifacts/virtual-shadow-maps/surface-consumers/20261112-native-projection-ownership/native-additional-contracts.txt)
+retain the qualified module identities and call sites. The near plane is copied from the native
+camera before the Before stage; later supported inside-block rendering assigns the same FOV-derived
+value. These source receipts are separate from GPU and live-game evidence.
+
+`SurfaceShadowInputSet` provides the same binding contract to explicitly owned alternate views.
+It owns only parameter packing and borrows the exact matching light/readiness interval. Capture
+refreshes immediate withdrawal, and disposal retires its logical uniform publication. Default surface
+consumers instead use the current frame owner, whose packet must match the current collected light
+snapshot by identity. Neither path can keep a frame's shadow publication alive after its gate ends.
+
+Native compatibility cascades remain additional engine-owned work. The shared scheduler's ledger
+accounts its own demand, resources and updates; qualification must also attribute retained native
+work and full-frame cost rather than presenting that ledger alone as total shadow execution time.
 
 ## Persisted settings and effective policy
 
@@ -965,7 +1112,6 @@ shader indices additionally fit their signed/unsigned packing and hardware limit
 | `ChallengerMargin` | Nonnegative float; 0.2 | Challenger exceeds incumbent score by this fraction |
 | `MinimumHoldSeconds` | Nonnegative float; 0.5 | Hold applies only while current or independently eligible for bounded temporal reuse; it cannot extend reuse deadlines |
 | `RecoveryCompleteFrames` | Positive integer; 8 | Consecutive complete current frames before restoring shadows |
-| `Advanced` | Optional validated overrides | Work ceilings, detail/projection/bias controls and supported page sizes; omitted fields inherit the selected profile |
 
 A quality profile contains finite positive integer ceilings for input chunk/range visits, pool groups,
 changed-region checks, slab advances, cell visits, association segments/entries, dedup probes, demand

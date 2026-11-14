@@ -20,19 +20,8 @@ internal sealed partial class LumonSceneCaptureMeshCardComputeShader : GpuComput
 
     public static string ShaderName => Contract.Identity;
 
-    private const int ParamsUboSizeBytes = 32; // uvec4 + vec4
+    private readonly LumonSceneCaptureMeshCardParameters parameters = new();
 
-    private const int AtlasLayoutOffsetBytes = 0;
-    private const int CaptureFloats0OffsetBytes = 16;
-
-    private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
-    private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
-
-    private uint tileSizeTexels;
-    private uint tilesPerAxis;
-    private uint tilesPerAtlas;
-    private uint borderTexels;
-    private float captureDepthRange;
 
     #region Public API
     /// <summary>Creates the executable before adopting its retained input owner.</summary>
@@ -117,20 +106,16 @@ internal sealed partial class LumonSceneCaptureMeshCardComputeShader : GpuComput
     public void SetAtlasLayout(uint tileSizeTexels, uint tilesPerAxis, uint tilesPerAtlas, uint borderTexels)
     {
         RequireInputMutation();
-        this.tileSizeTexels = tileSizeTexels;
-        this.tilesPerAxis = tilesPerAxis;
-        this.tilesPerAtlas = tilesPerAtlas;
-        this.borderTexels = borderTexels;
-        StageParameters();
+        parameters.SetAtlasLayout(tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
     }
 
+    /// <summary>Stages the depth range used by mesh-card capture.</summary>
     public float CaptureDepthRange
     {
         set
         {
             RequireInputMutation();
-            captureDepthRange = value;
-            StageParameters();
+            parameters.SetCaptureDepth(value);
         }
     }
 
@@ -145,12 +130,5 @@ internal sealed partial class LumonSceneCaptureMeshCardComputeShader : GpuComput
         OwnUniformBuffer(parameters);
     }
 
-    /// <summary>Packs retained values for one complete publication at dispatch.</summary>
-    private void StageParameters()
-    {
-        UboPacking.WriteUVec4(paramsBytes, AtlasLayoutOffsetBytes, tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
-        UboPacking.WriteVec4(paramsBytes, CaptureFloats0OffsetBytes, captureDepthRange, 0f, 0f, 0f);
-        parameters.SetBytes(paramsBytes);
-    }
     #endregion
 }

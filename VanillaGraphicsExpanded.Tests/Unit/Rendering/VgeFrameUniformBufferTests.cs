@@ -1,11 +1,13 @@
 using System.Numerics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
+using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 
-/// <summary>Verifies the shared frame block's binary interface and atomic CPU snapshot capture.</summary>
+/// <summary>Verifies shared frame capture values and atomic CPU snapshot publication.</summary>
 public sealed class VgeFrameUniformBufferTests
 {
     #region Public API
@@ -21,22 +23,26 @@ public sealed class VgeFrameUniformBufferTests
         Capture(buffer, matrices, frameIndex);
 
         // Assert: packed slots preserve matrix order, scalar values, and the exact uint frame index.
-        Assert.Equal(592, buffer.SizeBytes);
-        for (int matrix = 0; matrix < 6; matrix++)
-            Assert.Equal(matrices[matrix], MemoryMarshal.Cast<byte, float>(buffer.Bytes.Slice(matrix * 64, 64)).ToArray());
-        Assert.Equal(new float[] { 1920, 1080, 12.5f }, MemoryMarshal.Cast<byte, float>(buffer.Bytes.Slice(384, 12)).ToArray());
-        Assert.Equal(frameIndex, MemoryMarshal.Read<uint>(buffer.Bytes[396..]));
-        Assert.Equal(new float[] { 11, 22, 33, .7f }, MemoryMarshal.Cast<byte, float>(buffer.Bytes.Slice(400, 16)).ToArray());
-        Assert.Equal(new float[] { .1f, .2f, .3f, .4f }, MemoryMarshal.Cast<byte, float>(buffer.Bytes.Slice(416, 16)).ToArray());
-        Assert.Equal(new int[] { 524288, -3, -524289, 0 }, MemoryMarshal.Cast<byte, int>(buffer.Bytes.Slice(512, 16)).ToArray());
-        Assert.Equal(new float[] { .25f, 17.5f, 31.75f, 0 }, MemoryMarshal.Cast<byte, float>(buffer.Bytes.Slice(528, 16)).ToArray());
+        int[] matrixOffsets = [VgeFrameUniformBuffer.ProjectionOffset, VgeFrameUniformBuffer.ViewOffset,
+            VgeFrameUniformBuffer.InverseProjectionOffset, VgeFrameUniformBuffer.InverseViewOffset,
+            VgeFrameUniformBuffer.PreviousViewProjectionOffset, VgeFrameUniformBuffer.CurrentViewProjectionOffset];
+        for (int matrix = 0; matrix < matrixOffsets.Length; matrix++)
+            Assert.Equal(matrices[matrix], MemoryMarshal.Cast<byte, float>(buffer.Bytes.Slice(matrixOffsets[matrix], VgeFrameUniformBuffer.MatrixSizeBytes)).ToArray());
+        Assert.Equal(new Vector2(1920, 1080), buffer.ScreenSize);
+        Assert.Equal(12.5f, UboPacking.ReadFloat(buffer.Bytes, VgeFrameUniformBuffer.TimeSecondsOffset));
+        Assert.Equal(frameIndex, buffer.FrameIndex);
+        Assert.Equal(new float[] { 11, 22, 33, .7f }, MemoryMarshal.Cast<byte, float>(buffer.Bytes.Slice(VgeFrameUniformBuffer.CameraPositionOffset, 16)).ToArray());
+        Assert.Equal(new Vector4(.1f, .2f, .3f, .4f), buffer.FogParameters);
+        Assert.Equal(new VectorInt3(524288, -3, -524289), buffer.RenderOriginChunk);
+        Assert.Equal(new Vector3(.25f, 17.5f, 31.75f), buffer.RenderOriginRemainder);
         Matrix4x4 expectedInverse = Matrix(matrices[2]) * Matrix(matrices[3]);
         float[] expected = [expectedInverse.M11, expectedInverse.M12, expectedInverse.M13, expectedInverse.M14,
             expectedInverse.M21, expectedInverse.M22, expectedInverse.M23, expectedInverse.M24,
             expectedInverse.M31, expectedInverse.M32, expectedInverse.M33, expectedInverse.M34,
             expectedInverse.M41, expectedInverse.M42, expectedInverse.M43, expectedInverse.M44];
-        Assert.Equal(expected, MemoryMarshal.Cast<byte, float>(buffer.Bytes.Slice(432, 64)).ToArray());
-        Assert.Equal(new float[] { .125f, 2048, .016f, 0 }, MemoryMarshal.Cast<byte, float>(buffer.Bytes.Slice(496, 16)).ToArray());
+        Assert.Equal(expected, MemoryMarshal.Cast<byte, float>(buffer.Bytes.Slice(VgeFrameUniformBuffer.InverseViewProjectionOffset, VgeFrameUniformBuffer.MatrixSizeBytes)).ToArray());
+        Assert.Equal(new Vector2(.125f, 2048), buffer.ClipPlanes);
+        Assert.Equal(.016f, UboPacking.ReadFloat(buffer.Bytes, VgeFrameUniformBuffer.DeltaTimeOffset));
     }
 
     /// <summary>Repeated capture preserves the content revision while a one-bit frame change creates a new revision.</summary>
@@ -58,8 +64,8 @@ public sealed class VgeFrameUniformBufferTests
 
         Capture(buffer, matrices, 16_777_217);
         Assert.Equal(revision + 1, ReadRevision(buffer));
-        Assert.Equal(original[..396], buffer.Bytes[..396].ToArray());
-        Assert.Equal(original[400..], buffer.Bytes[400..].ToArray());
+        Assert.Equal(original[..VgeFrameUniformBuffer.FrameIndexOffset], buffer.Bytes[..VgeFrameUniformBuffer.FrameIndexOffset].ToArray());
+        Assert.Equal(original[(VgeFrameUniformBuffer.CameraPositionOffset)..], buffer.Bytes[(VgeFrameUniformBuffer.CameraPositionOffset)..].ToArray());
     }
 
     /// <summary>A malformed matrix in any position cannot publish partial transforms or advance the revision.</summary>

@@ -2,28 +2,15 @@
 #extension GL_ARB_shader_storage_buffer_object : require
 #extension GL_ARB_shader_image_load_store : require
 #extension GL_ARB_shading_language_420pack : require
-#define SHADOWQUALITY 1
-#define DYNLIGHTS 1
-#define VGE_SURFACE_VIEW surfaceView
-
 layout(std140, binding = 28) uniform TestInputs
 {
-    mat4 surfaceView;
     int vge_pbrRoute;
     int scenario;
 };
 
-uniform sampler2DShadow shadowMapFar;
-vec4 shadowCoordsFar = vec4(0.5, 0.5, 0.8, 1.0);
-float shadowIntensity = 1.0;
-// Preserve the published atmospheric generation independently of the engine direction.
-vec3 lightPosition = vec3(0, 0, -1);
-vec3 vge_atmosphereSunDirection = vec3(0, 0, 1);
-float vge_atmosphereDirectRadius = 0.0;
 vec3 vge_viewPosition = vec3(0, 0, -2);
 vec3 vge_blockIrradiance = vec3(0);
 vec3 vge_sunIrradiance = vec3(0.2, 0.4, 0.8);
-vec3 vge_atmosphereSolar = vec3(0.2, 0.4, 0.8);
 vec3 vge_atmosphereEnvironment = vec3(0);
 vec4 vge_atmosphereAerialParams = vec4(.001, 0, 0, 16);
 float vge_skyVisibility = 1.0;
@@ -43,12 +30,7 @@ layout(location = 0) out vec4 outColor;
 void main()
 {
     if (scenario == 5 || scenario >= 7)
-    {
         vge_sunIrradiance = vec3(0);
-        vge_atmosphereSolar = vec3(0);
-    }
-    if (scenario >= 10) vge_atmosphereSolar = vec3(0.3, 0.5, 0.7);
-    if (scenario >= 16) vge_atmosphereSolar = vec3(0);
     if (scenario == 13) vge_skyVisibility = 0.0;
 
     vec3 normal = scenario == 3 ? vec3(1, 0, 0) : vec3(0, 0, 1);

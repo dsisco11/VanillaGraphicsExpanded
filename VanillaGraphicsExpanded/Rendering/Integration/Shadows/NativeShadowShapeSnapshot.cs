@@ -46,13 +46,13 @@ internal sealed class NativeShadowShapeSnapshot
         Mesh = CurrentMesh(renderer) ?? throw new InvalidOperationException("Native shape mesh publication is unavailable.");
         animator = CurrentAnimator(renderer) ?? throw new InvalidOperationException("Native shape animation is unavailable.");
         int count = animator.MaxJointId;
-        if (count < 1 || count > ShadowEntityShader.JointCapacity || animator.Matrices.Length < count * 16 ||
-            availableBytes < count * 64L + 320)
+        if (count < 1 || count > ShadowAnimationParameters.JointCapacity || animator.Matrices.Length < count * ShadowAnimationParameters.MatrixFloatCount ||
+            availableBytes < count * (long)ShadowAnimationParameters.MatrixStride + 320)
             throw new InvalidOperationException("Native shape palette exceeds its complete snapshot allowance.");
         Renderer = renderer; this.preparation = preparation; frame = preparation.Frame;
         Dimension = renderer.entity.Pos.Dimension;
         Model = NativeShadowShapePose.Capture(renderer); Origin = NativeShadowShapePose.Origin(renderer);
-        Joints = ImmutableArray.Create(animator.Matrices, 0, count * 16);
+        Joints = ImmutableArray.Create(animator.Matrices, 0, count * ShadowAnimationParameters.MatrixFloatCount);
         wind = renderer.WindWaveIntensity; flags = renderer.AddRenderFlags;
         warp = new(renderer.capi.Render.ShaderUniforms);
     }
@@ -69,14 +69,8 @@ internal sealed class NativeShadowShapeSnapshot
     internal void Apply(ShadowEntityShader shader, ShadowDrawView view)
     {
         if (!IsCurrent) throw new InvalidOperationException("Native shape changed after preparation.");
-        Span<byte> data = stackalloc byte[208]; data.Clear();
-        for (int i = 0; i < 16; i++) UboPacking.WriteFloat(data, i * 4, Model[i]);
-        warp.Pack(data, (float)wind);
-        for (int diagonal = 0; diagonal < 4; diagonal++) UboPacking.WriteFloat(data, 144 + diagonal * 20, 1);
-        var translation = Origin - view.Origin;
-        UboPacking.WriteFloat(data, 192, (float)translation.X);
-        UboPacking.WriteFloat(data, 196, (float)translation.Y);
-        UboPacking.WriteFloat(data, 200, (float)translation.Z);
+        Span<byte> data = stackalloc byte[ShadowMaterialParameters.BlockSize];
+        ShadowMaterialParameters.PackObject(data, Model.AsSpan(), warp.Deformation, Origin - view.Origin, (float)wind);
         shader.CaptureMaterial(data, Joints.AsSpan(), flags);
     }
     #endregion

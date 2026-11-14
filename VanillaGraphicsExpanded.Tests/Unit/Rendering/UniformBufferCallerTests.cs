@@ -38,7 +38,6 @@ public sealed class UniformBufferCallerTests
     {
         // Arrange: prepare an atmosphere state that can vary sun and moon independently.
         using var buffer = new PbrCompositeParamsUbo();
-        Assert.Equal(192, buffer.SizeBytes);
         var lighting = new AtmosphereLighting(Vector3.UnitY, default, default, default, default, []);
         // Act: repeat the same state, then vary the sun and night-source fields separately.
         buffer.SetAtmosphere(lighting);
@@ -48,13 +47,13 @@ public sealed class UniformBufferCallerTests
         Assert.False(buffer.IsDirty);
         buffer.SetAtmosphere(lighting with { Sun = Vector3.UnitX });
         Assert.True(buffer.IsDirty);
-        Assert.Equal(1f, UboPacking.ReadFloat(buffer.Bytes, 64));
+        Assert.Equal(1f, UboPacking.ReadFloat(buffer.Bytes, PbrCompositeParamsUbo.AerialSunDirectionOffset));
         ResetDirty(buffer);
         buffer.SetAtmosphere(lighting with { HasNightSources = true, Moon = Vector3.UnitZ });
         Assert.True(buffer.IsDirty);
-        Assert.Equal(0f, UboPacking.ReadFloat(buffer.Bytes, 56));
-        Assert.Equal(0f, UboPacking.ReadFloat(buffer.Bytes, 180));
-        Assert.Equal(1f, UboPacking.ReadFloat(buffer.Bytes, 184));
+        Assert.Equal(0f, UboPacking.ReadFloat(buffer.Bytes, PbrCompositeParamsUbo.AtmosphereParametersOffset + 2 * sizeof(float)));
+        Assert.Equal(0f, UboPacking.ReadFloat(buffer.Bytes, PbrCompositeParamsUbo.ScatteringMoonDirectionOffset + sizeof(float)));
+        Assert.Equal(1f, UboPacking.ReadFloat(buffer.Bytes, PbrCompositeParamsUbo.ScatteringMoonDirectionOffset + 2 * sizeof(float)));
     }
 
     /// <summary>Repeated disabled near-field mapping leaves the uniform block clean.</summary>

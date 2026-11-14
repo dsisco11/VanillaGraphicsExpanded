@@ -205,8 +205,8 @@ the build routes above establishes only those exercised boundaries; no measured 
 ## Controlled frame-gate correctness receipts
 
 The 2026-11-12 captures below qualify controlled frame preparation, current surface demand, bounded
-arbitration and GPU whole-light readiness. Production surface consumers remain disconnected; these
-receipts do not establish live appearance or moving-light frame-time performance.
+arbitration and GPU whole-light readiness. They preceded production surface integration and do not
+establish live appearance or moving-light frame-time performance.
 
 - [Strict build and GPU regression capture](../artifacts/virtual-shadow-maps/frame-gate/20261112-030157-clamp-correction/):
   Debug content verification passed with 20 warnings, none on changed production paths. All 25 affected
@@ -231,6 +231,181 @@ receipts do not establish live appearance or moving-light frame-time performance
   zero issues without rebuilding or changing package bytes.
 
 Each capture retains commands, timestamps, environment overrides, complete logs, source snapshots/hashes
-and applicable TRX, catalog, interface and digest evidence. Production hashes match across the strict
-build, full regression run and Release package. Required handoff evidence includes these ignored artifact
+and applicable TRX, catalog, interface and digest evidence. For these frame-gate captures, production
+hashes match across the strict build, full regression run and Release package. Required handoff evidence includes these ignored artifact
 directories and the retained ZIP, rather than only the mutable build-output directories.
+
+## Translated surface-coordinate correctness receipts
+
+The [composed result ledger](../artifacts/virtual-shadow-maps/surface-consumers/20261113T035812Z-translated-final/composed-test-results.json)
+recorded 440 passing distinct cases and four unresolved native forward attenuation fixtures at that
+checkpoint. The four fixtures attempted to submit installed native programs through the owned RHI
+shader path, which rejected their standalone numeric uniforms before drawing. Native family
+compilation, linking, interface and binding checks passed. The later native-owner executions below
+supersede that checkpoint's draw-coverage gap.
+
+- [Retained focused and direct/liquid executions](../artifacts/virtual-shadow-maps/surface-consumers/20261113T031653Z-translated-final/verification-summary.json)
+  supply the still-applicable passing results from the original selections. These runs also retain
+  the original failures; they are not presented as all-green executions.
+- [Affected numerical and liquid regressions](../artifacts/virtual-shadow-maps/surface-consumers/20261113T034533Z-translated-final/affected.trx)
+  passed all 19 owned forward numerical cases and both liquid rendering cases after camera/source
+  fixture reconciliation. The independent radiance oracle and appearance assertions were preserved.
+- [Final native source-to-consumer execution](../artifacts/virtual-shadow-maps/surface-consumers/20261113T035812Z-translated-final/final-two.trx)
+  passed both ordinary and carried-source cases without skips. These exercise the native frame gate,
+  simultaneous celestial and local visibility, independent source fallback, retained moving-light
+  mappings, emission preservation and the production liquid boundary source.
+- [Final build and identity receipt](../artifacts/virtual-shadow-maps/surface-consumers/20261113T035812Z-translated-final/verification-summary.json)
+  records strict Debug content verification: 249 warnings, zero errors, 795 production and 962 test
+  shader variants current. Captures retain commands, source and binary identities, shader receipts,
+  digest indices and TRX results; completed executions recorded no source drift.
+
+The domain regressions include large positive/negative origins, integer page limits, cube seams,
+camera/chunk rebasing with retained depth, original carried-light position capture, tight distant
+receiving bounds and high/low origin cancellation at an FP32 rounding boundary. GPU image assertions
+use reductions; compact status, addressing and numerical observations remain separate from bulk images.
+
+This is composed evidence across receipts, not a fresh full-suite or single-driver pass. Earlier full
+selections reported NVIDIA 610.88; the final test process reports RTX 4090, OpenGL 4.5.0 NVIDIA 621.24,
+GLSL 4.50, 96 SSBO bindings and 16 compute SSBO blocks. Intermediate metadata captured in a separate
+context is labelled as such. A context-unavailable attempt with 114 skipped GPU cases is retained
+separately and supplies no GPU qualification. Those captures established no new Release package,
+user-run visual acceptance or frame-time/performance qualification.
+
+## Relative compute and native surface correctness receipts
+
+The [2026-11-14 UTC capture](../artifacts/virtual-shadow-maps/surface-consumers/20261114T000431Z-phase10-final/verification-summary.json)
+records strict Debug builds, focused GPU correctness and a canonical Release package. Its
+[composed result ledger](../artifacts/virtual-shadow-maps/surface-consumers/20261114T000431Z-phase10-final/composed-test-results.json)
+contains 428 distinct passes, zero remaining failures and zero skips, including all 267 shadow cases.
+This is a composition of passing executions, not a single full-suite run: the original broad run had
+397 passes and 31 failures; a corrected-group run passed all 50 cases, overlapping 19 earlier passes.
+
+- Coverage containment, accumulated demand, candidate traversal, selection and raster addressing use
+  integer chunk/page identities with bounded relative FP32 arithmetic. The GPU regressions exercise
+  large signed coordinates, conservative boundary enclosure, point-source candidate completeness,
+  retained mappings and exact integer-clock expiry/rollback behavior. All 34 production shadow SPIR-V
+  modules, including variants, lack the Float64 capability in both Debug and Release outputs.
+- The four native-forward attenuation cases execute installed patched native programs through their
+  native shader and mesh owners inside an admitted RHI boundary. Lit, occluded and zero-solar draws
+  isolate the source's direct contribution while proving independent illumination remains. Native
+  frame-gate, ordinary/carried-source and early receiver-capture regressions also pass.
+- Strict Debug mod verification reported zero warnings/errors and 795 current production shader
+  variants/interfaces. Test verification reported 249 warnings, zero errors and 962 fixture variants.
+  Test corrections preserved behavioral oracles, removed an obsolete feature-specific UBO byte check
+  and restored incoming sampler state rather than assuming a global default.
+- The canonical Cake Release route passed clean publish, shader production and packaging. Its
+  [package identity receipt](../artifacts/virtual-shadow-maps/surface-consumers/20261114T000431Z-phase10-final/package-identity.json)
+  verifies all 1,191 archive members against Release outputs, all 795 shader/interface pairs, 39 tool
+  identities and 358 consumed owned-source observations with zero identity, provenance or obsolete-member
+  issues. The retained ZIP is 8,512,721 bytes, SHA-256
+  `B40C5D4FC8B6149C97DEEEBC78D726E0C62FC97CB37D26575859B7DD87CE4B38`.
+  Release logs contain 25 unique warnings, including existing Cake dependency advisories. Source and
+  index were unchanged during the captured package run.
+
+The tested Debug and packaged Release shaders have matching consumed-source observations; Debug
+debug-information flags produce different shader bytes. This receipt does not establish Release GPU
+execution or byte identity between Debug and Release assemblies. The GPU process reported RTX 4090,
+OpenGL 4.5 NVIDIA 621.24 and GLSL 4.50. No live appearance or frame-time/performance acceptance follows
+from these headless receipts. This checkpoint preceded the final frame-owner event coverage and
+comment-only source reconciliation below.
+
+## Frame-owner lifecycle correctness receipts
+
+The [final lifecycle/native execution](../artifacts/virtual-shadow-maps/surface-consumers/20261114T004638Z-lifecycle-final/final-lifecycle-native.trx)
+passed all 16 selected cases with zero skips after the final test-source cleanup. This includes the
+four frame-lifecycle cases, four native-forward attenuation cases and native frame-gate/receiver
+regressions. The new cases deliver the actual registered `LeaveWorld` event, retire and restore the
+render-context registration, and invoke native-reload admission/completion through an attached
+`ClientRenderingLifetime`. They retain surface input sets to prove synchronous withdrawal, exercise
+real page/gate/source retirement, and admit fresh generations after teardown or fence completion.
+
+These are integration checks with a controlled frame source and real GPU owners. Context replacement
+advances the registry generation on the same physical context handle; it does not destroy and recreate
+the driver context. Native terrain/entity adapter behavior retains its separate qualification receipts.
+The reload test additionally holds a fence pending and verifies that replacement waits for retirement.
+
+The final strict Debug mod rebuild reported 20 warnings and zero errors; the test rebuild reported
+249 warnings and zero errors. All 795 production shader/interface pairs and 962 fixture variants were
+current, and all 34 Debug shadow modules lack Float64. The production-source reconciliation changed
+comments only. Independent test review found no actionable issue after the region-only cleanup.
+
+The [final composed ledger](../artifacts/virtual-shadow-maps/surface-consumers/20261114T004638Z-lifecycle-final/composed-test-results.json)
+contains 431 distinct passes, zero remaining failures and zero skips: the preceding 428-case ledger
+plus the final 16-case execution, with 13 overlapping cases and three new lifecycle cases. Provenance
+is retained per case; this is composed correctness evidence rather than a fresh full-suite execution.
+
+The final canonical Cake Release package also passed. Its
+[identity receipt](../artifacts/virtual-shadow-maps/surface-consumers/20261114T004638Z-lifecycle-final/package-identity.json)
+verifies 1,191 members, 795 shader/interface pairs, 39 tool identities and 358 consumed owned-source
+observations with zero issues. The retained ZIP is 8,512,691 bytes, SHA-256
+`9F523C284CF351497EB4609A0B984ED5B90CB00E5A5A2619F5AF4D14A9C04DA1`.
+The [verification summary](../artifacts/virtual-shadow-maps/surface-consumers/20261114T004638Z-lifecycle-final/verification-summary.json)
+retains final source/index reconciliation and shader capability checks. Post-result edits to this
+record and the task list change evidence prose only. Existing staged changes are preserved.
+These receipts do not establish Release GPU execution, live appearance or measured performance.
+
+## Liquid boundary celestial extraction correction
+
+The water-boundary capture branch in `pbr_liquid.fsh` now calls a per-source helper explicitly for sun
+and moon, alongside the previously extracted liquid surface evaluation. Source review against the
+retained loop confirms the same irradiance guard, phase calculation, source-specific shadow lookup
+and sun-then-moon accumulation. The boundary phase evaluation does not consume angular radius.
+
+The [fresh liquid/native regression execution](../artifacts/virtual-shadow-maps/surface-consumers/20261114T012123Z-liquid-celestial-correction/liquid-regressions.trx)
+passed 69 cases with zero failures or skips, including production boundary-capture radiance and native
+frame-gate shadow attenuation, refraction, traversal, shader contracts, transparency and reflection.
+Independent lunar-only and nonzero-anisotropy boundary GPU assertions were not added; unchanged math
+for those cases was reviewed by source equivalence. Independent coverage review found no actionable
+issue for this extraction.
+
+Strict incremental Debug mod and fixture builds passed with zero warnings/errors. Both producers
+rebuilt 32 affected variants, retaining 795 current production and 962 fixture variants overall.
+The [updated composed ledger](../artifacts/virtual-shadow-maps/surface-consumers/20261114T012123Z-liquid-celestial-correction/composed-test-results.json)
+remains at 431 distinct passes: the 69 fresh results supersede matching prior entries. It is composed
+evidence with per-case provenance, not a fresh full-suite execution.
+
+The correction's canonical Release package passed with 1,191 members, 795 shader/interface pairs,
+39 tool identities and 358 consumed owned-source observations, with zero identity issues. The
+[package identity receipt](../artifacts/virtual-shadow-maps/surface-consumers/20261114T012123Z-liquid-celestial-correction/package-identity.json)
+and retained ZIP identify 8,579,288 bytes, SHA-256
+`B0ECE1EB90DD521AF8A383DB346C68A778D150E281BA1155F99EC62C24995317`.
+All 34 shadow modules in each configuration lack Float64. The
+[verification summary](../artifacts/virtual-shadow-maps/surface-consumers/20261114T012123Z-liquid-celestial-correction/verification-summary.json)
+retains build, regression, package and source/index reconciliation. These checks do not establish
+Release GPU execution, live appearance or performance acceptance.
+
+## Uniform input ownership verification
+
+Concrete uniform blocks own their packing and size declarations; renderers and programs supply named
+values or operations. The [ownership correction receipt](../artifacts/ubo-encapsulation/20261114T042603Z-verification/verification-summary.json)
+records 586 passes and one independently reproduced pre-existing cloud DDA failure across 587 cases.
+The later [semantic-input correction receipt](../artifacts/ubo-semantic-inputs/20261114T053059Z-verification/verification-summary.json)
+records 430 focused passes with no failures or skips. These selections overlap other surface evidence;
+their counts are not additive. The cloud failure remains a separate limitation, outside the AST task.
+
+## Native surface AST transaction verification
+
+TinyAst 0.12.0 is used by the mod, shader build tool, packaging tool and shader-preparation fixture.
+The [published dependency gate](../artifacts/tinyast-adjacent-edit-update/20261114T055936Z-qualification/dependency-probe-summary.json)
+passes the retained adjacent replacement/insertion reproduction in both queue orders, through node and
+query APIs, with trivia variants and the captured installed header. [Package provenance](../artifacts/tinyast-adjacent-edit-update/20261114T055936Z-qualification/package-provenance.json)
+matches the public archive, cached dependency and actually loaded probe DLL. The historical 0.11.3
+failure record remains unchanged. Compatibility cleanup, float clamp bounds and material declarations
+now share the normal AST patch transaction; surviving leading extensions remain before declarations.
+
+The [final native/capture/recovery run](../artifacts/tinyast-adjacent-edit-update/20261114T055936Z-qualification/final-native-regressions.trx)
+passes all 15 cases, including six controlled captures, four native forward draws and five recovery
+cases. The [main-project composed ledger](../artifacts/tinyast-adjacent-edit-update/20261114T055936Z-qualification/composed-test-results.json)
+contains 177 passes, zero remaining failures and three unchanged upstream repro skips: two import
+source-map cases and the distinct inner-body leading-trivia case. It retains each case's execution
+provenance and the earlier failed attempts; it is not a fresh 180-case passing run. Separately,
+[11 shader-build contract families](../artifacts/tinyast-adjacent-edit-update/20261114T055936Z-qualification/shader-build-contracts.trx)
+pass all 113 cases with no skips. The counts above overlap earlier qualification and are not combined.
+
+Strict Debug mod and test builds pass with 20 and 249 warnings respectively and zero errors.
+The [canonical Release package identity](../artifacts/tinyast-adjacent-edit-update/20261114T055936Z-qualification/package-identity.json)
+verifies 1,191 members, 795 shader/interface pairs, 39 tool identities and 358 owned-source observations
+with no issues. The retained ZIP is 8,592,444 bytes, SHA-256
+`0DEA978883EC2059B7FEC7212BDAFF916B45AF5D629462413F1939ADF793E9F2`.
+All 34 Release shadow modules lack Float64. These receipts establish the exercised component and
+headless native boundaries; live appearance and performance qualification remain open.

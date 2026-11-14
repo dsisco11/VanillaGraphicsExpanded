@@ -7,8 +7,13 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 internal sealed class MoonInputs : CpuUniformBuffer
 {
     #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 80;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+
     /// <summary>Allocates five std140 vectors.</summary>
-    internal MoonInputs() : base(80) { }
+    internal MoonInputs() : base() { }
     /// <summary>Publishes one immutable disk without borrowing calendar or legacy shader values.</summary>
     internal void Capture(MoonDisk disk)
     {

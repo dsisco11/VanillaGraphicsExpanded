@@ -185,6 +185,49 @@ public sealed class ShadowCandidateTraversalTests(HeadlessGLFixture fixture, ITe
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
+    /// <summary>Candidate traversal keeps native chunk identities exact near both signed-coordinate limits.</summary>
+    [Fact]
+    public void TranslatedChunkOriginsPreserveCandidateCells()
+    {
+        // Arrange: keep the search small while placing its integer origin near both native coordinate limits.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        ReportCapabilities();
+        using var assets = new BinaryShaderApiFixture();
+        var domain = new ShadowChunkDomain(0, int.MaxValue - 5, int.MinValue, int.MaxValue - 4,
+            int.MaxValue - 1, int.MinValue + 2, int.MaxValue - 2);
+        var receiver = new ShadowBounds(domain.MinX + 0.2, domain.MinY + 0.2, domain.MinZ + 0.2,
+            domain.MinX + 0.8, domain.MinY + 0.8, domain.MinZ + 0.8);
+        var publication = Publication(domain, generation: 1, owner: 71, omitted: null);
+        using var world = new ShadowWorldGpuBuffers();
+        Assert.True(world.Upload(publication));
+        using var pool = ShadowCandidatePool.Create(assets.Api, Settings(headerCapacity: 2));
+        var changes = new ShadowCandidateChanges(1, 0, 0, true, ImmutableArray<ShadowChunkIdentity>.Empty);
+        Assert.True(pool.BeginBatch(changes, publication, world));
+        // The finite point hull has an exact rational oracle; the directional oracle deliberately keeps cells
+        // undecided at its recursion bound, so it cannot define exact membership for this identity-limit case.
+        var sourceBox = new ShadowBounds(domain.MaxX + 0.2, domain.MinY + 1.2, domain.MinZ + 0.2,
+            domain.MaxX + 0.8, domain.MinY + 1.8, domain.MinZ + 0.8);
+        var sourcePosition = new Vector3d(domain.MaxX + 0.5, domain.MinY + 1.5, domain.MinZ + 0.5);
+        var request = ShadowCandidateRequest.Point(Source(ShadowSourceKind.Entity, 91), 71, 1, 1,
+            domain, receiver, sourceBox);
+        var current = Current(request, receiver, sourcePosition, sequence: 0, projection: 4);
+
+        // Act: traverse the relative search extent through the production compute shader.
+        Assert.True(pool.TryAllocate(request, out var handle));
+        var (header, dispatches) = Complete(pool, handle, current, changes, publication, world);
+        var actual = ReadCells(pool, handle.Slot, header.Count);
+        var reference = ShadowCandidateOracle.Point(domain, receiver, sourceBox);
+
+        // Assert: output retains exact signed chunk keys and includes every independently required cell.
+        Assert.Equal(3u, header.Status);
+        Assert.Equal(0u, header.Unresolved);
+        AssertReferenceCells(reference, actual);
+        Assert.All(actual, cell => Assert.InRange(cell.X, domain.MinX, domain.MaxX));
+        Assert.All(actual, cell => Assert.InRange(cell.Y, domain.MinY, domain.MaxY));
+        Assert.All(actual, cell => Assert.InRange(cell.Z, domain.MinZ, domain.MaxZ));
+        Report("translated-point-signed-domain", header, actual.Count, reference.Count, dispatches, pool.AllocatedBytes);
+    }
+
     /// <summary>Unknown interior data stays unresolved until loaded, while empty and filled transitions preserve spatial candidates.</summary>
     [Fact]
     public void UnknownCellsRevalidateFromUnknownToEmptyToFilled()

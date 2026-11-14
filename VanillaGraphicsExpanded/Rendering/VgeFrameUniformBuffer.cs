@@ -9,6 +9,34 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class VgeFrameUniformBuffer : CpuUniformBuffer
 {
     #region Public API
+    #region Layout
+    internal const int ProjectionOffset = 0;
+    internal const int ViewOffset = 64;
+    internal const int InverseProjectionOffset = 128;
+    internal const int InverseViewOffset = 192;
+    internal const int PreviousViewProjectionOffset = 256;
+    internal const int CurrentViewProjectionOffset = 320;
+    internal const int ScreenSizeOffset = 384;
+    internal const int TimeSecondsOffset = 392;
+    internal const int FrameIndexOffset = 396;
+    internal const int CameraPositionOffset = 400;
+    internal const int FogColorOffset = 416;
+    internal const int InverseViewProjectionOffset = 432;
+    internal const int ClipPlanesOffset = 496;
+    internal const int DeltaTimeOffset = 504;
+    internal const int FrameFlagsOffset = 508;
+    internal const int RenderOriginChunkOffset = 512;
+    internal const int RenderOriginRemainderOffset = 528;
+    internal const int LightingCalibrationOffset = 544;
+    internal const int SkyCalibrationOffset = 560;
+    internal const int AccessorBlockCalibrationOffset = 576;
+    internal const int CalibrationGenerationOffset = 584;
+    internal const int MatrixSizeBytes = 16 * sizeof(float);
+    #endregion
+
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => PackedSize;
+
     /// <summary>Size of seven column-major matrices, frame scalars, render-origin bridge and source calibration.</summary>
     internal const int PackedSize = 592;
 
@@ -18,7 +46,7 @@ internal sealed class VgeFrameUniformBuffer : CpuUniformBuffer
     internal uint CalibrationGeneration { get; private set; }
 
     /// <summary>Creates retained CPU packing with versioned publication through the existing uniform allocator.</summary>
-    internal VgeFrameUniformBuffer() : base(PackedSize) { SetLightingCalibration(PBR.LightingCalibration.Default); }
+    internal VgeFrameUniformBuffer() : base() { SetLightingCalibration(PBR.LightingCalibration.Default); }
 
     /// <summary>Publishes source calibration through the existing shared frame binding without changing engine fields.</summary>
     internal void SetLightingCalibration(PBR.LightingCalibration calibration)
@@ -32,13 +60,13 @@ internal sealed class VgeFrameUniformBuffer : CpuUniformBuffer
             unchecked { generation++; }
             if (generation == 0) generation = 1;
         }
-        WriteVector4(544, new(calibration.BlockReferenceLux, calibration.BlockNeutralFloor,
+        WriteVector4(LightingCalibrationOffset, new(calibration.BlockReferenceLux, calibration.BlockNeutralFloor,
             PBR.LightingCalibration.EmissionReferenceNits, calibration.PointCandelaPerUnit));
-        WriteVector4(560, new(calibration.TerrainSkyFloor, calibration.TerrainSkyFull,
+        WriteVector4(SkyCalibrationOffset, new(calibration.TerrainSkyFloor, calibration.TerrainSkyFull,
             calibration.AccessorSkyFloor, calibration.AccessorSkyFull));
-        WriteVector2(576, new(calibration.AccessorBlockReferenceLux > 0 ? calibration.AccessorBlockReferenceLux : calibration.BlockReferenceLux,
+        WriteVector2(AccessorBlockCalibrationOffset, new(calibration.AccessorBlockReferenceLux > 0 ? calibration.AccessorBlockReferenceLux : calibration.BlockReferenceLux,
             calibration.AccessorBlockReferenceLux > 0 ? calibration.AccessorBlockNeutralFloor : calibration.BlockNeutralFloor));
-        WriteUInt32(584, generation);
+        WriteUInt32(CalibrationGenerationOffset, generation);
         LightingCalibration = calibration;
         CalibrationGeneration = generation;
     }
@@ -75,40 +103,56 @@ internal sealed class VgeFrameUniformBuffer : CpuUniformBuffer
         MatrixHelper.Multiply(inverseView, inverseProjection, inverseViewProjection);
         ValidateMatrix(inverseViewProjection, nameof(inverseViewProjection));
 
-        WriteMatrix4(0, projection);
-        WriteMatrix4(64, view);
-        WriteMatrix4(128, inverseProjection);
-        WriteMatrix4(192, inverseView);
-        WriteMatrix4(256, previousViewProjection);
-        WriteMatrix4(320, currentViewProjection);
-        WriteVector2(384, screenSize);
-        WriteFloat(392, timeSeconds);
-        WriteUInt32(396, frameIndex);
-        WriteVector4(400, new Vector4(cameraPosition, fogMinimum));
-        WriteVector4(416, new Vector4(fogColor, fogDensity));
-        WriteMatrix4(432, inverseViewProjection);
-        WriteVector2(496, clipPlanes);
-        WriteFloat(504, deltaTime);
-        WriteUInt32(508, cameraCut ? 1u : 0u);
-        WriteIntVector4(512, renderOriginChunkCoord.X, renderOriginChunkCoord.Y, renderOriginChunkCoord.Z, 0);
-        WriteVector4(528, new Vector4(renderOriginBlockRemainder, 0));
+        WriteMatrix4(ProjectionOffset, projection);
+        WriteMatrix4(ViewOffset, view);
+        WriteMatrix4(InverseProjectionOffset, inverseProjection);
+        WriteMatrix4(InverseViewOffset, inverseView);
+        WriteMatrix4(PreviousViewProjectionOffset, previousViewProjection);
+        WriteMatrix4(CurrentViewProjectionOffset, currentViewProjection);
+        WriteVector2(ScreenSizeOffset, screenSize);
+        WriteFloat(TimeSecondsOffset, timeSeconds);
+        WriteUInt32(FrameIndexOffset, frameIndex);
+        WriteVector4(CameraPositionOffset, new Vector4(cameraPosition, fogMinimum));
+        WriteVector4(FogColorOffset, new Vector4(fogColor, fogDensity));
+        WriteMatrix4(InverseViewProjectionOffset, inverseViewProjection);
+        WriteVector2(ClipPlanesOffset, clipPlanes);
+        WriteFloat(DeltaTimeOffset, deltaTime);
+        WriteUInt32(FrameFlagsOffset, cameraCut ? 1u : 0u);
+        WriteIntVector4(RenderOriginChunkOffset, renderOriginChunkCoord.X, renderOriginChunkCoord.Y, renderOriginChunkCoord.Z, 0);
+        WriteVector4(RenderOriginRemainderOffset, new Vector4(renderOriginBlockRemainder, 0));
     }
     /// <summary>Indicates that temporal consumers must reject the previous camera generation.</summary>
-    internal bool CameraCut => (MemoryMarshal.Read<uint>(Bytes.Slice(508, 4)) & 1u) != 0;
+    internal bool CameraCut => (MemoryMarshal.Read<uint>(Bytes.Slice(FrameFlagsOffset, 4)) & 1u) != 0;
     /// <summary>Identifies the exact captured world frame for frozen-lighting publication and diagnostics.</summary>
-    internal uint FrameIndex => MemoryMarshal.Read<uint>(Bytes.Slice(396, 4));
+    internal uint FrameIndex => MemoryMarshal.Read<uint>(Bytes.Slice(FrameIndexOffset, 4));
+    /// <summary>Exposes the frozen pixel extent used by this camera publication.</summary>
+    internal Vector2 ScreenSize => MemoryMarshal.Read<Vector2>(Bytes.Slice(ScreenSizeOffset, 2 * sizeof(float)));
+    /// <summary>Exposes frozen fog color and density without exporting byte-layout knowledge.</summary>
+    internal Vector4 FogParameters => MemoryMarshal.Read<Vector4>(Bytes.Slice(FogColorOffset, 4 * sizeof(float)));
     /// <summary>Exposes the retained projection for CPU consumers without recapturing the engine camera.</summary>
-    internal ReadOnlySpan<float> Projection => MemoryMarshal.Cast<byte, float>(Bytes.Slice(0, 64));
+    internal ReadOnlySpan<float> Projection => MemoryMarshal.Cast<byte, float>(Bytes.Slice(ProjectionOffset, MatrixSizeBytes));
     /// <summary>Exposes the near/far distances from the same camera snapshot as the projection.</summary>
-    internal Vector2 ClipPlanes => MemoryMarshal.Read<Vector2>(Bytes.Slice(496, 8));
+    internal Vector2 ClipPlanes => MemoryMarshal.Read<Vector2>(Bytes.Slice(ClipPlanesOffset, 8));
     /// <summary>Exposes the exact shared view transform for CPU consumers.</summary>
-    internal ReadOnlySpan<float> View => MemoryMarshal.Cast<byte, float>(Bytes.Slice(64, 64));
+    internal ReadOnlySpan<float> View => MemoryMarshal.Cast<byte, float>(Bytes.Slice(ViewOffset, MatrixSizeBytes));
+    /// <summary>Returns the exact integer world partition selected by this frozen camera publication.</summary>
+    internal VectorInt3 RenderOriginChunk
+    {
+        get
+        {
+            // The wire slot is an ivec4; the host vector's SIMD storage is not a three-int wire layout.
+            var (x, y, z, _) = UboPacking.ReadIVec4(Bytes, RenderOriginChunkOffset);
+            return new(x, y, z);
+        }
+    }
+    /// <summary>Returns the camera's bounded within-partition origin component.</summary>
+    internal Vector3 RenderOriginRemainder => MemoryMarshal.Read<Vector3>(Bytes.Slice(RenderOriginRemainderOffset, 12));
     /// <summary>Exposes the shared inverse view for origin-sensitive CPU consumers.</summary>
-    internal ReadOnlySpan<float> InverseView => MemoryMarshal.Cast<byte, float>(Bytes.Slice(192, 64));
+    internal ReadOnlySpan<float> InverseView => MemoryMarshal.Cast<byte, float>(Bytes.Slice(InverseViewOffset, MatrixSizeBytes));
     /// <summary>Exposes current clip coordinates without repeating matrix composition.</summary>
-    internal ReadOnlySpan<float> CurrentViewProjection => MemoryMarshal.Cast<byte, float>(Bytes.Slice(320, 64));
+    internal ReadOnlySpan<float> CurrentViewProjection => MemoryMarshal.Cast<byte, float>(Bytes.Slice(CurrentViewProjectionOffset, MatrixSizeBytes));
     /// <summary>Projects current render-relative positions into the preceding shared camera, including precise origin rebasing.</summary>
-    internal ReadOnlySpan<float> PreviousViewProjection => MemoryMarshal.Cast<byte, float>(Bytes.Slice(256, 64));
+    internal ReadOnlySpan<float> PreviousViewProjection => MemoryMarshal.Cast<byte, float>(Bytes.Slice(PreviousViewProjectionOffset, MatrixSizeBytes));
     #endregion
 
     #region Private

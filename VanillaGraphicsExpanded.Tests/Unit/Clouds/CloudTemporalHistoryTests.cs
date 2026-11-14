@@ -34,8 +34,8 @@ public sealed class CloudTemporalHistoryTests
         bool admitted = history.Capture(next,camera,5,4,temporal,change!="content");
         // Assert: only an unchanged consecutive frame writes valid history parameters.
         Assert.Equal(change=="none",admitted);
-        Assert.Equal(change=="none"?1:0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[8]);
-        Assert.Equal(change=="none"?1:0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[10]);
+        Assert.Equal(change=="none"?1:0,UboPacking.ReadFloat(temporal.Bytes,CloudTemporalParameters.HistoryOffset));
+        Assert.Equal(change=="none"?1:0,UboPacking.ReadFloat(temporal.Bytes,CloudTemporalParameters.HistoryOffset+2*sizeof(float)));
     }
     /// <summary>Grid recentering is not motion; committed and residual wind form a continuous single material translation.</summary>
     [Fact]
@@ -50,15 +50,16 @@ public sealed class CloudTemporalHistoryTests
         bool admitted = h.Capture(b,current,5,4,t,true);
         // Assert: grid recentering alone does not create material motion.
         Assert.True(admitted);
-        var values=MemoryMarshal.Cast<byte,float>(t.Bytes);
-        Assert.Equal(0,values[0]); Assert.Equal(-1,values[1]); Assert.Equal(0,values[2]);
+        Assert.Equal(0,UboPacking.ReadFloat(t.Bytes,CloudTemporalParameters.MaterialTranslationOffset));
+        Assert.Equal(-1,UboPacking.ReadFloat(t.Bytes,CloudTemporalParameters.MaterialTranslationOffset+sizeof(float)));
+        Assert.Equal(0,UboPacking.ReadFloat(t.Bytes,CloudTemporalParameters.MaterialTranslationOffset+2*sizeof(float)));
         b=b with { Placement=b.Placement with { WindTileX=1,WindX=-49,Offset=new(-1,1,0) } };
         // Act: add one residual wind unit after the same recentering.
         admitted = h.Capture(b,current,5,4,t,true);
         // Assert: the combined displacement includes the wind exactly once.
         Assert.True(admitted);
-        Assert.Equal(1,MemoryMarshal.Cast<byte,float>(t.Bytes)[0]);
-        Assert.Equal(0,MemoryMarshal.Cast<byte,float>(t.Bytes)[10]); // Wind requires ordinary material reprojection.
+        Assert.Equal(1,UboPacking.ReadFloat(t.Bytes,CloudTemporalParameters.MaterialTranslationOffset));
+        Assert.Equal(0,UboPacking.ReadFloat(t.Bytes,CloudTemporalParameters.HistoryOffset+2*sizeof(float))); // Wind requires ordinary material reprojection.
     }
     /// <summary>Previous cloud clip coordinates rotate camera-relative points without applying eye translation twice.</summary>
     [Fact]
@@ -85,8 +86,7 @@ public sealed class CloudTemporalHistoryTests
             bool admitted = history.Capture(next,current,1720,689,temporal,true);
             // Assert: stationary reprojection preserves camera-relative coordinates.
             Assert.True(admitted);
-            Assert.Equal(1,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[10]);
-            Assert.Equal(64,temporal.Bytes.Length);
+            Assert.Equal(1,UboPacking.ReadFloat(temporal.Bytes,CloudTemporalParameters.HistoryOffset+2*sizeof(float)));
             float[] actual=current.PreviousViewProjection.ToArray();
             // Shared position projection retains the native eye translation. Cloud displacement
             // projection explicitly excludes that column and adds only perspective translation.
@@ -112,19 +112,19 @@ public sealed class CloudTemporalHistoryTests
                 admitted = history.Capture(next,turned,1720,689,temporal,true);
                 // Assert: camera rotation forces ordinary material reprojection.
                 Assert.True(admitted);
-                Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[10]);
+                Assert.Equal(0,UboPacking.ReadFloat(temporal.Bytes,CloudTemporalParameters.HistoryOffset+2*sizeof(float)));
             }
             // Act/Assert: move the native material origin after establishing camera behavior.
             next=next with {Placement=next.Placement with {CenterX=1,Offset=new(50,1,0)}};
             admitted = history.Capture(next,current,1720,689,temporal,true);
             // Assert: native movement remains explicit.
             Assert.True(admitted);
-            Assert.Equal(new Vector3(0,-1,0),MemoryMarshal.Read<Vector3>(temporal.Bytes.Slice(0,12)));
-            Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[10]);
+            Assert.Equal(new Vector3(0,-1,0),MemoryMarshal.Read<Vector3>(temporal.Bytes.Slice(CloudTemporalParameters.MaterialTranslationOffset,3*sizeof(float))));
+            Assert.Equal(0,UboPacking.ReadFloat(temporal.Bytes,CloudTemporalParameters.HistoryOffset+2*sizeof(float)));
             // Act/Assert: invalidation prevents the next capture from renewing the certificate.
             history.Invalidate();
             Assert.False(history.Capture(next,current,1720,689,temporal,true));
-            Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[8]);
+            Assert.Equal(0,UboPacking.ReadFloat(temporal.Bytes,CloudTemporalParameters.HistoryOffset));
         }
     }
     /// <summary>A globally rendered frame cannot advance cloud history after a skipped or failed cloud submission.</summary>
@@ -145,7 +145,7 @@ public sealed class CloudTemporalHistoryTests
         admitted = history.Capture(resumed,camera12,5,4,temporal,true);
         // Assert: the skipped cloud submission cannot advance its continuity certificate.
         Assert.False(admitted);
-        Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[8]);
+        Assert.Equal(0,UboPacking.ReadFloat(temporal.Bytes,CloudTemporalParameters.HistoryOffset));
         // Act: commit frame twelve, then capture the next consecutive frame.
         history.Commit(resumed,camera12);
         admitted = history.Capture(first with{Frame=13},camera13,5,4,temporal,true);

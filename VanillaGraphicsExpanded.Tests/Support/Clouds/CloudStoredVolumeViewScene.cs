@@ -303,17 +303,21 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     internal void AdvanceFrame(float materialMotion=0,bool cameraCut=false,float yaw=0,uint? absoluteFrame=null)
     {
         var bytes=camera.Bytes.ToArray();uint frame=absoluteFrame??unchecked(input.Frame+1);
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(396,4),frame);
-        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(508,4),cameraCut?1u:0u);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(VgeFrameUniformBuffer.FrameIndexOffset, sizeof(uint)),frame);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(VgeFrameUniformBuffer.FrameFlagsOffset, sizeof(uint)),cameraCut?1u:0u);
         var v=System.Runtime.InteropServices.MemoryMarshal.Cast<byte,float>(bytes.AsSpan());
         if(yaw!=0)
         {
-            var view=v.Slice(16,16).ToArray();var inverse=new float[16];var clip=new float[16];
+            var matrixFloatCount=VgeFrameUniformBuffer.MatrixSizeBytes/sizeof(float);
+            var view=v.Slice(VgeFrameUniformBuffer.ViewOffset/sizeof(float),matrixFloatCount).ToArray();var inverse=new float[16];var clip=new float[16];
             Vintagestory.API.MathTools.Mat4f.RotateY(view,view,yaw);
             Vintagestory.API.MathTools.Mat4f.Invert(inverse,view);
-            Vintagestory.API.MathTools.Mat4f.Mul(clip,v[..16].ToArray(),view);
-            v.Slice(80,16).CopyTo(v.Slice(64,16));view.CopyTo(v.Slice(16,16));
-            inverse.CopyTo(v.Slice(48,16));clip.CopyTo(v.Slice(80,16));
+            Vintagestory.API.MathTools.Mat4f.Mul(clip,v.Slice(VgeFrameUniformBuffer.ProjectionOffset/sizeof(float),matrixFloatCount).ToArray(),view);
+            v.Slice(VgeFrameUniformBuffer.CurrentViewProjectionOffset/sizeof(float),matrixFloatCount)
+                .CopyTo(v.Slice(VgeFrameUniformBuffer.PreviousViewProjectionOffset/sizeof(float),matrixFloatCount));
+            view.CopyTo(v.Slice(VgeFrameUniformBuffer.ViewOffset/sizeof(float),matrixFloatCount));
+            inverse.CopyTo(v.Slice(VgeFrameUniformBuffer.InverseViewOffset/sizeof(float),matrixFloatCount));
+            clip.CopyTo(v.Slice(VgeFrameUniformBuffer.CurrentViewProjectionOffset/sizeof(float),matrixFloatCount));
         }
         // Recapture the retained camera rather than decoding calibration into a new owner: optional
         // accessor defaults otherwise become explicit values and spuriously advance its generation.

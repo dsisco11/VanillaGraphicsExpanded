@@ -31,15 +31,15 @@ public sealed class VgeLightsRendererTests
         owner.OnRenderFrame(.016f, EnumRenderStage.Opaque);
         // Assert: publication waits for the opaque boundary and remains immutable for that frame.
         byte[] first = VgeLightsRenderer.Current.Bytes.ToArray();
-        Assert.Equal(-7f, MemoryMarshal.Read<float>(first.AsSpan(16)));
+        Assert.Equal(-7f, MemoryMarshal.Read<float>(first.AsSpan(VgeLightsUniformBuffer.PositionsOffset)));
         source.PointLights3[0] = 19; source.PointLightColors3[0] = 23;
         owner.OnRenderFrame(.016f, EnumRenderStage.Opaque);
         Assert.Equal(first, VgeLightsRenderer.Current.Bytes.ToArray());
         owner.OnRenderFrame(.016f, EnumRenderStage.Before);
         Assert.Throws<InvalidOperationException>(() => VgeLightsRenderer.Current);
         owner.OnRenderFrame(.016f, EnumRenderStage.Opaque);
-        Assert.Equal(19f, MemoryMarshal.Read<float>(VgeLightsRenderer.Current.Bytes.Slice(16)));
-        Assert.Equal(23f, MemoryMarshal.Read<float>(VgeLightsRenderer.Current.Bytes.Slice(1616)));
+        Assert.Equal(19f, MemoryMarshal.Read<float>(VgeLightsRenderer.Current.Bytes.Slice(VgeLightsUniformBuffer.PositionsOffset)));
+        Assert.Equal(23f, MemoryMarshal.Read<float>(VgeLightsRenderer.Current.Bytes.Slice(VgeLightsUniformBuffer.ColorsOffset)));
         Mock.Get(api.Object.Event).Raise(e => e.LeaveWorld += null);
         // Assert: world retirement and owner disposal withdraw the snapshot and both subscriptions.
         Assert.Throws<InvalidOperationException>(() => VgeLightsRenderer.Current);

@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -30,7 +31,7 @@ public sealed class UniformLifetimeMeasurementTests(HeadlessGLFixture fixture, I
         using var resolve = new LumOnWorldProbeResolveParamsUbo();
         using var referenceResolve = new PackedUniformBuffer(resolve.SizeBytes);
         resolve.AtlasSize = new(256, 128);
-        referenceResolve.SetBytes(resolve.Bytes);
+        referenceResolve.SetPayload(resolve.Bytes);
         long publications = 0;
         RHIUniformRingSystem.SetCurrent(ring);
         try
@@ -38,7 +39,7 @@ public sealed class UniformLifetimeMeasurementTests(HeadlessGLFixture fixture, I
             for (int index = 0; index < 8; index++)
             {
                 ring.BeginFrame(index);
-                frame.Animation = new Vector4(index, 0, 0, 0);
+                frame.SetAnimation(index, 0, 0);
                 for (int mesh = 0; mesh < 4; mesh++)
                 {
                     draw.SetOrigin(new Vector3(index, mesh, 0));

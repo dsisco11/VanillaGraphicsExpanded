@@ -1,270 +1,144 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
-using VanillaGraphicsExpanded.Rendering.RHI;
-using OpenTK.Graphics.OpenGL;
+using System.Numerics;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Harness;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+using VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
+using VanillaGraphicsExpanded.Tests.Support.Lighting;
+using Vintagestory.API.MathTools;
 using Xunit;
 
-
-using VanillaGraphicsExpanded.Tests.Support.Lighting;
-
-using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
 namespace VanillaGraphicsExpanded.Tests.Component.PBR.Materials;
-/// <summary>Checks direct sunlight visibility using depth comparisons and production sampler bindings.</summary>
+
+/// <summary>Checks that the production direct-lighting component consumes a current VSM page publication.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
 public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
 {
     #region Public API
-    /// <summary>Uses the shared headless graphics context.</summary>
+    /// <summary>Uses the shared headless graphics context for production shader and RHI submissions.</summary>
     public PbrDirectLightingShadowTests(HeadlessGLFixture fixture) : base(fixture) { }
 
-    #region Visibility contracts
-
-    /// <summary>Propagated sunlight scales both solar lobes and preserves local light and emission.</summary>
-    [Theory]
-    [InlineData(0f)]
-    [InlineData(.5f)]
-    [InlineData(1f)]
-    public void PropagatedSunlightScalesOnlySolarLighting(float skyVisibility)
-    {
-        // Arrange: Set controlled propagated sky visibility alongside an independent point-light contribution.
-        // Act and assert: Render direct light and verify visibility scales solar lighting alone.
-        EnsureShaderTestAvailable();
-        var sun = RenderReceiver(1f, 100f, 100f);
-        var local = RenderReceiver(1f, 100f, 100f, sunlight: 0f, pointLight: true, emission: .3f);
-        var mixed = RenderReceiver(1f, 100f, 100f, pointLight: true, emission: .3f, skyVisibility: skyVisibility);
-        Assert.True(sun[0] > .01f && sun[4] > .01f);
-        float factor = Math.Clamp(skyVisibility, 0f, 1f);
-        for (int channel = 0; channel < 3; channel++)
-        {
-            Assert.InRange(MathF.Abs(mixed[channel] - (local[channel] + sun[channel] * factor)), 0f, .002f);
-            Assert.InRange(MathF.Abs(mixed[4 + channel] - (local[4 + channel] + sun[4 + channel] * factor)), 0f, .002f);
-            Assert.Equal(local[8 + channel], mixed[8 + channel]);
-        }
-    }
-
-    /// <summary>Full near coverage shadows terrain-like receivers even when the far cascade is completely clear.</summary>
-    [Theory]
-    [InlineData(.2f, .5f, .1f, true)]
-    [InlineData(.4f, .2f, .1f, true)]
-    [InlineData(.4f, .2f, .1f, false)]
-    public void NearOcclusionOverridesClearFarCascade(float red, float green, float blue, bool upward)
-    {
-        // Arrange: Provide colored near-cascade occlusion and a clear far cascade for the selected ray direction.
-        // Act and assert: Render both cascade inputs and require the near occluder to control solar visibility.
-        EnsureShaderTestAvailable();
-        float[] color = [red, green, blue, 1f];
-        var lit = RenderReceiver(1f, 100f, 100f, farDepth: 1f, color: color, upward: upward);
-        var shadowed = RenderReceiver(0f, 100f, 100f, farDepth: 1f, color: color, upward: upward);
-        Assert.True(lit[0] > .01f && lit[1] > .01f && lit[2] > .01f);
-        for (int channel = 0; channel < 3; channel++)
-        {
-            Assert.InRange(shadowed[channel], 0f, .0001f);
-            Assert.InRange(shadowed[4 + channel], 0f, .0001f);
-        }
-    }
-
-    /// <summary>Complete occlusion removes both sun lobes throughout near, far, and overlapping coverage.</summary>
-    [Theory]
-    [InlineData(100f, 0f)]
-    [InlineData(0f, 100f)]
-    [InlineData(2f, 100f)]
-    public void FullyOccludedSunProducesNoDirectRadiance(float nearRange, float farRange)
-    {
-        // Arrange: Place the receiver behind fully occluding cascade depths with selected range metadata.
-        // Act and assert: Evaluate direct lighting and require the fully occluded sun to contribute no radiance.
-        EnsureShaderTestAvailable();
-        var lit = RenderReceiver(1f, nearRange, farRange);
-        var shadowed = RenderReceiver(0f, nearRange, farRange);
-
-        Assert.True(lit[0] > .4f / MathF.PI && lit[4] > .001f, "The control receiver must have diffuse and specular sunlight.");
-        for (int channel = 0; channel < 3; channel++)
-        {
-            Assert.InRange(shadowed[channel], 0f, .0001f);
-            Assert.InRange(shadowed[4 + channel], 0f, .0001f);
-        }
-    }
-
-    /// <summary>Sun occlusion leaves a held point light and material emission unchanged.</summary>
+    /// <summary>A completed current page suppresses sunlight while the same page with far depth admits it.</summary>
     [Fact]
-    public void SunOcclusionPreservesPointLightingAndEmission()
+    public void CurrentVsmPageControlsDirectSunlight()
     {
-        // Arrange: Block solar visibility while retaining point illumination and material emission.
-        // Act and assert: Render composition and verify occlusion removes only the sun contribution.
+        // Arrange: Render the same receiver twice with independently published pages and the same current sun.
         EnsureShaderTestAvailable();
-        var pointOnly = RenderReceiver(1f, 100f, 0f, sunlight: 0f, pointLight: true, emission: .8f);
-        var shadowedSunAndPoint = RenderReceiver(0f, 100f, 0f, pointLight: true, emission: .8f);
+        double lit = RenderReceiver(1f);
+        double occluded = RenderReceiver(0f);
 
-        // The unit engine point payload is calibrated candela, evaluated one metre from this normal-incidence receiver.
-        var response = MicrofacetEnergyReference.NormalResponse((float)(Half).4f, .04);
-        float expectedDiffuse = (float)((float)(Half).6f * (1-response.Reflection) / Math.PI
-            * LightingCalibration.EnginePointCandelaPerUnit);
-        Assert.InRange(pointOnly[0], expectedDiffuse - .0001f, expectedDiffuse + .0001f);
-        Assert.True(pointOnly[4] > .001f && pointOnly[8] > .3f);
-        for (int attachment = 0; attachment < 3; attachment++)
-        for (int channel = 0; channel < 3; channel++)
-        {
-            int index = attachment * 4 + channel;
-            Assert.InRange(MathF.Abs(pointOnly[index] - shadowedSunAndPoint[index]), 0f, .0001f);
-        }
+        // Assert: GPU reductions show visible diffuse sunlight in the lit page and no diffuse energy behind depth zero.
+        Assert.True(lit > 0.01, $"Expected a lit direct-light contribution, got {lit:R}.");
+        Assert.InRange(occluded, 0d, 0.0001d);
     }
 
-    /// <summary>Disabling shadow intensity retains direct sunlight even behind the depth occluder.</summary>
+    /// <summary>The surface shader keeps a retained page usable when large signed render origins cross chunk boundaries.</summary>
     [Fact]
-    public void DisabledShadowsPreserveSunlight()
+    public void RetainedSurfaceProjectionSurvivesLargeOriginChunkRebase()
     {
-        // Arrange: Place the receiver behind a depth occluder with shadow intensity disabled.
-        // Act and assert: Render direct lighting and verify the disabled shadow policy retains sunlight.
+        // Arrange: retain one rendered page around the same absolute receiver as the camera origin moves by whole chunks.
         EnsureShaderTestAvailable();
-        var lit = RenderReceiver(1f, 100f, 0f);
-        var disabled = RenderReceiver(0f, 100f, 0f, intensity: 0f);
-        for (int channel = 0; channel < 3; channel++)
-        {
-            Assert.InRange(MathF.Abs(lit[channel] - disabled[channel]), 0f, .0001f);
-            Assert.InRange(MathF.Abs(lit[4 + channel] - disabled[4 + channel]), 0f, .0001f);
-        }
+        var initialOrigin = new Vector3d(1_000_000_031.75, -2_000_000_000.5, 1_500_000_031.75);
+        var rebasedOrigin = initialOrigin + new Vector3d(32, -32, 32);
+        var initialReceiver = new Vector3d(64, 64, -1);
+        var rebasedReceiver = initialReceiver - new Vector3d(32, -32, 32);
+        var clearColumnReceiver = new Vector3d(4, 0, 0);
+        using var shadows = new PublishedSurfaceShadowFixture(0f, initialOrigin, initialReceiver, shadowedColumns: (94, 96));
+        using var rebasedInputs = shadows.CreateRebasedInputs(rebasedOrigin);
+
+        // Act: render a dark texel stripe and an adjacent clear column before and after rebasing the camera/chunk origin.
+        double initial = RenderReceiver(shadows.Inputs, initialOrigin, initialReceiver);
+        double rebased = RenderReceiver(rebasedInputs, rebasedOrigin, rebasedReceiver);
+        double initialLit = RenderReceiver(shadows.Inputs, initialOrigin, initialReceiver + clearColumnReceiver);
+        double rebasedLit = RenderReceiver(rebasedInputs, rebasedOrigin, rebasedReceiver + clearColumnReceiver);
+
+        // Assert: both retained coordinates agree with the patterned page, and the same lights remain enabled after rebasing.
+        Assert.InRange(initial, 0d, 0.0001d);
+        Assert.InRange(rebased, 0d, 0.0001d);
+        Assert.True(initialLit > 0.01, $"Expected the adjacent clear column to admit sunlight before rebasing, got {initialLit:R}.");
+        Assert.True(rebasedLit > 0.01, $"Expected the adjacent clear column to admit sunlight after rebasing, got {rebasedLit:R}.");
     }
 
-    /// <summary>Shadow intensity fades diffuse sunlight but does not weaken full PCF occlusion for specular.</summary>
+    /// <summary>Demand padding keeps a distant receiver inside its actual GPU-published coverage certificate.</summary>
     [Fact]
-    public void HalfShadowIntensityRetainsHalfDiffuseAndRemovesSpecular()
+    public void DemandCoverageContainsDistantReceiverForSurfaceSampling()
     {
-        // Arrange: Configure half shadow intensity over a fully occluded solar receiver.
-        // Act and assert: Verify diffuse sunlight is halved while the PCF-occluded specular lobe remains absent.
+        // Arrange: generate a tight page certificate from the exact distant receiver bounds.
         EnsureShaderTestAvailable();
-        var lit = RenderReceiver(1f, 100f, 0f);
-        var halfShadow = RenderReceiver(0f, 100f, 0f, intensity: .5f);
-        for (int channel = 0; channel < 3; channel++)
-        {
-            Assert.InRange(MathF.Abs(lit[channel] * .5f - halfShadow[channel]), 0f, .0001f);
-            Assert.InRange(halfShadow[4 + channel], 0f, .0001f);
-        }
+        var receiver = new Vector3d(1000, 64, -1);
+        using var darkShadows = new PublishedSurfaceShadowFixture(0f, receiverRelative: receiver, useDemandCoverage: true);
+        using var litShadows = new PublishedSurfaceShadowFixture(1f, receiverRelative: receiver, useDemandCoverage: true);
+
+        // Act: shade the exact same receiver against separately published dark and far-depth demand pages.
+        double occluded = RenderReceiver(darkShadows.Inputs, Vector3d.Zero, receiver);
+        double lit = RenderReceiver(litShadows.Inputs, Vector3d.Zero, receiver);
+
+        // Assert: the demand certificate admits the exact distant receiver and the shader still compares its depth.
+        Assert.InRange(occluded, 0d, 0.0001d);
+        Assert.True(lit > 0.01, $"Expected far depth in the published page to admit sunlight, got {lit:R}.");
     }
-
-    #endregion
-
-    #region Explicit receiver position
-
-    /// <summary>First-person lighting uses the physical receiver position despite visibility-depth and projection changes.</summary>
-    [Theory]
-    [InlineData(0f, 1f, false)]
-    [InlineData(1f, 1f, false)]
-    [InlineData(1f, 0f, true)]
-    public void ExplicitReceiverPositionPreservesSunShadowsAndPointLighting(float shadowDepth, float sunlight, bool pointLight)
-    {
-        // Arrange: Supply explicit receiver position with selected shadow depth, solar irradiance, and optional point light.
-        // Act and assert: Render using the explicit position and compare retained shadow and point-light contributions.
-        EnsureShaderTestAvailable();
-        var baseline = RenderReceiver(shadowDepth, 100f, 0f, sunlight: sunlight, pointLight: pointLight);
-        var firstPerson = RenderReceiver(shadowDepth, 100f, 0f, sunlight: sunlight, pointLight: pointLight,
-            explicitPosition: true, visibilityDepth: .4f, projectionOffset: 2f);
-        // Compare both diffuse and specular lobes, including a completely shadowed receiver.
-        for (int attachment = 0; attachment < 2; attachment++)
-        for (int channel = 0; channel < 3; channel++)
-            Assert.InRange(MathF.Abs(baseline[attachment * 4 + channel] - firstPerson[attachment * 4 + channel]), 0f, .0001f);
-
-        if (shadowDepth == 0f)
-            Assert.InRange(firstPerson[0], 0f, .0001f);
-        else
-            Assert.True(firstPerson[0] > .01f && firstPerson[4] > .001f);
-    }
-
-    /// <summary>Ordinary receivers continue reconstructing depth and do not consume the position attachment.</summary>
-    [Fact]
-    public void UnmarkedReceiverRetainsDepthReconstruction()
-    {
-        // Arrange: Leave receiver-position metadata unmarked and provide ordinary depth for reconstruction.
-        // Act and assert: Render the receiver and verify the production path continues using reconstructed depth.
-        EnsureShaderTestAvailable();
-        var baseline = RenderReceiver(1f, 100f, 0f, sunlight: 0f, pointLight: true);
-        var changed = RenderReceiver(1f, 100f, 0f, sunlight: 0f, pointLight: true,
-            visibilityDepth: .4f, projectionOffset: 2f);
-        Assert.True(MathF.Abs(baseline[0] - changed[0]) > .05f,
-            "An unmarked receiver must still respond to reconstructed position changes.");
-    }
-    #endregion
-
     #endregion
 
     #region Private
-    #region Scenario resources
-    // Each test owns one specialization through Programs; receiver inputs are rebound for every draw.
-    private PBRDirectLightingShaderProgram? receiverProgram;
-    #endregion
-
-    #region Receiver rendering
-
-    /// <summary>Renders a front-facing receiver with deterministic cascade coverage and reads all radiance buffers.</summary>
-    private float[] RenderReceiver(float shadowDepth, float nearRange, float farRange,
-        float sunlight = 1f, bool pointLight = false, float emission = 0f, float intensity = 1f,
-        float? farDepth = null, float[]? color = null, bool upward = false,
-        bool explicitPosition = false, float visibilityDepth = 0f, float projectionOffset = 0f, float skyVisibility = 1f)
+    /// <summary>Prepares the GPU statistics reducer used to observe direct-light output.</summary>
+    private protected override void PrepareObservations(GpuObservationPrograms programs)
     {
-        var program = receiverProgram ??= Programs.Create<PBRDirectLightingShaderProgram>();
+        base.PrepareObservations(programs);
+        programs.Prepare("layer", 0, 0);
+        programs.Prepare("inspection", 0, 0);
+        programs.Prepare("statistics", 0, 0);
+    }
+
+    /// <summary>Consumes one real page/readiness publication and observes direct diffuse output on the GPU.</summary>
+    private double RenderReceiver(float pageDepth)
+    {
+        using var shadowPublication = new PublishedSurfaceShadowFixture(pageDepth);
+        return RenderReceiver(shadowPublication.Inputs, Vector3d.Zero, new Vector3d(64, 64, -1));
+    }
+
+    /// <summary>Draws one deferred receiver whose camera-relative position and render origin are independently controlled.</summary>
+    private double RenderReceiver(VanillaGraphicsExpanded.PBR.Shadows.SurfaceShadowInputSet shadows,
+        Vector3d renderOrigin, Vector3d receiverRelative)
+    {
+        // The fixture keeps the receiver and its PCF footprint inside the certified page region.
         using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f, 3);
-        using var albedo = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, color ?? [.6f, .6f, .6f, 1f]);
-        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [visibilityDepth]);
-        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, upward ? [.5f, 1f, .5f, 1f] : [.5f, .5f, 1f, explicitPosition ? -1f : 1f]);
-        using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [0f, 0f, -1f, 1f]);
-        using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [0f, 0f, 0f, skyVisibility]);
-        using var material = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [color is null ? .4f : .9f, 0f, emission, 0f]);
-        // A depth-format texture is required by sampler2DShadow. The production resource setters
-        // bind the comparison sampler; the test must not repair or replace that binding itself.
-        using var shadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
-        GL.TextureSubImage2D(shadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { shadowDepth });
-        using var farShadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
-        GL.TextureSubImage2D(farShadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { farDepth ?? shadowDepth });
+        using var albedo = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [0.6f, 0.6f, 0.6f, 1f]);
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [0f]);
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [0.5f, 0.5f, 1f, 1f]);
+        using var material = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [0.4f, 0f, 0f, 0f]);
+        using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [0f, 0f, 0f, 1f]);
+        using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
+        var program = Programs.Create<PBRDirectLightingShaderProgram>();
+        using var layered = LayeredTestTexture.Create(ImageAssertions.Programs, normal, material, environment);
         program.PrimaryScene = albedo;
         program.PrimaryDepth = depth;
-        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, material, environment);
-        program.GBufferSurface = surface;
+        program.GBufferSurface = layered;
         program.GBufferPosition = position;
-        program.ShadowMapNear = shadow;
-        program.ShadowMapFar = farShadow;
+        program.ShadowInputs = shadows;
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-        float[] inverseProjection = (float[])identity.Clone();
-        inverseProjection[12] = projectionOffset;
-        using var frameCamera = TestFrameCamera.CreateFromInverseView(inverseProjection, identity);
-        program.FrameInputs = frameCamera;
-        // Center depth zero reconstructs (0,0,-1), which maps to shadow UV/depth (.5,.5,.5).
-        // Its distance of one gives full near coverage at range 100, and .65 near/.35 far at range 2.
-        float[] shadowMatrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, .5f, .5f, 1.5f, 1];
-        program.ToShadowMapSpaceMatrixNear = shadowMatrix;
-        program.ToShadowMapSpaceMatrixFar = shadowMatrix;
-        program.ShadowRanges = (nearRange, farRange);
-        program.ShadowZExtendNear = 1f;
-        program.ShadowZExtendFar = 1f;
-        program.DropShadowIntensity = intensity;
-        program.LightDirection = upward ? new(0f, 1f, 0f) : new(0f, 0f, 1f);
-        program.RgbaLightIn = new(sunlight, sunlight, sunlight);
-        program.RgbaAmbientIn = new(0f, 0f, 0f);
+        float[] inverseView = (float[])identity.Clone();
+        inverseView[12] = (float)receiverRelative.X;
+        inverseView[13] = (float)receiverRelative.Y;
+        inverseView[14] = (float)(receiverRelative.Z + 1);
+        var chunkOrigin = new VectorInt3(checked((int)Math.Floor(renderOrigin.X / 32)),
+            checked((int)Math.Floor(renderOrigin.Y / 32)), checked((int)Math.Floor(renderOrigin.Z / 32)));
+        var originRemainder = new Vector3((float)(renderOrigin.X - chunkOrigin.X * 32.0),
+            (float)(renderOrigin.Y - chunkOrigin.Y * 32.0), (float)(renderOrigin.Z - chunkOrigin.Z * 32.0));
+        using var camera = TestFrameCamera.CreateFromInverseView(identity, inverseView,
+            renderOriginChunkCoord: chunkOrigin, renderOriginBlockRemainder: originRemainder);
+        program.FrameInputs = camera;
         using var sharedLights = new VgeLightsUniformBuffer();
-        sharedLights.Capture(pointLight ? 1 : 0, pointLight ? [0f, 0f, 0f] : [], pointLight ? [1f, 1f, 1f] : []);
+        sharedLights.Capture(0, [], []);
         program.LightsInputs = sharedLights;
         FramebufferTestSetup.BindForEngineRendering(output);
         TestFramework.RenderQuadTo(program, output);
 
-        var result = new float[12];
-        GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, output.FboId);
-        for (int attachment = 0; attachment < 3; attachment++)
-        {
-            GL.ReadBuffer((ReadBufferMode)((int)ReadBufferMode.ColorAttachment0 + attachment));
-            float[] pixel = new float[4];
-            GL.ReadPixels(0, 0, 1, 1, PixelFormat.Rgba, PixelType.Float, pixel);
-            Array.Copy(pixel, 0, result, attachment * 4, 4);
-        }
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
-        GpuFramebuffer.Unbind();
-        return result;
-    }
-
-    #endregion
-    /// <summary>Prepares this suite's declared observation programs before subject execution.</summary>
-    private protected override void PrepareObservations(VanillaGraphicsExpanded.Tests.Support.GPU.Observations.GpuObservationPrograms programs)
-    {
-        base.PrepareObservations(programs);
-        programs.Prepare("layer", 0, 0);
+        // Reduce the rendered attachment on GPU and retain only its compact scalar sum for the CPU assertion.
+        var result = ImageAssertions.Statistics.Statistics(output[0], channelMask: 1);
+        return result.Sum(0);
     }
     #endregion
 }

@@ -49,7 +49,7 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         using var grading = new ColorGradingLut(); final.GradingLookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
         final.FrameInputs = camera; final.SceneImage = source; final.BloomImage = zero;
         final.ShaftImage = zero; final.ExposureBuffer = exposure;
-        final.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(0, 1, 0, 0));
+        final.Capture(false, new(new(1, 1, 1, 0), 0, 0, 0, 0, 0, 0), 0, true, 0);
         // Act and assert: Submit scene-linear display and require the packed moonless radiance to remain nonzero within quantization bounds.
         Submit(draw, final, target);
         float expected = FilmicGradingReference.Quantize(FilmicGradingReference.Lookup(new Vector3(stored[0] / scale * 256), new(1, 1, 1, 0)).X);
@@ -73,7 +73,7 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         var final = Programs.Create<FinalDisplayShaderProgram>(); final.FrameLightingInputs = publication.Buffer;
         using var grading = new ColorGradingLut(); final.GradingLookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
         final.FrameInputs = camera; final.SceneImage = source; final.BloomImage = source; final.ShaftImage = source; final.ExposureBuffer = exposure;
-        final.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(0, 1, 0, 0));
+        final.Capture(false, new(new(1, 1, 1, 0), 0, 0, 0, 0, 0, 0), 0, true, 0);
         // Act and assert: Submit maximum stored light at each exceptional EV and verify finite contained half output.
         Submit(draw, final, target);
         var actual = target[0].ReadPixels();
@@ -101,12 +101,12 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         {
             var shader = Programs.Create<LightShaftShaderProgram>(); shader.SourceImage = source;
             shader.VisibilityImage = source; shader.DepthImage = source; shader.FrameInputs = camera;
-            shader.Capture(new(0, 0, 1, 64), Vector4.Zero, new(.5f, .5f, 1, 1)); program = shader;
+            shader.CaptureFilter(64, 0, new(new(.5f, .5f), 1, 1, Vector3.Zero, 0)); program = shader;
         }
         else
         {
             var shader = Programs.Create<PostLumaShaderProgram>(); shader.SourceImage = source;
-            shader.Capture(Vector4.Zero, Vector4.Zero); program = shader;
+            shader.Capture(false, false, 0); program = shader;
         }
         // Act and assert: Submit either luma or radial shafts and require finite channels to clamp without changing alpha.
         Submit(draw, program, target);
@@ -125,7 +125,7 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         using var draw = new PostprocessDraw();
         FramebufferTestSetup.ClearAttachments(target, .25f, .5f, .75f, .125f);
         shader.SourceImage = source; shader.SecondaryImage = source;
-        shader.Capture(new(0, 0, 1, 0), Vector4.Zero);
+        shader.CaptureExtraction(false, false, 0, 0, 0, 0);
         // Act and assert: Replace cleared prior glare with invalid lighting and require a neutral RGB fallback.
         Submit(draw, shader, target);
         Assert.Equal(new[] { 0f, 0f, 0f, 1f }, target[0].ReadPixels());
@@ -152,7 +152,8 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         using var draw = new PostprocessDraw();
         shader.SourceImage = source; shader.SecondaryImage = secondary; shader.ExposureBuffer = exposure;
         if (mode is 2 or 3) shader.CaptureGaussian(4, mode == 3);
-        else shader.Capture(new(0, 0, mode, mode == 4 ? 1 : 0), mode == 4 ? Vector4.One : new(1, 0, 1, 0));
+        else if (mode == 4) shader.CaptureAccumulation(Vector3.One, true);
+        else shader.CaptureExtraction(mode == 0, false, 1, 0, 1, 0);
         // Act and assert: Run the selected reduction/filter/assembly mode and check finite bounded half-float RGB and preserved source.
         Submit(draw, shader, target);
         var actual = target[0].ReadPixels();
@@ -183,7 +184,7 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         using var draw = new PostprocessDraw();
         var bloom = Programs.Create<BloomShaderProgram>(); bloom.FrameLightingInputs = publication.Buffer;
         bloom.SourceImage = source; bloom.SecondaryImage = zero; bloom.ExposureBuffer = exposure;
-        bloom.Capture(new(0, 0, 0, 1), new(1, 0, .5f, 12));
+        bloom.CaptureExtraction(true, true, 1, 0, .5f, 12);
         // Act and assert: Generate physical-scale glare, then display scene plus glare using the same frozen scale.
         Submit(draw, bloom, glare);
         Assert.Equal(new[] { 4 * scale, 2 * scale, scale, 1 }, glare[0].ReadPixels());
@@ -191,7 +192,7 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         using var grading = new ColorGradingLut(); final.GradingLookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
         final.FrameInputs = camera; final.SceneImage = source; final.BloomImage = glare[0];
         final.ShaftImage = zero; final.ExposureBuffer = exposure;
-        final.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(12, 1, 0, 0));
+        final.Capture(false, new(new(1, 1, 1, 0), 0, 0, 0, 0, 0, 0), 12, true, 0);
         Submit(draw, final, target);
         var actual = target[0].ReadPixels();
         for (int channel = 0; channel < 3; channel++)

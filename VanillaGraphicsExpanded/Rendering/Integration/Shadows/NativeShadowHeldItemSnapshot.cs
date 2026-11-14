@@ -68,13 +68,8 @@ internal sealed class NativeShadowHeldItemSnapshot
     internal void Apply(ShadowStaticShader shader, ShadowDrawView view)
     {
         if (!HasGeometry || !IsCurrent) throw new InvalidOperationException("Native held-item snapshot changed.");
-        Span<byte> data = stackalloc byte[208]; data.Clear();
-        for (int index = 0; index < 16; index++) UboPacking.WriteFloat(data, index * 4, model[index]);
-        warp.Pack(data);
-        for (int diagonal = 0; diagonal < 4; diagonal++) UboPacking.WriteFloat(data, 144 + diagonal * 20, 1);
-        var offset = shape.Origin - view.Origin;
-        UboPacking.WriteFloat(data, 192, (float)offset.X); UboPacking.WriteFloat(data, 196, (float)offset.Y);
-        UboPacking.WriteFloat(data, 200, (float)offset.Z);
+        Span<byte> data = stackalloc byte[ShadowMaterialParameters.BlockSize];
+        ShadowMaterialParameters.PackObject(data, model.AsSpan(), warp.Deformation, shape.Origin - view.Origin);
         shader.CaptureMaterial(data); shader.CaptureFlags(0, 2);
     }
     #endregion

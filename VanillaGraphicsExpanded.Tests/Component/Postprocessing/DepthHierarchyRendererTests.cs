@@ -66,7 +66,7 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
             OpenGlStateCache.Current.InvalidateAll();
             events.Render(EnumRenderStage.Opaque);var first=DepthHierarchyRenderer.Texture!;Assert.NotNull(first);
             Assert.Same(VgeFrameRenderer.Current,DepthHierarchyRenderer.View);
-            Assert.Equal(UboPacking.ReadUInt32(VgeFrameRenderer.Current.Bytes,396),DepthHierarchyRenderer.FrameIndex);
+            Assert.Equal(VgeFrameRenderer.Current.FrameIndex,DepthHierarchyRenderer.FrameIndex);
             Assert.True(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,7,3,out var borrowed));
             Assert.Same(first,borrowed);
             using var alternateView=new VgeFrameUniformBuffer();

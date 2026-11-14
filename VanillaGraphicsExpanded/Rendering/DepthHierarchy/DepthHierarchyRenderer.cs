@@ -46,7 +46,7 @@ internal sealed class DepthHierarchyRenderer : IRenderer
         var candidate=Texture;
         // View buffers are reused between frames, so pointer identity alone cannot certify freshness.
         if(candidate is null || !candidate.IsValid || !ReferenceEquals(View,expected)
-            || FrameIndex!=UboPacking.ReadUInt32(expected.Bytes,396)
+            || FrameIndex!=expected.FrameIndex
             || candidate.Width!=width || candidate.Height!=height) return false;
         texture=candidate;
         return true;
@@ -76,7 +76,7 @@ internal sealed class DepthHierarchyRenderer : IRenderer
         var snapshot=VgeFrameRenderer.Current;
         using var gpuScope=GlGpuProfiler.Instance.Scope("DepthHierarchy");
         pass.Render(receiver);
-        view=snapshot;frameIndex=UboPacking.ReadUInt32(snapshot.Bytes,396);published=true;
+        view=snapshot;frameIndex=snapshot.FrameIndex;published=true;
     }
     /// <summary>Unregisters lifecycle callbacks before withdrawing storage.</summary>
     public void Dispose() {

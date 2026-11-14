@@ -9,9 +9,14 @@ using HarmonyLib;
 using Moq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Numerics;
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.PBR.Materials;
+using VanillaGraphicsExpanded.PBR.Shadows;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Integration.Shadows;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -29,6 +34,7 @@ using VanillaGraphicsExpanded.Tests.Support.GPU.Harness;
 using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
 using VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
 using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+using VanillaGraphicsExpanded.Tests.Component.Water.Fixtures;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
@@ -43,11 +49,16 @@ namespace VanillaGraphicsExpanded.Tests.Integration.Rendering.Shadows;
 /// <summary>Runs the frame gate through a fresh native chunk publication and real GPU traversal/raster path.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
-public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
     #region Public API
     /// <summary>Prepares the GPU comparison program used to count non-clear depth without copying the tile to the CPU.</summary>
-    private protected override void PrepareObservations(GpuObservationPrograms programs) => programs.Prepare("compare", 2, 0);
+    private protected override void PrepareObservations(GpuObservationPrograms programs)
+    {
+        programs.Prepare("compare", 0, 0);
+        programs.Prepare("compare", 2, 0);
+        programs.Prepare("inspection", 0, 0);
+    }
 
     /// <summary>A real current native terrain scene reaches complete page publication before readiness becomes available.</summary>
     [Fact]
@@ -106,20 +117,30 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
     }
 
     /// <summary>Captures one complete native frame from the production source and passes its exact owners to the gate.</summary>
-    [Fact]
-    public void ProductionFrameSourceTransfersCompleteCurrentDemandAndSceneToGate()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ProductionFrameSourceTransfersCompleteCurrentDemandAndSceneToGate(bool carried)
     {
+        ReportCapabilities();
+        ShadowSourceKind pointKind = carried ? ShadowSourceKind.Hand : ShadowSourceKind.Block;
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
-        using var native = new FreshNativeSceneFixture();
+        using var native = new FreshNativeSceneFixture(dualDirectionCasters: true);
         var settings = SourceSettings();
+        // A 128 face keeps the full six-face page set within this fixture's bounded resident pool; the strip is sized for its PCF footprint.
+        settings.Scheduling.PointFaceResolution = 128;
+        settings.Pages.OperationsPerBatch = 16384;
+        settings.Scheduling.CoverageChecks = 1_048_576;
+        settings.Drawing.RasterPixels = 600_000;
+        settings.Drawing.EstimatedRasterSamples = 30_000_000;
         using var pages = ShadowPagePool.Create(assets.Api, settings.Pages);
         using var terrainShader = ShadowTerrainShader.Create(assets.Api, storage: false, waving: false);
         using var bodyShader = ShadowEntityShader.Create(assets.Api, waving: false);
         using var itemShader = ShadowStaticShader.Create(assets.Api, instanced: false, waving: false);
         var sourceApi = ApiWithWorld(assets, native.ClientWorld);
         VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Create(sourceApi);
-        using var receiver = new CompleteReceiverOwner();
+        using var receiver = new CompleteReceiverOwner(waterUnderCasters: true);
         var preparation = new NativeShadowEntityPreparation(8, native.Changes);
         preparation.Begin(native.Entities);
         preparation.End(nativeFailed: false);
@@ -136,7 +157,7 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
             for (long frame = 1; frame <= 8; frame++)
             {
                 sourceNow = frame * 0.02;
-                var lights = SourceLights(frame);
+                var lights = SourceLights(frame, pointPosition: new(4, 2, 2), pointPayload: new(10, 10, 10, 0), pointKind: pointKind);
                 var budget = gate.BeginFrame(source.LiveAndRetiringBytes, lights.Frame);
 
                 // Capture uses the real source owners and returns one immutable light interval plus its native scene.
@@ -151,7 +172,12 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
                 Assert.Equal(3, input.Sources.Length);
                 Assert.Contains(input.Sources, light => light.Source.Kind == ShadowSourceKind.Sun);
                 Assert.Contains(input.Sources, light => light.Source.Kind == ShadowSourceKind.Moon);
-                Assert.Contains(input.Sources, light => light.Source.Kind == ShadowSourceKind.Block);
+                var offeredPoint = Assert.Single(input.Sources, light => light.Source.Kind == pointKind);
+                Assert.Equal(pointKind == ShadowSourceKind.Hand, offeredPoint.Carried);
+                var capturedPointProjection = offeredPoint.CurrentProjection
+                    ?? throw new InvalidOperationException("The native point source omitted its current world-space projection.");
+                Assert.True(capturedPointProjection.IsPoint);
+                Assert.Equal(new Vector3d(4, 2, 2), capturedPointProjection.PositionOrForward);
                 AssertGeneratedDemandContainsEveryReceiver(input, receiver.LastPublication.Regions);
 
                 // The gate consumes this same capture; no test-built replacement input or scene is substituted.
@@ -193,11 +219,15 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
                 Assert.True(wroteDepth, $"The selected {capturedInput.Sources[index].Source.Kind} page set has no native depth writes.");
             }
             Assert.True(gate.Diagnostics!.WritablePages > 0);
+            using (var consumerInputs = new SurfaceShadowInputSet(capturedInput.Lights, priorPublication,
+                       atmosphere: null, settings.Pages))
+                RenderCurrentVsmSurfaceConsumers(sourceApi, capturedInput, priorPublication,
+                    capturedReceipt, consumerInputs, settings.Pages);
 
             // Preserve the actual GPU-selected detail's point pages before a bounded movement within candidate coverage.
             int pointSourceIndex = -1;
             for (int index = 0; index < capturedInput.Sources.Length; index++)
-                if (capturedInput.Sources[index].Source.Kind == ShadowSourceKind.Block) { pointSourceIndex = index; break; }
+                if (capturedInput.Sources[index].Source.Kind == pointKind) { pointSourceIndex = index; break; }
             Assert.InRange(pointSourceIndex, 0, capturedInput.Sources.Length - 1);
             var pointSource = capturedInput.Sources[pointSourceIndex];
             int selectedDetail = checked((int)capturedReceipt[pointSourceIndex * 32 + 14]);
@@ -224,7 +254,8 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
 
                 long movedFrame = capturedInput.Lights.Frame + 1;
                 sourceNow = movedFrame * 0.02;
-                var movedLights = SourceLights(movedFrame, pointDisplacement: 0.25f);
+                var movedLights = SourceLights(movedFrame, pointDisplacement: 0.5f,
+                    pointPosition: new(4, 2, 2), pointPayload: new(10, 10, 10, 0), pointKind: pointKind);
                 var movedBudget = gate.BeginFrame(source.LiveAndRetiringBytes, movedLights.Frame);
                 Assert.Null(gate.Publication);
                 Assert.False(priorPublication.IsCurrent);
@@ -234,7 +265,8 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
                 var movedScene = movedInput.Scene ?? throw new InvalidOperationException("Moved source capture omitted its native scene.");
                 Assert.Same(movedScene.Changes, movedInput.Changes);
                 var movedPoint = movedInput.Sources[pointSourceIndex];
-                Assert.Equal(ShadowSourceKind.Block, movedPoint.Source.Kind);
+                Assert.Equal(pointKind, movedPoint.Source.Kind);
+                Assert.Equal(new Vector3d(4.5, 2, 2), movedPoint.CurrentProjection!.PositionOrForward);
                 var movedAlternative = Assert.Single(movedPoint.Alternatives, alternative => alternative.Detail == selectedDetail);
                 Assert.NotEmpty(movedAlternative.Pages);
                 Assert.NotEqual(oldProjectionGeneration, movedAlternative.Pages[0].Request.Key.Projection);
@@ -242,6 +274,7 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
                 Assert.Contains(movedAlternative.RetainedPages,
                     page => page.Request.Key.Projection == oldProjectionGeneration);
                 AssertGeneratedDemandContainsEveryReceiver(movedInput, receiver.LastPublication!.Regions);
+                ReserveBudgetForRetainedPoint(movedInput, budget: movedBudget, pointSourceIndex: pointSourceIndex);
 
                 // Only the changed point mapping is rerendered; the previous generation remains read-only stale coverage.
                 gate.Update(movedInput, now: sourceNow, movedBudget);
@@ -263,6 +296,26 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
                     if (movedInput.Sources[index].Source.Kind is ShadowSourceKind.Sun or ShadowSourceKind.Moon)
                         Assert.Equal(1u, status);
                 }
+                Assert.Equal(2u, movedReceipt[pointSourceIndex * 32 + 12]);
+                var movedDecision = Assert.Single(gate.Diagnostics!.Decisions, decision => decision.Source == movedPoint.Source);
+                Assert.True(movedDecision.Selected);
+                Assert.False(movedDecision.RefreshSelected);
+                Assert.Equal("RetainedRefreshDeferred", movedDecision.Reason);
+                // At receiver R=(2,2,.5), the retained source Lold=(4,2,2) stores the ray
+                // Lold+t*(R-Lold): its z=1 intersection is x=2.667, inside the strip. A current
+                // query direction R-Lnew, incorrectly applied to texels whose origin is still Lold,
+                // intersects at x=2.333 and misses. A freshly rendered Lnew=(4.5,2,2) map intersects
+                // at x=2.833 and also misses. All three directions use the same -X cube face.
+                float planeFraction = (1f - 2f) / (.5f - 2f);
+                float retainedRayAtStrip = 4f + (2f - 4f) * planeFraction;
+                float currentQueryAgainstRetainedOrigin = 4f + (2f - 4.5f) * planeFraction;
+                float freshMovedRayAtStrip = 4.5f + (2f - 4.5f) * planeFraction;
+                Assert.InRange(retainedRayAtStrip, 2.5f, 2.82f);
+                Assert.True(currentQueryAgainstRetainedOrigin < 2.5f);
+                Assert.True(freshMovedRayAtStrip > 2.82f);
+                using (var movedSurfaceInputs = new SurfaceShadowInputSet(movedLights, movedPublication,
+                           atmosphere: null, settings.Pages))
+                    RenderMovedLocalSurface(sourceApi, movedLights, movedSurfaceInputs, settings.Pages, selectedStaleCoverage: true);
 
                 foreach (var old in oldPointTiles)
                 {
@@ -513,6 +566,414 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
     #endregion
 
     #region Private
+    /// <summary>Records the configured GPU identity and relevant baseline limits for this integration receipt.</summary>
+    private void ReportCapabilities()
+    {
+        var caps = GpuSupport.Graphics;
+        output.WriteLine($"GL vendor={caps.VendorString}; renderer={caps.RendererString}; version={caps.VersionString}; GLSL={caps.ShadingLanguageVersionString}");
+        output.WriteLine($"GL limits: SSBO bindings={caps.MaxShaderStorageBufferBindings}; compute SSBO blocks={caps.MaxComputeShaderStorageBlocks}; SSBO bytes={caps.MaxShaderStorageBlockSize}");
+    }
+
+    /// <summary>Runs the exact gate publication through deferred direct and liquid boundary consumers.</summary>
+    private void RenderCurrentVsmSurfaceConsumers(Vintagestory.API.Client.ICoreClientAPI api,
+        NativeShadowFrameInput input, ShadowFramePublication publication, uint[] readinessSnapshot, SurfaceShadowInputSet current,
+        ShadowPageSettings settings)
+    {
+        ShadowLightSnapshot lights = input.Lights;
+        Assert.True(current.IsCurrent);
+        using var noShadow = new SurfaceShadowInputSet(lights, null, null, settings);
+        using var drawing = new ShaderTestFramework();
+        float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+        float[] aboveInverseView = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 2, 2, 1.5f, 1];
+        float[] liquidInverseView = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 12, 12, 1.5f, 1];
+        // Place the receiver well above the lower caster, inside the certified water receiver region and far from triangle edges.
+        float[] belowInverseView = [-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 12, 12, 7, 1];
+        using var sunCamera = TestFrameCamera.CreateFromInverseView(identity, aboveInverseView, 1, 1, .1f, 100);
+        using var liquidCamera = TestFrameCamera.CreateFromInverseView(identity, liquidInverseView, 16, 16, .1f, 100);
+        using var moonCamera = TestFrameCamera.CreateFromInverseView(identity, belowInverseView, 1, 1, .1f, 100);
+        using var sunViewLights = PointLightsInView(lights, aboveInverseView);
+        using var liquidViewLights = PointLightsInView(lights, liquidInverseView);
+        using var physicalLighting = new TestFrameLightingPublication();
+        physicalLighting.Capture(frame: checked((uint)lights.Frame));
+
+        var moonSource = Assert.Single(input.Sources, source => source.Source.Kind == ShadowSourceKind.Moon);
+        int moonRow = publication.SourceIndices[moonSource.Source];
+        int moonDetail = checked((int)readinessSnapshot[moonRow * 32 + 14]);
+        var moonAlternative = Assert.Single(moonSource.Alternatives, alternative => alternative.Detail == moonDetail);
+        Assert.NotEmpty(moonAlternative.Pages);
+        var moonPage = moonAlternative.Pages[0];
+        var moonProjection = moonPage.Request.Projection
+            ?? throw new InvalidOperationException("The selected moon demand omitted its rendered projection.");
+        Vector3 viewReceiver = new(0, 0, -1);
+        Vector3d cameraRelativeReceiver = TransformPoint(belowInverseView, viewReceiver);
+        var cameraOrigin = new Vector3d(lights.OriginX * 32.0 + lights.OriginRemainder.X,
+            lights.OriginY * 32.0 + lights.OriginRemainder.Y,
+            lights.OriginZ * 32.0 + lights.OriginRemainder.Z);
+        Vector3d worldReceiver = cameraOrigin + cameraRelativeReceiver;
+        Assert.Equal(new Vector3d(12, 12, 8), worldReceiver);
+        var samplingOrigin = moonPage.SamplingOrigin
+            ?? throw new InvalidOperationException("The selected directional moon demand omitted its sampling origin.");
+        var originOffset = cameraOrigin - samplingOrigin;
+        double magnitude = Math.Max(Math.Abs(cameraRelativeReceiver.X) + Math.Abs(originOffset.X),
+            Math.Max(Math.Abs(cameraRelativeReceiver.Y) + Math.Abs(originOffset.Y),
+                Math.Abs(cameraRelativeReceiver.Z) + Math.Abs(originOffset.Z)));
+        double rounding = 4.76837158203125e-7 * Math.Max(1, magnitude);
+        double footprintRadius = (3 + settings.NormalBiasTexels) * moonProjection.TexelWidth + rounding
+            + ShadowCoordinates.OriginError(cameraOrigin) + ShadowCoordinates.OriginError(samplingOrigin);
+        var moonFootprint = new ShadowBounds(worldReceiver.X - footprintRadius, worldReceiver.Y - footprintRadius,
+            worldReceiver.Z - footprintRadius, worldReceiver.X + footprintRadius, worldReceiver.Y + footprintRadius,
+            worldReceiver.Z + footprintRadius);
+        // The selected detail's full PCF and normal-bias footprint must fit a current demand page before GPU draws.
+        Assert.Contains(moonAlternative.Pages,
+            page => page.Request.Region.Contains(moonFootprint));
+        // The sun receiver is 2.5 units below its z=3 caster and the moon receiver is 8 above z=0, exceeding configured bias support.
+        PBRDirectLightingShaderProgram.Register(api);
+        var direct = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries
+            .Get<PBRDirectLightingShaderProgram>(api, PBRDirectLightingShaderProgram.Contract.Identity)
+            ?? throw new InvalidOperationException("The production deferred surface consumer was not declared.");
+        if (!direct.EnsureReady()) throw new InvalidOperationException("The production deferred surface consumer did not prepare.");
+        direct.FrameInputs = sunCamera;
+        direct.FrameLightingInputs = physicalLighting.Buffer;
+        using var albedo = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [1, 1, 1, 1]);
+        using var primaryDepth = drawing.CreateTexture(1, 1, TextureFormat.R32f, [0]);
+        using var viewPosition = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [0, 0, -1, 0]);
+        using var sunNormal = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, .5f, 1, -1]);
+        using var moonNormal = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, .5f, 0, -1]);
+        using var material = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, 0, 0, 0]);
+        using var environment = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [0, 0, 0, 1]);
+        using var sunSurface = LayeredTestTexture.Create(ImageAssertions.Programs, sunNormal, material, environment);
+        using var moonSurface = LayeredTestTexture.Create(ImageAssertions.Programs, moonNormal, material, environment);
+        using var pointSurfaceNormal = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [1, .5f, .5f, -1]);
+        using var pointSurface = LayeredTestTexture.Create(ImageAssertions.Programs, pointSurfaceNormal, material, environment);
+        // Both the sun (+Z) and the captured local source (+.8X,+.6Z) contribute to this receiver.
+        using var sharedSourceNormal = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [.9f, .5f, .8f, -1]);
+        using var sharedSourceSurface = LayeredTestTexture.Create(ImageAssertions.Programs,
+            sharedSourceNormal, material, environment);
+        using var sunControl = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var sunShadowed = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var moonControl = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var moonShadowed = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var pointControl = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var pointShadowed = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var sharedControl = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var sharedShadowed = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var pointUnavailableTarget = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var pointReadinessUnavailableTarget = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var sunOnlyControl = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var sunOnlyPointUnavailable = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var sunOnlyReadinessUnavailable = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+
+        Assert.Equal(checked((int)publication.LightCount * 32), readinessSnapshot.Length);
+        var celestialRows = ImmutableDictionary<ShadowSourceKey, int>.Empty
+            .Add(lights.Sun.Source, 0)
+            .Add(lights.Moon.Source, 1);
+        var celestialReadiness = new uint[2 * 32];
+        Array.Copy(readinessSnapshot, publication.SourceIndices[lights.Sun.Source] * 32, celestialReadiness, 0, 32);
+        Array.Copy(readinessSnapshot, publication.SourceIndices[lights.Moon.Source] * 32, celestialReadiness, 32, 32);
+        using var celestialReadinessBuffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription
+        {
+            Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable,
+            Capacity = celestialReadiness.Length * sizeof(uint), Usage = BufferUsage.DynamicDraw,
+            Label = "Tests.VSM.Surface.CelestialOnlyReadiness"
+        }).RequireResource();
+        celestialReadinessBuffer.UploadData(celestialReadiness);
+        using var celestialSampleFailures = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription
+        {
+            Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable,
+            Capacity = 2 * 4 * sizeof(uint), Usage = BufferUsage.DynamicDraw,
+            Label = "Tests.VSM.Surface.CelestialOnlySampleFailures"
+        }).RequireResource();
+        celestialSampleFailures.UploadData(new uint[2 * 4]);
+        var pointUnavailablePublication = new ShadowFramePublication(lights, publication.Pages,
+            publication.Requests, celestialReadinessBuffer, celestialSampleFailures, celestialRows);
+        using var pointUnavailable = new SurfaceShadowInputSet(lights, pointUnavailablePublication, null, settings);
+        // For the separate status-failure case, retain every source map and clear only the point readiness status. This exercises the
+        // shader's per-source failure path separately from a source intentionally omitted by publication.
+        var failedReadiness = readinessSnapshot.ToArray();
+        int pointRow = publication.SourceIndices[Assert.Single(lights.Points).Source];
+        failedReadiness[pointRow * 32 + 12] = 0;
+        using var failedReadinessBuffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription
+        {
+            Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable,
+            Capacity = failedReadiness.Length * sizeof(uint), Usage = BufferUsage.DynamicDraw,
+            Label = "Tests.VSM.Surface.PointUnavailableReadiness"
+        }).RequireResource();
+        failedReadinessBuffer.UploadData(failedReadiness);
+        var pointFailedPublication = new ShadowFramePublication(lights, publication.Pages,
+            publication.Requests, failedReadinessBuffer, publication.SampleFailures, publication.SourceIndices);
+        using var pointReadinessUnavailable = new SurfaceShadowInputSet(lights, pointFailedPublication, null, settings);
+        // Removing the point payload isolates celestial output: a global fail-open when one source is unavailable
+        // would incorrectly restore the still-mapped sun and make the solar-only outputs differ.
+        using var noPoints = new VgeLightsUniformBuffer();
+        noPoints.Capture(0, ReadOnlySpan<float>.Empty, ReadOnlySpan<float>.Empty);
+
+        void DrawDeferred(SurfaceShadowInputSet shadows, VgeFrameUniformBuffer camera,
+            VgeLightsUniformBuffer pointLights, Texture3D surface, GpuFramebuffer target)
+        {
+            direct.ShadowInputs = shadows;
+            direct.FrameInputs = camera;
+            direct.LightsInputs = pointLights;
+            direct.PrimaryScene = albedo;
+            direct.PrimaryDepth = primaryDepth;
+            direct.GBufferPosition = viewPosition;
+            direct.GBufferSurface = surface;
+            drawing.RenderQuadTo(direct, target);
+        }
+
+        DrawDeferred(noShadow, sunCamera, sunViewLights, sunSurface, sunControl);
+        DrawDeferred(current, sunCamera, sunViewLights, sunSurface, sunShadowed);
+        DrawDeferred(noShadow, moonCamera, noPoints, moonSurface, moonControl);
+        DrawDeferred(current, moonCamera, noPoints, moonSurface, moonShadowed);
+        DrawDeferred(noShadow, sunCamera, sunViewLights, pointSurface, pointControl);
+        DrawDeferred(current, sunCamera, sunViewLights, pointSurface, pointShadowed);
+        DrawDeferred(noShadow, sunCamera, sunViewLights, sharedSourceSurface, sharedControl);
+        DrawDeferred(current, sunCamera, sunViewLights, sharedSourceSurface, sharedShadowed);
+        DrawDeferred(pointUnavailable, sunCamera, sunViewLights, sharedSourceSurface, pointUnavailableTarget);
+        DrawDeferred(pointReadinessUnavailable, sunCamera, sunViewLights, sharedSourceSurface, pointReadinessUnavailableTarget);
+        DrawDeferred(noShadow, sunCamera, noPoints, sharedSourceSurface, sunOnlyControl);
+        DrawDeferred(pointUnavailable, sunCamera, noPoints, sharedSourceSurface, sunOnlyPointUnavailable);
+        DrawDeferred(pointReadinessUnavailable, sunCamera, noPoints, sharedSourceSurface, sunOnlyReadinessUnavailable);
+        var onePixel = new RHITextureRegion(new(0), 0, 0, 0, 1, 1, 1);
+        Assert.True(ImageAssertions.Statistics.Inspect(sunControl[0], .00001, selection: onePixel, channelMask: 7).Nonzero > 0,
+            "The sun-facing deferred receiver must have an unshadowed control contribution.");
+        Assert.True(ImageAssertions.Statistics.Inspect(moonControl[0], .00001, selection: onePixel, channelMask: 7).Nonzero > 0,
+            "The moon-facing deferred receiver must have an unshadowed control contribution.");
+        Assert.True(ImageAssertions.Statistics.Inspect(pointControl[0], .000001, selection: onePixel, channelMask: 7).Nonzero > 0,
+            "The point-facing deferred receiver must have an unshadowed local-light contribution from the captured source payload.");
+        Assert.True(ImageAssertions.Statistics.Inspect(sharedControl[0], .000001, selection: onePixel, channelMask: 7).Nonzero > 0,
+            "The combined receiver must receive both positive sun and local-light contributions before shadowing.");
+        Assert.True(ImageAssertions.Statistics.Inspect(pointUnavailableTarget[0], .000001,
+            selection: onePixel, channelMask: 7).Nonzero > 0,
+            "Omitting the local source's shadow mapping must preserve its illumination while the mapped sun remains independently shadowed.");
+        ImageAssertions.Comparisons.CompareRelation(pointReadinessUnavailableTarget[0], pointUnavailableTarget[0],
+            multiplier: 1, lowerOffset: -.0001f, upperOffset: .0001f, channelMask: 7).AssertEqual();
+        Assert.True(ImageAssertions.Statistics.Inspect(sunOnlyControl[0], .000001,
+            selection: onePixel, channelMask: 7).Nonzero > 0,
+            "The isolated solar-only control must be lit before applying the partial publication.");
+        ImageAssertions.Comparisons.CompareConstant(sunOnlyPointUnavailable[0], 0, onePixel,
+            channelMask: 7, tolerance: .0001).AssertEqual();
+        ImageAssertions.Comparisons.CompareRelation(sunOnlyReadinessUnavailable[0], sunOnlyPointUnavailable[0],
+            multiplier: 1, lowerOffset: -.0001f, upperOffset: .0001f, channelMask: 7).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(sunShadowed[0], 0, onePixel, channelMask: 7, tolerance: .0001).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(sunShadowed[1], 0, onePixel, channelMask: 7, tolerance: .0001).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(moonShadowed[0], 0, onePixel, channelMask: 7, tolerance: .0001).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(moonShadowed[1], 0, onePixel, channelMask: 7, tolerance: .0001).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(pointShadowed[0], 0, onePixel, channelMask: 7, tolerance: .0001).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(pointShadowed[1], 0, onePixel, channelMask: 7, tolerance: .0001).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(sharedShadowed[0], 0, onePixel, channelMask: 7, tolerance: .0001).AssertEqual();
+        ImageAssertions.Comparisons.CompareConstant(sharedShadowed[1], 0, onePixel, channelMask: 7, tolerance: .0001).AssertEqual();
+
+        // Emission is independent of light visibility; shadow changes must leave its third attachment unchanged.
+        using var emissiveMaterial = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, 0, .25f, 0]);
+        using var emissiveSurface = LayeredTestTexture.Create(ImageAssertions.Programs,
+            sharedSourceNormal, emissiveMaterial, environment);
+        using var emissiveControl = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var emissiveShadowed = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var emissivePointUnavailable = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        DrawDeferred(noShadow, sunCamera, sunViewLights, emissiveSurface, emissiveControl);
+        DrawDeferred(current, sunCamera, sunViewLights, emissiveSurface, emissiveShadowed);
+        DrawDeferred(pointUnavailable, sunCamera, sunViewLights, emissiveSurface, emissivePointUnavailable);
+        Assert.True(ImageAssertions.Statistics.Inspect(emissiveControl[2], .000001,
+            selection: onePixel, channelMask: 7).Nonzero > 0);
+        ImageAssertions.Comparisons.CompareRelation(emissiveShadowed[2], emissiveControl[2],
+            multiplier: 1, lowerOffset: -.0001f, upperOffset: .0001f, channelMask: 7).AssertEqual();
+        ImageAssertions.Comparisons.CompareRelation(emissivePointUnavailable[2], emissiveControl[2],
+            multiplier: 1, lowerOffset: -.0001f, upperOffset: .0001f, channelMask: 7).AssertEqual();
+
+        // Exercise the production liquid volume-boundary executable, whose source term samples both celestial slots.
+        var liquid = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Declare(api,
+            LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
+        Assert.True(liquid.ConfigureOptions(() => liquid.CaptureMode = 3));
+        liquid.FrameInputs = liquidCamera;
+        liquid.LightsInputs = liquidViewLights;
+        liquid.ShadowInputs = noShadow;
+        liquid.FrameLightingInputs = physicalLighting.Buffer;
+        liquid.SetAnimation(0, 0, 0);
+        liquid.SetPlayerPosition(Vector3.Zero);
+        liquid.SetAtlasMetrics(Vector2.One, 1, 1);
+        liquid.SetSeason(0, 0, 0, 0);
+        liquid.SetEnvironmentIrradiance(Vector3.Zero);
+        liquid.SetAerialParameters(0, 0, 0, 1);
+        liquid.SetPerception(0, Vector3.Zero);
+        liquid.SetFogSphereCount(0);
+        liquid.MediumLookupEnabled = true;
+        liquid.VolumeTransportEnabled = false;
+        liquid.RefractionEnabled = false;
+        liquid.SceneLinear = true;
+        liquid.Origin = Vector3.Zero;
+        liquid.ResetModelTransform();
+        using var terrain = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [1, 1, 1, 1]);
+        using var opaqueDepth = drawing.CreateTexture(16, 16, TextureFormat.R32f, Enumerable.Repeat(1f, 256).ToArray());
+        using var materialParams = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [.1f, 0, 0, 1]);
+        using var mediumIndices = drawing.CreateTexture(1, 1, TextureFormat.R32f, [1]);
+        using var mediumRecords = drawing.CreateTexture(2, 1, TextureFormat.Rgba32f,
+            [.1f, .2f, .3f, 0, .2f, .3f, .4f, 0]);
+        using var aerial = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription
+        {
+            Dimension = TextureDimension.Three, Format = TextureFormat.Rgba32f, Width = 1, Height = 1, Depth = 1,
+            MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear,
+            BaseLevel = 0, MaxLevel = 0, Label = "Tests.VSM.Surface.Aerial"
+        }).RequireResource();
+        aerial.UploadDataImmediate(new float[4], 0, 0, 0, 1, 1, 1, 0);
+        liquid.TerrainTexture = terrain;
+        liquid.DepthTexture = opaqueDepth;
+        liquid.MaterialParamsTexture = materialParams;
+        liquid.WaterMediumIndicesTexture = mediumIndices;
+        liquid.WaterMediumRecordsTexture = mediumRecords;
+        liquid.AerialRadianceTexture = aerial;
+        liquid.AerialAttenuationTexture = aerial;
+        float[] liquidVertices =
+        [
+            10.5f, 10.5f, .5f, .5f, .5f, 0, 0, 0, 1, 0, 0,
+            13.5f, 10.5f, .5f, .5f, .5f, 0, 0, 0, 1, 0, 0,
+            10.5f, 13.5f, .5f, .5f, .5f, 0, 0, 0, 1, 0, 0,
+            13.5f, 13.5f, .5f, .5f, .5f, 0, 0, 0, 1, 0, 0
+        ];
+        int packedPositiveZ = 7 << 22;
+        int[] liquidFlags = [packedPositiveZ, 0, 0, packedPositiveZ, 0, 0,
+            packedPositiveZ, 0, 0, packedPositiveZ, 0, 0];
+        using var mesh = new LiquidMeshFixture(liquidVertices, liquidFlags, [0, 1, 2, 2, 1, 3]);
+        using var liquidControl = CreateMRTRenderTarget(16, 16, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var liquidShadowed = CreateMRTRenderTarget(16, 16, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        DrawLiquid(noShadow, liquidControl);
+        DrawLiquid(current, liquidShadowed);
+        var centerPixel = new RHITextureRegion(new(0), 8, 8, 0, 1, 1, 1);
+        Assert.True(ImageAssertions.Statistics.Inspect(liquidControl[1], .000001,
+            selection: centerPixel, channelMask: 7).Nonzero > 0,
+            "The unshadowed liquid boundary must have a nonzero solar/lunar scattering source.");
+        ImageAssertions.Comparisons.CompareConstant(liquidShadowed[1], 0, centerPixel,
+            channelMask: 7, tolerance: .0001).AssertEqual();
+
+        void DrawLiquid(SurfaceShadowInputSet shadows, GpuFramebuffer target)
+        {
+            liquid.ShadowInputs = shadows;
+            if (!liquid.EnsureReady()) throw new InvalidOperationException("The production liquid boundary consumer did not prepare.");
+            var commands = RHICommandContext.Current;
+            var pass = FramebufferTestSetup.DescribeAttachments(target,
+                [new(AttachmentIndex: 0), new(AttachmentIndex: 1)]);
+            using var pipeline = commands.CreateGraphicsPipeline(new(liquid.Shader, LiquidMeshFixture.Layout,
+                commands.DescribeRenderTargets(pass), DynamicPipelineState.Viewport,
+                label: "Tests.VSM.Surface.LiquidBoundary")).RequireResource();
+            using var boundary = commands.EnterBoundary(new("Tests.VSM.Surface.LiquidBoundary", true,
+                graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+            boundary.Run(() =>
+            {
+                commands.BeginRenderPass(pass);
+                commands.SetPipeline(pipeline);
+                commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+                commands.BindResources(liquid.CaptureBindings());
+                commands.DrawIndexed(mesh.Inputs, new(0, mesh.IndexCount));
+                commands.EndRenderPass();
+            });
+        }
+    }
+
+    /// <summary>Checks that the moved local source stays occluded through either its refreshed or retained projection.</summary>
+    private void RenderMovedLocalSurface(Vintagestory.API.Client.ICoreClientAPI api, ShadowLightSnapshot lights,
+        SurfaceShadowInputSet current, ShadowPageSettings settings, bool selectedStaleCoverage)
+    {
+        Assert.True(current.IsCurrent);
+        using var noShadow = new SurfaceShadowInputSet(lights, null, null, settings);
+        using var drawing = new ShaderTestFramework();
+        float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+        float[] inverseView = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 2, 2, 1.5f, 1];
+        using var camera = TestFrameCamera.CreateFromInverseView(identity, inverseView, 1, 1, .1f, 100);
+        using var pointLights = PointLightsInView(lights, inverseView);
+        using var physicalLighting = new TestFrameLightingPublication();
+        physicalLighting.Capture(frame: checked((uint)lights.Frame));
+        PBRDirectLightingShaderProgram.Register(api);
+        var direct = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries
+            .Get<PBRDirectLightingShaderProgram>(api, PBRDirectLightingShaderProgram.Contract.Identity)
+            ?? throw new InvalidOperationException("The production deferred surface consumer was not declared.");
+        if (!direct.EnsureReady()) throw new InvalidOperationException("The production deferred surface consumer did not prepare.");
+        direct.FrameInputs = camera;
+        direct.LightsInputs = pointLights;
+        direct.FrameLightingInputs = physicalLighting.Buffer;
+        direct.ShadowInputs = noShadow;
+        using var albedo = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [1, 1, 1, 1]);
+        using var primaryDepth = drawing.CreateTexture(1, 1, TextureFormat.R32f, [0]);
+        using var viewPosition = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [0, 0, -1, 0]);
+        using var normal = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [1, .5f, .5f, -1]);
+        using var material = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, 0, 0, 0]);
+        using var environment = drawing.CreateTexture(1, 1, TextureFormat.Rgba32f, [0, 0, 0, 1]);
+        using var surface = LayeredTestTexture.Create(ImageAssertions.Programs, normal, material, environment);
+        using var control = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var shadowed = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+
+        void Draw(SurfaceShadowInputSet shadows, GpuFramebuffer target)
+        {
+            direct.ShadowInputs = shadows;
+            direct.PrimaryScene = albedo;
+            direct.PrimaryDepth = primaryDepth;
+            direct.GBufferPosition = viewPosition;
+            direct.GBufferSurface = surface;
+            drawing.RenderQuadTo(direct, target);
+        }
+
+        Draw(noShadow, control);
+        Draw(current, shadowed);
+        var pixel = new RHITextureRegion(new(0), 0, 0, 0, 1, 1, 1);
+        Assert.True(ImageAssertions.Statistics.Inspect(control[0], .000001, selection: pixel, channelMask: 7).Nonzero > 0,
+            "The moved captured point source must still illuminate the receiver without shadows.");
+        var comparison = ImageAssertions.Comparisons.CompareConstant(shadowed[0], 0, pixel,
+            channelMask: 7, tolerance: .0001);
+        Assert.True(comparison.Mismatches == 0, selectedStaleCoverage
+            ? $"The moved point source must remain occluded through retained stale coverage: {comparison}"
+            : $"The moved point source must remain occluded through its current projection: {comparison}");
+    }
+
+    /// <summary>Leaves exactly enough page-work allowance for current celestial updates and the moved point's retained coverage.</summary>
+    private static void ReserveBudgetForRetainedPoint(NativeShadowFrameInput input, ShadowFrameBudget budget, int pointSourceIndex)
+    {
+        long currentOtherSources = 0;
+        for (int index = 0; index < input.Sources.Length; index++)
+        {
+            var alternative = input.Sources[index].Alternatives[0];
+            Assert.True(alternative.CanRefresh,
+                "Each current source must have a valid fresh association before the moved-point refresh is budget-deferred.");
+            long retained = alternative.RetainedPages.IsDefault ? 0 : alternative.RetainedPages.Length;
+            if (index == pointSourceIndex)
+            {
+                currentOtherSources += alternative.Pages.Length + retained;
+            }
+            else
+                currentOtherSources += 2L * alternative.Pages.Length + retained;
+        }
+
+        long remainingTiles = budget.Limit.Tiles - budget.Used.Tiles;
+        long desiredRemaining = currentOtherSources;
+        Assert.True(desiredRemaining < remainingTiles,
+            "The bounded page-work ledger must have room to reserve only current celestial work plus retained point coverage.");
+        Assert.True(budget.TryCharge(new(Tiles: remainingTiles - desiredRemaining)),
+            "The native frame budget should accept the deterministic stale-coverage reservation.");
+    }
+
+    /// <summary>Transforms the captured absolute light position directly into each synthetic consumer camera's view.</summary>
+    private static VgeLightsUniformBuffer PointLightsInView(ShadowLightSnapshot lights, float[] inverseView)
+    {
+        if (inverseView.Length != 16) throw new ArgumentException("A complete inverse camera transform is required.", nameof(inverseView));
+        var point = Assert.Single(lights.Points);
+        var world = point.WorldPosition ?? throw new InvalidOperationException("The captured point source has no absolute world position.");
+        // The fixture's inverse view maps its camera-relative origin and orientation; no light-space reconstruction is involved.
+        double relativeX = world.X - inverseView[12], relativeY = world.Y - inverseView[13], relativeZ = world.Z - inverseView[14];
+        float viewX = checked((float)(inverseView[0] * relativeX + inverseView[1] * relativeY + inverseView[2] * relativeZ));
+        float viewY = checked((float)(inverseView[4] * relativeX + inverseView[5] * relativeY + inverseView[6] * relativeZ));
+        float viewZ = checked((float)(inverseView[8] * relativeX + inverseView[9] * relativeY + inverseView[10] * relativeZ));
+        var inputs = new VgeLightsUniformBuffer();
+        inputs.Capture(1, [viewX, viewY, viewZ], [point.Payload.X, point.Payload.Y, point.Payload.Z], [point.Source]);
+        return inputs;
+    }
+
+    /// <summary>Transforms the authored camera-relative receiver through the same inverse-view matrix used by the surface shader.</summary>
+    private static Vector3d TransformPoint(float[] inverseView, Vector3 position)
+    {
+        if (inverseView.Length != 16) throw new ArgumentException("A complete inverse camera transform is required.", nameof(inverseView));
+        return new(
+            inverseView[0] * position.X + inverseView[1] * position.Y + inverseView[2] * position.Z + inverseView[12],
+            inverseView[4] * position.X + inverseView[5] * position.Y + inverseView[6] * position.Z + inverseView[13],
+            inverseView[8] * position.X + inverseView[9] * position.Y + inverseView[10] * position.Z + inverseView[14]);
+    }
+
     /// <summary>Creates finite policies for one native command, one candidate and one replacement tile.</summary>
     private static ShadowSettings Settings() => new()
     {
@@ -577,16 +1038,21 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
         return settings;
     }
 
-    /// <summary>Provides distinct current celestial and point sources under an invertible world/view convention.</summary>
-    private static ShadowLightSnapshot SourceLights(long frame, float pointDisplacement = 0)
+    /// <summary>Provides explicit world positions beside consistently transformed coordinates from a different view.</summary>
+    private static ShadowLightSnapshot SourceLights(long frame, float pointDisplacement = 0,
+        Vector3? pointPosition = null, Vector4? pointPayload = null, ShadowSourceKind pointKind = ShadowSourceKind.Block)
     {
         var sun = new ShadowSourceKey(1, 0, ShadowSourceKind.Sun, 71, 71, 0);
         var moon = new ShadowSourceKey(1, 0, ShadowSourceKind.Moon, 72, 72, 0);
-        var local = new ShadowSourceKey(1, 0, ShadowSourceKind.Block, 73, 73, 0, 0, 0, 0);
+        var local = new ShadowSourceKey(1, 0, pointKind, 73, 73, 0, 0, 0, 0);
+        Vector3 position = (pointPosition ?? new Vector3(16, 16, 16)) + new Vector3(pointDisplacement, 0, 0);
+        var viewPosition = new Vector3(position.Z + 23, position.Y - 19, -position.X + 7);
         return new(frame, 1, 0,
-            [new(local, new(16 + pointDisplacement, 16, 16), new(1, 1, 1, 64))],
+            [new(local, viewPosition, pointPayload ?? new Vector4(1, 1, 1, 64),
+                new Vector3d(position.X, position.Y, position.Z))],
             new(sun, Vector3.UnitZ, Vector3.One), new(moon, -Vector3.UnitZ, Vector3.One),
-            [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1], 0, 0, 0, Vector3.Zero);
+            [0, 0, -1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 23, -19, 7, 1],
+            0, 0, 0, Vector3.Zero);
     }
 
     /// <summary>Extends the shader test API with the exact native client-world owner required by capture.</summary>
@@ -690,9 +1156,35 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
         {
             var pages = light.Alternatives[0].Pages;
             Assert.NotEmpty(pages);
+            if (light.Source.Kind is ShadowSourceKind.Sun or ShadowSourceKind.Moon)
+            {
+                foreach (var receiver in receivers)
+                    Assert.Contains(pages, page => page.Request.Region.Contains(receiver.Bounds));
+                continue;
+            }
+
+            // Point demand is clipped to the captured light's current world position and illumination radius.
+            var point = Assert.Single(input.Lights.Points, source => source.Source == light.Source);
+            var position = point.WorldPosition
+                ?? throw new InvalidOperationException("A shadowed point source must retain its absolute world position.");
+            Assert.Equal(light.CurrentProjection?.PositionOrForward, position);
+            // SourceLights authors RGB (10,10,10) and no explicit radius; the fixture influence is therefore sqrt(300).
+            Assert.Equal(Math.Sqrt(300), point.Radius, 5);
             foreach (var receiver in receivers)
-                Assert.Contains(pages, page => page.Request.Region.Contains(receiver.Bounds));
+            {
+                if (!TryClipToPointInfluence(receiver.Bounds, position, Math.Sqrt(300), out var influencedBounds)) continue;
+                Assert.Contains(pages, page => page.Request.Region.Contains(influencedBounds));
+            }
         }
+    }
+
+    /// <summary>Intersects one receiver with the point source's axis-aligned illumination influence enclosure.</summary>
+    private static bool TryClipToPointInfluence(ShadowBounds bounds, Vector3d position, double radius, out ShadowBounds clipped)
+    {
+        clipped = new(Math.Max(bounds.MinX, position.X - radius), Math.Max(bounds.MinY, position.Y - radius),
+            Math.Max(bounds.MinZ, position.Z - radius), Math.Min(bounds.MaxX, position.X + radius),
+            Math.Min(bounds.MaxY, position.Y + radius), Math.Min(bounds.MaxZ, position.Z + radius));
+        return clipped.IsValid;
     }
 
     /// <summary>Combines projected page receiver enclosures for complete-source coverage assertions.</summary>
@@ -754,6 +1246,7 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
         private readonly DefaultShaderUniforms uniforms;
         private readonly ShadowSettings settings = Settings();
         private readonly bool casterBeyondReceiverNear;
+        private readonly bool dualDirectionCasters;
 
         /// <summary>Provides the complete live coordinate table captured from the native world owner.</summary>
         internal ShadowWorldPublication Publication { get; }
@@ -785,9 +1278,10 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
         internal ShadowDemandPage DemandPage { get; }
 
         /// <summary>Creates the loaded chunk first, then captures native world and terrain owners over its pool range.</summary>
-        internal FreshNativeSceneFixture(bool casterBeyondReceiverNear = false)
+        internal FreshNativeSceneFixture(bool casterBeyondReceiverNear = false, bool dualDirectionCasters = false)
         {
             this.casterBeyondReceiverNear = casterBeyondReceiverNear;
+            this.dualDirectionCasters = dualDirectionCasters;
             var map = CreateMap();
             int casterChunkZ = casterBeyondReceiverNear ? 2 : 0;
             if (casterBeyondReceiverNear)
@@ -796,13 +1290,14 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
                 NativeChunks(map).Add(map.ChunkIndex3D(0, 0, 1, 0), CreateChunk([]));
             }
             long chunkIndex = map.ChunkIndex3D(0, 0, casterChunkZ, 0);
-            var chunk = CreateChunk([CreateLocation(37, 0, 3, 0, 3, 0)]);
+            int vertexCount = dualDirectionCasters ? 12 : 3;
+            var chunk = CreateChunk([CreateLocation(37, 0, vertexCount, 0, vertexCount, 0)]);
             NativeChunks(map).Add(chunkIndex, chunk);
             worldOwner = new(map, 4, 16, 8, 16);
             Publication = worldOwner.Capture();
             if (!Publication.Complete) throw new InvalidOperationException(Publication.Failure);
 
-            Storage = new(37, new(0, 0, casterChunkZ * 32));
+            Storage = new(37, new(0, 0, casterChunkZ * 32), dualDirectionCasters);
             atlas = CreateAtlas();
             renderer = CreateRenderer(Storage.Pool, atlas.TextureId);
             Culler = (FrustumCulling)RuntimeHelpers.GetUninitializedObject(typeof(FrustumCulling));
@@ -1005,15 +1500,17 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
     private sealed class CompleteReceiverOwner : IShadowSurfaceReceiverSource, IDisposable
     {
         private readonly bool includeTransparent;
+        private readonly bool waterUnderCasters;
         private readonly ImmutableArray<ShaderProgramBase> programs;
 
         /// <summary>Retains the exact bounded publication that the current source capture consumed.</summary>
         internal ShadowSurfacePublication? LastPublication { get; private set; }
 
         /// <summary>Declares complete owner coverage while providing current conservative bounds for every layer.</summary>
-        internal CompleteReceiverOwner(bool includeTransparent = true)
+        internal CompleteReceiverOwner(bool includeTransparent = true, bool waterUnderCasters = false)
         {
             this.includeTransparent = includeTransparent;
+            this.waterUnderCasters = waterUnderCasters;
             var result = ImmutableArray.CreateBuilder<ShaderProgramBase>(6);
             for (int index = 0; index < 6; index++)
             {
@@ -1034,7 +1531,9 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
             regions.Add(new(ShadowSurfaceCategory.Cutout, new(8, 0, 0, 12, 4, 4)));
             regions.Add(new(ShadowSurfaceCategory.Entities, new(0, 8, 0, 4, 12, 4)));
             regions.Add(new(ShadowSurfaceCategory.Foliage, new(8, 8, 0, 12, 12, 4)));
-            regions.Add(new(ShadowSurfaceCategory.Water, new(0, 0, 8, 4, 4, 12)));
+            regions.Add(new(ShadowSurfaceCategory.Water, waterUnderCasters
+                ? new(0.5, 0.5, 0.49, 14, 14, 8.5)
+                : new(0, 0, 8, 4, 4, 12)));
             regions.Add(new(ShadowSurfaceCategory.Transparent, new(24, 24, 24, 28, 28, 28)));
             regions.Add(new(ShadowSurfaceCategory.Transparent, new(24, 24, 8, 28, 28, 12)));
             var publication = new ShadowSurfacePublication(lights.Frame, lights.World, lights.Dimension,
@@ -1055,28 +1554,45 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
     private sealed class NativeTerrainStorage : IDisposable
     {
         private readonly GpuVao vao = NativeResourceSetup.CreateVertexArray();
-        private readonly GpuVbo positions = Buffer("Position", 3 * 3 * sizeof(float));
-        private readonly GpuVbo uv = Buffer("Uv", 3 * 2 * sizeof(float));
-        private readonly GpuVbo colors = Buffer("Color", 3 * 4 * sizeof(byte));
-        private readonly GpuVbo flags = Buffer("Flags", 3 * sizeof(uint));
-        private readonly GpuEbo indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription
-        {
-            Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 3 * sizeof(uint),
-            Usage = BufferUsage.StaticDraw, Label = "Tests.Shadows.FreshGate.Indices"
-        }).RequireResource();
+        private readonly GpuVbo positions;
+        private readonly GpuVbo uv;
+        private readonly GpuVbo colors;
+        private readonly GpuVbo flags;
+        private readonly GpuEbo indices;
 
         /// <summary>Exposes the exact native pool captured by the terrain scene and world range.</summary>
         internal MeshDataPool Pool { get; }
 
         /// <summary>Creates one indexed triangle and native pool metadata under its production category.</summary>
-        internal NativeTerrainStorage(int poolId, Vector3d origin)
+        internal NativeTerrainStorage(int poolId, Vector3d origin, bool dualDirectionCasters = false)
         {
             // Keep the complete triangle inside its fixed 32-voxel chunk partition for conservative candidate bounds.
-            positions.UploadData<float>([1, 1, 1, 31, 1, 1, 1, 31, 1]);
-            uv.UploadData<float>(new float[6]);
-            colors.UploadData<byte>([255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255]);
-            flags.UploadData<uint>(new uint[3]);
-            indices.UploadIndices(new uint[] { 0, 1, 2 });
+            float[] vertexPositions = dualDirectionCasters
+                ? [
+                    // Broad lower caster covers the moon receiver and its filtered sampling footprint.
+                    1, 1, 0, 31, 1, 0, 1, 31, 0,
+                    // This solar-only plane sits above the local point source, so it cannot mask the local stale-projection edge case.
+                    1, 1, 3, 31, 1, 3, 1, 31, 3,
+                    // A narrow upper strip shadows the old point ray at x≈2.667 but not its moved ray at x≈2.833.
+                    2.5f, 1.7f, 1, 2.82f, 1.7f, 1, 2.5f, 2.3f, 1,
+                    2.82f, 2.3f, 1, 2.5f, 2.3f, 1, 2.82f, 1.7f, 1
+                ]
+                : [1, 1, 1, 31, 1, 1, 1, 31, 1];
+            int vertexCount = vertexPositions.Length / 3;
+            positions = Buffer("Position", vertexPositions.Length * sizeof(float));
+            uv = Buffer("Uv", vertexCount * 2 * sizeof(float));
+            colors = Buffer("Color", vertexCount * 4 * sizeof(byte));
+            flags = Buffer("Flags", vertexCount * sizeof(uint));
+            indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription
+            {
+                Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = vertexCount * sizeof(uint),
+                Usage = BufferUsage.StaticDraw, Label = "Tests.Shadows.FreshGate.Indices"
+            }).RequireResource();
+            positions.UploadData(vertexPositions);
+            uv.UploadData<float>(new float[vertexCount * 2]);
+            colors.UploadData<byte>(Enumerable.Repeat((byte)255, vertexCount * 4).ToArray());
+            flags.UploadData<uint>(new uint[vertexCount]);
+            indices.UploadIndices(Enumerable.Range(0, vertexCount).Select(value => (uint)value).ToArray());
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
             GL.VertexArrayElementBuffer(vao.VertexArrayId, indices.BufferId);
             Attribute(0, 3, VertexAttribPointerType.Float, positions.BufferId, 12, false, false);
@@ -1090,8 +1606,8 @@ public sealed class NativeShadowFreshFrameGateTests(HeadlessGLFixture fixture) :
             mesh.xyzVboId = positions.BufferId; mesh.uvVboId = uv.BufferId;
             mesh.rgbaVboId = colors.BufferId; mesh.flagsVboId = flags.BufferId;
             Pool = (MeshDataPool)RuntimeHelpers.GetUninitializedObject(typeof(MeshDataPool));
-            Pool.VerticesPoolSize = 3; Pool.IndicesPoolSize = 3; Pool.indicesGroupsCount = 1;
-            Pool.indicesStartsByte = [0, 0]; Pool.indicesSizes = [3];
+            Pool.VerticesPoolSize = vertexCount; Pool.IndicesPoolSize = vertexCount; Pool.indicesGroupsCount = 1;
+            Pool.indicesStartsByte = [0, 0]; Pool.indicesSizes = [vertexCount];
             AccessTools.Field(typeof(MeshDataPool), "modelRef").SetValue(Pool, mesh);
             AccessTools.Field(typeof(MeshDataPool), "poolId").SetValue(Pool, poolId);
             AccessTools.Field(typeof(MeshDataPool), "dimensionId").SetValue(Pool, 0);

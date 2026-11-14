@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -45,7 +46,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var replacement = new GpuUniformRingBuffer(4096, 1, false);
         byte[] bytes = new byte[32];
         BitConverter.GetBytes(0.25f).CopyTo(bytes, 0);
-        block.SetBytes(bytes);
+        block.SetPayload(bytes);
         ring.BeginFrame(0);
         RHIUniformRingSystem.SetCurrent(ring);
         try
@@ -70,7 +71,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             // A competing slot publication must not prevent the unchanged owner from restoring its range.
             using var competing = new PackedUniformBuffer(32);
             BitConverter.GetBytes(0.75f).CopyTo(bytes, 0);
-            competing.SetBytes(bytes);
+            competing.SetPayload(bytes);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(14, competing.Capture()));
             Assert.Equal(0.75f, SubmittedDepthSigma());
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(14, block.Capture()));
@@ -78,7 +79,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
 #if DEBUG
             Assert.Equal(2, ring.AllocationsWritten);
 #endif
-            block.SetBytes(bytes);
+            block.SetPayload(bytes);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(14, block.Capture()));
             Assert.Equal(0.75f, SubmittedDepthSigma());
 #if DEBUG

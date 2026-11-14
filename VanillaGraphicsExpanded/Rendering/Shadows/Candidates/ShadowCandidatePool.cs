@@ -262,7 +262,7 @@ internal sealed class ShadowCandidatePool : IDisposable
     #endregion
 
     #region Shader packing
-    /// <summary>Writes exact integer identities and local double bounds into the documented 1024-byte slot record.</summary>
+    /// <summary>Writes exact integer identities and outward-rounded local FP32 bounds into the documented 1024-byte slot record.</summary>
     private void Pack(ShadowCandidateHandle handle, ShadowCandidateRequest request, ShadowCandidateCurrent current,
         bool valid, int slabs, int cells, int probes, int checks)
     {
@@ -286,25 +286,30 @@ internal sealed class ShadowCandidatePool : IDisposable
         {
             var sector = request.Sectors[i]; int offset = 72 + i * 16;
             packed[offset] = (uint)sector.Axis; packed[offset + 1] = (uint)sector.Sign;
-            Double(offset + 4, sector.MinA); Double(offset + 6, sector.MaxA); Double(offset + 8, sector.MinB); Double(offset + 10, sector.MaxB);
+            Float(offset + 4, sector.MinA); Float(offset + 6, sector.MaxA, upper: true); Float(offset + 8, sector.MinB); Float(offset + 10, sector.MaxB, upper: true);
         }
         // Persistent identity and coverage are available to later GPU consumers without reconstructing frame-list identity.
         Long(176, request.Source.World); Long(178, request.Source.Owner); Long(180, request.Source.Lifetime);
         packed[182] = (uint)request.Source.Kind; packed[183] = (uint)request.Source.Slot;
         Long(184, request.WorldOwner); Long(186, request.DomainGeneration); Long(188, request.InfluenceGeneration);
-        Long(190, request.ChangeEpoch); Double(192, request.Direction.X); Double(194, request.Direction.Y);
-        Double(196, request.Direction.Z); Double(198, request.RadiusDegrees);
+        Long(190, request.ChangeEpoch); Float(192, request.Direction.X); Float(194, request.Direction.Y);
+        Float(196, request.Direction.Z); Float(198, request.RadiusDegrees);
         packed[200] = (uint)request.Source.X; packed[201] = (uint)request.Source.Y; packed[202] = (uint)request.Source.Z;
     }
     /// <summary>Splits version words with explicit unsigned semantics shared by the baseline shader.</summary>
     private void Long(int index, long value) { packed[index] = (uint)value; packed[index + 1] = (uint)(value >> 32); }
-    /// <summary>Preserves the exact double payload without depending on CLR vector packing.</summary>
-    private void Double(int index, double value) => Long(index, BitConverter.DoubleToInt64Bits(value));
+    /// <summary>Rounds a local bound outwards before narrowing, preserving conservative GPU traversal.</summary>
+    private void Float(int index, double value, bool upper = false)
+    {
+        float local = (float)value;
+        if (upper ? local < value : local > value) local = upper ? MathF.BitIncrement(local) : MathF.BitDecrement(local);
+        packed[index] = BitConverter.SingleToUInt32Bits(local);
+    }
     /// <summary>Subtracts the integer origin before GPU arithmetic, retaining native coordinates in output.</summary>
     private void Bounds(int index, ShadowBounds bounds, ShadowChunkDomain domain)
     {
-        Double(index, bounds.MinX - domain.MinX); Double(index + 2, bounds.MinY - domain.MinY); Double(index + 4, bounds.MinZ - domain.MinZ);
-        Double(index + 8, bounds.MaxX - domain.MinX); Double(index + 10, bounds.MaxY - domain.MinY); Double(index + 12, bounds.MaxZ - domain.MinZ);
+        Float(index, bounds.MinX - domain.MinX); Float(index + 2, bounds.MinY - domain.MinY); Float(index + 4, bounds.MinZ - domain.MinZ);
+        Float(index + 8, bounds.MaxX - domain.MinX, upper: true); Float(index + 10, bounds.MaxY - domain.MinY, upper: true); Float(index + 12, bounds.MaxZ - domain.MinZ, upper: true);
     }
     #endregion
     #endregion

@@ -2,6 +2,7 @@ using TestUniformRing = VanillaGraphicsExpanded.Tests.Support.GPU.Native.TestUni
 using System.Collections.Immutable;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
@@ -39,7 +40,7 @@ internal sealed class GpuAssertionProgram : GpuComputeProgram
         RequireContext();
         TestUniformRing.EnsureFrame();
         samples = sources; outputs = destinations;
-        try { inputs.SetBytes(bytes); Dispatch(x, y, z); }
+        try { inputs.SetPayload(bytes); Dispatch(x, y, z); }
         finally { samples = []; outputs = []; }
     }
 

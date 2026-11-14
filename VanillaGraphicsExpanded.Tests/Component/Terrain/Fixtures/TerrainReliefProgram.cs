@@ -2,6 +2,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 
 namespace VanillaGraphicsExpanded.Tests.Component.Terrain.Fixtures;
 
@@ -38,7 +39,7 @@ internal abstract class TerrainReliefProgram : GpuProgram
         RequireInputMutation();
         UboPacking.WriteInt32(bytes, 0, 0);
         UboPacking.WriteVec2(bytes, 8, scale, distance);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
     #endregion
 

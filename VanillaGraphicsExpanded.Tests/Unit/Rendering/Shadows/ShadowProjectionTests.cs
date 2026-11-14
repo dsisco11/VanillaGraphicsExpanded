@@ -48,16 +48,17 @@ public sealed class ShadowProjectionTests
             new ShadowBounds(-2, -2, -2, 2, 2, 2), baseTexelWidth: 1, levels: 3, pageSize: 128);
         var world = new Vector3d(-1_000_000, 2_000_000, 3_000_000);
 
-        // Act: address a point, translate the camera by a small amount, and request aligned centers.
+        // Act: retain one receiver address while the directional camera advances by many virtual pages.
         var initial = projection.Key(world, 0);
-        var translated = projection.Key(world, 0);
-        var center = projection.SnapCenter(world, 0);
-        var nextCenter = projection.SnapCenter(world + new Vector3d(1, 0, 0), 0);
+        var movedCamera = world + new Vector3d(32_768, -16_384, 0);
+        var movedReceiverKey = projection.Key(world, 0);
+        var initialCenter = projection.SnapCenter(world, 0);
+        var movedCenter = projection.SnapCenter(movedCamera, 0);
 
-        // Assert: absolute virtual identity is independent of camera placement and uses floor for negative values.
-        Assert.Equal(initial, translated);
+        // Assert: camera-relative origins may move freely while a fixed world receiver keeps its integer page identity.
+        Assert.Equal(initial, movedReceiverKey);
+        Assert.NotEqual(initialCenter, movedCenter);
         Assert.Equal(-1_000_000 / 128 - 1, initial.X);
-        Assert.Equal(center, nextCenter);
     }
 
     /// <summary>Directional depth encloses every corner in the represented caster envelope with explicit padding.</summary>

@@ -48,10 +48,6 @@ internal sealed partial class LiquidShaderProgram
     public partial GpuTextureRef WaterMediumIndicesTexture { set; }
     /// <summary>Binds the current material-medium coefficient table.</summary>
     public partial GpuTextureRef WaterMediumRecordsTexture { set; }
-    /// <summary>Retains the borrowed ShadowMapNear with its declared target and sampler.</summary>
-    public partial GpuTextureRef ShadowMapNear { set; }
-    /// <summary>Retains the borrowed ShadowMapFar with its declared target and sampler.</summary>
-    public partial GpuTextureRef ShadowMapFar { set; }
     /// <summary>Stages current-frame occlusion for aerial in-scattering.</summary>
     public partial GpuTextureRef LightShaftOcclusion { set; }
     /// <summary>Stages atmospheric radiance.</summary>

@@ -71,7 +71,6 @@ public sealed class ShaderPatchRecoveryTests : RenderTestBase
             Assert.True(GL.IsProgram(owner.ProgramId));
             Assert.Equal(other, unrelated.ProgramId);
             Assert.True(GL.IsProgram(other));
-            Assert.Single(messages, message => message.Contains("restoring the original", StringComparison.Ordinal));
             Assert.False(ShaderPatchRecovery.TryRecover(owner, () => throw new InvalidOperationException("retry consumed"), _ => { }, out _));
         }
         finally
@@ -123,6 +122,94 @@ public sealed class ShaderPatchRecoveryTests : RenderTestBase
         }
 
         Assert.Empty(glErrors);
+    }
+
+    /// <summary>A recovery retry compiles the restored source only after its authoritative preparation callback edits it.</summary>
+    [Fact]
+    public void RecoveryPreparesRestoredSourceBeforeItsSingleCompile()
+    {
+        // Arrange: Retain a valid baseline, then force one failed engine compile with a broken candidate.
+        EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
+        InstallLogger();
+        var owner = CreateProgram();
+        var messages = new List<string>();
+        string originalVertex = owner.VertexShader.Code;
+        int preparations = 0;
+        int compileAttempts = 0;
+        try
+        {
+            ShaderPatchRecovery.Capture(owner);
+            owner.VertexShader.Code += "\ninvalid candidate syntax";
+            Assert.False(owner.Compile());
+
+            // Act: Preparation must receive the restored baseline and publish an edit before the only retry.
+            bool handled = ShaderPatchRecovery.TryRecover(owner, () =>
+            {
+                compileAttempts++;
+                return owner.Compile();
+            }, messages.Add, out bool recovered, program =>
+            {
+                preparations++;
+                Assert.Equal(originalVertex, program.VertexShader.Code);
+                program.VertexShader.Code = originalVertex.Replace("#version 330 core", "#version 330 core\n#define VGE_RECOVERY_PREPARED 1", StringComparison.Ordinal);
+            });
+
+            // Assert: The prepared source is the one that linked, and the bounded recovery callback ran once.
+            Assert.True(handled);
+            Assert.True(recovered);
+            Assert.Equal(1, preparations);
+            Assert.Equal(1, compileAttempts);
+            Assert.Contains("#define VGE_RECOVERY_PREPARED 1", owner.VertexShader.Code, StringComparison.Ordinal);
+            Assert.Single(messages);
+            Assert.False(ShaderPatchRecovery.TryRecover(owner, () => throw new InvalidOperationException("retry consumed"), _ => { }, out _));
+        }
+        finally
+        {
+            try { DisposeAfterRecoveryAttempt(owner); }
+            finally { ShaderPatchRecovery.Forget(owner); }
+        }
+    }
+
+    /// <summary>A preparation failure consumes recovery without attempting compilation or permitting another recovery.</summary>
+    [Fact]
+    public void PreparationFailureConsumesRecoveryBeforeCompile()
+    {
+        // Arrange: Retain a valid baseline and trigger a failed compile after corrupting its candidate source.
+        EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
+        InstallLogger();
+        var owner = CreateProgram();
+        var messages = new List<string>();
+        int compileAttempts = 0;
+        int preparationAttempts = 0;
+        try
+        {
+            ShaderPatchRecovery.Capture(owner);
+            owner.VertexShader.Code += "\ninvalid candidate syntax";
+            Assert.False(owner.Compile());
+
+            // Act: Fail during restored-source preparation before allowing the compiler callback to run.
+            Assert.Throws<InvalidOperationException>(() => ShaderPatchRecovery.TryRecover(owner, () =>
+            {
+                compileAttempts++;
+                return owner.Compile();
+            }, messages.Add, out _, _ =>
+            {
+                preparationAttempts++;
+                throw new InvalidOperationException("preparation failed");
+            }));
+
+            // Assert: The failed preparation used the sole recovery opportunity and never reached compilation.
+            Assert.Equal(1, preparationAttempts);
+            Assert.Equal(0, compileAttempts);
+            Assert.False(ShaderPatchRecovery.TryRecover(owner, () => throw new InvalidOperationException("retry consumed"), _ => { }, out _));
+        }
+        finally
+        {
+            try { DisposeAfterRecoveryAttempt(owner); }
+            finally { ShaderPatchRecovery.Forget(owner); }
+        }
     }
     #endregion
     #endregion

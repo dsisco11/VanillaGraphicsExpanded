@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 internal sealed partial class CloudVolumeDiffuseProgram:GpuComputeProgram,ICloudVolumeDiffuseBindings
 {
     internal const int DefaultSlices=8;
-    private readonly PackedUniformBuffer inputs=new(208);
+    private readonly CloudVolumeDiffuseParameters inputs=new();
     #region Public API
     /// <summary>Selects one compiled workload profile for the entire executable lifetime.</summary>
     [ShaderOptionReference(typeof(CloudVolumeQualityOptions),nameof(CloudVolumeQualityOptions.Level))]
@@ -33,22 +33,8 @@ internal sealed partial class CloudVolumeDiffuseProgram:GpuComputeProgram,ICloud
     /// <summary>Stages the frozen physical scene, geometry and coherent source/destination encodings.</summary>
     internal void Capture(CloudVolumeWorkBatch batch,CloudVolumeEncoding target)
     {
-        RequireInputMutation();var d=batch.Fields.Domain;var light=batch.Lighting;
-        Span<byte> data=stackalloc byte[208];data.Clear();
-        UboPacking.WriteIVec4(data,0,d.Size,CloudVolumeDomain.Height,d.Size,0);
-        UboPacking.WriteIVec4(data,16,d.SlotX,d.SlotZ,d.BlocksX,d.BlocksY);
-        UboPacking.WriteVec4(data,32,(float)(d.FirstX*CloudVolumeDomain.HorizontalCell-d.AnchorX),(float)(d.Bottom-d.VerticalCell),
-            (float)(d.FirstZ*CloudVolumeDomain.HorizontalCell-d.AnchorZ),0);
-        UboPacking.WriteVec4(data,48,(float)CloudVolumeDomain.HorizontalCell,d.VerticalCell,(float)CloudVolumeDomain.HorizontalCell,0);
-        UboPacking.WriteVec4(data,64,0,(float)d.Bottom,0,0);
-        UboPacking.WriteVec4(data,80,50*d.Width,(float)(d.Bottom+d.Band),50*d.Width,0);
-        UboPacking.WriteVec4(data,96,light.Sun.X,light.Sun.Y,light.Sun.Z,0);
-        UboPacking.WriteVec4(data,112,light.Moon.X,light.Moon.Y,light.Moon.Z,0);
-        UboPacking.WriteVec4(data,128,light.Solar.X,light.Solar.Y,light.Solar.Z,0);
-        UboPacking.WriteVec4(data,144,light.Lunar.X,light.Lunar.Y,light.Lunar.Z,0);
-        UboPacking.WriteVec4(data,160,light.Environment.X,light.Environment.Y,light.Environment.Z,0);
-        UboPacking.WriteVec4(data,176,target.Cap.X,target.Cap.Y,target.Cap.Z,0);
-        UboPacking.WriteVec4(data,192,batch.Fields.Encoding.Scale,target.Scale,0,0);inputs.SetBytes(data);
+        RequireInputMutation();
+        inputs.Capture(batch, target);
     }
     #endregion
     #region Private

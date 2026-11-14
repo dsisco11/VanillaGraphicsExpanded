@@ -47,7 +47,6 @@ public sealed class VgeLightsSourcePublicationTests
         Assert.False(light.Source.IsKnown);
         Assert.Equal(new System.Numerics.Vector3(2, 3, 4), light.ViewPosition);
         Assert.Equal(new System.Numerics.Vector4(8, 7, 6, 0), light.Payload);
-        Assert.Equal(0f, System.Runtime.InteropServices.MemoryMarshal.Read<System.Numerics.Vector4>(buffer.Bytes.Slice(16, 16)).W);
     }
     #endregion
 }

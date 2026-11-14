@@ -2,7 +2,6 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
-using System.Buffers.Binary;
 using System.Diagnostics;
 
 using OpenTK.Graphics.OpenGL;
@@ -21,16 +20,8 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
 {
 
     public static string ShaderName => Contract.Identity;
-    private const int ParamsUboSizeBytes = 80; // uvec4 + uvec4 + ivec4 + ivec4 + ivec4
 
-    private const int AtlasLayoutOffsetBytes = 0;
-    private const int RelightUints0OffsetBytes = 16;
-    private const int RelightInts0OffsetBytes = 32;
-    private const int OccOriginMinCell0OffsetBytes = 48;
-    private const int OccRing0OffsetBytes = 64;
-
-    private readonly byte[] paramsBytes = new byte[ParamsUboSizeBytes];
-    private readonly PackedUniformBuffer parameters = new(ParamsUboSizeBytes);
+    private readonly LumonSceneRelightVoxelDdaParameters parameters = new();
 
     private VgeFrameUniformBuffer? frameInputs;
 
@@ -79,12 +70,6 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
     public void BindPatchMetaSsbo(GpuShaderStorageBuffer ssbo)
     { PatchMetadata = ssbo; }
 
-
-
-
-
-
-
     /// <summary>Retains IrradianceAtlasImage for the next dispatch submission.</summary>
     public void BindIrradianceAtlasImage(GpuTexture irradianceAtlas, ImageAccess access = ImageAccess.ReadWrite)
     { IrradianceAtlas = new(irradianceAtlas, Access: access, Layered: true, Format: TextureFormat.Rgba16f); }
@@ -97,36 +82,21 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
     public void SetAtlasLayout(uint tileSizeTexels, uint tilesPerAxis, uint tilesPerAtlas, uint borderTexels)
     {
         RequireInputMutation();
-        UboPacking.WriteUVec4(paramsBytes, AtlasLayoutOffsetBytes, tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
-        StageParameters();
+        parameters.SetAtlasLayout(tileSizeTexels, tilesPerAxis, tilesPerAtlas, borderTexels);
     }
 
     /// <summary>Stages relighting budgets independently of the shared rendering frame.</summary>
     public void SetRelightParams(uint texelsPerPagePerFrame, uint raysPerTexel, uint maxDdaSteps, bool debugCountersEnabled)
     {
         RequireInputMutation();
-        UboPacking.WriteUVec4(
-            paramsBytes,
-            RelightUints0OffsetBytes,
-            texelsPerPagePerFrame,
-            raysPerTexel,
-            maxDdaSteps,
-            debugCountersEnabled ? 1u : 0u);
-
-        int occResolution = ReadI32(RelightInts0OffsetBytes + 4);
-        UboPacking.WriteIVec4(paramsBytes, RelightInts0OffsetBytes, 0, occResolution, 0, 0);
-        StageParameters();
+        parameters.SetRelight(texelsPerPagePerFrame, raysPerTexel, maxDdaSteps, debugCountersEnabled);
     }
 
     /// <summary>Stages OccupancyMapping without uploading partial parameters.</summary>
     public void SetOccupancyMapping(int originMinCellX, int originMinCellY, int originMinCellZ, int ringX, int ringY, int ringZ, int resolution)
     {
         RequireInputMutation();
-        UboPacking.WriteIVec4(paramsBytes, OccOriginMinCell0OffsetBytes, originMinCellX, originMinCellY, originMinCellZ, 0);
-        UboPacking.WriteIVec4(paramsBytes, OccRing0OffsetBytes, ringX, ringY, ringZ, 0);
-
-        UboPacking.WriteIVec4(paramsBytes, RelightInts0OffsetBytes, 0, resolution, 0, 0);
-        StageParameters();
+        parameters.SetOccupancy(originMinCellX, originMinCellY, originMinCellZ, ringX, ringY, ringZ, resolution);
     }
 
     /// <summary>Supplies retained packed dispatch parameters.</summary>
@@ -140,13 +110,6 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
         OwnUniformBuffer(parameters);
     }
 
-    /// <summary>Packs retained values for one complete publication at dispatch.</summary>
-    private void StageParameters()
-    {
-        parameters.SetBytes(paramsBytes);
-    }
 
-    /// <summary>Preserves the other components of a packed integer vector.</summary>
-    private int ReadI32(int offset) => BinaryPrimitives.ReadInt32LittleEndian(paramsBytes.AsSpan(offset, 4));
     #endregion
 }

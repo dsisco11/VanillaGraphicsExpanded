@@ -12,6 +12,7 @@ using Assertions = VanillaGraphicsExpanded.Tests.Support.GPU.Observations;
 
 using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
 using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Lighting;
 namespace VanillaGraphicsExpanded.Tests.Component.Water;
 
 
@@ -124,12 +125,12 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
         program.DepthTexture = depth;
         program.AerialRadianceTexture = aerial;
         program.AerialAttenuationTexture = aerial;
-        program.ShadowRanges = Vector4.Zero;
-        program.SunDirection = new(Vector3.UnitY, 0);
-        program.SolarIrradiance = scenario >= 6 ? new(12.56637061436f, 12.56637061436f, 12.56637061436f, 0) : Vector4.Zero;
-        program.EnvironmentIrradiance = new(12.56637061436f, 12.56637061436f, 12.56637061436f, 0);
+        using var surfaceShadows = SurfaceShadowTestInputs.Create(Vector3.UnitY,
+            scenario >= 6 ? new(12.56637061436f) : Vector3.Zero);
+        program.ShadowInputs = surfaceShadows;
+        program.SetEnvironmentIrradiance(new(12.56637061436f, 12.56637061436f, 12.56637061436f));
 
-        program.AtlasMetrics = Vector4.One;
+        program.SetAtlasMetrics(Vector2.One, 1, 1);
         program.SetFogSphereCount(0);
         program.MediumLookupEnabled = scenario >= 6;
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI / 3, 1, near, far);
@@ -199,18 +200,13 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
             using var measuredDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var indicesTexture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var recordsTexture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var shadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
             measuredDepth.UploadDataImmediate(Enumerable.Repeat(deviceDepth, size * size).ToArray());
             bool phaseMeasurement = Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_PHASE") == "1";
             recordsTexture.UploadDataImmediate([.1f, .2f, .3f, 0, 0, 0, 0, 0, .1f, .2f, .3f, 0, .25f, 0, 0, 0]);
             if (phaseMeasurement)
                 recordsTexture.UploadDataImmediate([.1f, .2f, .3f, 0, .25f, 0, 0, 0, .1f, .2f, .3f, .7f, .25f, 0, 0, 0]);
-            shadow.UploadDataImmediate([1f]);
-            program.ShadowMapNear = shadow; program.ShadowMapFar = shadow;
-            program.ShadowRanges = new(100, 100, 0, 0);
-            float[] shadowMatrix = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, .5f, .5f, .5f, 1];
-            program.ShadowMatrixNear = shadowMatrix; program.ShadowMatrixFar = shadowMatrix;
-            program.SolarIrradiance = new(10, 10, 10, 0);
+            using var measurementShadows = SurfaceShadowTestInputs.Create(Vector3.UnitY, new(10));
+            program.ShadowInputs = measurementShadows;
             program.DepthTexture = measuredDepth;
             program.WaterMediumIndicesTexture = indicesTexture; program.WaterMediumRecordsTexture = recordsTexture;
 

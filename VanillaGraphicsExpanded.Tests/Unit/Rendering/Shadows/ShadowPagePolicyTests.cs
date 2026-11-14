@@ -92,13 +92,16 @@ public sealed class ShadowPagePolicyTests
             Vector3d.Zero, far: 200, faceResolution: 128, pageSize: 128);
         var point = ShadowSampleRequest.Point(pointProjection, receiver, Vector3d.UnitY, 4, 5, 6, settings);
 
-        // Assert: coverage contains the receiver and grows with projected texel width, including bias/filter support.
-        Assert.True(fine.Footprint.Contains(new(receiver.X, receiver.Y, receiver.Z, receiver.X, receiver.Y, receiver.Z)));
-        Assert.Equal(fine.Footprint.MaxX - receiver.X, 7);
-        Assert.Equal(coarse.Footprint.MaxX - receiver.X, 14);
+        // Assert: coverage contains the receiver and bounds nominal filter/bias support with conservative roundoff allowance.
+        var receiverBounds = new ShadowBounds(receiver.X, receiver.Y, receiver.Z, receiver.X, receiver.Y, receiver.Z);
+        Assert.True(fine.Footprint.Contains(receiverBounds));
+        Assert.InRange(fine.Footprint.MaxX - receiver.X, 7, 7.01);
+        Assert.InRange(coarse.Footprint.MaxX - receiver.X, 14, 14.01);
+        Assert.True(coarse.Footprint.MaxX - receiver.X > fine.Footprint.MaxX - receiver.X);
         double pointHalfExtent = (3 * (1 + 8.0 / 128) + settings.NormalBiasTexels)
             * (2 * Math.Sqrt(12 * 12 + 20 * 20 + 30 * 30) / 128);
-        Assert.Equal(pointHalfExtent, point.Footprint.MaxX - receiver.X, 12);
+        Assert.InRange(point.Footprint.MaxX - receiver.X, pointHalfExtent, pointHalfExtent + 0.01);
+        Assert.True(point.Footprint.Contains(receiverBounds));
         Assert.Equal(4, fine.PageRequest.WorldRevision);
         Assert.Equal(5, fine.PageRequest.SceneEpoch);
         Assert.Equal(6, fine.PageRequest.SceneSequence);

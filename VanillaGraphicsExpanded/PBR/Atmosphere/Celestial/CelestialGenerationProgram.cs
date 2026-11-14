@@ -1,6 +1,5 @@
 using System;
 using System.Numerics;
-using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -13,12 +12,12 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "celestial_generate.fsh")]
 internal sealed partial class CelestialGenerationProgram : GpuProgram, ICelestialGenerationBindings
 {
-    private readonly PackedUniformBuffer inputs;
+    private readonly CelestialGenerationInputs inputs;
     #region Public API
     /// <summary>Registers a typed, offline-compiled program without runtime source patching.</summary>
     public CelestialGenerationProgram()
     {
-        inputs = OwnUniformBuffer(new PackedUniformBuffer(64));
+        inputs = OwnUniformBuffer(new CelestialGenerationInputs());
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
     /// <summary>Returns the declaration shared by asset compilation and executable loading.</summary>
@@ -35,12 +34,8 @@ internal sealed partial class CelestialGenerationProgram : GpuProgram, ICelestia
     internal void SetTile(int face, int size, int x, int y, int indexOffset, int indexCount,
         int parentLevel, int parentSize, CelestialSource source)
     {
-        Span<Vector4> values = stackalloc Vector4[4];
-        values[0] = new(face, size, x, y);
-        values[1] = new(indexOffset, indexCount, parentLevel, parentSize);
-        values[2] = new(source.GalaxyAmplitude, source.StorageScale, source.Quality.Octaves, source.MaximumNits);
-        values[3] = new(CelestialResidual.Height, CelestialResidual.KernelMaximum, 0, 0);
-        inputs.SetBytes(MemoryMarshal.AsBytes(values));
+        RequireInputMutation();
+        inputs.SetTile(face, size, x, y, indexOffset, indexCount, parentLevel, parentSize, source);
     }
     #endregion
 }

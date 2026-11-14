@@ -15,6 +15,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Lighting;
 
 using Xunit;
 
@@ -67,8 +68,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             emissiveScalar: 1.25f,
             reflectivity: 0.7f);
 
-        var shadowNearData = PbrLumOnPipelineInputFactory.CreateShadowMapUniform(depthRaw: 1.0f);
-        var shadowFarData = PbrLumOnPipelineInputFactory.CreateShadowMapUniform(depthRaw: 1.0f);
 
         // History inputs (fixed). We trace all texels so history should not materially matter,
         // but these must still be bound for shader completeness.
@@ -88,11 +87,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         using var gBufferNormal = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, gBufferNormalData);
         using var gBufferMaterial = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, gBufferMaterialData);
 
-        // Comparison samplers require depth storage, independently of the numerical fixture values.
-        using var shadowNear = new DepthTexture(ScreenWidth, ScreenHeight, TextureFormat.DepthComponent32f);
-        shadowNear.UploadDataImmediate(shadowNearData);
-        using var shadowFar = new DepthTexture(ScreenWidth, ScreenHeight, TextureFormat.DepthComponent32f);
-        shadowFar.UploadDataImmediate(shadowFarData);
 
         using var historyRadiance = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyRadianceData);
         using var historyMeta = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, historyMetaData);
@@ -110,7 +104,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             TextureFormat.Rgba32f, TextureFormat.Rgba16f, TextureFormat.R32f);
 
         {
+            using var directShadows = SurfaceShadowTestInputs.Create(System.Numerics.Vector3.UnitZ, new(.35f, .55f, .75f));
             var pbrDirectProg = Programs.Create<PBRDirectLightingShaderProgram>();
+            pbrDirectProg.ShadowInputs = directShadows;
             var velocityProg = Programs.Create<LumOnVelocityShaderProgram>();
             var hzbCompute = Programs.CreateDepthHierarchy();
 
@@ -138,28 +134,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Stage: PBR Direct Lighting (MRT)
             // -----------------------------------------------------------------
 
-            // Directional light aligned with the test normal.
-
-            // Shadow uniforms are present but currently not used by the fragment shader.
-            // These calls safely no-op if uniforms are optimized out.
-
-            // UBO-backed direct lighting params (VgePbrDirectLightingParamsUBO @ object binding).
-            // The shader now aliases former uniform names to this UBO; without binding it, outputs will be black.
-
             {
                 using var directCamera = TestFrameCamera.CreateFromInverseView(invProj, identity);
                 pbrDirectProg.FrameInputs = directCamera;
-
-                // Shadows are wired but effectively disabled for this test.
-                pbrDirectProg.ToShadowMapSpaceMatrixNear = identity;
-                pbrDirectProg.ToShadowMapSpaceMatrixFar = identity;
-                pbrDirectProg.ShadowRanges = (0f, 0f);
-                pbrDirectProg.ShadowZExtendNear = 0; pbrDirectProg.ShadowZExtendFar = 0; pbrDirectProg.DropShadowIntensity = 0;
-
-
-                pbrDirectProg.LightDirection = new(0f, 0f, 1f);
-                pbrDirectProg.RgbaLightIn = new(0.35f, 0.55f, 0.75f);
-                pbrDirectProg.RgbaAmbientIn = new(0,0,0);
 
                 using var sharedLights = new VgeLightsUniformBuffer();
 
@@ -179,8 +156,6 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             using var receiverPosition = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
             pbrDirectProg.GBufferPosition = receiverPosition;
             pbrCompositeProg.GBufferPosition = receiverPosition;
-            pbrDirectProg.ShadowMapNear = shadowNear;
-            pbrDirectProg.ShadowMapFar = shadowFar;
 
             // Binding audit (used samplers only)
             AssertSamplerBinding("Stage: PBR Direct", pbrDirectProg, "primaryScene", primaryScene);

@@ -73,7 +73,7 @@ internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> creat
     internal CloudVolumeDirectProgram Prepare(int operation)
     {
         var caps=GpuSupport.Graphics;
-        if(caps.MaxUniformBlockSize<128||caps.MaxComputeShaderStorageBlocks<2||caps.MaxShaderStorageBufferBindings<2||
+        if(caps.MaxUniformBlockSize < CloudVolumeDirectParameters.BlockSize||caps.MaxComputeShaderStorageBlocks<2||caps.MaxShaderStorageBufferBindings<2||
             caps.MaxComputeWorkGroupInvocations<256||caps.MaxComputeWorkGroupSize.Length<3||
             caps.MaxComputeWorkGroupSize[0]<8||caps.MaxComputeWorkGroupSize[1]<4||caps.MaxComputeWorkGroupSize[2]<8)
             throw new NotSupportedException("Stored direct transport exceeds compute capabilities.");

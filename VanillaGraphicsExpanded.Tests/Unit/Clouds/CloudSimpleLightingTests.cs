@@ -44,10 +44,12 @@ public sealed class CloudSimpleLightingTests
         // Act: inspect the packed representation after both captures.
         var values = MemoryMarshal.Cast<byte,float>(parameters.Bytes);
         // Assert: physical lighting and local perception occupy their expected fields.
-        Assert.Equal(448, parameters.SizeBytes);
-        Assert.Equal(5, values[41]); Assert.Equal(120, values[48]); Assert.Equal(3,values[52]);
-        Assert.Equal(20,values[56]); Assert.Equal(16,values[71]);
-        Assert.Equal(.5f,values[76]); // Authored local fog is decoded only at its physical mix.
+        Assert.Equal(5, values[(CloudSimpleParameters.PerceptionOffset + sizeof(float)) / sizeof(float)]);
+        Assert.Equal(120, values[CloudSimpleParameters.SolarOffset / sizeof(float)]);
+        Assert.Equal(3, values[CloudSimpleParameters.LunarOffset / sizeof(float)]);
+        Assert.Equal(20, values[CloudSimpleParameters.EnvironmentOffset / sizeof(float)]);
+        Assert.Equal(16, values[(CloudSimpleParameters.AerialParametersOffset + 3 * sizeof(float)) / sizeof(float)]);
+        Assert.Equal(.5f, values[CloudSimpleParameters.FogColorOffset / sizeof(float)]); // Authored local fog is decoded only at its physical mix.
         // Act/Assert: an unrepresentable local perception input is rejected.
         Assert.Throws<ArgumentOutOfRangeException>(() => CloudSimpleParameters.LocalPerception(float.MaxValue));
     }

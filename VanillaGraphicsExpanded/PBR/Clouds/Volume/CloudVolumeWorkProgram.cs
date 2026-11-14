@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 [ShaderUse("Contract",ShaderStageKind.Compute,nameof(Quality))]
 internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudVolumeWorkBindings
 {
-    private readonly PackedUniformBuffer inputs;
+    private readonly CloudVolumeWorkParameters inputs;
     #region Public API
     /// <summary>Selects one compiled workload profile for the entire executable lifetime.</summary>
     [ShaderOptionReference(typeof(CloudVolumeQualityOptions),nameof(CloudVolumeQualityOptions.Level))]
@@ -27,7 +27,7 @@ internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudV
     [ShaderOption("VGE_VOLUME_WORK_LARGE_BUDGET",false)]
     internal static partial ShaderOption<bool> LargeBudget {get;}
     /// <summary>Loads only the selected work executable.</summary>
-    internal static CloudVolumeWorkProgram Create(ICoreAPI api,int operation,bool largeBudget=false,PackedUniformBuffer? shared=null,int quality=2)
+    internal static CloudVolumeWorkProgram Create(ICoreAPI api,int operation,bool largeBudget=false,CloudVolumeWorkParameters? shared=null,int quality=2)
     {
         var layout=new GpuProgramLayout();layout.RegisterContract(Contract.Stages[0].Bindings);
         if(!ComputeShaderAsset.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation).With(LargeBudget,largeBudget).With(Quality,quality),out var pipeline,
@@ -39,23 +39,14 @@ internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudV
         bool diffuse,int completed,ReadOnlySpan<Vector4> planes,int source=0,int destination=0,int directGroups=0,int diffuseGroups=0,
         bool densityPending=false,int lightingRays=CloudVolumeLightingBudget.DefaultRays,int selectionLevel=0)
     {
-        RequireInputMutation();Span<byte> data=stackalloc byte[208];data.Clear();
-        UboPacking.WriteIVec4(data,0,domain.BlocksX,domain.BlocksY,domain.BlocksX,domain.Blocks);
-        UboPacking.WriteIVec4(data,16,unchecked((int)frame),unchecked((int)revision),active,dirty);
-        UboPacking.WriteIVec4(data,32,domain.SlotX,domain.SlotZ,domain.Size,completed);
-        UboPacking.WriteVec4(data,48,(float)(domain.FirstX*CloudVolumeDomain.HorizontalCell-domain.AnchorX),
-            (float)(domain.Bottom-domain.VerticalCell),(float)(domain.FirstZ*CloudVolumeDomain.HorizontalCell-domain.AnchorZ),lightingRays/CloudVolumeLightingBudget.RaysPerUnit);
-        UboPacking.WriteVec4(data,64,(float)CloudVolumeDomain.HorizontalCell,domain.VerticalCell,(float)CloudVolumeDomain.HorizontalCell,densityPending?1:0);
-        UboPacking.WriteIVec4(data,80,newlyActive,diffuse?1:0,selectionLevel,CloudVolumeDiffuseProgram.DefaultSlices);
-        UboPacking.WriteIVec4(data,96,source,destination,directGroups,diffuseGroups);
-        for(int i=0;i<6;i++)UboPacking.WriteVec4(data,112+16*i,planes[i].X,planes[i].Y,planes[i].Z,planes[i].W);
-        inputs.SetBytes(data);
+        RequireInputMutation();
+        inputs.Capture(domain, CloudVolumeDiffuseProgram.DefaultSlices, frame, revision, active, dirty, newlyActive, diffuse, completed, planes, source, destination, directGroups, diffuseGroups, densityPending, lightingRays, selectionLevel);
     }
     #endregion
     #region Private
     /// <summary>Adopts the pipeline and frozen work parameters.</summary>
-    private CloudVolumeWorkProgram(ComputeShaderAsset pipeline,PackedUniformBuffer? shared):base(pipeline)
-    {inputs=shared??OwnUniformBuffer(new PackedUniformBuffer(208));}
+    private CloudVolumeWorkProgram(ComputeShaderAsset pipeline,CloudVolumeWorkParameters? shared):base(pipeline)
+    {inputs=shared??OwnUniformBuffer(new CloudVolumeWorkParameters());}
     /// <summary>Publishes the complete work record.</summary>
     CpuUniformBuffer ICloudVolumeWorkBindings.Inputs=>inputs;
     #endregion

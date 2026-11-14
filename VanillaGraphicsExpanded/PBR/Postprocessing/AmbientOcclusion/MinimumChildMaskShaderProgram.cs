@@ -8,8 +8,7 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_ao_minimum_children.fsh")]
 internal sealed partial class MinimumChildMaskShaderProgram : GpuProgram, IMinimumChildMaskShaderProgramBindings
 {
-    private readonly PackedUniformBuffer parameters = new(16);
-    private readonly byte[] bytes = new byte[16];
+    private readonly MinimumChildMaskInputs parameters = new();
     #region Public API
     /// <summary>Selects the typed mask executable.</summary>
     internal override GpuShaderContract ProgramContract => Contract;
@@ -25,7 +24,7 @@ internal sealed partial class MinimumChildMaskShaderProgram : GpuProgram, IMinim
     internal void Capture(int level)
     {
         RequireInputMutation();
-        UboPacking.WriteIVec4(bytes,0,level,0,0,0); parameters.SetBytes(bytes);
+        parameters.SetLevel(level);
     }
     /// <summary>Publishes the retained block through generated bindings.</summary>
     CpuUniformBuffer IMinimumChildMaskShaderProgramBindings.Parameters => parameters;

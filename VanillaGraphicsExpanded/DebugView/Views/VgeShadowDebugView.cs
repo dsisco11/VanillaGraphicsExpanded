@@ -71,6 +71,10 @@ public static partial class VgeBuiltInDebugViews
             ((IShadowReadinessDebugBindings)shader).Status=status;
             ((IShadowReadinessDebugBindings)shader).Candidates=ShadowDiagnostics.CandidateHeaders?.Invoke()??status;
             ((IShadowReadinessDebugBindings)shader).Pages=ShadowDiagnostics.PageEntries?.Invoke()??status;
+            ((IShadowReadinessDebugBindings)shader).SampleFailures=ShadowDiagnostics.SampleFailures?.Invoke()??status;
+            // AfterBlit can precede the final Done callback. Order fragment
+            // diagnostic writes before the overlay's read in either ordering.
+            RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage));
             submission.DrawIndexed("Shadows.Debug",shader,geometry.Inputs,new(0,6),PrimitiveTopology.Triangles);
         }
         /// <summary>Ends callbacks and owned debug draws without taking shadow resource ownership.</summary>

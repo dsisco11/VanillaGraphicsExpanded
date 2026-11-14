@@ -57,12 +57,14 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
 
             var blocks = root.GetProperty("uniformBuffers").EnumerateArray().ToArray();
             // This immutable capture predates source calibration; its camera prefix remains exact.
-            byte[] frameBytes = CapturedPayload.Read(inputs, blocks.Single(block => block.GetProperty("binding").GetString() == "vgeFrame"), 544);
+            byte[] frameBytes = CapturedPayload.Read(inputs, blocks.Single(block => block.GetProperty("binding").GetString() == "vgeFrame"),
+                VgeFrameUniformBuffer.LightingCalibrationOffset);
             camera = TestFrameCamera.CreateFromPacked(frameBytes);
             // AO reads these two matrices directly. Other frame fields are recaptured by their typed owner.
-            Assert.True(camera.Bytes.Slice(64, 128).SequenceEqual(frameBytes.AsSpan(64, 128)));
-            Assert.Equal((float)Width, UboPacking.ReadFloat(frameBytes, 384));
-            Assert.Equal((float)Height, UboPacking.ReadFloat(frameBytes, 388));
+            Assert.True(camera.Bytes.Slice(VgeFrameUniformBuffer.ViewOffset, VgeFrameUniformBuffer.MatrixSizeBytes * 2)
+                .SequenceEqual(frameBytes.AsSpan(VgeFrameUniformBuffer.ViewOffset, VgeFrameUniformBuffer.MatrixSizeBytes * 2)));
+            Assert.Equal((float)Width, UboPacking.ReadFloat(frameBytes, VgeFrameUniformBuffer.ScreenSizeOffset));
+            Assert.Equal((float)Height, UboPacking.ReadFloat(frameBytes, VgeFrameUniformBuffer.ScreenSizeOffset + sizeof(float)));
             byte[] parameterBytes = CapturedPayload.Read(inputs, blocks.Single(block => block.GetProperty("binding").GetString() == "AmbientOcclusionInputs_var"), 48);
             float[] parameters = DecodeFloat(parameterBytes);
             Assert.Equal(new float[] { 0, 0, 2, 0, 1.25f, .25f, 6, 6, 64, 96, 0, 0 }, parameters);
@@ -92,7 +94,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
         reference.Capture(depth, surface, hierarchy, camera, Quality);
         horizon.DepthImage = depth; horizon.SurfaceImage = surface; horizon.DepthHierarchy = hierarchy;
         horizon.MinimumChildren=comparisonMasks.Texture;
-        horizon.Capture(camera, new(0, 0, 2, 0), new(1.25f, .25f, 6, 6), new(64, 96, 0, 0));
+        horizon.Capture(camera, 2, 6, 6, radius: 1.25f, relaxation: .25f, fadeStart: 64, fadeEnd: 96);
         var referencePipeline = draw.Prepare(reference,referenceTarget.PostprocessPass());
         var currentPipeline = draw.Prepare(horizon,currentTarget.PostprocessPass());
         // Native uploads, verification, hierarchy masks, preparation and descriptor mutation precede horizon-only timing.

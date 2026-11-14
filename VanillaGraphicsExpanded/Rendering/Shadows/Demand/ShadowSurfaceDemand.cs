@@ -16,6 +16,8 @@ internal sealed class ShadowSurfaceDemand
     private readonly ShadowFrameBudget budget;
     private readonly ShadowPageSettings pages;
     private readonly int capacity;
+    private readonly Vector3d cameraOrigin;
+    private readonly Vector3d directionalOrigin;
     private readonly Dictionary<ShadowPageKey, ShadowDemandPage> requests = new();
     private ShadowSurfaceCategory completed;
     private bool failed;
@@ -25,10 +27,15 @@ internal sealed class ShadowSurfaceDemand
 
     #region Public API
     /// <summary>Uses the same global ledger as preparation, candidate work and every light.</summary>
-    internal ShadowSurfaceDemand(ShadowFrameBudget budget, ShadowPageSettings settings, int capacity)
+    internal ShadowSurfaceDemand(ShadowFrameBudget budget, ShadowPageSettings settings, int capacity, Vector3d cameraOrigin = default)
     {
         if (capacity <= 0) throw new ArgumentOutOfRangeException(nameof(capacity));
-        this.budget = budget; pages = settings.Freeze(); this.capacity = capacity;
+        if (!ShadowProjectionMath.Finite(cameraOrigin)) throw new ArgumentOutOfRangeException(nameof(cameraOrigin));
+        this.budget = budget; pages = settings.Freeze(); this.capacity = capacity; this.cameraOrigin = cameraOrigin;
+        // All directional pages in this demand share a nearby frame, independently of
+        // which receiving page the GPU later selects as its sampling request.
+        directionalOrigin = new(Math.Round(cameraOrigin.X / 32) * 32,
+            Math.Round(cameraOrigin.Y / 32) * 32, Math.Round(cameraOrigin.Z / 32) * 32);
     }
 
     /// <summary>Declares a category complete only after its current early provider has supplied every contributing region.</summary>
@@ -49,6 +56,8 @@ internal sealed class ShadowSurfaceDemand
         if (!Begin(receiver) || rendered.Source != current.Source || pages.PageSize != rendered.PageSize) { Reject("Projection"); return; }
         double padding = (3 + pages.NormalBiasTexels) * rendered.TexelWidth(level);
         var bounds = Expand(receiver.Bounds, padding);
+        bounds = Expand(bounds, ShadowCoordinates.SurfacePadding(bounds, cameraOrigin, directionalOrigin));
+        bounds = ShadowCoverageBounds.Canonicalize(bounds);
         double loX = double.PositiveInfinity, loY = loX, hiX = double.NegativeInfinity, hiY = hiX;
         for (int i = 0; i < 8; i++)
         {
@@ -75,7 +84,10 @@ internal sealed class ShadowSurfaceDemand
         double farthest = 0;
         for (int i = 0; i < 8; i++)
         { var d = ShadowProjectionMath.Corner(b, i) - rendered.Position; farthest = Math.Max(farthest, Math.Sqrt(Vector3d.Dot(d,d))); }
-        b = Expand(b, (3 * (1 + 8.0/rendered.FaceResolution) + pages.NormalBiasTexels) * 2 * farthest/rendered.FaceResolution);
+        b = Expand(b, (3 * (1 + 8.0/rendered.FaceResolution) + pages.NormalBiasTexels) * 2 * farthest/rendered.FaceResolution
+            + ShadowCoordinates.DemandPadding(receiver.Bounds));
+        b = Expand(b, ShadowCoordinates.SurfacePadding(b, cameraOrigin, rendered.Position));
+        b = ShadowCoverageBounds.Canonicalize(b);
         for (int face = 0; face < 6; face++)
         {
             double loU = double.PositiveInfinity, loV = loU, hiU = double.NegativeInfinity, hiV = hiU;
@@ -129,7 +141,8 @@ internal sealed class ShadowSurfaceDemand
             var region = bounds;
             if (requests.TryGetValue(key,out var previous)) region = Union(previous.Request.Region,bounds);
             else if (requests.Count >= capacity || !budget.TryCharge(new(Bytes:2048))) { Reject("RequestStorage"); return; }
-            requests[key] = new(new(ShadowPageOperation.Require,key,region,world,epoch,sequence,Projection:rendered),current);
+            requests[key] = new(new(ShadowPageOperation.Require,key,region,world,epoch,sequence,Projection:rendered),current,
+                SamplingOrigin: rendered.IsPoint ? null : directionalOrigin);
         }
     }
     /// <summary>Expands all axes without depending on unknown receiver normals.</summary>

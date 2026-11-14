@@ -12,6 +12,8 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 
 
 using VanillaGraphicsExpanded.Tests.Support.GPU.Native;
+using VanillaGraphicsExpanded.Tests.Support.Lighting;
+using VanillaGraphicsExpanded.PBR.Shadows;
 namespace VanillaGraphicsExpanded.Tests.Component.AmbientOcclusion.Fixtures;
 
 /// <summary>Runs production direct and indirect composition against one generated AO receiver, isolating pre-exposure contributions by controlled draws.</summary>
@@ -23,7 +25,7 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
     private readonly GpuFramebuffer directTarget,outputTarget;
     private readonly Texture3D directLighting;
     private readonly DynamicTexture2D indirect,zeroVisibility;
-    private readonly DepthTexture shadow;
+    private SurfaceShadowInputSet? surfaceShadows;
     private readonly VgeLightsUniformBuffer lights=new();
     private readonly GpuVbo positions=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(),uv=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
     private readonly ArrayGraphicsGeometry geometry;
@@ -46,7 +48,6 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
         geometry=new ArrayGraphicsGeometry(EngineFullscreenGeometry.Layout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>{[0]=positions,[1]=uv});
         directTarget=framework.CreateTestGBuffer(scene.Width,scene.Height,TextureFormat.Rgba32f,3);
         outputTarget=framework.CreateTestGBuffer(scene.Width,scene.Height,TextureFormat.Rgba32f,3);
-        shadow=new DepthTexture(1,1,TextureFormat.DepthComponent32f);shadow.UploadDataImmediate([1f]);
         indirect=framework.CreateTexture(1,1,TextureFormat.Rgba32f,[availability,availability,availability,1f]);
         // A matched zero-visibility field isolates each lobe through the existing independent
         // AO controls without changing material roughness or its compensated energy budget.
@@ -56,11 +57,8 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
         var direct=programs.Create<PBRDirectLightingShaderProgram>();
         direct.FrameInputs=scene.Camera;direct.LightsInputs=lights;direct.PrimaryScene=scene.Albedo;
         direct.PrimaryDepth=scene.Depth;direct.GBufferPosition=scene.Position;direct.GBufferSurface=scene.Surface;
-        direct.ShadowMapNear=direct.ShadowMapFar=shadow;
-        float[] identity=[1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
-        direct.ToShadowMapSpaceMatrixNear=direct.ToShadowMapSpaceMatrixFar=identity;
-        direct.ShadowRanges=(1,1);direct.ShadowZExtendNear=direct.ShadowZExtendFar=1;direct.DropShadowIntensity=0;
-        direct.SetSolarLighting(System.Numerics.Vector3.UnitZ,new(solarIrradiance));direct.RgbaAmbientIn=new(0,0,0);
+        surfaceShadows=SurfaceShadowTestInputs.Create(System.Numerics.Vector3.UnitZ,new(solarIrradiance));
+        direct.ShadowInputs=surfaceShadows;
         using(var pipeline=CreatePipeline(direct,directTarget))Draw(directTarget,pipeline,direct);
         directLighting=LayeredTestTexture.Create(observations.Programs, directTarget[0],directTarget[1],directTarget[2]);
         composite=programs.Create<PBRCompositeShaderProgram>(p=>{p.LumOnEnabled=lumon;p.EnablePbrComposite=lumon;p.EnableShortRangeAo=false;});
@@ -109,7 +107,7 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
     {
         RenderingCleanup.Run(()=>compositePipeline?.Dispose(),()=>geometry?.Dispose(),
             uv.Dispose,positions.Dispose,()=>directLighting?.Dispose(),()=>outputTarget?.Dispose(),
-            ()=>directTarget?.Dispose(),()=>indirect?.Dispose(),()=>zeroVisibility?.Dispose(),()=>shadow?.Dispose(),lights.Dispose);
+            ()=>directTarget?.Dispose(),()=>indirect?.Dispose(),()=>zeroVisibility?.Dispose(),()=>surfaceShadows?.Dispose(),lights.Dispose);
     }
     #endregion
 

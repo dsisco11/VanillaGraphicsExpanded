@@ -75,9 +75,10 @@ public sealed class CameraExposureEV100PipelineTests(HeadlessGLFixture fixture) 
         final.BloomImage = zero; final.ShaftImage = zero; final.ExposureBuffer = targets.Exposure;
         if (local) final.LocalBase = owner.Render(Programs.Api, source, localPolicy);
         Vector4 controls = new(1, 1, 1, 0);
-        using var grading = new ColorGradingLut(); final.GradingLookup = grading.Prepare(Programs.Api, controls);
+        using var grading = new ColorGradingLut(); final.GradingLookup = grading.Prepare(Programs.Api, new(controls.X, controls.Y, controls.Z, controls.W));
         double pivot = Math.Log2(.18) + (automatic ? .5 : 0);
-        final.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(settings.ManualLogGain + .5f, automatic ? 1 : 0, 0, (float)pivot));
+        final.Capture(false, new(new(controls.X, controls.Y, controls.Z, controls.W), 0, 0, 0, 0, 0, 0),
+            settings.ManualLogGain + .5f, automatic, (float)pivot);
         final.CaptureLocal(localPolicy);
         using var display = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         using var draw = new PostprocessDraw(); var pipeline = draw.Prepare(final,display.PostprocessPass());

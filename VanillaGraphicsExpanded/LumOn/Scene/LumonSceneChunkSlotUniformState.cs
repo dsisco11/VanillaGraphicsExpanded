@@ -11,7 +11,7 @@ internal static class LumonSceneChunkSlotUniformState
 {
     public const string BlockName = "VgeLumonSceneChunkSlotParamsUBO";
     public const int Binding = GpuBindingRegistry.Ubo.Object;
-    private static readonly byte[] parameterBytes = new byte[48];
+    private static readonly LumonSceneChunkSlotParameters parameterValues = new();
     private static GpuUniformBuffer? parameters;
     private static int uploadedVersion = -1;
     public const int GenerationTextureUnit = 13;
@@ -68,11 +68,8 @@ internal static class LumonSceneChunkSlotUniformState
         parameters ??= RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "LumonScene.ChunkSlotParameters" }).RequireResource();
         if (uploadedVersion != Version)
         {
-            // Three std140 ivec4 lanes match lumonscene_chunkslot_params_ubo.glsl.
-            UboPacking.WriteIVec4(parameterBytes, 0, OriginMinChunk.X, OriginMinChunk.Y, OriginMinChunk.Z, 0);
-            UboPacking.WriteIVec4(parameterBytes, 16, Dims.X, Dims.Y, Dims.Z, 0);
-            UboPacking.WriteIVec4(parameterBytes, 32, Ring.X, Ring.Y, Ring.Z, 0);
-            parameters.UploadOrResize(parameterBytes, growExponentially: false);
+            parameterValues.Set(OriginMinChunk, Dims, Ring);
+            parameters.UploadOrResize(parameterValues.Bytes, growExponentially: false);
             uploadedVersion = Version;
         }
         parameters.BindBase(Binding);

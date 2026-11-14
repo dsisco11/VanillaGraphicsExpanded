@@ -44,7 +44,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         using var owner = new ColorGradingLut();
         Vector4 controls = new(gamma, extraGamma, gain, contrast);
         // Act: Generate the production 3D transform for these controls.
-        var texture = owner.Prepare(Programs.Api, controls);
+        var texture = owner.Prepare(Programs.Api, Grading(controls));
         // Assert: Descriptor, alpha, and selected RGB texels match the independent double-precision reference.
         Assert.Equal(TextureDimension.Three, texture.TextureTarget);
         Assert.Equal(TextureFormat.Rgba16f, texture.InternalFormat);
@@ -69,7 +69,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         // Arrange: Prepare a neutral transform and snapshot its complete image before resize or invalid input.
         EnsureShaderTestAvailable();
         using var owner = new ColorGradingLut();
-        Vector4 neutral = new(1, 1, 1, 0);
+        ColorGradingParameters neutral = new(1, 1, 1, 0);
         var first = owner.Prepare(Programs.Api, neutral);
         // Act: Repeat preparation, resize, reject invalid controls, change controls, invalidate, and dispose.
         for (int i = 0; i < 8; i++) Assert.Same(first, owner.Prepare(Programs.Api, neutral));
@@ -105,7 +105,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         using var owner = new ColorGradingLut();
         try
         {
-            Vector4 neutral = new(1, 1, 1, 0);
+            ColorGradingParameters neutral = new(1, 1, 1, 0);
             var first = owner.Prepare(assets.Api, neutral);
             using var previous = new Assertions.GpuImageSnapshot(first);
             ClientRenderingLifetime.BeginNativeReload();
@@ -137,7 +137,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         EnsureShaderTestAvailable();
         Vector4 controls = new(1, 1, 1, contrast);
         using var owner = new ColorGradingLut();
-        var lookup = owner.Prepare(Programs.Api, controls);
+        var lookup = owner.Prepare(Programs.Api, Grading(controls));
         Vector3[] colors = [Vector3.Zero, new(.00004f, .00003f, .00006f), new(.0006f),
             new(.01f), new(.18f), new(1), new(4, 2, .5f), new(100, 80, 60), new(65536)];
         // Act: Render each color set through the actual final shader with the same cached LUT.
@@ -173,7 +173,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         Vector4 controls = new(1, 1, 1, contrast);
         Vector3[] colors = Enumerable.Range(0, 65).Select(i => new Vector3(MathF.Pow(2, -16 + i * .375f))).ToArray();
         // Act: Grade the ramp through the generated LUT and final output path.
-        using var actual=Final(colors,owner.Prepare(Programs.Api,controls),controls,0);
+        using var actual=Final(colors,owner.Prepare(Programs.Api,Grading(controls)),controls,0);
         var expected=new float[colors.Length];var tolerances=new float[expected.Length];
         for(int pixel=0;pixel<colors.Length;pixel++)
         {
@@ -206,7 +206,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         Vector3 brightest=ImageAssertions.Selection.Brightest(decoded).Color;
         using var owner = new ColorGradingLut();
         Vector4 controls = new(1, 1, 1, .41573521f);
-        var lookup = owner.Prepare(Programs.Api, controls);
+        var lookup = owner.Prepare(Programs.Api, Grading(controls));
         using var final=Final([brightest],lookup,controls,4);
         Assert.True(ImageAssertions.Statistics.Inspect(final.Texture,channelMask:7).Maximum>=1f/255);
         Vector3 reference = FilmicGradingReference.Lookup(brightest * 16, controls);
@@ -329,7 +329,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         var program = finalProgram??=Programs.Create<FinalDisplayShaderProgram>();
         program.FrameInputs = frame; program.SceneImage = source; program.BloomImage = zero; program.ShaftImage = zero;
         program.GradingLookup = lookup; program.ExposureBuffer = exposure;
-        program.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(ev, 0, 0, 0));
+        program.Capture(false, new(Grading(controls), 0, 0, 0, 0, 0, 0), ev, false, 0);
         var pipeline = draw.Prepare(program,target.PostprocessPass());
         {
     var commands=RHICommandContext.Current;
@@ -340,6 +340,10 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         ImageAssertions.Comparisons.CompareHistory(source,previous).AssertEqual();
         return new GpuImageSnapshot(target[0]);
     }
+
+    /// <summary>Names the four grading controls while retaining the vector for independent reference calculations.</summary>
+    private static ColorGradingParameters Grading(Vector4 controls)
+        => new(controls.X, controls.Y, controls.Z, controls.W);
 
     #endregion
 }

@@ -34,7 +34,7 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         using var draw=new PostprocessDraw();
         shader.SourceImage=source;shader.ExposureBuffer=exposure;
-        shader.Capture(new(0,0,1,automatic?1:0),new(0,0,0,automatic?-8:ev));
+        shader.Capture(true, automatic, automatic ? -8 : ev);
         var pipeline=draw.Prepare(shader,target.PostprocessPass());
         // Act: Submit production luma preparation, then submit its explicit bypass variant.
         {
@@ -48,7 +48,7 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         float radiance=.18f*MathF.Pow(2,ev),linear=radiance/(1+radiance);
         float srgb=linear<=.0031308f?12.92f*linear:1.055f*MathF.Pow(linear,1f/2.4f)-.055f;
         Assert.InRange(actual[3],srgb-.00001f,srgb+.00001f);
-        shader.Capture(Vector4.Zero,Vector4.Zero);
+        shader.Capture(false,false,0);
         {
     var commands=RHICommandContext.Current;
     using var scope17=commands.EnterBoundary(new("Tests.ExposureLumaBypass",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
@@ -77,7 +77,7 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         shader.FrameInputs = camera;
         shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureBuffer=neutralExposure;
         var pipeline=draw.Prepare(shader,target.PostprocessPass());
-        shader.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
+        shader.Capture(false,new(new(1,1,1,0),0,0,0,0,0,0),0,false,0);
         {
     var commands=RHICommandContext.Current;
     using var scope18=commands.EnterBoundary(new("Tests.ExposureNeutral",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
@@ -85,7 +85,7 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
 }
         float[] neutral=target[0].ReadPixels();
         shader.GradingLookup=grading.Prepare(Programs.Api,native.Grading);
-        shader.Capture(false,native,Vector4.Zero);
+        shader.Capture(false,native,0,false,0);
         // Act: Submit neutral and native grading settings, then repeat with two native gamma-slider values.
         {
     var commands=RHICommandContext.Current;
@@ -102,9 +102,9 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
             {
                 ClientSettings.GammaLevel=gamma;
                 var adjusted=FinalDisplayParameters.Capture(api.Object);
-                Assert.Equal(gamma/3,adjusted.Grading.X);
+                Assert.Equal(gamma/3,adjusted.Grading.Gamma);
                 shader.GradingLookup=grading.Prepare(Programs.Api,adjusted.Grading);
-                shader.Capture(false,adjusted,Vector4.Zero);
+                shader.Capture(false,adjusted,0,false,0);
                 {
     var commands=RHICommandContext.Current;
     using var scope20=commands.EnterBoundary(new("Tests.NativeGammaSlider",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
@@ -112,7 +112,8 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
 }
                 float[] graded=target[0].ReadPixels();
                 Assert.True(gamma<3?graded.Take(3).Sum()<neutral.Take(3).Sum():graded.Take(3).Sum()>neutral.Take(3).Sum());
-                Vector3 reference=FilmicGradingReference.Lookup(new(.18f,.018f,.0018f),adjusted.Grading);
+                Vector3 reference=FilmicGradingReference.Lookup(new(.18f,.018f,.0018f),
+                    new(adjusted.Grading.Gamma, adjusted.Grading.ExtraGamma, adjusted.Grading.Brightness, adjusted.Grading.Contrast));
                 for(int i=0;i<3;i++)Assert.InRange(Math.Abs(graded[i]-FilmicGradingReference.Quantize(reference[i])),0,1.001f/255);
                 Assert.Equal(1,graded[3]);
             }
@@ -157,7 +158,7 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         api.SetupGet(value=>value.Render.ShaderUniforms).Returns(new DefaultShaderUniforms {DropShadowIntensity=0});
         var native=FinalDisplayParameters.Capture(api.Object);
         using var grading=new ColorGradingLut(); final.GradingLookup=grading.Prepare(Programs.Api,native.Grading);
-        final.Capture(false,native,new(0,1,0,0));
+        final.Capture(false,native,0,true,0);
         // Assert: Metered EV stays within the configured clamp and the final pixel matches one independent display transform.
         {
     var commands=RHICommandContext.Current;
@@ -168,7 +169,9 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         Assert.InRange(ev,expectedEv-.0003f,expectedEv+.0003f);
         Assert.True(count>0);
         float exposed=luminance*MathF.Pow(2,expectedEv);
-        float expected=FilmicGradingReference.Quantize(FilmicGradingReference.Lookup(new(exposed),native.Grading).X);
+        var nativeGrading = new Vector4(native.Grading.Gamma, native.Grading.ExtraGamma,
+            native.Grading.Brightness, native.Grading.Contrast);
+        float expected=FilmicGradingReference.Quantize(FilmicGradingReference.Lookup(new(exposed),nativeGrading).X);
         float[] actual=display[0].ReadPixels();
         for(int i=0;i<3;i++)Assert.InRange(actual[i],expected-1.001f/255,expected+1.001f/255);
         Assert.Equal(1,actual[3]);

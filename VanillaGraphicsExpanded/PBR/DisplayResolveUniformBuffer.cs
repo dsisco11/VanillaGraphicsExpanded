@@ -6,8 +6,13 @@ namespace VanillaGraphicsExpanded.PBR;
 internal sealed class DisplayResolveUniformBuffer : CpuUniformBuffer
 {
     #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 16;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+
     /// <summary>Creates zero-default routing controls with single-frame publication.</summary>
-    internal DisplayResolveUniformBuffer() : base(16) { }
+    internal DisplayResolveUniformBuffer() : base() { }
 
     /// <summary>Selects scene-linear output without altering particle availability.</summary>
     internal int SceneLinear { set => WriteInt32(0, value); }

@@ -34,13 +34,13 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
         // Act through the registered callback until the temporal history has a committed raw matrix.
         for (int i = 0; i < 8; i++) runtime.Frame();
         // Assert the seed history is populated before changing the camera origin.
-        float[] previous = MemoryMarshal.Cast<byte, float>(VgeFrameRenderer.Current.Bytes.Slice(320, 64)).ToArray();
+        float[] previous = VgeFrameRenderer.Current.CurrentViewProjection.ToArray();
         Assert.Contains(previous, value => value != 0);
         scene.Position += new System.Numerics.Vector3(.125f, 0, -.0625f);
         scene.Bob = .0625f;
         // Act with a moved and bobbed camera, then inspect the uploaded rebased matrix.
         runtime.Frame();
-        float[] alignedPrevious = MemoryMarshal.Cast<byte, float>(VgeFrameRenderer.Current.Bytes.Slice(256, 64)).ToArray();
+        float[] alignedPrevious = VgeFrameRenderer.Current.PreviousViewProjection.ToArray();
         // Assert each rebased translation row matches the previous matrix transformed by the camera delta.
         for (int row = 0; row < 4; row++)
         {
@@ -63,7 +63,7 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
         var renderer = (LumOnRenderer)Assert.Single(runtime.Cache.Events.Registrations.Select(item => item.Renderer).Distinct(),
             item => item is LumOnRenderer);
         const BindingFlags fields = BindingFlags.Instance | BindingFlags.NonPublic;
-        uint previousIndex = MemoryMarshal.Read<uint>(VgeFrameRenderer.Current.Bytes[396..]);
+        uint previousIndex = VgeFrameRenderer.Current.FrameIndex;
         var first = typeof(LumOnRenderer).GetField("isFirstFrame", fields)!;
 
         var current = runtime.Screen.ScreenProbeAtlasCurrentTex;
@@ -79,7 +79,7 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
             renderer.OnRenderFrame(.016f, Vintagestory.API.Client.EnumRenderStage.Opaque);
             // Assert the rejected frame leaves all committed history observations untouched.
             Assert.False(runtime.Screen.HasPublishedIndirect);
-            Assert.Equal(previousIndex, MemoryMarshal.Read<uint>(VgeFrameRenderer.Current.Bytes[396..]));
+            Assert.Equal(previousIndex, VgeFrameRenderer.Current.FrameIndex);
             Assert.Same(current, runtime.Screen.ScreenProbeAtlasCurrentTex);
             Assert.Same(history, runtime.Screen.ScreenProbeAtlasHistoryTex);
             Assert.Equal(previousCamera, VgeFrameRenderer.Current.Bytes.ToArray());
@@ -91,7 +91,7 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
         runtime.Frame();
         // Assert the valid frame resumes publication and advances the temporal index.
         Assert.True(runtime.Screen.HasPublishedIndirect);
-        Assert.True(MemoryMarshal.Read<uint>(VgeFrameRenderer.Current.Bytes[396..]) > previousIndex);
+        Assert.True(VgeFrameRenderer.Current.FrameIndex > previousIndex);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 

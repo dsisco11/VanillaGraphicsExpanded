@@ -9,16 +9,12 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed partial class LiquidMeshSource
 {
     private BorrowedTexture?[] atlasInputs = [];
-    private BorrowedTexture? primaryDepthInput, shadowNearInput, shadowFarInput;
+    private BorrowedTexture? primaryDepthInput;
     private bool disposed;
 
     #region Internal API
     /// <summary>Lends engine visibility depth without changing receiver-separation policy.</summary>
     internal GpuTextureRef PrimaryDepth => primaryDepthInput;
-    /// <summary>Lends the optional near shadow allocation.</summary>
-    internal GpuTextureRef ShadowNear => shadowNearInput;
-    /// <summary>Lends the optional far shadow allocation.</summary>
-    internal GpuTextureRef ShadowFar => shadowFarInput;
     /// <summary>Admits current external allocations before any liquid boundary begins.</summary>
     internal void PrepareTextureInputs(ICoreClientAPI api, int[] atlases)
     {
@@ -35,8 +31,6 @@ internal sealed partial class LiquidMeshSource
             ReplaceInput(ref atlasInputs[index], atlases[index]);
         var frames = api.Render.FrameBuffers;
         ReplaceInput(ref primaryDepthInput, frames[(int)EnumFrameBuffer.Primary]?.DepthTextureId ?? 0);
-        ReplaceInput(ref shadowNearInput, frames[(int)EnumFrameBuffer.ShadowmapNear]?.DepthTextureId ?? 0);
-        ReplaceInput(ref shadowFarInput, frames[(int)EnumFrameBuffer.ShadowmapFar]?.DepthTextureId ?? 0);
     }
     /// <summary>Lends a previously admitted atlas; pool callbacks perform no metadata acquisition.</summary>
     internal GpuTextureRef AtlasTexture(int index)
@@ -55,8 +49,6 @@ internal sealed partial class LiquidMeshSource
         foreach (var atlas in atlasInputs) atlas?.Dispose();
         atlasInputs = [];
         primaryDepthInput?.Dispose(); primaryDepthInput = null;
-        shadowNearInput?.Dispose(); shadowNearInput = null;
-        shadowFarInput?.Dispose(); shadowFarInput = null;
     }
     #endregion
 

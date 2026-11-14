@@ -139,9 +139,57 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
         pool.SealBatch();
     }
 
-    /// <summary>Point-light taps cross the +Z/+X cube edge and recompute reference depth for the destination face.</summary>
-    [Fact]
-    public void PointPcfRemapsFaceEdgesAndKeepsEveryTapAddressable()
+    /// <summary>Directional sampling preserves page addresses and visibility at large positive and negative world origins.</summary>
+    [Theory]
+    [InlineData(1_000_000_000.25, -2_000_000_000.5, 1_500_000_000.125)]
+    [InlineData(-1_000_000_032.25, 2_000_000_000.5, -1_500_000_000.125)]
+    public void DirectionalPcfUsesTranslatedCoordinatesAtLargeSignedOrigins(double originX, double originY, double originZ)
+    {
+        // Arrange: keep the receiver footprint small in a world where absolute float coordinates lose sub-page detail.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        var settings = Settings(layers: 4, tilesPerLayer: 1);
+        using var pool = ShadowPagePool.Create(assets.Api, settings);
+        using var sampler = new ShadowSampler(assets.Api);
+        var origin = new Vector3d(originX, originY, originZ);
+        var represented = new ShadowBounds(originX - 2048, originY - 2048, originZ - 2048,
+            originX + 2048, originY + 2048, originZ + 2048);
+        var projection = new DirectionalShadowProjection(Sun, 119, Vector3d.UnitZ,
+            represented, baseTexelWidth: 1, levels: 1, pageSize: settings.PageSize);
+        var receiver = origin + new Vector3d(127.5, 127.5, 0);
+        var request = ShadowSampleRequest.Directional(projection, 0, receiver, Vector3d.UnitZ, 31, 37, 41, settings);
+        Assert.True(pool.BeginBatch());
+
+        // Act: discover virtual taps, publish a dark depth page for every demanded address, then sample the same query again.
+        sampler.Sample(pool, request);
+        var demandResult = Read(sampler.Results, 40);
+        var demanded = Addresses(demandResult);
+        foreach (var address in UniquePages(demanded)) PublishDepth(pool, request, address, 0f);
+        sampler.Sample(pool, request);
+        var shadowed = Read(sampler.Results, 40);
+
+        // Assert: taps address the independently projected world pages and resolve to fully shadowed visibility.
+        var projected = projection.Project(receiver, 0);
+        var expectedPages = new HashSet<(int Face, int X, int Y)>();
+        for (int y = -1; y <= 1; y++)
+        for (int x = -1; x <= 1; x++)
+            expectedPages.Add((0,
+                (int)Math.Floor((Math.Floor(projected.X) + x + 0.5) / settings.PageSize),
+                (int)Math.Floor((Math.Floor(projected.Y) + y + 0.5) / settings.PageSize)));
+        Assert.Equal(expectedPages, demanded.Select(address => (address.Face, address.X, address.Y)).ToHashSet());
+        Assert.Equal(0x1ffu, demandResult[1]);
+        Assert.Equal(0u, shadowed[1]);
+        Assert.Equal(9u, shadowed[2]);
+        Assert.Equal(0, BitConverter.UInt32BitsToSingle(shadowed[0]));
+        pool.SealBatch();
+    }
+
+    /// <summary>Point-light taps cross the +Z/+X cube edge and retain destination-face depth at translated source origins.</summary>
+    [Theory]
+    [InlineData(0.0, 0.0, 0.0)]
+    [InlineData(3_950_617_283.25, -7_506_172_480.5, 1_106_172_486.125)]
+    [InlineData(-3_950_617_283.25, 7_506_172_480.5, -1_106_172_486.125)]
+    public void PointPcfRemapsFaceEdgesAndKeepsEveryTapAddressable(double originX, double originY, double originZ)
     {
         // Arrange: choose a point receiver next to the +Z/+X cube seam and enable the four baseline texture layers.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
@@ -149,9 +197,10 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
         var settings = Settings(layers: 4, tilesPerLayer: 1);
         using var pool = ShadowPagePool.Create(assets.Api, settings);
         using var sampler = new ShadowSampler(assets.Api);
-        var projection = new PointShadowProjection(Point, 71, Vector3d.Zero, near: 0.05, far: 30,
+        var position = new Vector3d(originX, originY, originZ);
+        var projection = new PointShadowProjection(Point, 71, position, near: 0.05, far: 30,
             faceResolution: 128, pageSize: settings.PageSize);
-        var receiver = new Vector3d(10.15, 0.2, 10.1);
+        var receiver = position + new Vector3d(10.15, 0.2, 10.1);
         var request = ShadowSampleRequest.Point(projection, receiver, Vector3d.UnitZ, 23, 29, 31, settings);
         Assert.True(pool.BeginBatch());
 
@@ -184,6 +233,52 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
         Assert.Equal(1, BitConverter.UInt32BitsToSingle(complete[0]));
         Assert.Contains(4, Addresses(complete).Select(x => x.Face));
         Assert.Contains(0, Addresses(complete).Select(x => x.Face));
+        pool.SealBatch();
+    }
+
+    /// <summary>Point page selection preserves sub-texel separation when high origin components nearly cancel.</summary>
+    [Fact]
+    public void PointSamplingKeepsLowOriginResidualAtFloatRoundingBoundary()
+    {
+        // Arrange: the light and receiver straddle adjacent FP32 rounding choices around a 2^35 coordinate.
+        EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var assets = new BinaryShaderApiFixture();
+        var settings = Settings(layers: 1, tilesPerLayer: 1);
+        settings.NormalBiasTexels = 0;
+        settings.DepthBiasTexels = 0;
+        settings.SlopeBiasTexels = 0;
+        using var pool = ShadowPagePool.Create(assets.Api, settings);
+        using var sampler = new ShadowSampler(assets.Api);
+        const double boundary = 34_359_740_416;
+        var position = new Vector3d(boundary + 32, 0, 0);
+        var receiver = new Vector3d(boundary - 0.0001220703125, 0, 64);
+        var projection = new PointShadowProjection(Point, 73, position, near: 0.05, far: 128,
+            faceResolution: 2048, pageSize: settings.PageSize);
+        var request = ShadowSampleRequest.Point(projection, receiver, Vector3d.UnitZ, 23, 29, 31, settings);
+        Assert.True(pool.BeginBatch());
+
+        // Act: collect real GPU tap addresses while all demanded pages are intentionally absent.
+        sampler.Sample(pool, request);
+        var missing = Read(sampler.Results, 40);
+        var addresses = Addresses(missing);
+
+        // Assert: exact double deltas place +Z taps on columns 3, 3, and 4; cancel-before-demotion shifts them.
+        double directionX = receiver.X - position.X;
+        double directionZ = receiver.Z - position.Z;
+        double projectedX = (directionX / directionZ + 1) * 0.5 * projection.FaceResolution;
+        double projectedY = 0.5 * projection.FaceResolution;
+        int centerX = checked((int)Math.Floor(projectedX));
+        int centerY = checked((int)Math.Floor(projectedY));
+        Assert.InRange(projectedX, 511.99, 512.0);
+        Assert.Equal(3, request.PageRequest.Key.X);
+        Assert.Equal(8, request.PageRequest.Key.Y);
+        Assert.Equal(0x1ffu, missing[1]);
+        for (int i = 0; i < 9; i++)
+        {
+            int expectedX = checked((int)Math.Floor((centerX + i % 3 - 1 + 0.5) / settings.PageSize));
+            int expectedY = checked((int)Math.Floor((centerY + i / 3 - 1 + 0.5) / settings.PageSize));
+            Assert.Equal((4, expectedX, expectedY), (addresses[i].Face, addresses[i].X, addresses[i].Y));
+        }
         pool.SealBatch();
     }
 
@@ -382,10 +477,12 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
     }
 
     /// <summary>Rendered-age expiry is independent of a recently started stale-age window.</summary>
-    [Fact]
-    public void DirectionalTemporalReuseExpiresByRenderedAgeBeforeStaleAge()
+    [Theory]
+    [InlineData(1_000_000_000)]
+    [InlineData(4.29496729)]
+    public void DirectionalTemporalReuseExpiresByRenderedAgeBeforeStaleAge(double uptime)
     {
-        // Arrange: render one page at time zero and invalidate it shortly before rendered-age expiry.
+        // Arrange: render one page after a long uptime and invalidate it shortly before rendered-age expiry.
         EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var assets = new BinaryShaderApiFixture();
         var settings = Settings();
@@ -399,9 +496,9 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
         Assert.True(pool.BeginBatch());
         sampler.Sample(pool, rendered);
         foreach (var address in UniquePages(Addresses(Read(sampler.Results, 40))))
-            PublishDepth(pool, rendered, address, PatternDepth(settings.PageSize));
+            PublishDepth(pool, rendered, address, PatternDepth(settings.PageSize), renderedAt: uptime);
 
-        // Act: invalidate at 0.22 and sample at 0.26, so stale age is 0.04 while rendered age is 0.26.
+        // Act: cross the low-word clock rollover, then sample once inside and once beyond rendered-age expiry.
         pool.SealBatch();
         Assert.True(pool.BeginBatch());
         var changed = ShadowSampleRequest.Directional(projection, 0, receiver, Vector3d.UnitZ, 62, 63, 68, settings);
@@ -410,12 +507,23 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
             var key = changed.PageRequest.Key with { FaceOrLevel = address.Face, X = address.X, Y = address.Y };
             Assert.True(pool.Execute(changed.PageRequest with
             {
-                Operation = ShadowPageOperation.Invalidate, Key = key, Timestamp = 0.22
+                Operation = ShadowPageOperation.Invalidate, Key = key, Timestamp = uptime + 0.22
             }));
             Assert.Equal(0u, Read(pool.Results, 8)[0]);
         }
         sampler.Sample(pool, changed.WithTemporal(new ShadowTemporalQuery(
-            ShadowProjectionSnapshot.Directional(projection, 0), 0.26,
+            ShadowProjectionSnapshot.Directional(projection, 0), uptime + 0.24,
+            new ShadowTemporalSettings { MaxRenderedAgeSeconds = 0.25, MaxStaleAgeSeconds = 0.1 })));
+        var retained = Read(sampler.Results, 40);
+
+        // The first query proves that unsigned subtraction across the low-word carry still admits recent retained depth.
+        Assert.Equal(0u, retained[1]);
+        Assert.Equal(0x1ffu, retained[3]);
+        Assert.Equal(PatternVisibility(projection, receiver, settings.PageSize, Addresses(retained)),
+            BitConverter.UInt32BitsToSingle(retained[0]));
+
+        sampler.Sample(pool, changed.WithTemporal(new ShadowTemporalQuery(
+            ShadowProjectionSnapshot.Directional(projection, 0), uptime + 0.26,
             new ShadowTemporalSettings { MaxRenderedAgeSeconds = 0.25, MaxStaleAgeSeconds = 0.1 })));
         var expired = Read(sampler.Results, 40);
 
@@ -537,9 +645,10 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
         var settings = Settings();
         using var pool = ShadowPagePool.Create(assets.Api, settings);
         using var sampler = new ShadowSampler(assets.Api);
-        var renderedProjection = new PointShadowProjection(Point, 111, Vector3d.Zero,
+        var renderedPosition = new Vector3d(1_000_000_000.25, -1_000_000_000.5, 500_000_000.125);
+        var renderedProjection = new PointShadowProjection(Point, 111, renderedPosition,
             near: 0.05, far: 30, faceResolution: 128, pageSize: settings.PageSize);
-        var receiver = new Vector3d(0, 0, 10);
+        var receiver = renderedPosition + new Vector3d(0, 0, 10);
         var rendered = ShadowSampleRequest.Point(renderedProjection, receiver, Vector3d.UnitZ,
             51, 53, 59, settings);
         Assert.True(pool.BeginBatch());
@@ -565,9 +674,9 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
             }));
             Assert.Equal(0u, Read(pool.Results, 8)[0]);
         }
-        var movedProjection = new PointShadowProjection(Point, 112, new Vector3d(0.2, 0, 0),
+        var movedProjection = new PointShadowProjection(Point, 112, renderedPosition + new Vector3d(0.2, 0, 0),
             near: 0.05, far: 30, faceResolution: 128, pageSize: settings.PageSize);
-        var withinTolerance = new PointShadowProjection(Point, 112, new Vector3d(0.1, 0, 0),
+        var withinTolerance = new PointShadowProjection(Point, 112, renderedPosition + new Vector3d(0.1, 0, 0),
             near: 0.05, far: 30, faceResolution: 128, pageSize: settings.PageSize);
         var retained = changed.WithTemporal(new ShadowTemporalQuery(
             ShadowProjectionSnapshot.Point(withinTolerance, changed.PageRequest.Key.FaceOrLevel), 0.04,
@@ -800,7 +909,7 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
     /// <summary>Publishes one complete page using the exact face snapshot associated with its virtual identity.</summary>
     private static (int Slot, long Generation, PhysicalPage Physical) PublishDepth(ShadowPagePool pool, ShadowSampleRequest sample,
         (int Face, int X, int Y, float Reference) address, float[] depths,
-        ShadowProjectionSnapshot? projection = null, ShadowBounds? coverage = null)
+        ShadowProjectionSnapshot? projection = null, ShadowBounds? coverage = null, double renderedAt = 0)
     {
         var key = sample.PageRequest.Key with { FaceOrLevel = address.Face, X = address.X, Y = address.Y };
         projection ??= sample.PageRequest.Projection;
@@ -808,7 +917,7 @@ public sealed class ShadowSamplingTests(HeadlessGLFixture fixture) : RenderTestB
             throw new ArgumentException("The page identity must use its matching rendered face snapshot.", nameof(address));
         var page = new ShadowPageRequest(ShadowPageOperation.Allocate, key, coverage ?? sample.Footprint,
             sample.PageRequest.WorldRevision, sample.PageRequest.SceneEpoch, sample.PageRequest.SceneSequence,
-            Projection: projection, Timestamp: sample.PageRequest.Timestamp);
+            Projection: projection, Timestamp: renderedAt);
         if (!pool.Execute(page))
         {
             pool.SealBatch();

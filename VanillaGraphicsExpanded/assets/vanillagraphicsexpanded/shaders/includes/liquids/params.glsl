@@ -1,20 +1,13 @@
 #ifndef VGE_LIQUID_PARAMS
 #define VGE_LIQUID_PARAMS
-#define DYNLIGHTS 100
-#define SHADOWQUALITY 2
 @import "../vge_frame_ubo.glsl"
 @import "../vge_lights_ubo.glsl"
 layout(std140, binding = 28) uniform VgeLiquidFrameParams
 {
-    mat4 toShadowMapSpaceMatrixNear;
-    mat4 toShadowMapSpaceMatrixFar;
     vec4 liquidAnimation;
-    vec4 liquidShadowRanges;
     vec4 liquidPlayer;
     vec4 liquidAtlas;
     vec4 liquidSeason;
-    vec4 liquidSun;
-    vec4 liquidSolar;
     vec4 liquidEnvironment;
     vec4 liquidAerial;
     uint fogSphereCount;
@@ -40,8 +33,6 @@ layout(std140, binding = 14) uniform VgeLiquidDrawParams
 #define waterStillCounter liquidAnimation.x
 #define waterFlowCounter liquidAnimation.y
 #define windWaveCounter liquidAnimation.w
-#define shadowRangeNear liquidShadowRanges.x
-#define shadowRangeFar liquidShadowRanges.y
 #define playerpos liquidPlayer.xyz
 #define blockTextureSize liquidAtlas.xy
 #define textureAtlasSize liquidAtlas.zw
@@ -52,8 +43,6 @@ layout(std140, binding = 14) uniform VgeLiquidDrawParams
 #define seaLevel liquidSeason.y
 #define atlasHeight liquidSeason.z
 #define seasonTemperature liquidSeason.w
-#define vge_atmosphereSunDirection liquidSun.xyz
-#define vge_atmosphereSolar liquidSolar.xyz
 #define vge_atmosphereEnvironment liquidEnvironment.xyz
 #define VGE_ATMOSPHERE_SCATTERING_DIRECTIONS
 #define vge_atmosphereScatteringSun liquidScatteringSun.xyz

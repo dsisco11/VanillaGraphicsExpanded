@@ -3,6 +3,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Tests.Support.Rendering.Uniforms;
 
 namespace VanillaGraphicsExpanded.Tests.Component.Terrain.Fixtures;
 
@@ -38,7 +39,7 @@ internal abstract class TerrainDisplacementNumericalProgram : GpuProgram
         UboPacking.WriteFloat(bytes, 128, 1024f);
         UboPacking.WriteVec2(bytes, 136, 8f, 8f);
         UboPacking.WriteVec2(bytes, 144, 8f, 24f);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
 
     /// <summary>Stages sampled UV, signed amplitude and metric values for bounded height mapping.</summary>
@@ -49,7 +50,7 @@ internal abstract class TerrainDisplacementNumericalProgram : GpuProgram
         UboPacking.WriteVec3(bytes, 160, u, v, amplitude);
         UboPacking.WriteVec2(bytes, 144, 10f, 20f);
         UboPacking.WriteVec2(bytes, 136, 16f, 8f);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
 
     /// <summary>Stages focal metric and fade bounds without introducing a world-camera block.</summary>
@@ -59,7 +60,7 @@ internal abstract class TerrainDisplacementNumericalProgram : GpuProgram
         UboPacking.WriteFloat(bytes, 128, focalPixels);
         UboPacking.WriteVec2(bytes, 136, 8f, 8f);
         UboPacking.WriteVec2(bytes, 144, 8f, 24f);
-        inputs.SetBytes(bytes);
+        inputs.SetPayload(bytes);
     }
     #endregion
 

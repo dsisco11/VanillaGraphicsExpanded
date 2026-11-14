@@ -10,6 +10,13 @@ namespace VanillaGraphicsExpanded.PBR.Materials;
 /// </summary>
 internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
 {
+    #region Public API
+    /// <summary>Byte extent of this concrete std140 layout.</summary>
+    internal const int BlockSize = 528;
+    /// <summary>Declares the immutable byte extent owned by this layout.</summary>
+    public override int SizeBytes => BlockSize;
+    #endregion
+
     public const string BlockName = "VgePbrHeightBakeParamsUBO";
     
     // Offsets for various parameter groups
@@ -34,7 +41,7 @@ internal sealed class PbrHeightBakeParamsUbo : CpuUniformBuffer
     private const int OffsetKernelWeights = 256;         // vec4[16] starting at 256 (256 bytes total)
     // Total size: 512 bytes + 16 for alignment = 528 bytes
 
-    public PbrHeightBakeParamsUbo() : base(528)
+    public PbrHeightBakeParamsUbo() : base()
     {
     }
 

@@ -10,6 +10,9 @@ internal readonly record struct ShadowPageRequest(ShadowPageOperation Operation,
     long Assignment = 0, bool Complete = false, ShadowProjectionSnapshot? Projection = null, double Timestamp = 0,
     long CurrentProjection = 0, bool ReuseCurrent = false)
 {
+    private readonly ShadowBounds region = ShadowCoverageBounds.Canonicalize(Region);
+    /// <summary>Uses the same outward-rounded enclosure for CPU draw preparation and GPU certification.</summary>
+    public ShadowBounds Region { get => region; init => region = ShadowCoverageBounds.Canonicalize(value); }
     #region Public API
     /// <summary>Packs a 512-byte GPU command with retained projection and full 64-bit identity.</summary>
     internal uint[] Pack()
@@ -25,12 +28,11 @@ internal readonly record struct ShadowPageRequest(ShadowPageOperation Operation,
         var w = new uint[128];
         WriteKey(w, Key);
         w[20] = (uint)Operation; Put(w, 21, Assignment); w[27] = Complete ? 1u : 0u;
-        Put(w, 28, BitConverter.DoubleToInt64Bits(Region.MinX)); Put(w, 30, BitConverter.DoubleToInt64Bits(Region.MinY));
-        Put(w, 32, BitConverter.DoubleToInt64Bits(Region.MinZ)); Put(w, 34, BitConverter.DoubleToInt64Bits(Region.MaxX));
-        Put(w, 36, BitConverter.DoubleToInt64Bits(Region.MaxY)); Put(w, 38, BitConverter.DoubleToInt64Bits(Region.MaxZ));
+        ShadowCoverageBounds.Write(w.AsSpan(28, 12), Region);
         Put(w, 40, WorldRevision); Put(w, 42, SceneEpoch); Put(w, 44, SceneSequence);
-        Put(w, 46, BitConverter.DoubleToInt64Bits(Timestamp));
+        ShadowClock.Write(w, 46, Timestamp);
         Projection?.WriteTo(w);
+        ShadowCoordinates.WriteCoverage(w, Region);
         w[125] = ReuseCurrent ? 1u : 0u;
         if(Operation==ShadowPageOperation.ValidateCurrent)
         { if(CurrentProjection<=0)throw new ArgumentOutOfRangeException(nameof(CurrentProjection));Put(w,126,CurrentProjection); }

@@ -35,7 +35,7 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
         var timer = System.Diagnostics.Stopwatch.StartNew();
         // Act: Submit each receiver through production, compare its outputs, then exercise reuse, failure, and resize paths.
         var prepared = scene.Candidate.PrepareBoundaryPipeline()!; timer.Stop();
-        output.WriteLine($"Prepared realization {timer.Elapsed.TotalMilliseconds:F3} ms; single nonstructural production variant; no specialization overrides; DropShadowIntensity controls cascades.");
+        output.WriteLine($"Prepared realization {timer.Elapsed.TotalMilliseconds:F3} ms; single nonstructural production variant; no specialization overrides.");
         Assert.IsType<RHIRenderPassDescription>(scene.Actual.Pass);
         for (int kind = 0; kind < 7; kind++)
         {
@@ -47,18 +47,6 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
             if(kind==2)Assert.True(ImageAssertions.Statistics.Inspect(scene.Actual.Radiance,selection:new(new(0,DirectLightingTargets.EmissiveLayer),0,0,0,scene.Actual.Radiance.Width,scene.Actual.Radiance.Height,1)).Maximum>.01f);
             AssertHostile(width, height, drawFbo, readFbo);
             Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
-            if (kind is 3 or 6)
-            {
-                var selection=new RHITextureRegion(new(0,DirectLightingTargets.DiffuseLayer),0,0,0,scene.Actual.Radiance.Width,scene.Actual.Radiance.Height,1);
-                using var shadowed=new GpuImageSnapshot(scene.Actual.Radiance,selection);
-                scene.Uniforms.DropShadowIntensity = 0;
-                Assert.True(scene.Candidate.RenderLighting(scene.Actual));
-                using var unshadowed=new GpuImageSnapshot(scene.Actual.Radiance,selection);
-                var brighter=ImageAssertions.Predicates.Predicate(unshadowed.Texture, LightingPredicates.DirectLightingSubmissionTests_ProductionMatchesReferenceAcrossFrozenReceivers,shadowed.Texture);
-                brighter.AssertEqual();Assert.True(brighter.MatchingTexels>0);
-                scene.Uniforms.DropShadowIntensity = 1;
-                Assert.True(scene.Candidate.RenderLighting(scene.Actual));
-            }
         }
         scene.Neutral();
         Assert.True(scene.Candidate.RenderLighting());

@@ -166,7 +166,7 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
                     displayProgram.BloomImage = zero!;
                     displayProgram.ShaftImage = zero!;
                     displayProgram.ExposureBuffer = exposure;
-                    displayProgram.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), Vector4.Zero);
+                    displayProgram.Capture(false, new(new(1, 1, 1, 0), 0, 0, 0, 0, 0, 0), 0, false, 0);
                     using var draw = new PostprocessDraw();
                     var displayPass = displayTarget!.PostprocessPass();
                     var displayPipeline = draw.Prepare(displayProgram, displayPass);

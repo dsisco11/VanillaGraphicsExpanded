@@ -25,7 +25,7 @@ internal static class AtmosphereNightLighting
         return Math.Clamp((fit - newMoon) / (1 - newMoon), 0, 1);
     }
 
-    /// <summary>Publishes both scattering directions while selecting only one direct celestial emitter.</summary>
+    /// <summary>Publishes independent solar and lunar direct illumination alongside their combined scattering.</summary>
     internal static AtmosphereLighting Combine(AtmosphereLighting solar, AtmosphereLighting moon,
         AtmosphereCelestialInputs sources, float clouds)
     {

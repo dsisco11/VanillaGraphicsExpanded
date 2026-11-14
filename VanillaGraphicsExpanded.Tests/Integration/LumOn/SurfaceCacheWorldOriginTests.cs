@@ -1,11 +1,14 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
+using System.Numerics;
 using Moq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.API.Client;
+using Vintagestory.API.MathTools;
 
 using VanillaGraphicsExpanded.Tests.Support.Lighting;
 using VanillaGraphicsExpanded.Tests.Support.GPU.Shaders;
@@ -46,10 +49,9 @@ public sealed class SurfaceCacheWorldOriginTests(HeadlessGLFixture fixture) : Re
             events.Render(EnumRenderStage.Before);
             events.Render(EnumRenderStage.Opaque);
             // Assert: Integer origin and fractional remainder follow the camera origin, not animated translations.
-            Assert.Equal(new int[] { chunk, chunk, chunk, 0 },
-                MemoryMarshal.Cast<byte, int>(VgeFrameRenderer.Current.Bytes.Slice(512, 16)).ToArray());
-            Assert.Equal(new float[] { (float)remainder, (float)remainder, (float)remainder, 0 },
-                MemoryMarshal.Cast<byte, float>(VgeFrameRenderer.Current.Bytes.Slice(528, 16)).ToArray());
+            Assert.Equal(new VectorInt3(chunk, chunk, chunk), VgeFrameRenderer.Current.RenderOriginChunk);
+            Assert.Equal(new Vector3((float)remainder, (float)remainder, (float)remainder),
+                VgeFrameRenderer.Current.RenderOriginRemainder);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, VgeFrameRenderer.Current.Capture()));
             GL.GetInteger(GetIndexedPName.UniformBufferBinding, GpuBindingRegistry.Ubo.Frame, out int buffer);
             GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.Frame, out int offset);

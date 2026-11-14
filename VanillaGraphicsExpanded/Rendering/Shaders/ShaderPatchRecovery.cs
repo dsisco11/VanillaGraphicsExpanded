@@ -28,13 +28,14 @@ internal static class ShaderPatchRecovery
 
     #region Recovery
     /// <summary>Restores all stage interfaces together and retries only this program, at most once per source load.</summary>
-    internal static bool TryRecover(ShaderProgram program, Func<bool> compile, Action<string> report, out bool result)
+    internal static bool TryRecover(ShaderProgram program, Func<bool> compile, Action<string> report, out bool result,
+        Action<ShaderProgram>? prepare = null)
     {
         result = false;
         if (!originals.TryGetValue(program, out var source)) return false;
         // Consume before retry: nested compilation must never recursively recover a broken baseline.
         originals.Remove(program);
-        report("Patched engine compilation failed; restoring the original in-memory source and retrying this program.");
+        report("Patched engine compilation failed; restoring the retained source for one prepared retry.");
         // The engine may query uniform locations after compilation fails, leaving GL errors
         // behind. Report those at the failed compilation boundary before a successful retry
         // can carry them into an unrelated render-stage error check.
@@ -51,8 +52,11 @@ internal static class ShaderPatchRecovery
         if (program.VertexShader is not null) program.VertexShader.Code = source.Vertex!;
         if (program.FragmentShader is not null) program.FragmentShader.Code = source.Fragment!;
         if (program.GeometryShader is not null) program.GeometryShader.Code = source.Geometry!;
+        // Production retries reapply the authoritative patch transaction before compilation.
+        // The consumed recovery record remains consumed even when preparation fails.
+        prepare?.Invoke(program);
         result = compile();
-        if (!result) report("Original engine shader compilation also failed; no further retry will be attempted.");
+        if (!result) report("Prepared engine shader retry also failed; no further retry will be attempted.");
         return true;
     }
 

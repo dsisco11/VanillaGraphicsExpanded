@@ -160,7 +160,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         history.UploadData(new[] { 6f, 0f, metered, 1f, 20f, 1f, 0f, 0f });
         using var grading = new ColorGradingLut();
         Vector4 controls = new(1, 1, 1, 0);
-        var lookup = grading.Prepare(Programs.Api, controls);
+        var lookup = grading.Prepare(Programs.Api, new(controls.X, controls.Y, controls.Z, controls.W));
         using var global = Final(source, glare, empty, baseImage, history, lookup, Candidate() with { Enabled = false }, automatic);
         using var local = Final(source, glare, empty, baseImage, history, lookup, Candidate(), automatic);
         // Act and assert: Compare local/global composition to independent exposure math and ensure invalid meter metadata is irrelevant.
@@ -199,7 +199,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         using var history = ExposureTestStorage.Create(6);
         using var grading = new ColorGradingLut();
         Vector4 controls = new(1, 1, 1, 0);
-        var lookup = grading.Prepare(Programs.Api, controls);
+        var lookup = grading.Prepare(Programs.Api, new(controls.X, controls.Y, controls.Z, controls.W));
         // Act and assert: Compose each receiver and verify local correction affects scene/shafts while source-corrected bloom is unchanged.
         using var actual = Final(scene, bloom, shafts, spatial, history, lookup, Candidate(), automatic);
         for (int pixel = 0; pixel < 2; pixel++)
@@ -229,7 +229,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         history.UploadData(new[] { 6f, 0f, metered, 1f, 10.26f, 1f, 0f, 0f });
         using var grading = new ColorGradingLut();
         Vector4 controls = new(1, 1, 1.111798286f, .143282309f);
-        var lookup = grading.Prepare(Programs.Api, controls);
+        var lookup = grading.Prepare(Programs.Api, new(controls.X, controls.Y, controls.Z, controls.W));
         using var global = Final(source, zero, zero, baseImage, history, lookup, Candidate() with { Enabled = false }, true, controls);
         using var local = Final(source, zero, zero, baseImage, history, lookup, Candidate(), true, controls);
         // Act and assert: Compare captured-input output against the unchanged grading LUT and independently computed shadow lift.
@@ -300,7 +300,8 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         program.FrameInputs = camera; program.SceneImage = source; program.BloomImage = glare; program.ShaftImage = empty;
         program.GradingLookup = lookup; program.ExposureBuffer = history;
         program.LocalBase = localBase;
-        program.Capture(false, new(controls ?? new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(6, automatic ? 1 : 0, 0, MathF.Log2(.18f)));
+        var grade = controls ?? new(1, 1, 1, 0);
+        program.Capture(false, new(new(grade.X, grade.Y, grade.Z, grade.W), 0, 0, 0, 0, 0, 0), 6, automatic, MathF.Log2(.18f));
         program.CaptureLocal(settings);
         var pipeline = draw.Prepare(program,target.PostprocessPass());
         {

@@ -12,13 +12,13 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 [ShaderUse("Contract",ShaderStageKind.Compute,nameof(Operation))]
 internal sealed partial class CloudVolumePublishProgram:GpuComputeProgram,ICloudVolumePublishBindings
 {
-    private readonly PackedUniformBuffer inputs;
+    private readonly CloudVolumePublishParameters inputs;
     #region Public API
     /// <summary>Selects argument initialization, metadata compaction or image copying structurally.</summary>
     [ShaderOption("VGE_VOLUME_PUBLISH_OPERATION",0,Domain=new object[]{0,1,2})]
     internal static partial ShaderOption<int> Operation {get;}
     /// <summary>Loads the publication executable without borrowing native weather resources.</summary>
-    internal static CloudVolumePublishProgram Create(ICoreAPI api,int operation,PackedUniformBuffer shared)
+    internal static CloudVolumePublishProgram Create(ICoreAPI api,int operation,CloudVolumePublishParameters shared)
     {
         var layout=new GpuProgramLayout();layout.RegisterContract(Contract.Stages[0].Bindings);
         if(!ComputeShaderAsset.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation),out var pipeline,out string log,
@@ -28,13 +28,13 @@ internal sealed partial class CloudVolumePublishProgram:GpuComputeProgram,ICloud
     /// <summary>Captures complete block extents and exceptional full-copy channels.</summary>
     internal void Capture(CloudVolumeDomain domain,int full)
     {
-        RequireInputMutation();Span<byte> data=stackalloc byte[16];
-        UboPacking.WriteIVec4(data,0,domain.Size,domain.BlocksX,domain.BlocksY,full);inputs.SetBytes(data);
+        RequireInputMutation();
+        inputs.Capture(domain, full);
     }
     #endregion
     #region Private
     /// <summary>Borrows the owner's shared publication record for one compiled operation.</summary>
-    private CloudVolumePublishProgram(ComputeShaderAsset pipeline,PackedUniformBuffer shared):base(pipeline)=>inputs=shared;
+    private CloudVolumePublishProgram(ComputeShaderAsset pipeline,CloudVolumePublishParameters shared):base(pipeline)=>inputs=shared;
     /// <summary>Publishes the frozen copy mask.</summary>
     CpuUniformBuffer ICloudVolumePublishBindings.Inputs=>inputs;
     #endregion
